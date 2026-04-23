@@ -1,0 +1,40 @@
+name: "Generic Incident"
+description: "Default template for generic security incidents"
+version: "1.0"
+tags:
+  - incident
+severity: medium
+tlp: "TLP:AMBER"
+metadata:
+  category: generic
+  classification: "TLP:AMBER"
+
+executive_summary_template: |
+  On [DATE], [ORGANIZATION] identified a security incident affecting [AFFECTED_SYSTEMS].
+  The incident was detected at [DETECTION_TIME] via [DETECTION_SOURCE].
+  Initial analysis indicates [BRIEF_DESCRIPTION].
+  Containment measures were applied at [CONTAINMENT_TIME].
+
+report_sections:
+  - name: "Incident Overview"
+    template: |
+      Provide a detailed description of the incident, including how it was discovered,
+      the initial indicators observed, and the scope of impact.
+
+  - name: "Technical Analysis"
+    template: |
+      Detail the technical findings of the investigation, including attack vectors,
+      tools/techniques used (map to MITRE ATT&CK where applicable), and the kill chain.
+
+  - name: "Containment & Remediation"
+    template: |
+      Describe the containment steps taken and remediation actions performed.
+      Include any changes to network rules, account resets, or system rebuilds.
+
+  - name: "Lessons Learned"
+    template: |
+      Summarize what could be improved in detection, response, and prevention.
+
+  - name: "Recommendations"
+    template: |
+      List actionable recommendations to prevent recurrence.

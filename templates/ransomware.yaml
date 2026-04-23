@@ -1,0 +1,67 @@
+name: "Ransomware Incident"
+description: "Template for ransomware incidents — covers encryption, lateral movement, and recovery"
+version: "1.0"
+tags:
+  - ransomware
+  - malware
+  - encryption
+  - data-exfiltration
+severity: critical
+tlp: "TLP:RED"
+metadata:
+  category: ransomware
+  classification: "TLP:RED"
+  mitre_tactics:
+    - "TA0001 - Initial Access"
+    - "TA0002 - Execution"
+    - "TA0003 - Persistence"
+    - "TA0008 - Lateral Movement"
+    - "TA0010 - Exfiltration"
+    - "TA0040 - Impact"
+
+executive_summary_template: |
+  On [DATE], [ORGANIZATION] was targeted by a ransomware attack attributed to [THREAT_ACTOR/UNKNOWN].
+  The attack resulted in the encryption of [NUMBER] systems across [AFFECTED_DEPARTMENTS/SITES].
+  Initial access was gained via [INITIAL_ACCESS_VECTOR] on [INITIAL_ACCESS_DATE].
+  [DATA_EXFILTRATION: Data exfiltration was observed prior to encryption / No data exfiltration was detected].
+  Incident response was initiated at [IR_START_TIME]. Ransom demand: [AMOUNT/UNKNOWN].
+
+report_sections:
+  - name: "Incident Overview"
+    template: |
+      Describe when and how the ransomware was discovered. Include the encryption extension,
+      ransom note content, and affected file shares or systems.
+
+  - name: "Initial Access"
+    template: |
+      Detail the initial access vector (phishing, exposed RDP, vulnerability exploitation, etc.).
+      Include timestamps, source IPs, and any credentials used.
+
+  - name: "Lateral Movement & Persistence"
+    template: |
+      Describe how the attacker moved through the network. Include tools observed
+      (Cobalt Strike, Mimikatz, PsExec, etc.) and persistence mechanisms established.
+
+  - name: "Data Exfiltration"
+    template: |
+      If applicable, detail what data was exfiltrated, when, to which destinations,
+      and the estimated volume. Note any double-extortion indicators.
+
+  - name: "Encryption & Impact"
+    template: |
+      List all affected systems, encrypted shares, and estimated data loss.
+      Include business impact (downtime, affected services, financial impact).
+
+  - name: "Containment & Remediation"
+    template: |
+      Describe network isolation steps, account resets, backup restoration process,
+      and timeline of recovery operations.
+
+  - name: "Recommendations"
+    template: |
+      - Implement/review MFA on all remote access points
+      - Review and harden backup strategy (3-2-1 rule, offline copies)
+      - Patch management process review
+      - Network segmentation improvements
+      - EDR coverage gaps remediation
+      - User awareness training

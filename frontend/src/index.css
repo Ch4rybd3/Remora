@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background-color: #0B121F;
+    color: white;
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0B121F;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #A3B3BC40;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #A3B3BC80;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-bg-card border border-white/5 rounded-lg;
+  }
+
+  .btn-primary {
+    @apply bg-accent-green text-bg-primary font-semibold px-4 py-2 rounded-md
+           hover:bg-accent-greenDim transition-colors text-sm;
+  }
+
+  .btn-secondary {
+    @apply bg-white/5 text-white border border-white/10 px-4 py-2 rounded-md
+           hover:bg-white/10 transition-colors text-sm;
+  }
+
+  .btn-danger {
+    @apply bg-severity-critical/10 text-severity-critical border border-severity-critical/20
+           px-4 py-2 rounded-md hover:bg-severity-critical/20 transition-colors text-sm;
+  }
+
+  .input {
+    @apply w-full bg-bg-primary border border-white/10 rounded-md px-3 py-2 text-white text-sm
+           placeholder-accent-muted/50 focus:outline-none focus:border-accent-green/50
+           focus:ring-1 focus:ring-accent-green/20 transition-colors;
+  }
+
+  .label {
+    @apply block text-xs font-medium text-accent-muted mb-1 uppercase tracking-wide;
+  }
+
+  .tab-active {
+    @apply border-b-2 border-accent-green text-accent-green;
+  }
+
+  .tab-inactive {
+    @apply border-b-2 border-transparent text-accent-muted hover:text-white hover:border-white/20;
+  }
+}

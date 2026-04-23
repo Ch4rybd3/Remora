@@ -1,0 +1,81 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from typing import List
+from datetime import datetime, timezone
+
+from ..database import get_db
+from ..models.case import Case, CaseStatus
+from ..schemas.case import CaseCreate, CaseRead, CaseUpdate, CaseSummary
+from ..services.template_service import TemplateService
+
+router = APIRouter(prefix="/cases", tags=["cases"])
+
+
+@router.get("/", response_model=List[CaseSummary])
+def list_cases(db: Session = Depends(get_db)):
+    cases = db.query(Case).order_by(Case.updated_at.desc()).all()
+    result = []
+    for case in cases:
+        result.append(CaseSummary(
+            id=case.id,
+            title=case.title,
+            status=case.status,
+            severity=case.severity,
+            tags=case.tags,
+            assigned_to=case.assigned_to,
+            tlp=case.tlp,
+            created_at=case.created_at,
+            updated_at=case.updated_at,
+            ioc_count=len(case.iocs),
+            asset_count=len(case.assets),
+            evidence_count=len(case.evidences),
+            timeline_count=len(case.timeline),
+        ))
+    return result
+
+
+@router.post("/", response_model=CaseRead, status_code=status.HTTP_201_CREATED)
+def create_case(payload: CaseCreate, db: Session = Depends(get_db)):
+    data = payload.model_dump()
+    if data.get("template_id") and not data.get("executive_summary"):
+        tpl = TemplateService().get_template(data["template_id"])
+        if tpl and tpl.get("executive_summary_template"):
+            data["executive_summary"] = tpl["executive_summary_template"]
+    case = Case(**data)
+    db.add(case)
+    db.commit()
+    db.refresh(case)
+    return case
+
+
+@router.get("/{case_id}", response_model=CaseRead)
+def get_case(case_id: str, db: Session = Depends(get_db)):
+    case = db.query(Case).filter(Case.id == case_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return case
+
+
+@router.patch("/{case_id}", response_model=CaseRead)
+def update_case(case_id: str, payload: CaseUpdate, db: Session = Depends(get_db)):
+    case = db.query(Case).filter(Case.id == case_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+    updates = payload.model_dump(exclude_unset=True)
+    for key, value in updates.items():
+        setattr(case, key, value)
+    if "status" in updates and updates["status"] == CaseStatus.closed:
+        case.closed_at = datetime.now(timezone.utc)
+    case.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(case)
+    return case
+
+
+@router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_case(case_id: str, db: Session = Depends(get_db)):
+    case = db.query(Case).filter(Case.id == case_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+    db.delete(case)
+    db.commit()

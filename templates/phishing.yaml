@@ -1,0 +1,52 @@
+name: "Phishing / BEC"
+description: "Template for phishing campaigns and Business Email Compromise"
+version: "1.0"
+tags:
+  - phishing
+  - bec
+  - social-engineering
+  - email
+severity: high
+tlp: "TLP:AMBER"
+metadata:
+  category: phishing
+  classification: "TLP:AMBER"
+  mitre_tactics:
+    - "TA0001 - Initial Access"
+    - "TA0006 - Credential Access"
+    - "TA0009 - Collection"
+
+executive_summary_template: |
+  On [DATE], [ORGANIZATION] identified a phishing campaign targeting [TARGETS].
+  [NUMBER] users received malicious emails from [SENDER_DOMAIN].
+  [NUMBER_CLICKED] users clicked on the malicious link/attachment.
+  [CREDENTIAL_COMPROMISE: Credentials were compromised / No credentials were confirmed compromised].
+
+report_sections:
+  - name: "Email Analysis"
+    template: |
+      Provide details of the phishing email: subject, sender, spoofed domains,
+      embedded URLs, and attachment analysis (hashes, payload behavior).
+
+  - name: "User Impact"
+    template: |
+      List affected users who clicked or submitted credentials. Include account activity
+      review findings (mail forwarding rules, OAuth grants, login anomalies).
+
+  - name: "Infrastructure"
+    template: |
+      Document the phishing infrastructure: domains, IPs, hosting providers,
+      certificates, and any C2 infrastructure identified.
+
+  - name: "Containment"
+    template: |
+      Describe email quarantine actions, blocked domains/IPs, account resets,
+      revoked sessions, and removed OAuth grants.
+
+  - name: "Recommendations"
+    template: |
+      - Enable MFA on all accounts
+      - Review and enforce DMARC/DKIM/SPF policies
+      - Audit OAuth application permissions
+      - User awareness training refresh
+      - Enable conditional access / impossible travel alerts
