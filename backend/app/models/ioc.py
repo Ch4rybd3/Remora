@@ -8,16 +8,27 @@ from ..database import Base
 
 
 class IOCType(str, enum.Enum):
+    # Network
     ip = "ip"
     domain = "domain"
     url = "url"
+    asn = "asn"
+    # File
     hash_md5 = "hash_md5"
     hash_sha1 = "hash_sha1"
     hash_sha256 = "hash_sha256"
-    email = "email"
     filename = "filename"
+    certificate = "certificate"
+    # Email
+    email = "email"
+    email_subject = "email_subject"
+    sender_name = "sender_name"
+    # System
     registry = "registry"
     user_agent = "user_agent"
+    # Identity
+    phone = "phone"
+    # Other
     other = "other"
 
 

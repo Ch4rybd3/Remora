@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Edit2, Save, X, Trash2 } from 'lucide-react'
@@ -9,26 +9,25 @@ import { SeverityBadge, StatusBadge, TLPBadge, Tag } from '../components/ui/Badg
 import TagInput, { type InputTag } from '../components/ui/TagInput'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import SummaryTab from '../components/case/tabs/SummaryTab'
-import NotesTab from '../components/case/tabs/NotesTab'
+import PlaybookNotesTab from '../components/case/tabs/PlaybookNotesTab'
 import ReportTab from '../components/case/tabs/ReportTab'
 import IOCsTab from '../components/case/tabs/IOCsTab'
 import AssetsTab from '../components/case/tabs/AssetsTab'
 import EvidencesTab from '../components/case/tabs/EvidencesTab'
 import TimelineTab from '../components/case/tabs/TimelineTab'
-import PlaybookTab from '../components/case/tabs/PlaybookTab'
+import { useCurrentCase } from '../context/CurrentCaseContext'
 import { format } from 'date-fns'
 
-type Tab = 'summary' | 'notes' | 'report' | 'iocs' | 'assets' | 'evidences' | 'timeline' | 'playbooks'
+type Tab = 'summary' | 'playbook' | 'report' | 'iocs' | 'assets' | 'evidences' | 'timeline'
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'summary', label: 'Executive Summary' },
-  { id: 'notes', label: 'Quick Notes' },
-  { id: 'report', label: 'Report' },
-  { id: 'iocs', label: 'IOCs' },
-  { id: 'assets', label: 'Assets' },
+  { id: 'summary',   label: 'Executive Summary' },
+  { id: 'playbook',  label: 'Playbook' },
+  { id: 'report',    label: 'Report' },
+  { id: 'iocs',      label: 'IOCs' },
+  { id: 'assets',    label: 'Assets' },
   { id: 'evidences', label: 'Evidence' },
-  { id: 'timeline', label: 'Timeline' },
-  { id: 'playbooks', label: 'Playbook' },
+  { id: 'timeline',  label: 'Timeline' },
 ]
 
 export default function CaseDetail() {
@@ -48,11 +47,18 @@ export default function CaseDetail() {
     badge: u.role, badgeColor: USER_BADGE,
   })), [users])
 
+  const { setCurrentCase } = useCurrentCase()
+
   const { data: case_, isLoading } = useQuery({
     queryKey: ['case', id],
     queryFn: () => casesApi.get(id!),
     enabled: !!id,
   })
+
+  // Définit ce case comme "case courant" dès qu'on le charge
+  useEffect(() => {
+    if (case_) setCurrentCase({ id: case_.id, title: case_.title })
+  }, [case_?.id, case_?.title])
 
   const update = useMutation({
     mutationFn: (data: Partial<Case>) => casesApi.update(id!, {
@@ -175,16 +181,23 @@ export default function CaseDetail() {
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-auto p-6">
-        <div className="max-w-5xl mx-auto">
-          {activeTab === 'summary' && <SummaryTab case_={case_} />}
-          {activeTab === 'notes' && <NotesTab case_={case_} />}
-          {activeTab === 'report' && <ReportTab case_={case_} />}
-          {activeTab === 'iocs' && <IOCsTab caseId={case_.id} />}
-          {activeTab === 'assets' && <AssetsTab caseId={case_.id} />}
+      <div className="flex-1 overflow-hidden">
+        <div className="h-full overflow-auto p-6">
+          {activeTab === 'playbook' && (
+            <PlaybookNotesTab caseId={case_.id} case_={case_} />
+          )}
+          {/* Text-heavy tabs: capped width for readability */}
+          {(activeTab === 'summary' || activeTab === 'report') && (
+            <div className="max-w-4xl mx-auto">
+              {activeTab === 'summary' && <SummaryTab case_={case_} />}
+              {activeTab === 'report'  && <ReportTab case_={case_} />}
+            </div>
+          )}
+          {/* Data tabs: full width */}
+          {activeTab === 'iocs'      && <IOCsTab caseId={case_.id} />}
+          {activeTab === 'assets'    && <AssetsTab caseId={case_.id} />}
           {activeTab === 'evidences' && <EvidencesTab caseId={case_.id} />}
-          {activeTab === 'timeline' && <TimelineTab caseId={case_.id} />}
-          {activeTab === 'playbooks' && <PlaybookTab caseId={case_.id} />}
+          {activeTab === 'timeline'  && <TimelineTab caseId={case_.id} />}
         </div>
       </div>
 

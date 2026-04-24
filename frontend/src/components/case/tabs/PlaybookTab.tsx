@@ -119,7 +119,7 @@ export default function PlaybookTab({ caseId }: Props) {
               style={{ background: '#0B121F' }}
             >
               <Background color="#1a2535" gap={20} />
-              <Controls showInteractive={false} style={{ background: '#111b2b', border: '1px solid rgba(255,255,255,0.1)' }} />
+              <Controls showInteractive={false} />
             </ReactFlow>
           </div>
 

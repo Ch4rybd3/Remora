@@ -28,6 +28,7 @@ export interface Playbook {
 export interface StepState {
   done: boolean
   comment: string
+  notes: string
   done_at: string | null
 }
 
@@ -55,6 +56,6 @@ export const playbooksApi = {
     api.post<CasePlaybook>(`/cases/${caseId}/playbooks`, { playbook_id: playbookId }).then(r => r.data),
   detachPlaybook: (caseId: string, cpId: string) =>
     api.delete(`/cases/${caseId}/playbooks/${cpId}`),
-  updateStep: (caseId: string, cpId: string, nodeId: string, done: boolean, comment: string) =>
-    api.patch<CasePlaybook>(`/cases/${caseId}/playbooks/${cpId}/steps/${nodeId}`, { done, comment }).then(r => r.data),
+  updateStep: (caseId: string, cpId: string, nodeId: string, done: boolean, comment: string, notes: string = '') =>
+    api.patch<CasePlaybook>(`/cases/${caseId}/playbooks/${cpId}/steps/${nodeId}`, { done, comment, notes }).then(r => r.data),
 }

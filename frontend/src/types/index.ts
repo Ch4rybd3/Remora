@@ -27,9 +27,18 @@ export interface Case extends CaseSummary {
 }
 
 export type IOCType =
-  | 'ip' | 'domain' | 'url'
-  | 'hash_md5' | 'hash_sha1' | 'hash_sha256'
-  | 'email' | 'filename' | 'registry' | 'user_agent' | 'other'
+  // Network
+  | 'ip' | 'domain' | 'url' | 'asn'
+  // File
+  | 'hash_md5' | 'hash_sha1' | 'hash_sha256' | 'filename' | 'certificate'
+  // Email
+  | 'email' | 'email_subject' | 'sender_name'
+  // System
+  | 'registry' | 'user_agent'
+  // Identity
+  | 'phone'
+  // Other
+  | 'other'
 
 export type IOCConfidence = 'low' | 'medium' | 'high'
 
@@ -70,11 +79,22 @@ export interface Asset {
   created_at: string
 }
 
+export type EvidenceType =
+  | 'malware' | 'artifact' | 'log' | 'memory_dump'
+  | 'disk_image' | 'network_capture' | 'document' | 'report' | 'other'
+
+export type AcquisitionMethod =
+  | 'manual' | 'forensic_copy' | 'live_acquisition'
+  | 'logical_copy' | 'remote_collection' | 'other'
+
 export interface Evidence {
   id: string
   case_id: string
   name: string
   description: string
+  evidence_type: EvidenceType
+  source_location: string
+  acquisition_method: AcquisitionMethod
   original_filename: string
   file_size: number
   mime_type: string

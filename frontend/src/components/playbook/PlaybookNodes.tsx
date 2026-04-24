@@ -42,20 +42,43 @@ export function StepNode({ data, selected }: NodeProps) {
   )
 }
 
+// Dimensions multiples de 20px → alignement parfait sur la grille (snapGrid=[20,20])
+const DIAMOND_W = 160  // 8 cellules
+const DIAMOND_H = 80   // 4 cellules
+
 export function DecisionNode({ data, selected }: NodeProps) {
   const d = data as NodeData
+  const cx = DIAMOND_W / 2  // 80
+  const cy = DIAMOND_H / 2  // 40
+  // Sommets exactement aux bords de la bounding box — pas de padding interne
+  const points = `${cx},0 ${DIAMOND_W},${cy} ${cx},${DIAMOND_H} 0,${cy}`
+
   return (
-    <div className="relative flex items-center justify-center" style={{ width: 160, height: 80 }}>
+    <div style={{ width: DIAMOND_W, height: DIAMOND_H }} className="relative">
       <Handle type="target" position={Position.Top} className="!bg-severity-medium !border-severity-medium" />
-      <div
-        className={`absolute inset-0 border-2 transition-colors ${selected ? 'border-severity-medium' : 'border-severity-medium/50'}`}
-        style={{ transform: 'rotate(45deg)', borderRadius: 4, background: 'rgba(255,175,0,0.08)' }}
-      />
-      <div className="relative text-center px-6">
-        <p className="text-[11px] font-semibold text-severity-medium leading-snug">{d.label}</p>
+
+      <svg
+        width={DIAMOND_W}
+        height={DIAMOND_H}
+        style={{ overflow: 'visible' }}   /* évite le clip du stroke sur les bords */
+        className={`absolute inset-0 transition-colors ${selected ? 'text-severity-medium' : 'text-severity-medium/40'}`}
+      >
+        <polygon
+          points={points}
+          fill="rgba(255,175,0,0.07)"
+          stroke="currentColor"
+          strokeWidth="1.5"
+        />
+      </svg>
+
+      <div className="absolute inset-0 flex items-center justify-center px-8 pointer-events-none">
+        <p className="text-[11px] font-semibold text-severity-medium leading-snug text-center">
+          {d.label}
+        </p>
       </div>
-      <Handle type="source" position={Position.Bottom} id="yes" className="!bg-accent-green !border-accent-green" style={{ left: '30%' }} />
-      <Handle type="source" position={Position.Right} id="no" className="!bg-severity-critical !border-severity-critical" />
+
+      <Handle type="source" position={Position.Bottom} id="yes" className="!bg-accent-green !border-accent-green" title="Yes" />
+      <Handle type="source" position={Position.Right} id="no" className="!bg-severity-critical !border-severity-critical" title="No" />
     </div>
   )
 }

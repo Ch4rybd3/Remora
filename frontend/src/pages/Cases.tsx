@@ -5,12 +5,14 @@ import { Plus, Search, FolderOpen } from 'lucide-react'
 import { casesApi } from '../api/cases'
 import { templatesApi } from '../api/templates'
 import { usersApi } from '../api/auth'
+import { playbooksApi } from '../api/playbooks'
 import { useAuth } from '../context/AuthContext'
 import type { Case, CaseSeverity, CaseStatus } from '../types'
 import { SeverityBadge, StatusBadge, TLPBadge, Tag } from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import EmptyState from '../components/ui/EmptyState'
 import TagInput, { type InputTag } from '../components/ui/TagInput'
+import { GitBranch } from 'lucide-react'
 import { format } from 'date-fns'
 
 const USER_BADGE = 'bg-blue-500/10 text-blue-400 border-blue-500/20'
@@ -40,6 +42,13 @@ export default function Cases() {
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState<Partial<Case>>(empty())
   const [assigneeTags, setAssigneeTags] = useState<InputTag[]>([])
+  const [selectedPlaybooks, setSelectedPlaybooks] = useState<string[]>([])
+
+  const { data: allPlaybooks = [] } = useQuery({
+    queryKey: ['playbooks'],
+    queryFn: playbooksApi.list,
+    enabled: modalOpen,
+  })
 
   const userSuggestions = useMemo(() => users.filter(u => u.is_active).map(u => ({
     value: u.username,
@@ -52,11 +61,16 @@ export default function Cases() {
   const openModal = () => {
     setForm(empty())
     setAssigneeTags(me ? [{ value: me.username, badgeColor: USER_BADGE }] : [])
+    setSelectedPlaybooks([])
     setModalOpen(true)
   }
 
   const create = useMutation({
-    mutationFn: () => casesApi.create({ ...form, assigned_to: fromAssigneeTags(assigneeTags) }),
+    mutationFn: async () => {
+      const c = await casesApi.create({ ...form, assigned_to: fromAssigneeTags(assigneeTags) })
+      await Promise.all(selectedPlaybooks.map(pbId => playbooksApi.attachPlaybook(c.id, pbId)))
+      return c
+    },
     onSuccess: (c) => { qc.invalidateQueries({ queryKey: ['cases'] }); setModalOpen(false); navigate(`/cases/${c.id}`) },
   })
 
@@ -233,6 +247,38 @@ export default function Cases() {
             <label className="label">Description</label>
             <textarea className="input resize-none h-24" placeholder="Brief description of the incident…" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
           </div>
+          {/* Playbook selection */}
+          {allPlaybooks.length > 0 && (
+            <div>
+              <label className="label flex items-center gap-1.5">
+                <GitBranch size={11} /> Playbooks
+                <span className="normal-case font-normal text-accent-muted/50">(optionnel)</span>
+              </label>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {allPlaybooks.map(pb => {
+                  const selected = selectedPlaybooks.includes(pb.id)
+                  return (
+                    <button
+                      key={pb.id}
+                      type="button"
+                      onClick={() => setSelectedPlaybooks(prev =>
+                        selected ? prev.filter(id => id !== pb.id) : [...prev, pb.id]
+                      )}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded border text-xs transition-colors ${
+                        selected
+                          ? 'bg-accent-green/10 text-accent-green border-accent-green/30'
+                          : 'bg-white/5 text-accent-muted border-white/10 hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      <GitBranch size={10} />
+                      {pb.name}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-end gap-3 pt-2">
             <button className="btn-secondary" onClick={() => setModalOpen(false)}>Cancel</button>
             <button className="btn-primary" onClick={() => create.mutate()} disabled={!form.title || create.isPending}>

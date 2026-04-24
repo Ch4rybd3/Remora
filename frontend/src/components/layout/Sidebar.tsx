@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, FolderOpen, FileText, Users, LogOut, GitBranch } from 'lucide-react'
+import { LayoutDashboard, FolderOpen, FileText, Users, LogOut, GitBranch, Mail } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
 const ROLE_COLORS: Record<string, string> = {
@@ -8,16 +8,76 @@ const ROLE_COLORS: Record<string, string> = {
   analyst: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
 }
 
+interface NavItem {
+  to: string
+  icon: React.ElementType
+  label: string
+}
+
+interface NavSection {
+  heading: string
+  items: NavItem[]
+}
+
+function SectionHeading({ label }: { label: string }) {
+  return (
+    <p className="px-3 pt-4 pb-1 text-[9px] font-semibold tracking-widest uppercase text-accent-muted/40 select-none">
+      {label}
+    </p>
+  )
+}
+
+function NavItem({ to, icon: Icon, label }: NavItem) {
+  return (
+    <NavLink
+      to={to}
+      end={to === '/'}
+      className={({ isActive }) =>
+        `flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
+          isActive
+            ? 'bg-accent-green/10 text-accent-green'
+            : 'text-accent-muted hover:text-white hover:bg-white/5'
+        }`
+      }
+    >
+      <Icon size={16} />
+      {label}
+    </NavLink>
+  )
+}
+
 export default function Sidebar() {
   const { user, logout, isAdmin } = useAuth()
   const navigate = useNavigate()
 
-  const nav = [
-    { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/cases', icon: FolderOpen, label: 'Cases' },
-    { to: '/templates', icon: FileText, label: 'Templates' },
-    { to: '/playbooks', icon: GitBranch, label: 'Playbooks' },
-    ...(isAdmin ? [{ to: '/users', icon: Users, label: 'Utilisateurs' }] : []),
+  const sections: NavSection[] = [
+    {
+      heading: 'Home',
+      items: [
+        { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+        { to: '/cases', icon: FolderOpen, label: 'Cases' },
+      ],
+    },
+    {
+      heading: 'Artifact Processing',
+      items: [
+        { to: '/artifacts/email', icon: Mail, label: 'Email Analysis' },
+      ],
+    },
+    {
+      heading: 'Knowledge Base',
+      items: [
+        { to: '/knowledge', icon: FileText, label: 'Vault' },
+      ],
+    },
+    {
+      heading: 'Config',
+      items: [
+        { to: '/templates', icon: FileText, label: 'Templates' },
+        { to: '/playbooks', icon: GitBranch, label: 'Playbooks' },
+        ...(isAdmin ? [{ to: '/users', icon: Users, label: 'Utilisateurs' }] : []),
+      ],
+    },
   ]
 
   const handleLogout = () => {
@@ -27,6 +87,7 @@ export default function Sidebar() {
 
   return (
     <aside className="w-56 shrink-0 bg-bg-secondary border-r border-white/5 flex flex-col">
+      {/* Logo */}
       <div className="px-5 py-5 border-b border-white/5">
         <div className="flex items-center gap-3">
           <img
@@ -43,23 +104,22 @@ export default function Sidebar() {
         <p className="text-accent-muted text-xs mt-0.5">DFIR Case Management</p>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
-        {nav.map(({ to, icon: Icon, label }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === '/'}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
-                isActive
-                  ? 'bg-accent-green/10 text-accent-green'
-                  : 'text-accent-muted hover:text-white hover:bg-white/5'
-              }`
+      {/* Nav sections */}
+      <nav className="flex-1 px-3 py-2 overflow-y-auto">
+        {sections.map(section => (
+          <div key={section.heading}>
+            <SectionHeading label={section.heading} />
+            {section.items.length === 0
+              ? <p className="px-3 py-1.5 text-[11px] italic text-accent-muted/30">Coming soon…</p>
+              : (
+                <div className="space-y-0.5">
+                  {section.items.map(item => (
+                    <NavItem key={item.to} {...item} />
+                  ))}
+                </div>
+              )
             }
-          >
-            <Icon size={16} />
-            {label}
-          </NavLink>
+          </div>
         ))}
       </nav>
 

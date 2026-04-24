@@ -8,7 +8,7 @@ from typing import List, Optional
 
 from ..database import get_db
 from ..models.case import Case
-from ..models.evidence import Evidence
+from ..models.evidence import Evidence, EvidenceType, AcquisitionMethod
 from ..schemas.evidence import EvidenceRead, EvidenceUpdate
 from ..config import settings
 
@@ -44,7 +44,11 @@ async def upload_evidence(
     file: UploadFile = File(...),
     name: str = Form(...),
     description: str = Form(""),
+    evidence_type: str = Form("other"),
+    source_location: str = Form(""),
+    acquisition_method: str = Form("manual"),
     collected_by: str = Form(""),
+    collected_at: Optional[str] = Form(None),
     tags: str = Form(""),
     db: Session = Depends(get_db),
 ):
@@ -63,10 +67,21 @@ async def upload_evidence(
     file_size = dest.stat().st_size
     rel_path = str(dest.relative_to(settings.evidence_store_path))
 
+    from datetime import datetime as _dt
+    parsed_collected_at = None
+    if collected_at:
+        try:
+            parsed_collected_at = _dt.fromisoformat(collected_at)
+        except ValueError:
+            pass
+
     evidence = Evidence(
         case_id=case_id,
         name=name,
         description=description,
+        evidence_type=EvidenceType(evidence_type),
+        source_location=source_location,
+        acquisition_method=AcquisitionMethod(acquisition_method),
         file_path=rel_path,
         original_filename=file.filename or "",
         file_size=file_size,
@@ -74,6 +89,7 @@ async def upload_evidence(
         md5_hash=md5,
         sha256_hash=sha256,
         collected_by=collected_by,
+        collected_at=parsed_collected_at,
         tags=tags,
     )
     db.add(evidence)

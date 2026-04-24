@@ -74,3 +74,42 @@
     @apply border-b-2 border-transparent text-accent-muted hover:text-white hover:border-white/20;
   }
 }
+
+/* ── React Flow controls & minimap ──────────────────────────────────────────── */
+.react-flow__controls {
+  background: #111b2b !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4) !important;
+}
+
+.react-flow__controls-button {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+  color: #A3B3BC !important;
+  fill: #A3B3BC !important;
+  transition: background 0.15s, fill 0.15s !important;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+
+.react-flow__controls-button:hover {
+  background: rgba(159,239,0,0.08) !important;
+  fill: #9FEF00 !important;
+}
+
+.react-flow__controls-button svg {
+  fill: inherit !important;
+}
+
+.react-flow__minimap {
+  background: #111b2b !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4) !important;
+}

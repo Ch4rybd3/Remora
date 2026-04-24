@@ -2,12 +2,11 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  ReactFlow, Background, Controls, MiniMap,
+  ReactFlow, Background, BackgroundVariant, Controls, MiniMap,
   addEdge, applyNodeChanges, applyEdgeChanges,
   type Node, type Edge, type OnConnect, type OnNodesChange, type OnEdgesChange,
   type Connection,
 } from '@xyflow/react'
-import '@xyflow/react/dist/style.css'
 import { ArrowLeft, Save, Plus, Trash2, GitBranch } from 'lucide-react'
 import { playbooksApi, type PlaybookNode, type PlaybookEdge } from '../api/playbooks'
 import { NODE_TYPES } from '../components/playbook/PlaybookNodes'
@@ -83,6 +82,9 @@ export default function PlaybookEditor() {
     []
   )
 
+  const GRID = 20
+  const snap = (v: number) => Math.round(v / GRID) * GRID
+
   const addNode = (type: string) => {
     const id = `node-${Date.now()}-${idCounter.current++}`
     const defaults: Record<string, { label: string; description?: string }> = {
@@ -94,7 +96,10 @@ export default function PlaybookEditor() {
     const newNode: Node = {
       id,
       type,
-      position: { x: 200 + Math.random() * 100, y: 100 + nodes.length * 80 },
+      position: {
+        x: snap(200),
+        y: snap(100 + nodes.length * 100),
+      },
       data: defaults[type] || { label: 'Node' },
     }
     setNodes(nds => [...nds, newNode])
@@ -201,15 +206,19 @@ export default function PlaybookEditor() {
             onNodeDoubleClick={(_, node) => openEditNode(node)}
             nodeTypes={NODE_TYPES}
             defaultEdgeOptions={{ type: 'smoothstep', animated: true }}
+            snapToGrid
+            snapGrid={[20, 20]}
             fitView
             style={{ background: '#0B121F' }}
           >
-            <Background color="#1a2535" gap={20} />
-            <Controls style={{ background: '#111b2b', border: '1px solid rgba(255,255,255,0.1)' }} />
-            <MiniMap
-              style={{ background: '#111b2b', border: '1px solid rgba(255,255,255,0.1)' }}
-              nodeColor={() => '#9FEF00'}
+            <Background
+              variant={BackgroundVariant.Dots}
+              gap={20}
+              size={1.5}
+              color="#1e2e42"
             />
+            <Controls />
+            <MiniMap nodeColor={() => '#9FEF00'} />
           </ReactFlow>
         </div>
       </div>

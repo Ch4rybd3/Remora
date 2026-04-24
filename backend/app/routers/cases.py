@@ -1,4 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+import shutil
+import uuid
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime, timezone
@@ -7,6 +11,9 @@ from ..database import get_db
 from ..models.case import Case, CaseStatus
 from ..schemas.case import CaseCreate, CaseRead, CaseUpdate, CaseSummary
 from ..services.template_service import TemplateService
+from ..config import settings
+
+NOTE_IMAGES_DIR = settings.evidence_store_path.parent / "note_images"
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
@@ -79,3 +86,18 @@ def delete_case(case_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Case not found")
     db.delete(case)
     db.commit()
+
+
+# ── Note images ───────────────────────────────────────────────────────────────
+
+@router.post("/{case_id}/notes/images")
+async def upload_note_image(case_id: str, file: UploadFile = File(...)):
+    dest_dir = NOTE_IMAGES_DIR / case_id
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    ext = Path(file.filename or "image.png").suffix or ".png"
+    filename = f"{uuid.uuid4().hex}{ext}"
+    dest = dest_dir / filename
+    with open(dest, "wb") as out:
+        shutil.copyfileobj(file.file, out)
+    # Servi via StaticFiles monté sur /note-images (sans auth)
+    return {"url": f"/note-images/{case_id}/{filename}"}

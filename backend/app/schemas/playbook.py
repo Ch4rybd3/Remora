@@ -40,6 +40,7 @@ class PlaybookRead(BaseModel):
 class StepStateUpdate(BaseModel):
     done: bool
     comment: str = ""
+    notes: str = ""     # markdown notes liées à cette étape
 
 
 class CasePlaybookCreate(BaseModel):

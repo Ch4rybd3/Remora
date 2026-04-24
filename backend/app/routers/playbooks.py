@@ -124,6 +124,7 @@ def update_step(
     states[node_id] = {
         "done": payload.done,
         "comment": payload.comment,
+        "notes": payload.notes,
         "done_at": datetime.now(timezone.utc).isoformat() if payload.done else None,
     }
     cp.step_states = json.dumps(states)

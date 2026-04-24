@@ -10,6 +10,14 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
+      '/note-images': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/knowledge-assets': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
     },
   },
 })

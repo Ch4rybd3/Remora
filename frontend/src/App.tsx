@@ -9,6 +9,8 @@ import Templates from './pages/Templates'
 import Users from './pages/Users'
 import Playbooks from './pages/Playbooks'
 import PlaybookEditor from './pages/PlaybookEditor'
+import EmailAnalysis from './pages/EmailAnalysis'
+import KnowledgeBase from './pages/KnowledgeBase'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth()
@@ -41,6 +43,8 @@ export default function App() {
         <Route path="/templates" element={<Templates />} />
         <Route path="/playbooks" element={<Playbooks />} />
         <Route path="/playbooks/:id/edit" element={<PlaybookEditor />} />
+        <Route path="/artifacts/email" element={<EmailAnalysis />} />
+        <Route path="/knowledge" element={<KnowledgeBase />} />
         <Route
           path="/users"
           element={

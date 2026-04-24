@@ -1,9 +1,31 @@
-from sqlalchemy import Column, String, Text, DateTime, Integer, ForeignKey
+from sqlalchemy import Column, String, Text, DateTime, Integer, ForeignKey, Enum as SAEnum
+import enum
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 import uuid
 
 from ..database import Base
+
+
+class EvidenceType(str, enum.Enum):
+    malware          = "malware"
+    artifact         = "artifact"
+    log              = "log"
+    memory_dump      = "memory_dump"
+    disk_image       = "disk_image"
+    network_capture  = "network_capture"
+    document         = "document"
+    report           = "report"
+    other            = "other"
+
+
+class AcquisitionMethod(str, enum.Enum):
+    manual            = "manual"
+    forensic_copy     = "forensic_copy"
+    live_acquisition  = "live_acquisition"
+    logical_copy      = "logical_copy"
+    remote_collection = "remote_collection"
+    other             = "other"
 
 
 class Evidence(Base):
@@ -19,10 +41,13 @@ class Evidence(Base):
     mime_type = Column(String(128), default="")
     md5_hash = Column(String(32), default="")
     sha256_hash = Column(String(64), default="")
-    collected_at = Column(DateTime, nullable=True)
-    collected_by = Column(String(255), default="")
-    chain_of_custody = Column(Text, default="")
-    tags = Column(Text, default="")
+    evidence_type     = Column(SAEnum(EvidenceType), default=EvidenceType.other, nullable=False)
+    source_location   = Column(Text, default="")
+    acquisition_method = Column(SAEnum(AcquisitionMethod), default=AcquisitionMethod.manual, nullable=False)
+    collected_at      = Column(DateTime, nullable=True)
+    collected_by      = Column(String(255), default="")
+    chain_of_custody  = Column(Text, default="")
+    tags              = Column(Text, default="")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     case = relationship("Case", back_populates="evidences")

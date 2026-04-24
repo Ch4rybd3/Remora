@@ -1,5 +1,7 @@
+from pathlib import Path
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .database import Base, engine, SessionLocal
@@ -8,9 +10,14 @@ from .services.auth_service import hash_password
 from .core.deps import get_current_user
 from .routers import cases, iocs, assets, evidences, timeline, templates, reports
 from .routers import auth, users as users_router, playbooks as playbooks_router
+from .routers import email_analysis as email_analysis_router
+from .routers import knowledge as knowledge_router
 
 Base.metadata.create_all(bind=engine)
 settings.evidence_store_path.mkdir(parents=True, exist_ok=True)
+
+NOTE_IMAGES_DIR = settings.evidence_store_path.parent / "note_images"
+NOTE_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _seed_admin():
@@ -61,8 +68,17 @@ app.include_router(templates.router, prefix="/api/v1", **_auth)
 app.include_router(reports.router, prefix="/api/v1", **_auth)
 app.include_router(users_router.router, prefix="/api/v1")  # users router has its own deps
 app.include_router(playbooks_router.router, prefix="/api/v1", **_auth)
+app.include_router(email_analysis_router.router, prefix="/api/v1", **_auth)
+app.include_router(knowledge_router.router, prefix="/api/v1", **_auth)
 
 
 @app.get("/api/v1/health")
 def health():
     return {"status": "ok", "app": settings.app_name}
+
+# Static files — no auth (UUID-based obscurity)
+app.mount("/note-images", StaticFiles(directory=str(NOTE_IMAGES_DIR)), name="note-images")
+
+KNOWLEDGE_ASSETS_DIR = settings.evidence_store_path.parent / "knowledge" / "_assets"
+KNOWLEDGE_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/knowledge-assets", StaticFiles(directory=str(KNOWLEDGE_ASSETS_DIR)), name="knowledge-assets")

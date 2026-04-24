@@ -7,10 +7,66 @@ import Modal from '../../ui/Modal'
 import ConfirmDialog from '../../ui/ConfirmDialog'
 import EmptyState from '../../ui/EmptyState'
 
-const IOC_TYPES: IOCType[] = [
-  'ip', 'domain', 'url', 'hash_md5', 'hash_sha1', 'hash_sha256',
-  'email', 'filename', 'registry', 'user_agent', 'other',
+// ── Type catalogue ─────────────────────────────────────────────────────────
+
+interface IOCTypeDef {
+  value: IOCType
+  label: string
+  group: string
+  placeholder: string
+}
+
+const IOC_TYPE_DEFS: IOCTypeDef[] = [
+  // Network
+  { value: 'ip',            label: 'IP Address',      group: 'Network',   placeholder: '192.168.1.1 / 2001:db8::1' },
+  { value: 'domain',        label: 'Domain',          group: 'Network',   placeholder: 'evil.example.com' },
+  { value: 'url',           label: 'URL',             group: 'Network',   placeholder: 'https://evil.example.com/path' },
+  { value: 'asn',           label: 'ASN',             group: 'Network',   placeholder: 'AS12345' },
+  // File
+  { value: 'hash_md5',      label: 'Hash MD5',        group: 'File',      placeholder: 'd41d8cd98f00b204e9800998ecf8427e' },
+  { value: 'hash_sha1',     label: 'Hash SHA1',       group: 'File',      placeholder: 'da39a3ee5e6b4b0d3255bfef95601890afd80709' },
+  { value: 'hash_sha256',   label: 'Hash SHA256',     group: 'File',      placeholder: 'e3b0c44298fc1c149afb...' },
+  { value: 'filename',      label: 'Filename',        group: 'File',      placeholder: 'invoice.exe' },
+  { value: 'certificate',   label: 'Certificate',     group: 'File',      placeholder: 'SHA256 fingerprint or subject DN' },
+  // Email
+  { value: 'email',         label: 'Email Address',   group: 'Email',     placeholder: 'attacker@evil.com' },
+  { value: 'email_subject', label: 'Email Subject',   group: 'Email',     placeholder: 'Urgent: Your account has been compromised' },
+  { value: 'sender_name',   label: 'Sender Name',     group: 'Email',     placeholder: 'IT Support Team' },
+  // System
+  { value: 'registry',      label: 'Registry Key',    group: 'System',    placeholder: 'HKCU\\Software\\...' },
+  { value: 'user_agent',    label: 'User-Agent',      group: 'System',    placeholder: 'Mozilla/5.0 (compatible; ...)' },
+  // Identity
+  { value: 'phone',         label: 'Phone Number',    group: 'Identity',  placeholder: '+1-800-555-0100' },
+  // Other
+  { value: 'other',         label: 'Other',           group: 'Other',     placeholder: 'Any other observable' },
 ]
+
+const IOC_GROUPS = [...new Set(IOC_TYPE_DEFS.map(t => t.group))]
+
+const IOC_TYPE_MAP = Object.fromEntries(IOC_TYPE_DEFS.map(t => [t.value, t])) as Record<IOCType, IOCTypeDef>
+
+// ── Badge colours ──────────────────────────────────────────────────────────
+
+const TYPE_COLORS: Record<IOCType, string> = {
+  ip:            'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  domain:        'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+  url:           'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+  asn:           'bg-teal-500/10 text-teal-400 border-teal-500/20',
+  hash_md5:      'bg-orange-500/10 text-orange-400 border-orange-500/20',
+  hash_sha1:     'bg-orange-400/10 text-orange-300 border-orange-400/20',
+  hash_sha256:   'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  filename:      'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+  certificate:   'bg-violet-500/10 text-violet-400 border-violet-500/20',
+  email:         'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  email_subject: 'bg-purple-400/10 text-purple-300 border-purple-400/20',
+  sender_name:   'bg-pink-500/10 text-pink-400 border-pink-500/20',
+  registry:      'bg-red-500/10 text-red-400 border-red-500/20',
+  user_agent:    'bg-slate-500/10 text-slate-400 border-slate-500/20',
+  phone:         'bg-green-500/10 text-green-400 border-green-500/20',
+  other:         'bg-white/5 text-accent-muted border-white/10',
+}
+
+// ── helpers ────────────────────────────────────────────────────────────────
 
 interface Props { caseId: string }
 
@@ -19,6 +75,12 @@ const empty = (): Partial<IOC> => ({
   confidence: 'medium', tlp: 'TLP:AMBER',
 })
 
+const confidenceColor: Record<IOCConfidence, string> = {
+  low: 'text-severity-low', medium: 'text-severity-medium', high: 'text-severity-critical',
+}
+
+// ── component ──────────────────────────────────────────────────────────────
+
 export default function IOCsTab({ caseId }: Props) {
   const qc = useQueryClient()
   const { data: iocs = [] } = useQuery({ queryKey: ['iocs', caseId], queryFn: () => iocsApi.list(caseId) })
@@ -26,19 +88,25 @@ export default function IOCsTab({ caseId }: Props) {
   const [form, setForm] = useState<Partial<IOC>>(empty())
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
+  const currentTypeDef = IOC_TYPE_MAP[form.type as IOCType]
+
   const create = useMutation({
     mutationFn: () => iocsApi.create(caseId, form),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['iocs', caseId] }); qc.invalidateQueries({ queryKey: ['cases'] }); setModalOpen(false); setForm(empty()) },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['iocs', caseId] })
+      qc.invalidateQueries({ queryKey: ['cases'] })
+      setModalOpen(false)
+      setForm(empty())
+    },
   })
 
   const remove = useMutation({
     mutationFn: (id: string) => iocsApi.delete(caseId, id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['iocs', caseId] }); qc.invalidateQueries({ queryKey: ['cases'] }) },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['iocs', caseId] })
+      qc.invalidateQueries({ queryKey: ['cases'] })
+    },
   })
-
-  const confidenceColor: Record<IOCConfidence, string> = {
-    low: 'text-severity-low', medium: 'text-severity-medium', high: 'text-severity-critical',
-  }
 
   return (
     <div className="space-y-4">
@@ -71,8 +139,8 @@ export default function IOCsTab({ caseId }: Props) {
               {iocs.map(ioc => (
                 <tr key={ioc.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
                   <td className="px-4 py-3">
-                    <span className="text-xs font-mono bg-white/5 text-accent-muted px-2 py-0.5 rounded">
-                      {ioc.type}
+                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${TYPE_COLORS[ioc.type] ?? TYPE_COLORS.other}`}>
+                      {IOC_TYPE_MAP[ioc.type]?.label ?? ioc.type}
                     </span>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-white max-w-xs truncate">{ioc.value}</td>
@@ -100,24 +168,57 @@ export default function IOCsTab({ caseId }: Props) {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Add IOC" size="md">
         <div className="space-y-4">
+
+          {/* Type selector */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Type</label>
-              <select className="input" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as IOCType }))}>
-                {IOC_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              <select
+                className="input"
+                value={form.type}
+                onChange={e => setForm(f => ({ ...f, type: e.target.value as IOCType }))}
+              >
+                {IOC_GROUPS.map(group => (
+                  <optgroup key={group} label={group}>
+                    {IOC_TYPE_DEFS.filter(t => t.group === group).map(t => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
+              {/* Live badge preview */}
+              {form.type && (
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${TYPE_COLORS[form.type as IOCType] ?? TYPE_COLORS.other}`}>
+                    {currentTypeDef?.label ?? form.type}
+                  </span>
+                  <span className="text-[10px] italic text-accent-muted/50">
+                    {currentTypeDef?.group}
+                  </span>
+                </div>
+              )}
             </div>
             <div>
               <label className="label">Confidence</label>
               <select className="input" value={form.confidence} onChange={e => setForm(f => ({ ...f, confidence: e.target.value as IOCConfidence }))}>
-                {(['low', 'medium', 'high'] as IOCConfidence[]).map(c => <option key={c} value={c}>{c}</option>)}
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
               </select>
             </div>
           </div>
+
+          {/* Value */}
           <div>
             <label className="label">Value</label>
-            <input className="input font-mono" placeholder="e.g. 192.168.1.1, evil.com, abc123..." value={form.value} onChange={e => setForm(f => ({ ...f, value: e.target.value }))} />
+            <input
+              className="input font-mono"
+              placeholder={currentTypeDef?.placeholder ?? '…'}
+              value={form.value}
+              onChange={e => setForm(f => ({ ...f, value: e.target.value }))}
+            />
           </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">TLP</label>
@@ -127,13 +228,15 @@ export default function IOCsTab({ caseId }: Props) {
             </div>
             <div>
               <label className="label">Tags</label>
-              <input className="input" placeholder="c2, exfiltration, ..." value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} />
+              <input className="input" placeholder="c2, phishing, ..." value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} />
             </div>
           </div>
+
           <div>
             <label className="label">Description</label>
-            <textarea className="input resize-none h-20" placeholder="Context about this indicator..." value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+            <textarea className="input resize-none h-20" placeholder="Context about this indicator…" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
           </div>
+
           <div className="flex justify-end gap-3 pt-2">
             <button className="btn-secondary" onClick={() => setModalOpen(false)}>Cancel</button>
             <button className="btn-primary" onClick={() => create.mutate()} disabled={!form.value || create.isPending}>
