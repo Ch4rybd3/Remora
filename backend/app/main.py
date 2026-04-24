@@ -12,6 +12,8 @@ from .routers import cases, iocs, assets, evidences, timeline, templates, report
 from .routers import auth, users as users_router, playbooks as playbooks_router
 from .routers import email_analysis as email_analysis_router
 from .routers import knowledge as knowledge_router
+from .routers import evtx as evtx_router
+from .models import evtx as _evtx_models  # ensure tables are registered
 
 Base.metadata.create_all(bind=engine)
 settings.evidence_store_path.mkdir(parents=True, exist_ok=True)
@@ -70,6 +72,7 @@ app.include_router(users_router.router, prefix="/api/v1")  # users router has it
 app.include_router(playbooks_router.router, prefix="/api/v1", **_auth)
 app.include_router(email_analysis_router.router, prefix="/api/v1", **_auth)
 app.include_router(knowledge_router.router, prefix="/api/v1", **_auth)
+app.include_router(evtx_router.router, prefix="/api/v1", **_auth)
 
 
 @app.get("/api/v1/health")

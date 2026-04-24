@@ -8,3 +8,4 @@ pyyaml==6.0.2
 aiofiles==24.1.0
 python-jose[cryptography]==3.3.0
 bcrypt==4.2.1
+evtx>=0.8.2

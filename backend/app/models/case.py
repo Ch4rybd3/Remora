@@ -49,3 +49,4 @@ class Case(Base):
     evidences = relationship("Evidence", back_populates="case", cascade="all, delete-orphan")
     timeline = relationship("TimelineEvent", back_populates="case",
                             cascade="all, delete-orphan", order_by="TimelineEvent.event_ts")
+    evtx_files = relationship("EvtxFile", back_populates="case", cascade="all, delete-orphan")
