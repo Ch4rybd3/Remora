@@ -9,8 +9,11 @@ from datetime import datetime, timezone
 
 from ..database import get_db
 from ..models.case import Case, CaseStatus
+from ..models.user import User
 from ..schemas.case import CaseCreate, CaseRead, CaseUpdate, CaseSummary
 from ..services.template_service import TemplateService
+from ..services.audit_service import audit_log
+from ..core.deps import get_current_user
 from ..config import settings
 
 NOTE_IMAGES_DIR = settings.evidence_store_path.parent / "note_images"
@@ -42,7 +45,11 @@ def list_cases(db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=CaseRead, status_code=status.HTTP_201_CREATED)
-def create_case(payload: CaseCreate, db: Session = Depends(get_db)):
+def create_case(
+    payload: CaseCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     data = payload.model_dump()
     if data.get("template_id") and not data.get("executive_summary"):
         tpl = TemplateService().get_template(data["template_id"])
@@ -50,6 +57,10 @@ def create_case(payload: CaseCreate, db: Session = Depends(get_db)):
             data["executive_summary"] = tpl["executive_summary_template"]
     case = Case(**data)
     db.add(case)
+    db.flush()   # populate case.id before auditing
+    audit_log(db, user=current_user, action="case.create",
+              resource_type="case", resource_id=case.id,
+              resource_name=case.title, case_id=case.id, case_title=case.title)
     db.commit()
     db.refresh(case)
     return case
@@ -64,7 +75,12 @@ def get_case(case_id: str, db: Session = Depends(get_db)):
 
 
 @router.patch("/{case_id}", response_model=CaseRead)
-def update_case(case_id: str, payload: CaseUpdate, db: Session = Depends(get_db)):
+def update_case(
+    case_id: str,
+    payload: CaseUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     case = db.query(Case).filter(Case.id == case_id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -74,16 +90,27 @@ def update_case(case_id: str, payload: CaseUpdate, db: Session = Depends(get_db)
     if "status" in updates and updates["status"] == CaseStatus.closed:
         case.closed_at = datetime.now(timezone.utc)
     case.updated_at = datetime.now(timezone.utc)
+    audit_log(db, user=current_user, action="case.update",
+              resource_type="case", resource_id=case_id,
+              resource_name=case.title, case_id=case_id, case_title=case.title,
+              details={"fields": list(updates.keys())})
     db.commit()
     db.refresh(case)
     return case
 
 
 @router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_case(case_id: str, db: Session = Depends(get_db)):
+def delete_case(
+    case_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     case = db.query(Case).filter(Case.id == case_id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
+    audit_log(db, user=current_user, action="case.delete",
+              resource_type="case", resource_id=case_id,
+              resource_name=case.title, case_id=case_id, case_title=case.title)
     db.delete(case)
     db.commit()
 

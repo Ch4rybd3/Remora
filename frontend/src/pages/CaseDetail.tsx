@@ -15,19 +15,21 @@ import IOCsTab from '../components/case/tabs/IOCsTab'
 import AssetsTab from '../components/case/tabs/AssetsTab'
 import EvidencesTab from '../components/case/tabs/EvidencesTab'
 import TimelineTab from '../components/case/tabs/TimelineTab'
+import AttackGraphTab from '../components/case/tabs/AttackGraphTab'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import { format } from 'date-fns'
 
-type Tab = 'summary' | 'playbook' | 'report' | 'iocs' | 'assets' | 'evidences' | 'timeline'
+type Tab = 'summary' | 'playbook' | 'report' | 'iocs' | 'assets' | 'evidences' | 'timeline' | 'attack_graph'
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'summary',   label: 'Executive Summary' },
-  { id: 'playbook',  label: 'Playbook' },
-  { id: 'report',    label: 'Report' },
-  { id: 'iocs',      label: 'IOCs' },
-  { id: 'assets',    label: 'Assets' },
-  { id: 'evidences', label: 'Evidence' },
-  { id: 'timeline',  label: 'Timeline' },
+  { id: 'summary',      label: 'Executive Summary' },
+  { id: 'playbook',     label: 'Playbook' },
+  { id: 'report',       label: 'Report' },
+  { id: 'iocs',         label: 'IOCs' },
+  { id: 'assets',       label: 'Assets' },
+  { id: 'evidences',    label: 'Evidence' },
+  { id: 'timeline',     label: 'Timeline' },
+  { id: 'attack_graph', label: 'Attack Graph' },
 ]
 
 export default function CaseDetail() {
@@ -182,23 +184,32 @@ export default function CaseDetail() {
 
       {/* Tab content */}
       <div className="flex-1 overflow-hidden">
-        <div className="h-full overflow-auto p-6">
-          {activeTab === 'playbook' && (
-            <PlaybookNotesTab caseId={case_.id} case_={case_} />
-          )}
-          {/* Text-heavy tabs: capped width for readability */}
-          {(activeTab === 'summary' || activeTab === 'report') && (
-            <div className="max-w-4xl mx-auto">
-              {activeTab === 'summary' && <SummaryTab case_={case_} />}
-              {activeTab === 'report'  && <ReportTab case_={case_} />}
-            </div>
-          )}
-          {/* Data tabs: full width */}
-          {activeTab === 'iocs'      && <IOCsTab caseId={case_.id} />}
-          {activeTab === 'assets'    && <AssetsTab caseId={case_.id} />}
-          {activeTab === 'evidences' && <EvidencesTab caseId={case_.id} />}
-          {activeTab === 'timeline'  && <TimelineTab caseId={case_.id} />}
-        </div>
+        {/* Attack Graph: needs full height without padding */}
+        {activeTab === 'attack_graph' && (
+          <div className="h-full">
+            <AttackGraphTab caseId={case_.id} />
+          </div>
+        )}
+
+        {activeTab !== 'attack_graph' && (
+          <div className="h-full overflow-auto p-6">
+            {activeTab === 'playbook' && (
+              <PlaybookNotesTab caseId={case_.id} case_={case_} />
+            )}
+            {/* Text-heavy tabs: capped width for readability */}
+            {(activeTab === 'summary' || activeTab === 'report') && (
+              <div className="max-w-4xl mx-auto">
+                {activeTab === 'summary' && <SummaryTab case_={case_} />}
+                {activeTab === 'report'  && <ReportTab case_={case_} />}
+              </div>
+            )}
+            {/* Data tabs: full width */}
+            {activeTab === 'iocs'      && <IOCsTab caseId={case_.id} />}
+            {activeTab === 'assets'    && <AssetsTab caseId={case_.id} />}
+            {activeTab === 'evidences' && <EvidencesTab caseId={case_.id} />}
+            {activeTab === 'timeline'  && <TimelineTab caseId={case_.id} />}
+          </div>
+        )}
       </div>
 
       <ConfirmDialog

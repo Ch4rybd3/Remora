@@ -7,9 +7,14 @@ import zipfile
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Query
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
+from ..database import get_db
+from ..models.user import User
+from ..services.audit_service import audit_log
+from ..core.deps import get_current_user
 from ..config import settings
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
@@ -135,38 +140,63 @@ def save_file(payload: FileContent):
 
 
 @router.post("/file", status_code=201)
-def create_file(payload: FileContent):
+def create_file(
+    payload: FileContent,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     full = _safe(payload.path)
     if full.exists():
         raise HTTPException(409, "File already exists")
     full.parent.mkdir(parents=True, exist_ok=True)
     full.write_text(payload.content, encoding="utf-8")
+    audit_log(db, user=current_user, action="knowledge.file_create",
+              resource_type="knowledge_file", resource_name=payload.path)
+    db.commit()
     return {"path": payload.path}
 
 
 @router.delete("/file")
-def delete_file(path: str = Query(...)):
+def delete_file(
+    path: str = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     full = _safe(path)
     if not full.exists():
         raise HTTPException(404, "Not found")
+    audit_log(db, user=current_user, action="knowledge.file_delete",
+              resource_type="knowledge_file", resource_name=path)
     if full.is_dir():
         shutil.rmtree(full)
     else:
         full.unlink()
+    db.commit()
     return {"ok": True}
 
 
 @router.post("/folder", status_code=201)
-def create_folder(payload: FileContent):  # reuse payload, only path matters
+def create_folder(
+    payload: FileContent,  # reuse payload, only path matters
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     full = _safe(payload.path)
     if full.exists():
         raise HTTPException(409, "Already exists")
     full.mkdir(parents=True)
+    audit_log(db, user=current_user, action="knowledge.folder_create",
+              resource_type="knowledge_folder", resource_name=payload.path)
+    db.commit()
     return {"path": payload.path}
 
 
 @router.post("/rename")
-def rename(payload: RenamePayload):
+def rename(
+    payload: RenamePayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     src = _safe(payload.old_path)
     dst = _safe(payload.new_path)
     if not src.exists():
@@ -175,11 +205,19 @@ def rename(payload: RenamePayload):
         raise HTTPException(409, "Destination already exists")
     dst.parent.mkdir(parents=True, exist_ok=True)
     src.rename(dst)
+    audit_log(db, user=current_user, action="knowledge.rename",
+              resource_type="knowledge_file", resource_name=payload.new_path,
+              details={"old_path": payload.old_path, "new_path": payload.new_path})
+    db.commit()
     return {"ok": True}
 
 
 @router.post("/import")
-async def import_vault(file: UploadFile = File(...)):
+async def import_vault(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Accept a ZIP of an Obsidian vault and extract it into KNOWLEDGE_DIR."""
     raw = await file.read()
     try:
@@ -216,6 +254,11 @@ async def import_vault(file: UploadFile = File(...)):
             if dest.suffix.lower() in (".md", ".markdown"):
                 imported += 1
 
+    audit_log(db, user=current_user, action="knowledge.vault_import",
+              resource_type="knowledge_vault",
+              resource_name=file.filename or "vault.zip",
+              details={"imported_notes": imported})
+    db.commit()
     return {"imported": imported}
 
 

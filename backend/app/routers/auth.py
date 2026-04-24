@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 
@@ -6,13 +6,14 @@ from ..database import get_db
 from ..models.user import User
 from ..schemas.user import LoginPayload, TokenResponse, UserRead
 from ..services.auth_service import verify_password, create_access_token
+from ..services.audit_service import audit_log
 from ..core.deps import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginPayload, db: Session = Depends(get_db)):
+def login(payload: LoginPayload, request: Request, db: Session = Depends(get_db)):
     user = db.query(User).filter(
         User.username == payload.username,
         User.is_active == True,
@@ -23,6 +24,9 @@ def login(payload: LoginPayload, db: Session = Depends(get_db)):
             detail="Identifiants incorrects",
         )
     user.last_login = datetime.now(timezone.utc)
+    audit_log(db, user=user, action="auth.login",
+              resource_type="user", resource_id=user.id,
+              resource_name=user.username, request=request)
     db.commit()
     token = create_access_token(user.id, user.role.value)
     return TokenResponse(access_token=token, user=UserRead.model_validate(user))

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -6,6 +6,7 @@ from ..database import get_db
 from ..models.user import User, UserRole
 from ..schemas.user import UserCreate, UserRead, UserUpdate, UserChangePassword
 from ..services.auth_service import hash_password
+from ..services.audit_service import audit_log
 from ..core.deps import get_current_user, require_admin, assert_can_manage, ROLE_RANK
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -22,6 +23,7 @@ def list_users(
 @router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def create_user(
     payload: UserCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current: User = Depends(require_admin),
 ):
@@ -40,6 +42,11 @@ def create_user(
         role=payload.role,
     )
     db.add(user)
+    db.flush()
+    audit_log(db, user=current, action="user.create",
+              resource_type="user", resource_id=user.id,
+              resource_name=user.username,
+              details={"role": payload.role.value}, request=request)
     db.commit()
     db.refresh(user)
     return user
@@ -49,6 +56,7 @@ def create_user(
 def update_user(
     user_id: str,
     payload: UserUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     current: User = Depends(require_admin),
 ):
@@ -68,8 +76,13 @@ def update_user(
             detail=f"Impossible d'assigner le rôle '{payload.role.value}'",
         )
 
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    for key, value in updates.items():
         setattr(user, key, value)
+    audit_log(db, user=current, action="user.update",
+              resource_type="user", resource_id=user_id,
+              resource_name=user.username,
+              details={"fields": list(updates.keys())}, request=request)
     db.commit()
     db.refresh(user)
     return user
@@ -79,6 +92,7 @@ def update_user(
 def change_password(
     user_id: str,
     payload: UserChangePassword,
+    request: Request,
     db: Session = Depends(get_db),
     current: User = Depends(get_current_user),
 ):
@@ -94,6 +108,9 @@ def change_password(
         assert_can_manage(current, user)
 
     user.hashed_password = hash_password(payload.new_password)
+    audit_log(db, user=current, action="user.password_change",
+              resource_type="user", resource_id=user_id,
+              resource_name=user.username, request=request)
     db.commit()
     db.refresh(user)
     return user
@@ -102,6 +119,7 @@ def change_password(
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user(
     user_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     current: User = Depends(require_admin),
 ):
@@ -113,5 +131,8 @@ def delete_user(
 
     assert_can_manage(current, user)
 
+    audit_log(db, user=current, action="user.delete",
+              resource_type="user", resource_id=user_id,
+              resource_name=user.username, request=request)
     db.delete(user)
     db.commit()

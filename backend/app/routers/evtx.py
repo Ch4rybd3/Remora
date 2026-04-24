@@ -26,7 +26,10 @@ from ..database import get_db
 from ..models.case import Case
 from ..models.evidence import Evidence, EvidenceType, AcquisitionMethod
 from ..models.evtx import EvtxFile, EvtxEvent
+from ..models.user import User
 from ..schemas.evtx import EvtxFileOut, EventsPage, EvtxEventOut, FileSummary, ChannelStat
+from ..services.audit_service import audit_log
+from ..core.deps import get_current_user
 
 router = APIRouter(prefix="/evtx", tags=["evtx"])
 
@@ -493,8 +496,9 @@ async def upload_evtx(
     background_tasks: BackgroundTasks,
     file:             UploadFile = File(...),
     db:               Session   = Depends(get_db),
+    current_user:     User      = Depends(get_current_user),
 ):
-    _get_case_or_404(case_id, db)
+    case = _get_case_or_404(case_id, db)
 
     if not file.filename or not file.filename.lower().endswith(".evtx"):
         raise HTTPException(400, "Only .evtx files are accepted")
@@ -515,6 +519,11 @@ async def upload_evtx(
         status    = "pending",
     )
     db.add(db_file)
+    audit_log(db, user=current_user, action="evtx.upload",
+              resource_type="evtx_file", resource_id=file_id,
+              resource_name=file.filename, case_id=case_id,
+              case_title=getattr(case, "title", None),
+              details={"filename": file.filename, "size": len(contents)})
     db.commit()
     db.refresh(db_file)
 
@@ -534,8 +543,18 @@ def list_files(case_id: str, db: Session = Depends(get_db)):
 
 
 @router.delete("/{case_id}/files/{file_id}", status_code=204)
-def delete_file(case_id: str, file_id: str, db: Session = Depends(get_db)):
+def delete_file(
+    case_id: str,
+    file_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     f = _get_file_or_404(file_id, case_id, db)
+    case = _get_case_or_404(case_id, db)
+    audit_log(db, user=current_user, action="evtx.delete",
+              resource_type="evtx_file", resource_id=file_id,
+              resource_name=f.filename, case_id=case_id,
+              case_title=getattr(case, "title", None))
     try:
         Path(f.file_path).unlink(missing_ok=True)
     except Exception:
@@ -668,9 +687,11 @@ def reparse_file(
     file_id:          str,
     background_tasks: BackgroundTasks,
     db:               Session = Depends(get_db),
+    current_user:     User    = Depends(get_current_user),
 ):
     """Re-parse an already uploaded EVTX (e.g. after a parser fix)."""
     f = _get_file_or_404(file_id, case_id, db)
+    case = _get_case_or_404(case_id, db)
 
     # Delete existing events
     db.query(EvtxEvent).filter(EvtxEvent.file_id == file_id).delete()
@@ -678,6 +699,10 @@ def reparse_file(
     f.event_count = None
     f.parsed_at   = None
     f.error_msg   = None
+    audit_log(db, user=current_user, action="evtx.reparse",
+              resource_type="evtx_file", resource_id=file_id,
+              resource_name=f.filename, case_id=case_id,
+              case_title=getattr(case, "title", None))
     db.commit()
     db.refresh(f)
 
@@ -686,8 +711,14 @@ def reparse_file(
 
 
 @router.post("/{case_id}/files/{file_id}/add-evidence", response_model=EvtxFileOut)
-def add_to_evidence(case_id: str, file_id: str, db: Session = Depends(get_db)):
+def add_to_evidence(
+    case_id: str,
+    file_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     f = _get_file_or_404(file_id, case_id, db)
+    case = _get_case_or_404(case_id, db)
 
     if f.added_to_evidence:
         raise HTTPException(400, "Already added to evidence")
@@ -711,6 +742,10 @@ def add_to_evidence(case_id: str, file_id: str, db: Session = Depends(get_db)):
     db.add(ev)
 
     f.added_to_evidence = True
+    audit_log(db, user=current_user, action="evtx.add_evidence",
+              resource_type="evtx_file", resource_id=file_id,
+              resource_name=f.filename, case_id=case_id,
+              case_title=getattr(case, "title", None))
     db.commit()
     db.refresh(f)
     return f

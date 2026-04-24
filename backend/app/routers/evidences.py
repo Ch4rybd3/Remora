@@ -9,7 +9,10 @@ from typing import List, Optional
 from ..database import get_db
 from ..models.case import Case
 from ..models.evidence import Evidence, EvidenceType, AcquisitionMethod
+from ..models.user import User
 from ..schemas.evidence import EvidenceRead, EvidenceUpdate
+from ..services.audit_service import audit_log
+from ..core.deps import get_current_user
 from ..config import settings
 
 router = APIRouter(prefix="/cases/{case_id}/evidences", tags=["evidences"])
@@ -51,8 +54,9 @@ async def upload_evidence(
     collected_at: Optional[str] = Form(None),
     tags: str = Form(""),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    _get_case(case_id, db)
+    case = _get_case(case_id, db)
 
     case_dir = settings.evidence_store_path / case_id
     case_dir.mkdir(parents=True, exist_ok=True)
@@ -93,6 +97,11 @@ async def upload_evidence(
         tags=tags,
     )
     db.add(evidence)
+    db.flush()
+    audit_log(db, user=current_user, action="evidence.upload",
+              resource_type="evidence", resource_id=evidence.id,
+              resource_name=name, case_id=case_id, case_title=case.title,
+              details={"filename": file.filename, "size": file_size})
     db.commit()
     db.refresh(evidence)
     return evidence
@@ -112,25 +121,45 @@ def download_evidence(case_id: str, evidence_id: str, db: Session = Depends(get_
 
 
 @router.patch("/{evidence_id}", response_model=EvidenceRead)
-def update_evidence(case_id: str, evidence_id: str, payload: EvidenceUpdate,
-                    db: Session = Depends(get_db)):
+def update_evidence(
+    case_id: str,
+    evidence_id: str,
+    payload: EvidenceUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     evidence = db.query(Evidence).filter(
         Evidence.id == evidence_id, Evidence.case_id == case_id).first()
     if not evidence:
         raise HTTPException(status_code=404, detail="Evidence not found")
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    case = _get_case(case_id, db)
+    updates = payload.model_dump(exclude_unset=True)
+    for key, value in updates.items():
         setattr(evidence, key, value)
+    audit_log(db, user=current_user, action="evidence.update",
+              resource_type="evidence", resource_id=evidence_id,
+              resource_name=evidence.name, case_id=case_id, case_title=case.title,
+              details={"fields": list(updates.keys())})
     db.commit()
     db.refresh(evidence)
     return evidence
 
 
 @router.delete("/{evidence_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_evidence(case_id: str, evidence_id: str, db: Session = Depends(get_db)):
+def delete_evidence(
+    case_id: str,
+    evidence_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     evidence = db.query(Evidence).filter(
         Evidence.id == evidence_id, Evidence.case_id == case_id).first()
     if not evidence:
         raise HTTPException(status_code=404, detail="Evidence not found")
+    case = _get_case(case_id, db)
+    audit_log(db, user=current_user, action="evidence.delete",
+              resource_type="evidence", resource_id=evidence_id,
+              resource_name=evidence.name, case_id=case_id, case_title=case.title)
     if evidence.file_path:
         file_path = settings.evidence_store_path / evidence.file_path
         if file_path.exists():

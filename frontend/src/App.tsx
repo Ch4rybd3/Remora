@@ -12,6 +12,7 @@ import PlaybookEditor from './pages/PlaybookEditor'
 import EmailAnalysis from './pages/EmailAnalysis'
 import KnowledgeBase from './pages/KnowledgeBase'
 import FilesystemLogs from './pages/FilesystemLogs'
+import AuditLog from './pages/AuditLog'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth()
@@ -52,6 +53,14 @@ export default function App() {
           element={
             <RequireAdmin>
               <Users />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/audit"
+          element={
+            <RequireAdmin>
+              <AuditLog />
             </RequireAdmin>
           }
         />
