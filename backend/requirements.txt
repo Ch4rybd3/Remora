@@ -9,3 +9,4 @@ aiofiles==24.1.0
 python-jose[cryptography]==3.3.0
 bcrypt==4.2.1
 evtx>=0.8.2
+volatility3>=2.5.0

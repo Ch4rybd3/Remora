@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-  ArrowUp, ArrowDown, SlidersHorizontal, X, ChevronDown,
+  ArrowUp, ArrowDown, SlidersHorizontal, X, ChevronDown, BookmarkPlus, BookmarkCheck,
 } from 'lucide-react'
 import { evtxApi, type EvtxEvent, type EventFilters, type FileSummary } from '../../api/evtx'
 
@@ -594,11 +594,14 @@ const defaultColFilter = (): ColFilter => ({ mode: 'contains', value: '' })
 // ── Main Explorer ─────────────────────────────────────────────────────────────
 
 interface Props {
-  caseId: string
-  fileId: string
+  caseId:     string
+  fileId:     string
+  filename?:  string                                  // name of the current EVTX file
+  pinnedIds?: Set<number>
+  onPin?:     (ev: EvtxEvent, filename: string) => void
 }
 
-export default function TimelineExplorer({ caseId, fileId }: Props) {
+export default function TimelineExplorer({ caseId, fileId, filename = '', pinnedIds, onPin }: Props) {
   const [filters, setFilters]           = useState<EventFilters>({ page: 1, page_size: 100, sort_dir: 'asc' })
   const [colFilters, setColFilters]     = useState<ColFilters>({})
   const [fieldFilters, setFieldFilters] = useState<FieldFilter[]>([])
@@ -716,6 +719,8 @@ export default function TimelineExplorer({ caseId, fileId }: Props) {
           <thead className="sticky top-0 z-10 bg-bg-secondary">
             {/* Column name row */}
             <tr className="border-b border-white/8">
+              {/* Pin column header */}
+              {onPin && <th className="w-8 shrink-0 px-1 pt-2 pb-1" />}
               {COLUMNS.map(col => (
                 <th key={col.key}
                   className={`${col.cls} px-3 pt-2 pb-1 text-left font-medium text-[9px] text-accent-muted/40 uppercase tracking-widest whitespace-nowrap`}
@@ -727,6 +732,8 @@ export default function TimelineExplorer({ caseId, fileId }: Props) {
 
             {/* Per-column filter row */}
             <tr className="border-b border-white/5 bg-bg-secondary/80">
+              {/* Pin column filter cell (empty) */}
+              {onPin && <th className="w-8 shrink-0 px-1 py-1.5" />}
               {COLUMNS.map(col => (
                 <th key={`${col.key}-filter`} className={`${col.cls} px-2 py-1.5`}>
                   {col.filterKey ? (
@@ -759,56 +766,80 @@ export default function TimelineExplorer({ caseId, fileId }: Props) {
 
             {!isLoading && events.length === 0 && (
               <tr>
-                <td colSpan={COLUMNS.length} className="px-3 py-12 text-center text-[11px] text-accent-muted/30 italic">
+                <td colSpan={COLUMNS.length + (onPin ? 1 : 0)} className="px-3 py-12 text-center text-[11px] text-accent-muted/30 italic">
                   No events match the current filters
                 </td>
               </tr>
             )}
 
-            {events.map(ev => (
-              <>
-                <tr
-                  key={ev.id}
-                  onClick={() => setExpandedId(id => id === ev.id ? null : ev.id)}
-                  className={`
-                    border-b border-white/[0.04] cursor-pointer transition-colors
-                    ${expandedId === ev.id
-                      ? 'bg-accent-green/5'
-                      : 'hover:bg-white/[0.025]'}
-                  `}
-                >
-                  <td className="w-44 shrink-0 px-3 py-1.5 font-mono text-[10px] text-white/45 whitespace-nowrap">
-                    {fmtTime(ev.time_created)}
-                  </td>
-                  <td className="w-20 shrink-0 px-3 py-1.5 font-mono text-white/80 font-semibold">
-                    {ev.event_id ?? '—'}
-                  </td>
-                  <td className="w-26 shrink-0 px-3 py-1.5">
-                    <LevelBadge name={ev.level_name} />
-                  </td>
-                  <td className="w-52 shrink-0 px-3 py-1.5 text-white/55 truncate" title={ev.channel ?? ''}>
-                    {ev.channel ?? '—'}
-                  </td>
-                  <td className="flex-1 min-w-0 px-3 py-1.5 text-white/40 truncate" title={ev.provider ?? ''}>
-                    {ev.provider ?? '—'}
-                  </td>
-                  <td className="w-36 shrink-0 px-3 py-1.5 text-white/50 truncate" title={ev.computer ?? ''}>
-                    {ev.computer ?? '—'}
-                  </td>
-                  <td className="w-56 shrink-0 px-3 py-1.5 text-white/25 font-mono text-[10px] truncate" title={dataPreview(ev)}>
-                    {dataPreview(ev)}
-                  </td>
-                </tr>
-
-                {expandedId === ev.id && (
-                  <tr key={`${ev.id}-detail`}>
-                    <td colSpan={COLUMNS.length} className="p-0">
-                      <EventDetail event={ev} onClose={() => setExpandedId(null)} />
+            {events.map(ev => {
+              const isPinned = pinnedIds?.has(ev.id) ?? false
+              return (
+                <>
+                  <tr
+                    key={ev.id}
+                    onClick={() => setExpandedId(id => id === ev.id ? null : ev.id)}
+                    className={`
+                      border-b border-white/[0.04] cursor-pointer transition-colors group
+                      ${expandedId === ev.id
+                        ? 'bg-accent-green/5'
+                        : 'hover:bg-white/[0.025]'}
+                    `}
+                  >
+                    {/* Pin button cell */}
+                    {onPin && (
+                      <td
+                        className="w-8 shrink-0 px-1 py-1.5 text-center"
+                        onClick={e => { e.stopPropagation(); if (!isPinned) onPin(ev, filename) }}
+                      >
+                        {isPinned ? (
+                          <BookmarkCheck
+                            size={13}
+                            className="mx-auto text-accent-green/60"
+                            title="Already selected"
+                          />
+                        ) : (
+                          <BookmarkPlus
+                            size={13}
+                            className="mx-auto text-accent-muted/20 group-hover:text-accent-muted/50 hover:!text-accent-green transition-colors"
+                            title="Add to selection"
+                          />
+                        )}
+                      </td>
+                    )}
+                    <td className="w-44 shrink-0 px-3 py-1.5 font-mono text-[10px] text-white/45 whitespace-nowrap">
+                      {fmtTime(ev.time_created)}
+                    </td>
+                    <td className="w-20 shrink-0 px-3 py-1.5 font-mono text-white/80 font-semibold">
+                      {ev.event_id ?? '—'}
+                    </td>
+                    <td className="w-26 shrink-0 px-3 py-1.5">
+                      <LevelBadge name={ev.level_name} />
+                    </td>
+                    <td className="w-52 shrink-0 px-3 py-1.5 text-white/55 truncate" title={ev.channel ?? ''}>
+                      {ev.channel ?? '—'}
+                    </td>
+                    <td className="flex-1 min-w-0 px-3 py-1.5 text-white/40 truncate" title={ev.provider ?? ''}>
+                      {ev.provider ?? '—'}
+                    </td>
+                    <td className="w-36 shrink-0 px-3 py-1.5 text-white/50 truncate" title={ev.computer ?? ''}>
+                      {ev.computer ?? '—'}
+                    </td>
+                    <td className="w-56 shrink-0 px-3 py-1.5 text-white/25 font-mono text-[10px] truncate" title={dataPreview(ev)}>
+                      {dataPreview(ev)}
                     </td>
                   </tr>
-                )}
-              </>
-            ))}
+
+                  {expandedId === ev.id && (
+                    <tr key={`${ev.id}-detail`}>
+                      <td colSpan={COLUMNS.length + (onPin ? 1 : 0)} className="p-0">
+                        <EventDetail event={ev} onClose={() => setExpandedId(null)} />
+                      </td>
+                    </tr>
+                  )}
+                </>
+              )
+            })}
           </tbody>
         </table>
       </div>

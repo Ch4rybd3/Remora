@@ -13,6 +13,7 @@ import EmailAnalysis from './pages/EmailAnalysis'
 import KnowledgeBase from './pages/KnowledgeBase'
 import FilesystemLogs from './pages/FilesystemLogs'
 import AuditLog from './pages/AuditLog'
+import Memory from './pages/Memory'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth()
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="/playbooks/:id/edit" element={<PlaybookEditor />} />
         <Route path="/artifacts/email" element={<EmailAnalysis />} />
         <Route path="/artifacts/filesystem" element={<FilesystemLogs />} />
+        <Route path="/artifacts/memory" element={<Memory />} />
         <Route path="/knowledge" element={<KnowledgeBase />} />
         <Route
           path="/users"

@@ -197,12 +197,12 @@ export default function CaseDetail() {
               <PlaybookNotesTab caseId={case_.id} case_={case_} />
             )}
             {/* Text-heavy tabs: capped width for readability */}
-            {(activeTab === 'summary' || activeTab === 'report') && (
+            {activeTab === 'summary' && (
               <div className="max-w-4xl mx-auto">
-                {activeTab === 'summary' && <SummaryTab case_={case_} />}
-                {activeTab === 'report'  && <ReportTab case_={case_} />}
+                <SummaryTab case_={case_} />
               </div>
             )}
+            {activeTab === 'report' && <ReportTab case_={case_} />}
             {/* Data tabs: full width */}
             {activeTab === 'iocs'      && <IOCsTab caseId={case_.id} />}
             {activeTab === 'assets'    && <AssetsTab caseId={case_.id} />}

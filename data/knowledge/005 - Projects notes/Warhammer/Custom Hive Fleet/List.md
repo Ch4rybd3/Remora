@@ -1,9 +1,0 @@
-- Slaves
-- aquatic
-	- https://www.threads.com/@maybug_games/post/DFTCrNNNgvD/media?hl=fr
-	- https://www.youtube.com/shorts/k773fuNKi9U
-	- Namielle
-- bio
-- angelic
-- runic
-- Mech

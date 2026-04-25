@@ -60,3 +60,16 @@ class FileSummary(BaseModel):
     channels:    list[ChannelStat]
     levels:      dict[str, int]   # level_name → count
     event_ids:   list[int]        # top-20 most frequent event IDs
+
+
+# ── Pinned-event selection ────────────────────────────────────────────────────
+
+class EvtxSelectionOut(BaseModel):
+    """Analyst's saved event selection for the Filesystem & Logs page."""
+    events:   list[dict[str, Any]]   # full pinned event objects (EvtxEvent + _filename)
+    sent_ids: list[int]              # IDs already pushed to the case timeline
+
+
+class EvtxSelectionSave(BaseModel):
+    events:   list[dict[str, Any]]
+    sent_ids: list[int]

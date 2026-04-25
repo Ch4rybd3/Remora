@@ -21,6 +21,9 @@ class EvidenceCreate(EvidenceBase):
 
 
 class EvidenceUpdate(BaseModel):
+    # Mandatory — documents why the record changed (appended to chain_of_custody)
+    note: str
+    # Editable metadata
     name: Optional[str] = None
     description: Optional[str] = None
     evidence_type: Optional[EvidenceType] = None
@@ -28,8 +31,8 @@ class EvidenceUpdate(BaseModel):
     acquisition_method: Optional[AcquisitionMethod] = None
     collected_at: Optional[datetime] = None
     collected_by: Optional[str] = None
-    chain_of_custody: Optional[str] = None
     tags: Optional[str] = None
+    # chain_of_custody is append-only and managed server-side
 
 
 class EvidenceRead(EvidenceBase):

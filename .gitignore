@@ -7,9 +7,11 @@ __pycache__/
 dist/
 .env
 
-# Database & evidence store
-data/remora.db
-data/evidences/
+# Runtime data — DB, evidences, EVTX uploads, memory dumps, knowledge base, note images
+# Nothing in data/ should ever be committed
+data/*
+# Keep the placeholder so the folder exists on a fresh clone
+!data/.gitkeep
 
 # Node
 node_modules/

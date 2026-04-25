@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ImageIcon, Loader2 } from 'lucide-react'
@@ -15,6 +15,10 @@ interface Props {
   minHeight?: number
   withToggle?: boolean
   defaultMode?: ViewMode
+  autoResize?: boolean   // textarea grows to fit content (no scroll)
+  // controlled mode (optional — lifts state to parent)
+  mode?: ViewMode
+  onModeChange?: (m: ViewMode) => void
 }
 
 // ── Shared markdown renderer ───────────────────────────────────────────────
@@ -79,15 +83,33 @@ export default function MarkdownEditor({
   value, onChange,
   caseId,
   uploadImage,
-  placeholder = 'Notes en markdown…',
+  placeholder = 'Notes in markdown…',
   minHeight = 120,
   withToggle = true,
   defaultMode = 'split',
+  autoResize = false,
+  mode: modeProp,
+  onModeChange,
 }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null)
   const previewRef = useRef<HTMLDivElement>(null)
   const [uploading, setUploading] = useState(false)
-  const [mode, setMode] = useState<ViewMode>(defaultMode)
+  const [modeInternal, setModeInternal] = useState<ViewMode>(defaultMode)
+
+  // If parent controls mode, use that; otherwise use internal state
+  const mode = modeProp ?? modeInternal
+  const setMode = (m: ViewMode) => {
+    setModeInternal(m)
+    onModeChange?.(m)
+  }
+
+  // Auto-resize: grow textarea to fit its content
+  useEffect(() => {
+    if (!autoResize || !ref.current) return
+    const ta = ref.current
+    ta.style.height = 'auto'
+    ta.style.height = `${Math.max(ta.scrollHeight, minHeight)}px`
+  }, [value, mode, autoResize, minHeight])
 
   // Insert text at cursor position
   const insertAt = useCallback((text: string) => {
@@ -156,7 +178,11 @@ export default function MarkdownEditor({
     <textarea
       ref={ref}
       className="input font-mono text-xs leading-relaxed resize-none w-full"
-      style={{ minHeight, height: mode === 'split' ? '100%' : undefined }}
+      style={{
+        minHeight,
+        height: autoResize ? 'auto' : (mode === 'split' ? '100%' : undefined),
+        overflowY: autoResize ? 'hidden' : undefined,
+      }}
       placeholder={placeholder}
       value={value}
       onChange={e => onChange(e.target.value)}
@@ -182,9 +208,9 @@ export default function MarkdownEditor({
       {withToggle && (
         <div className="flex items-center gap-2">
           <div className="flex rounded border border-white/10 overflow-hidden">
-            <ModeBtn active={mode === 'edit'}    onClick={() => setMode('edit')}>Éditer</ModeBtn>
+            <ModeBtn active={mode === 'edit'}    onClick={() => setMode('edit')}>Edit</ModeBtn>
             <ModeBtn active={mode === 'split'}   onClick={() => setMode('split')}>Split</ModeBtn>
-            <ModeBtn active={mode === 'preview'} onClick={() => setMode('preview')}>Aperçu</ModeBtn>
+            <ModeBtn active={mode === 'preview'} onClick={() => setMode('preview')}>Preview</ModeBtn>
           </div>
           {uploading
             ? <span className="flex items-center gap-1 text-[10px] text-accent-muted"><Loader2 size={10} className="animate-spin" /> Upload…</span>

@@ -9,6 +9,7 @@ Auth is handled at the router-include level in main.py (**_auth).
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import re
@@ -25,9 +26,9 @@ from ..config import settings
 from ..database import get_db
 from ..models.case import Case
 from ..models.evidence import Evidence, EvidenceType, AcquisitionMethod
-from ..models.evtx import EvtxFile, EvtxEvent
+from ..models.evtx import EvtxFile, EvtxEvent, EvtxCaseSelection
 from ..models.user import User
-from ..schemas.evtx import EvtxFileOut, EventsPage, EvtxEventOut, FileSummary, ChannelStat
+from ..schemas.evtx import EvtxFileOut, EventsPage, EvtxEventOut, FileSummary, ChannelStat, EvtxSelectionOut, EvtxSelectionSave
 from ..services.audit_service import audit_log
 from ..core.deps import get_current_user
 
@@ -723,10 +724,31 @@ def add_to_evidence(
     if f.added_to_evidence:
         raise HTTPException(400, "Already added to evidence")
 
+    file_path = Path(f.file_path)
     try:
-        size = Path(f.file_path).stat().st_size
+        size = file_path.stat().st_size
     except Exception:
         size = 0
+
+    # Compute integrity hashes
+    md5_hash = sha256_hash = ""
+    try:
+        md5    = hashlib.md5()
+        sha256 = hashlib.sha256()
+        with open(file_path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(8192), b""):
+                md5.update(chunk)
+                sha256.update(chunk)
+        md5_hash    = md5.hexdigest()
+        sha256_hash = sha256.hexdigest()
+    except Exception:
+        pass
+
+    now = datetime.now(timezone.utc)
+    chain_entry = (
+        f"[{now.strftime('%Y-%m-%d %H:%M:%S UTC')}] Collected by {current_user.username} "
+        f"via EVTX import — MD5: {md5_hash or 'n/a'} | SHA256: {sha256_hash or 'n/a'}"
+    )
 
     ev = Evidence(
         case_id            = case_id,
@@ -736,8 +758,13 @@ def add_to_evidence(
         original_filename  = f.filename,
         file_size          = size,
         mime_type          = "application/octet-stream",
+        md5_hash           = md5_hash,
+        sha256_hash        = sha256_hash,
         evidence_type      = EvidenceType.log,
         acquisition_method = AcquisitionMethod.logical_copy,
+        collected_by       = current_user.username,
+        collected_at       = now,
+        chain_of_custody   = chain_entry,
     )
     db.add(ev)
 
@@ -749,3 +776,44 @@ def add_to_evidence(
     db.commit()
     db.refresh(f)
     return f
+
+
+# ── Pinned-event selection persistence ────────────────────────────────────────
+
+@router.get("/{case_id}/selection", response_model=EvtxSelectionOut)
+def get_selection(case_id: str, db: Session = Depends(get_db)):
+    """Return the analyst's saved event selection for this case."""
+    _get_case_or_404(case_id, db)
+    sel = db.query(EvtxCaseSelection).filter(
+        EvtxCaseSelection.case_id == case_id
+    ).first()
+    if not sel:
+        return EvtxSelectionOut(events=[], sent_ids=[])
+    return EvtxSelectionOut(events=sel.events or [], sent_ids=sel.sent_ids or [])
+
+
+@router.put("/{case_id}/selection", response_model=EvtxSelectionOut)
+def save_selection(
+    case_id: str,
+    payload: EvtxSelectionSave,
+    db:      Session = Depends(get_db),
+):
+    """Upsert the analyst's event selection for this case."""
+    _get_case_or_404(case_id, db)
+    sel = db.query(EvtxCaseSelection).filter(
+        EvtxCaseSelection.case_id == case_id
+    ).first()
+    if sel:
+        sel.events   = payload.events
+        sel.sent_ids = payload.sent_ids
+        sel.updated_at = datetime.now(timezone.utc)
+    else:
+        sel = EvtxCaseSelection(
+            case_id  = case_id,
+            events   = payload.events,
+            sent_ids = payload.sent_ids,
+        )
+        db.add(sel)
+    db.commit()
+    db.refresh(sel)
+    return EvtxSelectionOut(events=sel.events or [], sent_ids=sel.sent_ids or [])

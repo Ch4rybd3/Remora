@@ -61,3 +61,22 @@ class EvtxEvent(Base):
         Index("ix_evtx_events_file_eid",     "file_id", "event_id"),
         Index("ix_evtx_events_file_level",   "file_id", "level"),
     )
+
+
+class EvtxCaseSelection(Base):
+    """
+    Persists the analyst's pinned-event selection for a case in the
+    Filesystem & Logs page.  One row per case (upserted on every save).
+
+    events   – JSON array of full event objects (EvtxEvent fields + _filename).
+    sent_ids – JSON array of event IDs (int) already pushed to the case timeline.
+    """
+    __tablename__ = "evtx_case_selections"
+
+    case_id    = Column(String, ForeignKey("cases.id", ondelete="CASCADE"), primary_key=True)
+    events     = Column(JSON, nullable=False, default=list)
+    sent_ids   = Column(JSON, nullable=False, default=list)
+    updated_at = Column(DateTime,
+                        default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc),
+                        nullable=False)

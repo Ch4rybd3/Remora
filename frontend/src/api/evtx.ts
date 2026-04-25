@@ -60,6 +60,16 @@ export interface EventFilters {
   field_filters?: string    // JSON: Array<{key, mode, value}> — EventData field filters
 }
 
+/** EvtxEvent enriched with the source filename — stored in the case selection. */
+export interface PinnedEvtxEvent extends EvtxEvent {
+  _filename: string
+}
+
+export interface EvtxSelection {
+  events:   PinnedEvtxEvent[]
+  sent_ids: number[]
+}
+
 export const evtxApi = {
   upload: (caseId: string, file: File) => {
     const fd = new FormData()
@@ -88,4 +98,10 @@ export const evtxApi = {
 
   reparse: (caseId: string, fileId: string) =>
     api.post<EvtxFile>(`/evtx/${caseId}/files/${fileId}/reparse`).then(r => r.data),
+
+  getSelection: (caseId: string): Promise<EvtxSelection> =>
+    api.get<EvtxSelection>(`/evtx/${caseId}/selection`).then(r => r.data),
+
+  saveSelection: (caseId: string, events: PinnedEvtxEvent[], sent_ids: number[]): Promise<EvtxSelection> =>
+    api.put<EvtxSelection>(`/evtx/${caseId}/selection`, { events, sent_ids }).then(r => r.data),
 }

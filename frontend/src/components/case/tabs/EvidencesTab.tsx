@@ -4,6 +4,7 @@ import { useDropzone } from 'react-dropzone'
 import {
   Upload, Download, Trash2, ShieldCheck, Copy, Check,
   FileArchive, FileText, Cpu, HardDrive, Wifi, Bug, File, FileSearch,
+  Pencil, X,
 } from 'lucide-react'
 import { evidencesApi } from '../../../api/evidences'
 import { casesApi } from '../../../api/cases'
@@ -158,6 +159,12 @@ export default function EvidencesTab({ caseId }: Props) {
 
   const [uploadOpen, setUploadOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [editTarget, setEditTarget] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState<{
+    name: string; evidence_type: string; source_location: string
+    acquisition_method: string; collected_by: string; collected_at: string
+    description: string; tags: string; note: string
+  }>({ name: '', evidence_type: 'other', source_location: '', acquisition_method: 'manual', collected_by: '', collected_at: '', description: '', tags: '', note: '' })
   const [meta, setMeta] = useState({
     name: '', evidence_type: 'other', source_location: '',
     acquisition_method: 'manual', collected_by: '', collected_at: '',
@@ -183,6 +190,42 @@ export default function EvidencesTab({ caseId }: Props) {
       qc.invalidateQueries({ queryKey: ['cases'] })
     },
   })
+
+  const update = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: typeof editForm }) =>
+      evidencesApi.update(caseId, id, {
+        name:               data.name               || undefined,
+        description:        data.description        ?? undefined,
+        evidence_type:      (data.evidence_type     as any) || undefined,
+        source_location:    data.source_location    ?? undefined,
+        acquisition_method: (data.acquisition_method as any) || undefined,
+        collected_by:       data.collected_by       ?? undefined,
+        collected_at:       data.collected_at ? (data.collected_at as any) : undefined,
+        tags:               data.tags               ?? undefined,
+        note:               data.note,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['evidences', caseId] })
+      setEditTarget(null)
+    },
+  })
+
+  const openEdit = (e: Evidence) => {
+    setEditForm({
+      name:               e.name,
+      evidence_type:      (e as any).evidence_type      ?? 'other',
+      source_location:    (e as any).source_location    ?? '',
+      acquisition_method: (e as any).acquisition_method ?? 'manual',
+      collected_by:       e.collected_by   ?? '',
+      collected_at:       e.collected_at
+        ? new Date(e.collected_at).toISOString().slice(0, 16)
+        : '',
+      description:        e.description ?? '',
+      tags:               e.tags        ?? '',
+      note:               '',
+    })
+    setEditTarget(e.id)
+  }
 
   const onDrop = useCallback((accepted: File[]) => {
     if (!accepted[0]) return
@@ -339,6 +382,13 @@ export default function EvidencesTab({ caseId }: Props) {
                     >
                       <Download size={14} />
                     </a>
+                    <button
+                      onClick={() => editTarget === e.id ? setEditTarget(null) : openEdit(e)}
+                      className={`transition-colors ${editTarget === e.id ? 'text-accent-green' : 'text-accent-muted hover:text-white'}`}
+                      title="Edit evidence"
+                    >
+                      {editTarget === e.id ? <X size={14} /> : <Pencil size={14} />}
+                    </button>
                     <button onClick={() => setDeleteTarget(e.id)} className="text-accent-muted hover:text-severity-critical transition-colors" title="Delete">
                       <Trash2 size={14} />
                     </button>
@@ -375,7 +425,79 @@ export default function EvidencesTab({ caseId }: Props) {
                 {e.chain_of_custody && (
                   <div className="px-4 py-2 border-t border-white/5 bg-white/[0.01]">
                     <p className="text-[9px] uppercase tracking-widest text-accent-muted/40 mb-1">Custody History</p>
-                    <p className="text-xs text-accent-muted whitespace-pre-wrap">{e.chain_of_custody}</p>
+                    <p className="text-xs text-accent-muted/70 whitespace-pre-wrap font-mono leading-relaxed">{e.chain_of_custody}</p>
+                  </div>
+                )}
+
+                {/* Edit form */}
+                {editTarget === e.id && (
+                  <div className="px-4 py-4 border-t border-accent-green/20 bg-accent-green/[0.02] space-y-4">
+                    <p className="text-[10px] font-semibold text-accent-green uppercase tracking-widest">Edit Evidence Record</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="label">Name</label>
+                        <input className="input" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label className="label">Type</label>
+                        <select className="input" value={editForm.evidence_type} onChange={e => setEditForm(f => ({ ...f, evidence_type: e.target.value }))}>
+                          {EVIDENCE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="label">Collected By</label>
+                        <input className="input" value={editForm.collected_by} onChange={e => setEditForm(f => ({ ...f, collected_by: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label className="label">Collection Date</label>
+                        <input className="input" type="datetime-local" value={editForm.collected_at} onChange={e => setEditForm(f => ({ ...f, collected_at: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label className="label">Source Location</label>
+                        <input className="input font-mono text-xs" value={editForm.source_location} onChange={e => setEditForm(f => ({ ...f, source_location: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label className="label">Acquisition Method</label>
+                        <select className="input" value={editForm.acquisition_method} onChange={e => setEditForm(f => ({ ...f, acquisition_method: e.target.value }))}>
+                          {ACQUISITION_METHODS.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
+                        </select>
+                      </div>
+                      <div className="col-span-2">
+                        <label className="label">Tags</label>
+                        <input className="input" placeholder="comma, separated, tags" value={editForm.tags} onChange={e => setEditForm(f => ({ ...f, tags: e.target.value }))} />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="label">Notes / Description</label>
+                        <textarea className="input resize-none h-14" value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} />
+                      </div>
+                    </div>
+
+                    {/* Mandatory change note */}
+                    <div>
+                      <label className="label flex items-center gap-1">
+                        Change Note <span className="text-severity-critical text-[9px]">required</span>
+                      </label>
+                      <textarea
+                        className={`input resize-none h-16 ${!editForm.note.trim() ? 'border-yellow-500/40' : 'border-accent-green/30'}`}
+                        placeholder="Explain why this record is being modified — will be appended to the custody history…"
+                        value={editForm.note}
+                        onChange={e => setEditForm(f => ({ ...f, note: e.target.value }))}
+                      />
+                      {!editForm.note.trim() && (
+                        <p className="text-[10px] text-yellow-400/60 mt-1">A change note is required to maintain chain of custody integrity.</p>
+                      )}
+                    </div>
+
+                    <div className="flex justify-end gap-2">
+                      <button className="btn-secondary text-xs" onClick={() => setEditTarget(null)}>Cancel</button>
+                      <button
+                        className="btn-primary text-xs"
+                        onClick={() => update.mutate({ id: e.id, data: editForm })}
+                        disabled={!editForm.note.trim() || update.isPending}
+                      >
+                        {update.isPending ? 'Saving…' : 'Save & Log Change'}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

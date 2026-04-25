@@ -8,7 +8,7 @@ export const evidencesApi = {
     api.post<Evidence>(`/cases/${caseId}/evidences/`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then(r => r.data),
-  update: (caseId: string, id: string, data: Partial<Evidence>) =>
+  update: (caseId: string, id: string, data: Partial<Evidence> & { note: string }) =>
     api.patch<Evidence>(`/cases/${caseId}/evidences/${id}`, data).then(r => r.data),
   delete: (caseId: string, id: string) => api.delete(`/cases/${caseId}/evidences/${id}`),
   downloadUrl: (caseId: string, id: string) =>

@@ -15,9 +15,12 @@ from .routers import knowledge as knowledge_router
 from .routers import evtx as evtx_router
 from .routers import audit as audit_router
 from .routers import attack_graph as attack_graph_router
+from .routers import memory as memory_router
 from .models import evtx as _evtx_models          # ensure tables are registered
 from .models import audit as _audit_models         # ensure tables are registered
 from .models import attack_graph as _ag_models     # ensure tables are registered
+from .models import memory as _memory_models       # ensure tables are registered
+from .models import report_version as _rv_models  # ensure tables are registered
 
 Base.metadata.create_all(bind=engine)
 settings.evidence_store_path.mkdir(parents=True, exist_ok=True)
@@ -79,6 +82,7 @@ app.include_router(knowledge_router.router, prefix="/api/v1", **_auth)
 app.include_router(evtx_router.router, prefix="/api/v1", **_auth)
 app.include_router(audit_router.router, prefix="/api/v1", **_auth)
 app.include_router(attack_graph_router.router, prefix="/api/v1", **_auth)
+app.include_router(memory_router.router, prefix="/api/v1", **_auth)
 
 
 @app.get("/api/v1/health")
