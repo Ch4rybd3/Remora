@@ -14,6 +14,8 @@ import KnowledgeBase from './pages/KnowledgeBase'
 import FilesystemLogs from './pages/FilesystemLogs'
 import AuditLog from './pages/AuditLog'
 import Memory from './pages/Memory'
+import MftAnalysis from './pages/MftAnalysis'
+import BrowserAnalysis from './pages/BrowserAnalysis'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth()
@@ -49,6 +51,8 @@ export default function App() {
         <Route path="/artifacts/email" element={<EmailAnalysis />} />
         <Route path="/artifacts/filesystem" element={<FilesystemLogs />} />
         <Route path="/artifacts/memory" element={<Memory />} />
+        <Route path="/artifacts/mft"     element={<MftAnalysis />} />
+        <Route path="/artifacts/browser" element={<BrowserAnalysis />} />
         <Route path="/knowledge" element={<KnowledgeBase />} />
         <Route
           path="/users"

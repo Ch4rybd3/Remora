@@ -1,7 +1,9 @@
 from pathlib import Path
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
 
 from .config import settings
 from .database import Base, engine, SessionLocal
@@ -16,14 +18,51 @@ from .routers import evtx as evtx_router
 from .routers import audit as audit_router
 from .routers import attack_graph as attack_graph_router
 from .routers import memory as memory_router
+from .routers import mft as mft_router
+from .routers import usn as usn_router
+from .routers import browser as browser_router
 from .models import evtx as _evtx_models          # ensure tables are registered
 from .models import audit as _audit_models         # ensure tables are registered
 from .models import attack_graph as _ag_models     # ensure tables are registered
 from .models import memory as _memory_models       # ensure tables are registered
 from .models import report_version as _rv_models  # ensure tables are registered
+from .models import mft as _mft_models            # ensure tables are registered
+from .models import usn as _usn_models            # ensure tables are registered
+from .models import browser as _browser_models    # ensure tables are registered
 
 Base.metadata.create_all(bind=engine)
 settings.evidence_store_path.mkdir(parents=True, exist_ok=True)
+
+
+def _setup_mft() -> None:
+    """Add new columns to mft_files if they don't already exist."""
+    with engine.connect() as conn:
+        for col_ddl in [
+            "ALTER TABLE mft_files ADD COLUMN duckdb_path TEXT",
+            "ALTER TABLE mft_files ADD COLUMN parse_progress INTEGER DEFAULT 0 NOT NULL",
+            "ALTER TABLE mft_files ADD COLUMN parse_duration_seconds INTEGER",
+        ]:
+            try:
+                conn.execute(text(col_ddl))
+                conn.commit()
+            except Exception:
+                pass  # Column already exists
+
+
+_setup_mft()
+
+
+def _setup_browser() -> None:
+    """Add columns_json to browser_files if it doesn't already exist."""
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE browser_files ADD COLUMN columns_json TEXT"))
+            conn.commit()
+        except Exception:
+            pass  # Column already exists
+
+
+_setup_browser()
 
 NOTE_IMAGES_DIR = settings.evidence_store_path.parent / "note_images"
 NOTE_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
@@ -54,6 +93,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -83,6 +123,9 @@ app.include_router(evtx_router.router, prefix="/api/v1", **_auth)
 app.include_router(audit_router.router, prefix="/api/v1", **_auth)
 app.include_router(attack_graph_router.router, prefix="/api/v1", **_auth)
 app.include_router(memory_router.router, prefix="/api/v1", **_auth)
+app.include_router(mft_router.router,     prefix="/api/v1", **_auth)
+app.include_router(usn_router.router,     prefix="/api/v1", **_auth)
+app.include_router(browser_router.router, prefix="/api/v1", **_auth)
 
 
 @app.get("/api/v1/health")
