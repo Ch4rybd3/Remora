@@ -72,26 +72,47 @@ export default function KnowledgeBase() {
         </div>
       </div>
 
-      {/* ── Right: Graph ─────────────────────────────────────────────────── */}
+      {/* ── Right sidebar ─────────────────────────────────────────────────── */}
       {showGraph && (
         <div className="w-80 shrink-0 border-l border-white/5 bg-bg-secondary flex flex-col">
-          {/* Graph header */}
-          <div className="px-3 py-2 border-b border-white/5 shrink-0">
-            <span className="text-[10px] font-semibold tracking-widest uppercase text-accent-muted/40">
-              Note Graph
-            </span>
-            {selectedPath && (
-              <span className="ml-2 text-[10px] text-accent-muted/30 truncate">
-                — {selectedPath.split('/').pop()?.replace('.md', '')}
+
+          {/* ── Top: graph, square (height = sidebar width) ───────────────── */}
+          <div className="w-full aspect-square shrink-0 flex flex-col">
+            <div className="px-3 py-2 border-b border-white/5 shrink-0 flex items-center gap-2">
+              <span className="text-[10px] font-semibold tracking-widest uppercase text-accent-muted/40">
+                Note Graph
               </span>
-            )}
+              {selectedPath && (
+                <span className="text-[10px] text-accent-muted/25 truncate">
+                  — {selectedPath.split('/').pop()?.replace('.md', '')}
+                </span>
+              )}
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <NoteGraph
+                currentPath={selectedPath}
+                onNodeClick={handleGraphNodeClick}
+              />
+            </div>
           </div>
-          <div className="flex-1 overflow-hidden">
-            <NoteGraph
-              currentPath={selectedPath}
-              onNodeClick={handleGraphNodeClick}
-            />
+
+          {/* ── Divider ───────────────────────────────────────────────────── */}
+          <div className="border-t border-white/5 shrink-0" />
+
+          {/* ── Bottom: future features ───────────────────────────────────── */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="px-3 py-2 border-b border-white/5 shrink-0">
+              <span className="text-[10px] font-semibold tracking-widest uppercase text-accent-muted/40">
+                Filters
+              </span>
+            </div>
+            <div className="flex-1 flex items-center justify-center p-4">
+              <p className="text-[10px] text-accent-muted/20 italic text-center">
+                Tag search and filters<br />coming soon
+              </p>
+            </div>
           </div>
+
         </div>
       )}
     </div>

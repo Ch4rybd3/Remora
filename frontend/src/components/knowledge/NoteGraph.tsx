@@ -1,9 +1,11 @@
-import { useEffect, useCallback, useRef, useState } from 'react'
+import { useEffect, useCallback, useRef, useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
-  ReactFlow, Background, BackgroundVariant, Controls,
+  ReactFlow, Background, BackgroundVariant,
   applyNodeChanges, applyEdgeChanges,
+  Handle, Position,
   type Node, type Edge, type OnNodesChange, type OnEdgesChange,
+  type ReactFlowInstance, type NodeTypes,
 } from '@xyflow/react'
 import { knowledgeApi } from '../../api/knowledge'
 
@@ -87,25 +89,63 @@ function forceLayout(
 // ── Node style ─────────────────────────────────────────────────────────────
 
 function nodeStyle(isCurrent: boolean, linkCount: number) {
-  const size = Math.max(28, Math.min(60, 28 + linkCount * 4))
+  const size = Math.max(26, Math.min(56, 26 + linkCount * 4))
   return {
-    width: size,
-    height: size,
-    borderRadius: '50%',
-    fontSize: '9px',
-    background: isCurrent ? 'rgba(159,239,0,0.2)' : 'rgba(255,255,255,0.04)',
-    border: `1.5px solid ${isCurrent ? '#9FEF00' : 'rgba(255,255,255,0.12)'}`,
-    color: isCurrent ? '#9FEF00' : 'rgba(163,179,188,0.7)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    textAlign: 'center' as const,
-    lineHeight: '1.2',
-    cursor: 'pointer',
-    padding: '2px',
-    overflow: 'hidden',
+    width:           size,
+    height:          size,
+    borderRadius:    '50%',
+    fontSize:        '8px',
+    background:      isCurrent ? 'rgba(159,239,0,0.18)' : 'rgba(255,255,255,0.04)',
+    border:          `1.5px solid ${isCurrent ? '#9FEF00' : 'rgba(255,255,255,0.15)'}`,
+    color:           isCurrent ? '#9FEF00' : 'rgba(163,179,188,0.7)',
+    display:         'flex',
+    alignItems:      'center',
+    justifyContent:  'center',
+    textAlign:       'center' as const,
+    lineHeight:      '1.2',
+    cursor:          'pointer',
+    padding:         '2px',
+    overflow:        'hidden',
+    boxSizing:       'border-box' as const,
   }
 }
+
+// ── Custom node — handles are invisible and centred so edges connect
+//    from circle centre to circle centre, drawn as straight lines ───────────
+
+function GraphNode({ data }: { data: Record<string, unknown> }) {
+  const isCurrent  = Boolean(data.isCurrent)
+  const linkCount  = (data.linkCount as number) ?? 0
+  const label      = (data.label as string) ?? ''
+  const short      = label.length > 9 ? label.slice(0, 8) + '…' : label
+
+  // Both handles sit at the node's centre (top 50%, left 50%).
+  // They are invisible and have zero pointer-event area — so the edge lines
+  // start and end at the visual centre of each circle.
+  const handleStyle: React.CSSProperties = {
+    opacity:        0,
+    width:          1,
+    height:         1,
+    minWidth:       0,
+    minHeight:      0,
+    border:         'none',
+    background:     'transparent',
+    top:            '50%',
+    left:           '50%',
+    transform:      'translate(-50%, -50%)',
+    pointerEvents:  'none',
+  }
+
+  return (
+    <>
+      <Handle type="target" position={Position.Top}    style={handleStyle} />
+      <div style={nodeStyle(isCurrent, linkCount)}>{short}</div>
+      <Handle type="source" position={Position.Bottom} style={handleStyle} />
+    </>
+  )
+}
+
+const nodeTypes: NodeTypes = { graphNode: GraphNode }
 
 // ── Component ──────────────────────────────────────────────────────────────
 
@@ -121,11 +161,13 @@ export default function NoteGraph({ currentPath, onNodeClick }: Props) {
     staleTime: 30_000,
   })
 
-  const [rfNodes, setRfNodes] = useState<Node[]>([])
-  const [rfEdges, setRfEdges] = useState<Edge[]>([])
+  // ── All nodes / edges (full graph, kept in state for dragging) ────────────
+  const [allNodes, setAllNodes] = useState<Node[]>([])
+  const [allEdges, setAllEdges] = useState<Edge[]>([])
   const layoutDone = useRef(false)
+  const rfRef      = useRef<ReactFlowInstance | null>(null)
 
-  // Build initial layout once when graph data arrives
+  // Build layout once when data arrives
   useEffect(() => {
     if (!graph || graph.nodes.length === 0 || layoutDone.current) return
     layoutDone.current = true
@@ -135,45 +177,76 @@ export default function NoteGraph({ currentPath, onNodeClick }: Props) {
       graph.edges,
     )
 
-    // Build id → path map for click handler
-    const idToPath: Record<string, string> = {}
-    graph.nodes.forEach(n => { idToPath[n.id] = n.path })
-
-    setRfNodes(
+    setAllNodes(
       graph.nodes.map(n => ({
-        id: n.id,
-        type: 'default',
+        id:       n.id,
+        type:     'graphNode',
+        // nodeOrigin={[0.5,0.5]} on ReactFlow means position = centre of node
         position: positions[n.id] ?? { x: 0, y: 0 },
-        data: { label: n.label, path: n.path, linkCount: n.link_count },
-        style: nodeStyle(n.path === currentPath, n.link_count),
+        data: {
+          label:     n.label,
+          path:      n.path,
+          linkCount: n.link_count,
+          isCurrent: n.path === currentPath,
+        },
       }))
     )
 
-    setRfEdges(
+    setAllEdges(
       graph.edges.map((e, i) => ({
-        id: `e${i}`,
+        id:     `e${i}`,
         source: e.source,
         target: e.target,
-        style: { stroke: 'rgba(163,179,188,0.15)', strokeWidth: 1 },
+        type:   'straight',   // ← straight line, not bezier
+        style:  { stroke: 'rgba(163,179,188,0.18)', strokeWidth: 1 },
       }))
     )
-  }, [graph])
+  }, [graph])  // intentionally omitting currentPath — layout is stable
 
-  // Update highlight when currentPath changes (no re-layout)
+  // ── Update isCurrent flag when selected note changes ──────────────────────
   useEffect(() => {
     if (!graph) return
-    setRfNodes(prev => prev.map(n => ({
+    setAllNodes(prev => prev.map(n => ({
       ...n,
-      style: nodeStyle(n.data.path === currentPath, n.data.linkCount as number ?? 0),
+      data: { ...n.data, isCurrent: (n.data.path as string) === currentPath },
     })))
   }, [currentPath, graph])
 
+  // ── Compute visible subset: current node + its direct neighbours ──────────
+  const visibleNodes = useMemo(() => {
+    if (!currentPath) return allNodes
+    const cur = allNodes.find(n => (n.data.path as string) === currentPath)
+    if (!cur) return allNodes   // note not in graph yet → show all
+
+    const ids = new Set<string>([cur.id])
+    allEdges.forEach(e => {
+      if (e.source === cur.id) ids.add(e.target)
+      if (e.target === cur.id) ids.add(e.source)
+    })
+    return allNodes.filter(n => ids.has(n.id))
+  }, [currentPath, allNodes, allEdges])
+
+  const visibleEdges = useMemo(() => {
+    if (!currentPath) return allEdges
+    const ids = new Set(visibleNodes.map(n => n.id))
+    return allEdges.filter(e => ids.has(e.source) && ids.has(e.target))
+  }, [currentPath, visibleNodes, allEdges])
+
+  // ── Fit view whenever the visible set changes ─────────────────────────────
+  useEffect(() => {
+    const t = setTimeout(() => {
+      rfRef.current?.fitView({ padding: 0.3, duration: 250 })
+    }, 80)
+    return () => clearTimeout(t)
+  }, [currentPath])   // trigger on path change (visible set changes with it)
+
+  // ── ReactFlow change handlers — operate on allNodes so positions persist ──
   const onNodesChange: OnNodesChange = useCallback(
-    changes => setRfNodes(prev => applyNodeChanges(changes, prev)),
+    changes => setAllNodes(prev => applyNodeChanges(changes, prev)),
     [],
   )
   const onEdgesChange: OnEdgesChange = useCallback(
-    changes => setRfEdges(prev => applyEdgeChanges(changes, prev)),
+    changes => setAllEdges(prev => applyEdgeChanges(changes, prev)),
     [],
   )
 
@@ -181,12 +254,14 @@ export default function NoteGraph({ currentPath, onNodeClick }: Props) {
     onNodeClick(node.data.path as string)
   }, [onNodeClick])
 
+  // ── Empty state ───────────────────────────────────────────────────────────
   if (!graph || graph.nodes.length === 0) {
     return (
       <div className="h-full flex items-center justify-center p-4">
-        <p className="text-[11px] text-accent-muted/30 italic text-center">
-          No notes yet.<br />
-          Create notes with <code className="bg-white/5 px-1 rounded">[[wikilinks]]</code> to see the graph.
+        <p className="text-[10px] text-accent-muted/30 italic text-center">
+          Crée des notes avec des{' '}
+          <code className="bg-white/5 px-1 rounded font-mono">[[wikilinks]]</code>
+          {' '}pour voir le graphe.
         </p>
       </div>
     )
@@ -194,21 +269,23 @@ export default function NoteGraph({ currentPath, onNodeClick }: Props) {
 
   return (
     <ReactFlow
-      nodes={rfNodes}
-      edges={rfEdges}
+      nodes={visibleNodes}
+      edges={visibleEdges}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onNodeClick={handleNodeClick}
+      onInit={instance => { rfRef.current = instance }}
+      nodeTypes={nodeTypes}
+      nodeOrigin={[0.5, 0.5]}   // positions refer to node centre
       fitView
-      fitViewOptions={{ padding: 0.2 }}
-      minZoom={0.1}
+      fitViewOptions={{ padding: 0.3 }}
+      minZoom={0.2}
       maxZoom={3}
       nodesDraggable
       nodesConnectable={false}
       elementsSelectable={false}
     >
       <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="rgba(255,255,255,0.04)" />
-      <Controls showInteractive={false} />
     </ReactFlow>
   )
 }

@@ -1,8 +1,8 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   Folder, FolderOpen, FileText, ChevronRight, ChevronDown,
-  Plus, Trash2, Edit2, Check, X,
+  Plus, Trash2, Edit2, Check, X, ChevronsUpDown,
 } from 'lucide-react'
 import { knowledgeApi, type FileNode } from '../../api/knowledge'
 
@@ -41,7 +41,7 @@ function NewItemInput({
 
 function TreeNode({
   node, selected, onSelect, depth, parentPath,
-  onDelete, onRename,
+  onDelete, onRename, foldSignal,
 }: {
   node: FileNode
   selected: string | null
@@ -50,8 +50,13 @@ function TreeNode({
   parentPath: string
   onDelete: (path: string) => void
   onRename: (path: string) => void
+  foldSignal: { tick: number; open: boolean }
 }) {
   const [open, setOpen] = useState(depth === 0)
+
+  useEffect(() => {
+    if (foldSignal.tick > 0) setOpen(foldSignal.open)
+  }, [foldSignal.tick]) // eslint-disable-line react-hooks/exhaustive-deps
   const [creating, setCreating] = useState<'file' | 'folder' | null>(null)
   const [hovered, setHovered] = useState(false)
   const qc = useQueryClient()
@@ -146,6 +151,7 @@ function TreeNode({
                 parentPath={node.path}
                 onDelete={onDelete}
                 onRename={onRename}
+                foldSignal={foldSignal}
               />
             ))}
           </div>
@@ -190,6 +196,9 @@ export default function FileTree({ nodes, selected, onSelect }: Props) {
   const qc = useQueryClient()
   const [creatingRoot, setCreatingRoot] = useState<'file' | 'folder' | null>(null)
   const [renaming, setRenaming] = useState<string | null>(null)
+  const [foldSignal, setFoldSignal] = useState<{ tick: number; open: boolean }>({ tick: 0, open: false })
+  // allOpen tracks what the NEXT click should do (starts true so first click collapses)
+  const [allOpen, setAllOpen] = useState(true)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const createFile = useMutation({
@@ -233,6 +242,15 @@ export default function FileTree({ nodes, selected, onSelect }: Props) {
       <div className="px-3 py-2.5 border-b border-white/5 flex items-center justify-between shrink-0">
         <span className="text-[10px] font-semibold tracking-widest uppercase text-accent-muted/50">Vault</span>
         <div className="flex items-center gap-1">
+          <button
+            onClick={() => {
+              const next = !allOpen
+              setAllOpen(next)
+              setFoldSignal(s => ({ tick: s.tick + 1, open: next }))
+            }}
+            title={allOpen ? 'Collapse all folders' : 'Expand all folders'}
+            className="p-1 rounded text-accent-muted/50 hover:text-white hover:bg-white/5 transition-colors"
+          ><ChevronsUpDown size={13} /></button>
           <button
             onClick={() => setCreatingRoot('file')}
             title="New note"
@@ -297,6 +315,7 @@ export default function FileTree({ nodes, selected, onSelect }: Props) {
               parentPath=""
               onDelete={handleDelete}
               onRename={handleRename}
+              foldSignal={foldSignal}
             />
           ))
         )}
