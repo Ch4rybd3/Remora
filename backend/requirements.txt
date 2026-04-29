@@ -11,3 +11,6 @@ bcrypt==4.2.1
 evtx>=0.8.2
 volatility3>=2.5.0
 duckdb>=1.1.0
+cryptography>=42.0.0
+lief>=0.14.0
+capstone>=5.0.0

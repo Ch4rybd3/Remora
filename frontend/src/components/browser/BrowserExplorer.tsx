@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Search, ChevronLeft, ChevronRight, Download, Globe, Puzzle,
-  Cookie, Star, BookmarkPlus, X, ArrowUpDown, Clock,
+  Cookie, Star, BookmarkPlus, BookmarkCheck, X, ArrowUpDown, Clock,
 } from 'lucide-react'
 import { browserApi, type BrowserFile, type BrowserEntry, type BrowserSummary } from '../../api/browser'
 import { format } from 'date-fns'
@@ -137,8 +137,19 @@ function EntryRow({
         onClick={() => setExpanded(x => !x)}
         className="border-b border-white/[0.04] hover:bg-white/[0.03] cursor-pointer transition-colors group"
       >
+        {/* Pin button — left column */}
+        <td
+          className="w-8 pl-2 py-1.5 text-center shrink-0"
+          onClick={ev => { ev.stopPropagation(); isPinned ? onUnpin(key) : onPin(e) }}
+        >
+          {isPinned
+            ? <BookmarkCheck size={12} className="mx-auto text-accent-green/60" title="Remove from selection" />
+            : <BookmarkPlus  size={12} className="mx-auto text-accent-muted/20 group-hover:text-accent-muted/50 hover:!text-accent-green transition-colors" title="Add to selection" />
+          }
+        </td>
+
         {/* Timestamp */}
-        <td className="pl-3 pr-2 py-1.5 text-[10px] font-mono text-white/60 whitespace-nowrap">
+        <td className="px-2 py-1.5 text-[10px] font-mono text-white/60 whitespace-nowrap">
           {fmtTsShort(e.event_timestamp)}
         </td>
 
@@ -168,28 +179,8 @@ function EntryRow({
         </td>
 
         {/* Extra */}
-        <td className="px-2 py-1.5 text-[10px] font-mono text-accent-muted/40 whitespace-nowrap">
+        <td className="px-2 py-1.5 text-[10px] font-mono text-accent-muted/40 whitespace-nowrap pr-4">
           {extraValue != null ? String(extraValue) : null}
-        </td>
-
-        {/* Pin button */}
-        <td
-          className="pr-3 py-1.5 w-8"
-          onClick={ev => {
-            ev.stopPropagation()
-            isPinned ? onUnpin(key) : onPin(e)
-          }}
-        >
-          <button
-            className={`p-1 rounded transition-colors ${
-              isPinned
-                ? 'text-accent-green hover:text-accent-green/50'
-                : 'text-accent-muted/20 hover:text-accent-green group-hover:text-accent-muted/50'
-            }`}
-            title={isPinned ? 'Remove from selection' : 'Add to selection'}
-          >
-            <BookmarkPlus size={12} />
-          </button>
         </td>
       </tr>
 
@@ -389,12 +380,12 @@ export default function BrowserExplorer({ caseId, file, pinnedIds, onPin, onUnpi
         <table className="w-full text-xs border-collapse min-w-[900px]">
           <thead className="sticky top-0 bg-bg-secondary/90 backdrop-blur-sm z-10 border-b border-white/5">
             <tr>
+              <th className="w-8 pl-2" />
               <SortTh label="Timestamp" active dir={sortDir} onClick={handleSort} />
               <th className="px-2 py-2 text-left text-[9px] uppercase tracking-widest text-accent-muted/40 w-24">Type</th>
               <th className="px-2 py-2 text-left text-[9px] uppercase tracking-widest text-accent-muted/40 w-24">Browser</th>
               <th className="px-2 py-2 text-left text-[9px] uppercase tracking-widest text-accent-muted/40">Name / URL</th>
               <th className="px-2 py-2 text-left text-[9px] uppercase tracking-widest text-accent-muted/40 w-28">Extra</th>
-              <th className="w-8 pr-3" />
             </tr>
           </thead>
           <tbody>

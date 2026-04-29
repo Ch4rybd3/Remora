@@ -39,6 +39,14 @@ export interface MftEntry {
   has_ts_anomaly: boolean
 }
 
+/** MFT entry enriched with source file metadata for the selection panel. */
+export interface PinnedMftEntry extends MftEntry {
+  _key:        string   // `${fileId}:mft:${entry_number}`
+  _fileId:     string
+  _filename:   string
+  _sourceType: 'mft'
+}
+
 export interface EntriesPage {
   total:     number
   page:      number

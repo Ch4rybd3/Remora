@@ -16,6 +16,8 @@ import AuditLog from './pages/AuditLog'
 import Memory from './pages/Memory'
 import MftAnalysis from './pages/MftAnalysis'
 import BrowserAnalysis from './pages/BrowserAnalysis'
+import BinaryAnalysis from './pages/BinaryAnalysis'
+import RegistryAnalysis from './pages/RegistryAnalysis'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth()
@@ -53,6 +55,8 @@ export default function App() {
         <Route path="/artifacts/memory" element={<Memory />} />
         <Route path="/artifacts/mft"     element={<MftAnalysis />} />
         <Route path="/artifacts/browser" element={<BrowserAnalysis />} />
+        <Route path="/artifacts/binary"    element={<BinaryAnalysis />} />
+        <Route path="/artifacts/registry"  element={<RegistryAnalysis />} />
         <Route path="/knowledge" element={<KnowledgeBase />} />
         <Route
           path="/users"

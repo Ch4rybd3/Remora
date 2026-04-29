@@ -1,22 +1,84 @@
-import { useState } from 'react'
-import { Database } from 'lucide-react'
+import { useState, useCallback, useMemo } from 'react'
+import { Database, BookmarkPlus, ChevronRight } from 'lucide-react'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import MftFileList from '../components/mft/MftFileList'
 import MftExplorer from '../components/mft/MftExplorer'
 import UsnFileList from '../components/usn/UsnFileList'
 import UsnExplorer from '../components/usn/UsnExplorer'
-import type { MftFile } from '../api/mft'
-import type { UsnFile } from '../api/usn'
+import FsSelectionPanel, { type PinnedFsEntry } from '../components/mft/FsSelectionPanel'
+import type { MftFile, MftEntry, PinnedMftEntry } from '../api/mft'
+import type { UsnFile, UsnEntry, PinnedUsnEntry } from '../api/usn'
 
 type Tab = 'mft' | 'usn'
 
 export default function MftAnalysis() {
   const { currentCase } = useCurrentCase()
 
-  const [activeTab,      setActiveTab]      = useState<Tab>('mft')
+  const [activeTab,       setActiveTab]       = useState<Tab>('mft')
   const [selectedMftFile, setSelectedMftFile] = useState<MftFile | null>(null)
   const [selectedUsnFile, setSelectedUsnFile] = useState<UsnFile | null>(null)
 
+  // ── Selection panel state ────────────────────────────────────────────────────
+  const [showSelectionPanel, setShowSelectionPanel] = useState(false)
+  const [pinnedEntries,      setPinnedEntries]      = useState<PinnedFsEntry[]>([])
+  const [sentKeys,           setSentKeys]           = useState<Set<string>>(new Set())
+
+  const pinnedIds = useMemo(
+    () => new Set(pinnedEntries.map(e => e._key)),
+    [pinnedEntries],
+  )
+
+  const handlePinMft = useCallback((entry: MftEntry) => {
+    if (!selectedMftFile) return
+    const key = `${selectedMftFile.id}:mft:${entry.entry_number}`
+    setPinnedEntries(prev => {
+      if (prev.some(e => e._key === key)) return prev
+      const pinned: PinnedMftEntry = {
+        ...entry,
+        _key:        key,
+        _fileId:     selectedMftFile.id,
+        _filename:   selectedMftFile.filename,
+        _sourceType: 'mft',
+      }
+      return [...prev, pinned]
+    })
+    setShowSelectionPanel(true)
+  }, [selectedMftFile])
+
+  const handlePinUsn = useCallback((entry: UsnEntry, idx: number) => {
+    if (!selectedUsnFile) return
+    const key = `${selectedUsnFile.id}:usn:${idx}`
+    setPinnedEntries(prev => {
+      if (prev.some(e => e._key === key)) return prev
+      const pinned: PinnedUsnEntry = {
+        ...entry,
+        _key:        key,
+        _fileId:     selectedUsnFile.id,
+        _filename:   selectedUsnFile.filename,
+        _sourceType: 'usn',
+        _idx:        idx,
+      }
+      return [...prev, pinned]
+    })
+    setShowSelectionPanel(true)
+  }, [selectedUsnFile])
+
+  const handleUnpin = useCallback((key: string) => {
+    setPinnedEntries(prev => prev.filter(e => e._key !== key))
+    setSentKeys(prev => { const s = new Set(prev); s.delete(key); return s })
+  }, [])
+
+  const handleClear = useCallback(() => {
+    setPinnedEntries([])
+    setSentKeys(new Set())
+    setShowSelectionPanel(false)
+  }, [])
+
+  const handleSent = useCallback((key: string) => {
+    setSentKeys(prev => new Set([...prev, key]))
+  }, [])
+
+  // ── No case ──────────────────────────────────────────────────────────────────
   if (!currentCase) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -81,8 +143,8 @@ export default function MftAnalysis() {
         </div>
       </div>
 
-      {/* ── Right panel: explorer ────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-bg-primary">
+      {/* ── Centre: explorer ─────────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col overflow-hidden bg-bg-primary min-w-0">
 
         {/* Mini header */}
         <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5 shrink-0 bg-bg-secondary/50">
@@ -125,6 +187,24 @@ export default function MftAnalysis() {
               )}
             </>
           )}
+
+          {/* Bookmark toggle */}
+          <button
+            onClick={() => setShowSelectionPanel(v => !v)}
+            className={`ml-auto flex items-center gap-1.5 px-2 py-1 rounded border text-[9px] transition-colors ${
+              showSelectionPanel
+                ? 'border-accent-green/30 text-accent-green bg-accent-green/10'
+                : 'border-white/10 text-accent-muted/40 hover:text-white hover:border-white/20'
+            }`}
+            title="Toggle timeline selection panel"
+          >
+            <BookmarkPlus size={11} />
+            {pinnedEntries.length > 0 && (
+              <span className={`font-mono ${showSelectionPanel ? 'text-accent-green' : 'text-white/50'}`}>
+                {pinnedEntries.length}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Content */}
@@ -135,6 +215,9 @@ export default function MftAnalysis() {
                 caseId={currentCase.id}
                 fileId={selectedMftFile.id}
                 filename={selectedMftFile.filename}
+                pinnedIds={pinnedIds}
+                onPin={handlePinMft}
+                onUnpin={handleUnpin}
               />
             ) : (
               <EmptyState
@@ -149,6 +232,9 @@ export default function MftAnalysis() {
                 caseId={currentCase.id}
                 fileId={selectedUsnFile.id}
                 filename={selectedUsnFile.filename}
+                pinnedIds={pinnedIds}
+                onPin={handlePinUsn}
+                onUnpin={handleUnpin}
               />
             ) : (
               <EmptyState
@@ -160,6 +246,34 @@ export default function MftAnalysis() {
           )}
         </div>
       </div>
+
+      {/* ── Right: selection panel ───────────────────────────────────── */}
+      {showSelectionPanel && (
+        <div className="w-72 shrink-0 border-l border-white/5 bg-bg-secondary flex flex-col">
+          <div className="px-3 py-2.5 border-b border-white/5 flex items-center justify-between shrink-0">
+            <span className="text-[10px] font-semibold tracking-widest uppercase text-accent-muted/50">
+              Timeline Selection
+            </span>
+            <button
+              onClick={() => setShowSelectionPanel(false)}
+              className="p-1 rounded text-accent-muted/30 hover:text-white hover:bg-white/5 transition-colors"
+              title="Collapse"
+            >
+              <ChevronRight size={13} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <FsSelectionPanel
+              entries={pinnedEntries}
+              sentKeys={sentKeys}
+              caseId={currentCase.id}
+              onRemove={handleUnpin}
+              onClear={handleClear}
+              onSent={handleSent}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

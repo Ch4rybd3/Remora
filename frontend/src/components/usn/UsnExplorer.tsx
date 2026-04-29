@@ -2,15 +2,18 @@ import { useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Search, ChevronLeft, ChevronRight, Folder, FileText,
-  Filter, X, ArrowUpDown,
+  Filter, X, ArrowUpDown, BookmarkPlus, BookmarkCheck,
 } from 'lucide-react'
 import { usnApi, type UsnEntry, type UsnSummary } from '../../api/usn'
 import { format } from 'date-fns'
 
 interface Props {
-  caseId:   string
-  fileId:   string
-  filename: string
+  caseId:    string
+  fileId:    string
+  filename:  string
+  pinnedIds: Set<string>
+  onPin:     (e: UsnEntry, idx: number) => void
+  onUnpin:   (key: string) => void
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -104,8 +107,14 @@ function SummaryBar({ s }: { s: UsnSummary }) {
 
 // ── Entry row ─────────────────────────────────────────────────────────────────
 
-function EntryRow({ e, idx }: { e: UsnEntry; idx: number }) {
+function EntryRow({
+  e, idx, fileId, isPinned, onPin, onUnpin,
+}: {
+  e: UsnEntry; idx: number; fileId: string; isPinned: boolean
+  onPin: (e: UsnEntry, idx: number) => void; onUnpin: (key: string) => void
+}) {
   const [expanded, setExpanded] = useState(false)
+  const key = `${fileId}:usn:${idx}`
 
   return (
     <>
@@ -113,11 +122,14 @@ function EntryRow({ e, idx }: { e: UsnEntry; idx: number }) {
         onClick={() => setExpanded(x => !x)}
         className="border-b border-white/[0.04] hover:bg-white/[0.03] cursor-pointer transition-colors group"
       >
-        {/* Type icon */}
-        <td className="pl-3 pr-1 py-1.5 w-6 shrink-0">
-          {e.is_directory
-            ? <Folder size={12} className="text-blue-400/60" />
-            : <FileText size={12} className="text-accent-muted/30" />
+        {/* Pin button */}
+        <td
+          className="w-8 pl-2 py-1.5 text-center shrink-0"
+          onClick={ev => { ev.stopPropagation(); isPinned ? onUnpin(key) : onPin(e, idx) }}
+        >
+          {isPinned
+            ? <BookmarkCheck size={12} className="mx-auto text-accent-green/60" title="Remove from selection" />
+            : <BookmarkPlus  size={12} className="mx-auto text-accent-muted/20 group-hover:text-accent-muted/50 hover:!text-accent-green transition-colors" title="Add to selection" />
           }
         </td>
 
@@ -139,9 +151,15 @@ function EntryRow({ e, idx }: { e: UsnEntry; idx: number }) {
 
         {/* Filename / path */}
         <td className="px-2 py-1.5 max-w-[280px]">
-          <span className="text-xs font-mono text-white/80 truncate block" title={e.filename ?? ''}>
-            {e.filename ?? '—'}
-          </span>
+          <div className="flex items-center gap-1.5">
+            {e.is_directory
+              ? <Folder   size={11} className="text-blue-400/60 shrink-0" />
+              : <FileText size={11} className="text-accent-muted/30 shrink-0" />
+            }
+            <span className="text-xs font-mono text-white/80 truncate" title={e.filename ?? ''}>
+              {e.filename ?? '—'}
+            </span>
+          </div>
           {e.full_path && (
             <p className="text-[9px] text-accent-muted/30 font-mono truncate mt-0.5" title={e.full_path}>
               {e.full_path}
@@ -231,7 +249,7 @@ function SortTh({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function UsnExplorer({ caseId, fileId }: Props) {
+export default function UsnExplorer({ caseId, fileId, filename, pinnedIds, onPin, onUnpin }: Props) {
   const [search,    setSearch]    = useState('')
   const [reason,    setReason]    = useState('')
   const [extension, setExtension] = useState('')
@@ -360,7 +378,7 @@ export default function UsnExplorer({ caseId, fileId }: Props) {
         <table className="w-full text-xs border-collapse min-w-[800px]">
           <thead className="sticky top-0 bg-bg-secondary/90 backdrop-blur-sm z-10 border-b border-white/5">
             <tr>
-              <th className="w-6 pl-3" />
+              <th className="w-8 pl-2" />
               <SortTh
                 label="Timestamp"
                 field="update_timestamp"
@@ -381,7 +399,17 @@ export default function UsnExplorer({ caseId, fileId }: Props) {
                 </td>
               </tr>
             ) : (
-              items.map((e, i) => <EntryRow key={i} e={e} idx={i} />)
+              items.map((e, i) => (
+                <EntryRow
+                  key={i}
+                  e={e}
+                  idx={i}
+                  fileId={fileId}
+                  isPinned={pinnedIds.has(`${fileId}:usn:${i}`)}
+                  onPin={onPin}
+                  onUnpin={onUnpin}
+                />
+              ))
             )}
           </tbody>
         </table>

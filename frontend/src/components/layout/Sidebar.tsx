@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, FolderOpen, FileText, Users, LogOut, GitBranch, Mail, HardDrive, Shield, Cpu, Database, Globe } from 'lucide-react'
+import { LayoutDashboard, FolderOpen, FileText, Users, LogOut, GitBranch, Mail, HardDrive, Shield, Cpu, Database, Globe, Binary, KeyRound } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
 const ROLE_COLORS: Record<string, string> = {
@@ -66,6 +66,8 @@ export default function Sidebar() {
         { to: '/artifacts/browser',      icon: Globe,     label: 'Browser' },
         { to: '/artifacts/mft',         icon: Database,  label: 'MFT / USN' },
         { to: '/artifacts/memory',      icon: Cpu,       label: 'Memory Analysis' },
+        { to: '/artifacts/binary',      icon: Binary,    label: 'Binary Analysis' },
+        { to: '/artifacts/registry',    icon: KeyRound,  label: 'Registry' },
       ],
     },
     {

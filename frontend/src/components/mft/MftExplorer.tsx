@@ -2,15 +2,18 @@ import { useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Search, ChevronLeft, ChevronRight, Folder, FileText,
-  AlertTriangle, Filter, X, ArrowUpDown,
+  AlertTriangle, Filter, X, ArrowUpDown, BookmarkPlus, BookmarkCheck,
 } from 'lucide-react'
 import { mftApi, type MftEntry, type MftSummary } from '../../api/mft'
 import { format } from 'date-fns'
 
 interface Props {
-  caseId:   string
-  fileId:   string
-  filename: string
+  caseId:    string
+  fileId:    string
+  filename:  string
+  pinnedIds: Set<string>
+  onPin:     (e: MftEntry) => void
+  onUnpin:   (key: string) => void
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -84,8 +87,14 @@ function SummaryBar({ s }: { s: MftSummary }) {
 
 // ── Entry row ─────────────────────────────────────────────────────────────────
 
-function EntryRow({ e }: { e: MftEntry }) {
+function EntryRow({
+  e, fileId, isPinned, onPin, onUnpin,
+}: {
+  e: MftEntry; fileId: string; isPinned: boolean
+  onPin: (e: MftEntry) => void; onUnpin: (key: string) => void
+}) {
   const [expanded, setExpanded] = useState(false)
+  const key = `${fileId}:mft:${e.entry_number}`
 
   return (
     <>
@@ -93,17 +102,24 @@ function EntryRow({ e }: { e: MftEntry }) {
         onClick={() => setExpanded(x => !x)}
         className="border-b border-white/[0.04] hover:bg-white/[0.03] cursor-pointer transition-colors group"
       >
-        {/* Type icon */}
-        <td className="pl-3 pr-1 py-1.5 w-6 shrink-0">
-          {e.is_directory
-            ? <Folder size={12} className="text-blue-400/60" />
-            : <FileText size={12} className="text-accent-muted/30" />
+        {/* Pin button */}
+        <td
+          className="w-8 pl-2 py-1.5 text-center shrink-0"
+          onClick={ev => { ev.stopPropagation(); isPinned ? onUnpin(key) : onPin(e) }}
+        >
+          {isPinned
+            ? <BookmarkCheck size={12} className="mx-auto text-accent-green/60" title="Remove from selection" />
+            : <BookmarkPlus  size={12} className="mx-auto text-accent-muted/20 group-hover:text-accent-muted/50 hover:!text-accent-green transition-colors" title="Add to selection" />
           }
         </td>
 
         {/* Filename + path */}
         <td className="px-2 py-1.5 max-w-[240px]">
           <div className="flex items-center gap-1.5">
+            {e.is_directory
+              ? <Folder   size={11} className="text-blue-400/60 shrink-0" />
+              : <FileText size={11} className="text-accent-muted/30 shrink-0" />
+            }
             <span className={`text-xs font-mono truncate ${e.is_deleted ? 'line-through text-white/30' : 'text-white/80'}`}>
               {e.filename ?? '—'}
             </span>
@@ -223,7 +239,7 @@ function SortTh({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function MftExplorer({ caseId, fileId, filename }: Props) {
+export default function MftExplorer({ caseId, fileId, filename, pinnedIds, onPin, onUnpin }: Props) {
   const [search,     setSearch]     = useState('')
   const [extension,  setExtension]  = useState('')
   const [timeField,  setTimeField]  = useState('si_modified')
@@ -370,7 +386,7 @@ export default function MftExplorer({ caseId, fileId, filename }: Props) {
         <table className="w-full text-xs border-collapse min-w-[900px]">
           <thead className="sticky top-0 bg-bg-secondary/90 backdrop-blur-sm z-10 border-b border-white/5">
             <tr>
-              <th className="w-6 pl-3" />
+              <th className="w-8 pl-2" />
               <th className="px-2 py-2 text-left text-[9px] uppercase tracking-widest text-accent-muted/40 w-64">Filename / Path</th>
               <SortTh label="SI Created"  field="si_created"     currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
               <SortTh label="SI Modified" field="si_modified"    currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
@@ -387,7 +403,16 @@ export default function MftExplorer({ caseId, fileId, filename }: Props) {
                 </td>
               </tr>
             ) : (
-              items.map(e => <EntryRow key={e.entry_number} e={e} />)
+              items.map(e => (
+                <EntryRow
+                  key={e.entry_number}
+                  e={e}
+                  fileId={fileId}
+                  isPinned={pinnedIds.has(`${fileId}:mft:${e.entry_number}`)}
+                  onPin={onPin}
+                  onUnpin={onUnpin}
+                />
+              ))
             )}
           </tbody>
         </table>

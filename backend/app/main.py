@@ -21,6 +21,8 @@ from .routers import memory as memory_router
 from .routers import mft as mft_router
 from .routers import usn as usn_router
 from .routers import browser as browser_router
+from .routers import binary as binary_router
+from .routers import registry as registry_router
 from .models import evtx as _evtx_models          # ensure tables are registered
 from .models import audit as _audit_models         # ensure tables are registered
 from .models import attack_graph as _ag_models     # ensure tables are registered
@@ -29,6 +31,8 @@ from .models import report_version as _rv_models  # ensure tables are registered
 from .models import mft as _mft_models            # ensure tables are registered
 from .models import usn as _usn_models            # ensure tables are registered
 from .models import browser as _browser_models    # ensure tables are registered
+from .models import binary as _binary_models      # ensure tables are registered
+from .models import registry as _registry_models  # ensure tables are registered
 
 Base.metadata.create_all(bind=engine)
 settings.evidence_store_path.mkdir(parents=True, exist_ok=True)
@@ -63,6 +67,19 @@ def _setup_browser() -> None:
 
 
 _setup_browser()
+
+
+def _setup_binary() -> None:
+    """Ensure binary_files storage directory is locked down."""
+    from .routers.binary import BINARY_DIR
+    import os, stat as _stat
+    try:
+        os.chmod(BINARY_DIR, _stat.S_IRWXU)
+    except Exception:
+        pass
+
+
+_setup_binary()
 
 NOTE_IMAGES_DIR = settings.evidence_store_path.parent / "note_images"
 NOTE_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
@@ -126,6 +143,8 @@ app.include_router(memory_router.router, prefix="/api/v1", **_auth)
 app.include_router(mft_router.router,     prefix="/api/v1", **_auth)
 app.include_router(usn_router.router,     prefix="/api/v1", **_auth)
 app.include_router(browser_router.router, prefix="/api/v1", **_auth)
+app.include_router(binary_router.router,   prefix="/api/v1", **_auth)
+app.include_router(registry_router.router, prefix="/api/v1", **_auth)
 
 
 @app.get("/api/v1/health")

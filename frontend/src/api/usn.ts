@@ -27,6 +27,15 @@ export interface UsnEntry {
   parent_ref:       string | null
 }
 
+/** USN entry enriched with source file metadata for the selection panel. */
+export interface PinnedUsnEntry extends UsnEntry {
+  _key:        string   // `${fileId}:usn:${idx}`
+  _fileId:     string
+  _filename:   string
+  _sourceType: 'usn'
+  _idx:        number
+}
+
 export interface UsnEntriesPage {
   total:     number
   page:      number
