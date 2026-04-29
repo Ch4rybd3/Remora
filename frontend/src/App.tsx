@@ -18,6 +18,7 @@ import MftAnalysis from './pages/MftAnalysis'
 import BrowserAnalysis from './pages/BrowserAnalysis'
 import BinaryAnalysis from './pages/BinaryAnalysis'
 import RegistryAnalysis from './pages/RegistryAnalysis'
+import ReportTemplates from './pages/ReportTemplates'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth()
@@ -48,6 +49,7 @@ export default function App() {
         <Route path="/cases" element={<Cases />} />
         <Route path="/cases/:id" element={<CaseDetail />} />
         <Route path="/templates" element={<Templates />} />
+        <Route path="/report-templates" element={<ReportTemplates />} />
         <Route path="/playbooks" element={<Playbooks />} />
         <Route path="/playbooks/:id/edit" element={<PlaybookEditor />} />
         <Route path="/artifacts/email" element={<EmailAnalysis />} />

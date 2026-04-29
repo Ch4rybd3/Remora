@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FileDown, RefreshCw, Save, History, RotateCcw, User, Clock, Hash, PanelRight } from 'lucide-react'
+import { FileDown, RefreshCw, Save, History, RotateCcw, User, Clock, Hash, PanelRight, FileOutput, ChevronDown } from 'lucide-react'
 import { casesApi } from '../../../api/cases'
 import { reportVersionsApi, type ReportVersionMeta } from '../../../api/reportVersions'
+import { reportDocTemplatesApi } from '../../../api/reportDocTemplates'
 import MarkdownEditor from '../../ui/MarkdownEditor'
 import type { Case } from '../../../types'
 import { formatDistanceToNow, format } from 'date-fns'
@@ -78,6 +79,32 @@ export default function ReportTab({ case_ }: Props) {
   const [dirty, setDirty] = useState(false)
   const [editorMode, setEditorMode] = useState<'edit' | 'split' | 'preview'>('edit')
   const [versionsOpen, setVersionsOpen] = useState(false)
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | ''>('')
+  const [generating, setGenerating] = useState(false)
+
+  // ── Doc templates ─────────────────────────────────────────────────────────
+  const { data: docTemplates = [] } = useQuery({
+    queryKey: ['report-doc-templates'],
+    queryFn: reportDocTemplatesApi.list,
+  })
+
+  const handleGenerateFromTemplate = async () => {
+    if (!selectedTemplateId) return
+    setGenerating(true)
+    try {
+      const blob = await reportDocTemplatesApi.generate(Number(selectedTemplateId), case_.id)
+      const tpl = docTemplates.find(t => t.id === Number(selectedTemplateId))
+      const ext = tpl?.format === 'docx' ? 'docx' : 'md'
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${case_.title.replace(/\s+/g, '_')}_report.${ext}`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setGenerating(false)
+    }
+  }
 
   // ── Version history ───────────────────────────────────────────────────────
   const { data: versions = [] } = useQuery({
@@ -189,6 +216,38 @@ export default function ReportTab({ case_ }: Props) {
             <FileDown size={12} />
             Export .md
           </button>
+
+          {/* ── Generate from doc template ──────────────────────────────── */}
+          {docTemplates.length > 0 && (
+            <div className="flex items-center gap-1">
+              <div className="relative">
+                <select
+                  value={selectedTemplateId}
+                  onChange={e => setSelectedTemplateId(e.target.value === '' ? '' : Number(e.target.value))}
+                  className="appearance-none bg-bg-secondary border border-white/10 rounded-md
+                    text-xs text-accent-muted pl-2 pr-6 py-1.5 outline-none
+                    hover:border-white/20 focus:border-accent-green/40 transition-colors cursor-pointer"
+                >
+                  <option value="">Template…</option>
+                  {docTemplates.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({t.format.toUpperCase()})
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-accent-muted/40 pointer-events-none" />
+              </div>
+              <button
+                className="btn-secondary text-xs flex items-center gap-1.5 disabled:opacity-40"
+                disabled={!selectedTemplateId || generating}
+                onClick={handleGenerateFromTemplate}
+                title="Generate report from selected template"
+              >
+                <FileOutput size={12} className={generating ? 'animate-pulse' : ''} />
+                {generating ? 'Generating…' : 'Export'}
+              </button>
+            </div>
+          )}
 
           {/* Versions toggle — only shown in split/preview mode */}
           {!sidebarInline && (

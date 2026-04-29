@@ -23,6 +23,7 @@ from .routers import usn as usn_router
 from .routers import browser as browser_router
 from .routers import binary as binary_router
 from .routers import registry as registry_router
+from .routers import report_doc_templates as report_doc_templates_router
 from .models import evtx as _evtx_models          # ensure tables are registered
 from .models import audit as _audit_models         # ensure tables are registered
 from .models import attack_graph as _ag_models     # ensure tables are registered
@@ -32,7 +33,8 @@ from .models import mft as _mft_models            # ensure tables are registered
 from .models import usn as _usn_models            # ensure tables are registered
 from .models import browser as _browser_models    # ensure tables are registered
 from .models import binary as _binary_models      # ensure tables are registered
-from .models import registry as _registry_models  # ensure tables are registered
+from .models import registry as _registry_models           # ensure tables are registered
+from .models import report_doc_template as _rdt_models    # ensure tables are registered
 
 Base.metadata.create_all(bind=engine)
 settings.evidence_store_path.mkdir(parents=True, exist_ok=True)
@@ -144,7 +146,8 @@ app.include_router(mft_router.router,     prefix="/api/v1", **_auth)
 app.include_router(usn_router.router,     prefix="/api/v1", **_auth)
 app.include_router(browser_router.router, prefix="/api/v1", **_auth)
 app.include_router(binary_router.router,   prefix="/api/v1", **_auth)
-app.include_router(registry_router.router, prefix="/api/v1", **_auth)
+app.include_router(registry_router.router,            prefix="/api/v1", **_auth)
+app.include_router(report_doc_templates_router.router, prefix="/api/v1", **_auth)
 
 
 @app.get("/api/v1/health")
