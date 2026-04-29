@@ -1,15 +1,22 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { FileText, GitBranch, ChevronLeft, Menu } from 'lucide-react'
 import { knowledgeApi } from '../api/knowledge'
 import FileTree from '../components/knowledge/FileTree'
-import NoteEditor from '../components/knowledge/NoteEditor'
+import NoteEditor, { type ScrollRequest } from '../components/knowledge/NoteEditor'
 import NoteGraph from '../components/knowledge/NoteGraph'
+import NoteTOC from '../components/knowledge/NoteTOC'
 
 export default function KnowledgeBase() {
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [showTree, setShowTree] = useState(true)
   const [showGraph, setShowGraph] = useState(true)
+  const [noteContent, setNoteContent] = useState('')
+  const [scrollRequest, setScrollRequest] = useState<ScrollRequest | null>(null)
+
+  const handleHeadingClick = useCallback((slug: string, line: number) => {
+    setScrollRequest(prev => ({ slug, line, tick: (prev?.tick ?? 0) + 1 }))
+  }, [])
 
   const { data: tree = [] } = useQuery({
     queryKey: ['knowledge-tree'],
@@ -68,6 +75,8 @@ export default function KnowledgeBase() {
           <NoteEditor
             path={selectedPath}
             onNodeNavigate={handleWikilinkNavigate}
+            onContentChange={setNoteContent}
+            scrollRequest={scrollRequest}
           />
         </div>
       </div>
@@ -99,18 +108,13 @@ export default function KnowledgeBase() {
           {/* ── Divider ───────────────────────────────────────────────────── */}
           <div className="border-t border-white/5 shrink-0" />
 
-          {/* ── Bottom: future features ───────────────────────────────────── */}
+          {/* ── Bottom: note outline (TOC) ─────────────────────────────────── */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="px-3 py-2 border-b border-white/5 shrink-0">
-              <span className="text-[10px] font-semibold tracking-widest uppercase text-accent-muted/40">
-                Filters
-              </span>
-            </div>
-            <div className="flex-1 flex items-center justify-center p-4">
-              <p className="text-[10px] text-accent-muted/20 italic text-center">
-                Tag search and filters<br />coming soon
-              </p>
-            </div>
+            <NoteTOC
+              content={noteContent}
+              selectedPath={selectedPath}
+              onHeadingClick={handleHeadingClick}
+            />
           </div>
 
         </div>

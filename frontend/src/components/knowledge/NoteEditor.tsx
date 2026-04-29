@@ -4,8 +4,66 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Save, Loader2, ImageIcon, AlertCircle } from 'lucide-react'
 import { knowledgeApi } from '../../api/knowledge'
+import { slugify } from './NoteTOC'
 
 type ViewMode = 'edit' | 'split' | 'preview'
+
+// ── Line-break & blank-line preservation ──────────────────────────────────
+// Standard markdown ignores single newlines (merges into same paragraph)
+// and collapses multiple blank lines into one.  This preprocessor:
+//   • Appends two trailing spaces to every non-blank line outside code blocks
+//     → forces a hard line-break (<br>) so every Enter press is visible.
+//   • Converts each *extra* blank line into a paragraph containing a
+//     non-breaking space (U+00A0) so multiple blank lines stay visible too.
+// Fenced code blocks are passed through verbatim — no modifications inside.
+
+function preprocessBlankLines(md: string): string {
+  const NBSP   = ' '  // non-breaking space — markdown treats as content
+  const lines  = md.split('\n')
+  const out:   string[] = []
+  let fenceStr = ''         // non-empty while inside a fenced code block
+  let blankRun = 0
+
+  const flushBlanks = () => {
+    if (blankRun === 0) return
+    out.push('')                          // first blank -> normal paragraph break
+    for (let i = 1; i < blankRun; i++) { // extra blanks -> visible spacer paras
+      out.push(NBSP)
+      out.push('')
+    }
+    blankRun = 0
+  }
+
+  for (let idx = 0; idx < lines.length; idx++) {
+    const line       = lines[idx]
+    const isLast     = idx === lines.length - 1
+    const fenceMatch = line.match(/^(`{3,}|~{3,})/)
+
+    if (fenceStr === '') {
+      if (fenceMatch) {
+        // Opening fence — flush pending blanks, then emit the fence line as-is
+        fenceStr = fenceMatch[1]
+        flushBlanks()
+        out.push(line)
+      } else if (line.trim() === '') {
+        blankRun++
+      } else {
+        flushBlanks()
+        // Two trailing spaces = markdown hard line-break (rendered as <br>).
+        // Skip on the very last line — a trailing break there is meaningless.
+        out.push(isLast ? line : line + '  ')
+      }
+    } else {
+      // Inside code block — pass everything verbatim, no trailing spaces
+      if (fenceMatch && line.startsWith(fenceStr)) fenceStr = ''
+      flushBlanks()   // blankRun should be 0 here, but flush for safety
+      out.push(line)
+    }
+  }
+
+  flushBlanks()
+  return out.join('\n')
+}
 
 // ── Wikilink preprocessing ─────────────────────────────────────────────────
 
@@ -19,6 +77,29 @@ function preprocessWikilinks(content: string): string {
   )
 }
 
+// ── Heading slug helper (for preview IDs) ─────────────────────────────────
+
+function extractChildText(children: React.ReactNode): string {
+  if (typeof children === 'string') return children
+  if (Array.isArray(children)) return children.map(extractChildText).join('')
+  if (children && typeof children === 'object' && 'props' in (children as object)) {
+    return extractChildText((children as { props: { children?: React.ReactNode } }).props.children)
+  }
+  return ''
+}
+
+function makeHeadingComponent(tag: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6') {
+  return function HeadingEl({ children, ...props }: { children?: React.ReactNode }) {
+    const slug = slugify(extractChildText(children))
+    const Tag = tag
+    return (
+      <Tag data-heading-slug={slug} {...props}>
+        {children}
+      </Tag>
+    )
+  }
+}
+
 // ── Markdown preview panel ─────────────────────────────────────────────────
 
 function MarkdownPreview({
@@ -28,7 +109,7 @@ function MarkdownPreview({
   onWikilinkClick: (noteName: string) => void
   scrollRef?: React.Ref<HTMLDivElement>
 }) {
-  const processed = preprocessWikilinks(content)
+  const processed = preprocessWikilinks(preprocessBlankLines(content))
   return (
     <div
       ref={scrollRef}
@@ -38,6 +119,22 @@ function MarkdownPreview({
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
+            h1: makeHeadingComponent('h1'),
+            h2: makeHeadingComponent('h2'),
+            h3: makeHeadingComponent('h3'),
+            h4: makeHeadingComponent('h4'),
+            h5: makeHeadingComponent('h5'),
+            h6: makeHeadingComponent('h6'),
+            p: ({ children, ...props }) => {
+              // Paragraphs containing only U+00A0 are blank-line spacers
+              // inserted by preprocessBlankLines — render as a slim spacer div
+              // instead of a full prose <p> with its top/bottom margins.
+              const text = extractChildText(children)
+              if (text === ' ') {
+                return <div style={{ height: '0.75em' }} aria-hidden />
+              }
+              return <p {...props}>{children}</p>
+            },
             a: ({ href, children, ...props }) => {
               if (href?.startsWith('kb:')) {
                 const note = decodeURIComponent(href.slice(3))
@@ -101,12 +198,20 @@ function ModeBtn({
 
 // ── Main editor ────────────────────────────────────────────────────────────
 
-interface Props {
-  path: string | null
-  onNodeNavigate: (path: string) => void
+export interface ScrollRequest {
+  slug: string
+  line: number
+  tick: number   // increment to re-trigger same heading
 }
 
-export default function NoteEditor({ path, onNodeNavigate }: Props) {
+interface Props {
+  path:             string | null
+  onNodeNavigate:   (path: string) => void
+  onContentChange?: (content: string) => void
+  scrollRequest?:   ScrollRequest | null
+}
+
+export default function NoteEditor({ path, onNodeNavigate, onContentChange, scrollRequest }: Props) {
   const qc = useQueryClient()
   const [content, setContent] = useState('')
   const [mode, setMode] = useState<ViewMode>('split')
@@ -123,6 +228,10 @@ export default function NoteEditor({ path, onNodeNavigate }: Props) {
   const dirtyRef = useRef(false)
   const saveStateSetterRef = useRef(setSaveState)
   saveStateSetterRef.current = setSaveState
+
+  // Stable ref for the onContentChange callback
+  const onContentChangeRef = useRef(onContentChange)
+  onContentChangeRef.current = onContentChange
 
   // Keep pathRef in sync with prop
   useEffect(() => { pathRef.current = path }, [path])
@@ -143,6 +252,7 @@ export default function NoteEditor({ path, onNodeNavigate }: Props) {
       setDirty(false)
       dirtyRef.current = false
       setSaveState('idle')
+      onContentChangeRef.current?.(fileData.content)
     }
   }, [fileData])
 
@@ -187,6 +297,7 @@ export default function NoteEditor({ path, onNodeNavigate }: Props) {
     dirtyRef.current = true
     setDirty(true)
     setSaveState('idle')
+    onContentChangeRef.current?.(val)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       const p = pathRef.current
@@ -249,6 +360,37 @@ export default function NoteEditor({ path, onNodeNavigate }: Props) {
     const ratio = ta.scrollTop / Math.max(ta.scrollHeight - ta.clientHeight, 1)
     pv.scrollTop = ratio * (pv.scrollHeight - pv.clientHeight)
   }
+
+  // ── Scroll to heading when TOC item is clicked ─────────────────────────────
+  useEffect(() => {
+    if (!scrollRequest) return
+
+    // Preview / split — scroll the rendered preview div
+    const pv = previewRef.current
+    if (pv && (mode === 'preview' || mode === 'split')) {
+      const el = pv.querySelector<HTMLElement>(`[data-heading-slug="${scrollRequest.slug}"]`)
+      if (el) {
+        // Scroll within the preview container (not window)
+        pv.scrollTo({ top: Math.max(0, el.offsetTop - 24), behavior: 'smooth' })
+      }
+    }
+
+    // Edit / split — position cursor at heading line in textarea
+    const ta = textareaRef.current
+    if (ta && (mode === 'edit' || mode === 'split')) {
+      const lines = contentRef.current.split('\n')
+      let charOffset = 0
+      for (let i = 0; i < scrollRequest.line && i < lines.length; i++) {
+        charOffset += lines[i].length + 1
+      }
+      ta.focus()
+      ta.setSelectionRange(charOffset, charOffset)
+      // Approximate scroll: ratio of line index over total lines
+      const lineH = ta.scrollHeight / Math.max(lines.length, 1)
+      ta.scrollTop = Math.max(0, scrollRequest.line * lineH - ta.clientHeight * 0.2)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollRequest?.tick])   // only fire when tick changes (new click)
 
   // Wikilink navigation
   const handleWikilinkClick = useCallback((noteName: string) => {
