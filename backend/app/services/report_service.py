@@ -9,6 +9,7 @@ class ReportService:
         assets_md = self._render_assets(case)
         evidences_md = self._render_evidences(case)
         timeline_md = self._render_timeline(case)
+        mitre_md = self._render_mitre(case)
 
         report_sections = ""
         if template and "report_sections" in template:
@@ -52,6 +53,10 @@ class ReportService:
 
 {evidences_md}
 
+## MITRE ATT&CK TTPs
+
+{mitre_md}
+
 ## Timeline
 
 {timeline_md}
@@ -86,6 +91,40 @@ class ReportService:
             rows.append(f"| {e.name} | {e.original_filename} "
                         f"| `{e.sha256_hash[:16]}…` | {e.collected_by} |")
         return "\n".join(rows)
+
+    def _render_mitre(self, case: Case) -> str:
+        """Render MITRE ATT&CK TTPs grouped by tactic."""
+        ttps = getattr(case, "ttps", None)
+        if not ttps:
+            # Lazy-load via relationship if available
+            try:
+                from ..models.mitre import CaseTTP
+                # Accessed through case.ttps relationship if mapped; otherwise skip
+                ttps = case.ttps if hasattr(case, "ttps") else []
+            except Exception:
+                ttps = []
+
+        if not ttps:
+            return "*No MITRE ATT&CK techniques recorded.*"
+
+        # Group by tactic
+        from collections import defaultdict
+        by_tactic: dict[str, list] = defaultdict(list)
+        for t in ttps:
+            tactic_label = t.tactic_name or t.tactic or "Unknown"
+            by_tactic[tactic_label].append(t)
+
+        lines = ["| Tactic | Technique ID | Name | Comment |",
+                 "|--------|-------------|------|---------|"]
+        for tactic in sorted(by_tactic):
+            for t in sorted(by_tactic[tactic], key=lambda x: x.technique_id):
+                url = f"https://attack.mitre.org/techniques/{t.technique_id.replace('.', '/')}/"
+                link = f"[{t.technique_id}]({url})"
+                comment = (t.comment or "").replace("|", "\\|")
+                name = (t.technique_name or "").replace("|", "\\|")
+                lines.append(f"| {tactic} | {link} | {name} | {comment} |")
+
+        return "\n".join(lines)
 
     def _render_timeline(self, case: Case) -> str:
         if not case.timeline:

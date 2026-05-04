@@ -68,8 +68,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => api.interceptors.response.eject(id)
   }, [logout])
 
-  const isAdmin = state.user?.role === 'admin'
-  const isOwnerOrAdmin = state.user?.role === 'admin' || state.user?.role === 'owner'
+  // owner is a superset of admin — both get full admin access
+  const isAdmin = state.user?.role === 'admin' || state.user?.role === 'owner'
+  const isOwnerOrAdmin = isAdmin
 
   return (
     <AuthContext.Provider value={{ ...state, login, logout, isAdmin, isOwnerOrAdmin }}>

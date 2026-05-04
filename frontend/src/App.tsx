@@ -19,6 +19,7 @@ import BrowserAnalysis from './pages/BrowserAnalysis'
 import BinaryAnalysis from './pages/BinaryAnalysis'
 import RegistryAnalysis from './pages/RegistryAnalysis'
 import ReportTemplates from './pages/ReportTemplates'
+import ChainsawRules from './pages/ChainsawRules'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth()
@@ -60,6 +61,7 @@ export default function App() {
         <Route path="/artifacts/binary"    element={<BinaryAnalysis />} />
         <Route path="/artifacts/registry"  element={<RegistryAnalysis />} />
         <Route path="/knowledge" element={<KnowledgeBase />} />
+        <Route path="/config/chainsaw-rules" element={<ChainsawRules />} />
         <Route
           path="/users"
           element={

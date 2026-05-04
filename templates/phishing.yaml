@@ -1,6 +1,6 @@
 name: "Phishing / BEC"
 description: "Template for phishing campaigns and Business Email Compromise"
-version: "1.0"
+version: "1.1"
 tags:
   - phishing
   - bec
@@ -15,6 +15,117 @@ metadata:
     - "TA0001 - Initial Access"
     - "TA0006 - Credential Access"
     - "TA0009 - Collection"
+
+ttp_definitions:
+  # Initial Access
+  - technique_id: T1566.001
+    technique_name: Spearphishing Attachment
+    tactic: initial-access
+    tactic_name: Initial Access
+  - technique_id: T1566.002
+    technique_name: Spearphishing Link
+    tactic: initial-access
+    tactic_name: Initial Access
+  - technique_id: T1566.003
+    technique_name: Spearphishing via Service
+    tactic: initial-access
+    tactic_name: Initial Access
+  - technique_id: T1078
+    technique_name: Valid Accounts
+    tactic: initial-access
+    tactic_name: Initial Access
+  # Execution
+  - technique_id: T1204.001
+    technique_name: Malicious Link
+    tactic: execution
+    tactic_name: Execution
+  - technique_id: T1204.002
+    technique_name: Malicious File
+    tactic: execution
+    tactic_name: Execution
+  - technique_id: T1059.001
+    technique_name: PowerShell
+    tactic: execution
+    tactic_name: Execution
+  # Persistence
+  - technique_id: T1098.001
+    technique_name: Additional Cloud Credentials
+    tactic: persistence
+    tactic_name: Persistence
+  - technique_id: T1098.003
+    technique_name: Additional Cloud Roles
+    tactic: persistence
+    tactic_name: Persistence
+  - technique_id: T1137.003
+    technique_name: Outlook Forms
+    tactic: persistence
+    tactic_name: Persistence
+  # Credential Access
+  - technique_id: T1528
+    technique_name: Steal Application Access Token
+    tactic: credential-access
+    tactic_name: Credential Access
+  - technique_id: T1539
+    technique_name: Steal Web Session Cookie
+    tactic: credential-access
+    tactic_name: Credential Access
+  - technique_id: T1557
+    technique_name: Adversary-in-the-Middle
+    tactic: credential-access
+    tactic_name: Credential Access
+  - technique_id: T1110.003
+    technique_name: Password Spraying
+    tactic: credential-access
+    tactic_name: Credential Access
+  # Discovery
+  - technique_id: T1087.003
+    technique_name: Email Account
+    tactic: discovery
+    tactic_name: Discovery
+  - technique_id: T1069.001
+    technique_name: Local Groups
+    tactic: discovery
+    tactic_name: Discovery
+  - technique_id: T1518
+    technique_name: Software Discovery
+    tactic: discovery
+    tactic_name: Discovery
+  # Lateral Movement
+  - technique_id: T1534
+    technique_name: Internal Spearphishing
+    tactic: lateral-movement
+    tactic_name: Lateral Movement
+  # Collection
+  - technique_id: T1114.001
+    technique_name: Local Email Collection
+    tactic: collection
+    tactic_name: Collection
+  - technique_id: T1114.002
+    technique_name: Remote Email Collection
+    tactic: collection
+    tactic_name: Collection
+  - technique_id: T1114.003
+    technique_name: Email Forwarding Rule
+    tactic: collection
+    tactic_name: Collection
+  - technique_id: T1213
+    technique_name: Data from Information Repositories
+    tactic: collection
+    tactic_name: Collection
+  # Exfiltration
+  - technique_id: T1048
+    technique_name: Exfiltration Over Alternative Protocol
+    tactic: exfiltration
+    tactic_name: Exfiltration
+  # Impact
+  - technique_id: T1565.001
+    technique_name: Stored Data Manipulation
+    tactic: impact
+    tactic_name: Impact
+  - technique_id: T1496
+    technique_name: Resource Hijacking
+    tactic: impact
+    tactic_name: Impact
 
 executive_summary_template: |
   On [DATE], [ORGANIZATION] identified a phishing campaign targeting [TARGETS].

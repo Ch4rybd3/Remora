@@ -1,11 +1,15 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FileText, Plus, Edit2, Trash2, Save, X, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import {
+  FileText, Plus, Edit2, Trash2, Save, X, AlertCircle,
+  ChevronDown, ChevronUp, Shield,
+} from 'lucide-react'
 import { templatesApi } from '../api/templates'
 import type { Template } from '../types'
 import { SeverityBadge, TLPBadge, Tag } from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
+import TemplateTTPModal from '../components/mitre/TemplateTTPModal'
 
 const NEW_TEMPLATE_YAML = `name: "New Template"
 description: "Description of this template"
@@ -39,20 +43,17 @@ report_sections:
 `
 
 interface EditorModalProps {
-  open: boolean
-  onClose: () => void
+  open:        boolean
+  onClose:     () => void
   initialYaml: string
-  title: string
-  onSave: (yaml: string) => Promise<void>
-  isSaving: boolean
-  error: string | null
+  title:       string
+  onSave:      (yaml: string) => Promise<void>
+  isSaving:    boolean
+  error:       string | null
 }
 
 function EditorModal({ open, onClose, initialYaml, title, onSave, isSaving, error }: EditorModalProps) {
   const [yaml, setYaml] = useState(initialYaml)
-
-  // Reset when reopened with new content
-  const handleOpen = () => setYaml(initialYaml)
 
   return (
     <Modal open={open} onClose={onClose} title={title} size="lg">
@@ -91,14 +92,18 @@ function EditorModal({ open, onClose, initialYaml, title, onSave, isSaving, erro
   )
 }
 
+// ── Template card ─────────────────────────────────────────────────────────────
+
 interface TemplateCardProps {
-  tpl: Template
-  onEdit: (id: string) => void
-  onDelete: (id: string) => void
+  tpl:       Template
+  onEdit:    (id: string) => void
+  onDelete:  (id: string) => void
+  onEditTTPs:(tpl: Template) => void
 }
 
-function TemplateCard({ tpl, onEdit, onDelete }: TemplateCardProps) {
+function TemplateCard({ tpl, onEdit, onDelete, onEditTTPs }: TemplateCardProps) {
   const [expanded, setExpanded] = useState(false)
+  const ttpCount = tpl.ttp_definitions?.length ?? 0
 
   return (
     <div className="card p-5">
@@ -112,14 +117,31 @@ function TemplateCard({ tpl, onEdit, onDelete }: TemplateCardProps) {
           </div>
           <p className="text-sm text-accent-muted">{tpl.description}</p>
         </div>
+
         <div className="flex items-center gap-2 shrink-0">
           <SeverityBadge severity={tpl.severity} />
           <TLPBadge tlp={tpl.tlp} />
+
+          {/* TTPs button with count badge */}
+          <button
+            onClick={() => onEditTTPs(tpl)}
+            className="relative flex items-center gap-1.5 btn-secondary text-xs ml-1"
+            title="Edit MITRE ATT&CK TTPs"
+          >
+            <Shield size={12} />
+            TTPs
+            {ttpCount > 0 && (
+              <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-accent-green/20 text-accent-green text-[9px] font-mono font-bold leading-none">
+                {ttpCount}
+              </span>
+            )}
+          </button>
+
           <button
             onClick={() => onEdit(tpl.id)}
-            className="btn-secondary text-xs flex items-center gap-1.5 ml-1"
+            className="btn-secondary text-xs flex items-center gap-1.5"
           >
-            <Edit2 size={12} /> Edit
+            <Edit2 size={12} /> YAML
           </button>
           <button
             onClick={() => onDelete(tpl.id)}
@@ -136,7 +158,8 @@ function TemplateCard({ tpl, onEdit, onDelete }: TemplateCardProps) {
         </div>
       )}
 
-      {(tpl.report_sections || tpl.metadata?.mitre_tactics) && (
+      {/* Expandable detail section */}
+      {(tpl.report_sections || tpl.metadata?.mitre_tactics || ttpCount > 0) && (
         <>
           <button
             onClick={() => setExpanded(e => !e)}
@@ -148,6 +171,31 @@ function TemplateCard({ tpl, onEdit, onDelete }: TemplateCardProps) {
 
           {expanded && (
             <div className="mt-3 space-y-3">
+
+              {/* ttp_definitions pills */}
+              {ttpCount > 0 && (
+                <div className="border-t border-white/5 pt-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Shield size={10} className="text-accent-green/60" />
+                    <p className="text-xs text-accent-muted uppercase tracking-wide">
+                      MITRE ATT&amp;CK TTPs
+                      <span className="ml-1.5 font-mono text-accent-green/60">({ttpCount})</span>
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {tpl.ttp_definitions!.map(t => (
+                      <span
+                        key={`${t.technique_id}|${t.tactic}`}
+                        className="text-[9px] bg-accent-green/5 text-accent-green/70 border border-accent-green/20 px-2 py-0.5 rounded font-mono"
+                        title={`${t.technique_name} · ${t.tactic_name}`}
+                      >
+                        {t.technique_id}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {tpl.report_sections && (
                 <div className="border-t border-white/5 pt-3">
                   <p className="text-xs text-accent-muted uppercase tracking-wide mb-2">Report Sections</p>
@@ -163,10 +211,10 @@ function TemplateCard({ tpl, onEdit, onDelete }: TemplateCardProps) {
 
               {tpl.metadata?.mitre_tactics && Array.isArray(tpl.metadata.mitre_tactics) && (
                 <div className="border-t border-white/5 pt-3">
-                  <p className="text-xs text-accent-muted uppercase tracking-wide mb-2">MITRE ATT&amp;CK</p>
+                  <p className="text-xs text-accent-muted uppercase tracking-wide mb-2">MITRE Tactics (legacy)</p>
                   <div className="flex flex-wrap gap-2">
                     {(tpl.metadata.mitre_tactics as string[]).map(t => (
-                      <span key={t} className="text-xs bg-accent-green/5 text-accent-green/70 border border-accent-green/20 px-2 py-0.5 rounded font-mono">
+                      <span key={t} className="text-xs bg-white/5 text-accent-muted/50 border border-white/8 px-2 py-0.5 rounded font-mono">
                         {t}
                       </span>
                     ))}
@@ -181,17 +229,20 @@ function TemplateCard({ tpl, onEdit, onDelete }: TemplateCardProps) {
   )
 }
 
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function Templates() {
   const qc = useQueryClient()
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ['templates'],
-    queryFn: templatesApi.list,
+    queryFn:  templatesApi.list,
   })
 
-  const [editTarget, setEditTarget] = useState<{ id: string; yaml: string } | null>(null)
-  const [createOpen, setCreateOpen] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
-  const [yamlError, setYamlError] = useState<string | null>(null)
+  const [editTarget,    setEditTarget]    = useState<{ id: string; yaml: string } | null>(null)
+  const [createOpen,    setCreateOpen]    = useState(false)
+  const [deleteTarget,  setDeleteTarget]  = useState<string | null>(null)
+  const [ttpTarget,     setTtpTarget]     = useState<Template | null>(null)
+  const [yamlError,     setYamlError]     = useState<string | null>(null)
 
   const updateMutation = useMutation({
     mutationFn: ({ id, yaml }: { id: string; yaml: string }) =>
@@ -265,12 +316,13 @@ export default function Templates() {
               tpl={tpl}
               onEdit={openEdit}
               onDelete={id => setDeleteTarget(id)}
+              onEditTTPs={setTtpTarget}
             />
           ))}
         </div>
       )}
 
-      {/* Edit modal */}
+      {/* YAML Edit modal */}
       {editTarget && (
         <EditorModal
           open={true}
@@ -283,7 +335,7 @@ export default function Templates() {
         />
       )}
 
-      {/* Create modal */}
+      {/* YAML Create modal */}
       <EditorModal
         open={createOpen}
         onClose={() => { setCreateOpen(false); setYamlError(null) }}
@@ -294,6 +346,7 @@ export default function Templates() {
         error={yamlError}
       />
 
+      {/* Delete confirm */}
       <ConfirmDialog
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
@@ -301,6 +354,15 @@ export default function Templates() {
         title="Delete Template"
         message={`Le fichier ${deleteTarget}.yaml sera supprimé définitivement.`}
       />
+
+      {/* TTP picker — full-screen modal */}
+      {ttpTarget && (
+        <TemplateTTPModal
+          template={ttpTarget}
+          onClose={() => setTtpTarget(null)}
+          onSaved={() => setTtpTarget(null)}
+        />
+      )}
     </div>
   )
 }

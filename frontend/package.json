@@ -19,7 +19,8 @@
     "react-router-dom": "^7.0.2",
     "react-dropzone": "^14.3.5",
     "remark-gfm": "^4.0.0",
-    "@xyflow/react": "^12.3.6"
+    "@xyflow/react": "^12.3.6",
+    "elkjs": "^0.9.3"
   },
   "devDependencies": {
     "@types/react": "^18.3.14",

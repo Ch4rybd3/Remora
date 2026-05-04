@@ -4,10 +4,10 @@ import {
   ReactFlow, Background, BackgroundVariant, Controls, MiniMap,
   addEdge, applyNodeChanges, applyEdgeChanges,
   type Node, type Edge, type OnConnect, type OnNodesChange, type OnEdgesChange,
-  type Connection,
+  type Connection, type ReactFlowInstance,
 } from '@xyflow/react'
 import {
-  Save, Plus, Trash2, Skull, StickyNote,
+  Save, Plus, Trash2, Skull, StickyNote, Wand2,
   Clock, Monitor, Shield, Edit2, ChevronDown, ChevronRight,
 } from 'lucide-react'
 import { format } from 'date-fns'
@@ -19,6 +19,7 @@ import { iocsApi } from '../../../api/iocs'
 import type { TimelineEvent, Asset, IOC } from '../../../types'
 import { AG_NODE_TYPES, NODE_WIDTH, type AGNodeData } from '../../attack_graph/AttackGraphNodes'
 import Modal from '../../ui/Modal'
+import { applyElkLayout } from '../../../utils/elkLayout'
 
 interface Props { caseId: string }
 
@@ -38,7 +39,10 @@ const IOC_BADGE: Record<string, string> = {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 let _counter = 1
 const nextId = () => `ag-${Date.now()}-${_counter++}`
-const snap   = (v: number) => Math.round(v / 20) * 20
+const GRID   = 20
+const snap   = (v: number) => Math.round(v / GRID) * GRID
+/** Snap height UP to the next grid multiple so handles land on grid lines. */
+const snapH  = (h: number) => Math.ceil(h / GRID) * GRID
 
 // ── Collapsible section ───────────────────────────────────────────────────────
 function Section({ title, count, children }: {
@@ -105,8 +109,12 @@ export default function AttackGraphTab({ caseId }: Props) {
   const [editOpen, setEditOpen]   = useState(false)
   const [editForm, setEditForm]   = useState<EditForm>({ label: '', notes: '' })
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const dropY     = useRef(60)
+  const [laying,    setLaying]    = useState(false)
+  const saveTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** Captured ReactFlow instance — used to get viewport center for new nodes. */
+  const rfInstance = useRef<ReactFlowInstance | null>(null)
+  /** Ref to the canvas wrapper div — needed for getBoundingClientRect. */
+  const canvasRef  = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (graphData && !initialized) {
@@ -122,74 +130,114 @@ export default function AttackGraphTab({ caseId }: Props) {
   }, [graphData, initialized])
 
   // ── RF handlers ───────────────────────────────────────────────────────────
-  const onNodesChange: OnNodesChange = useCallback(ch => setNodes(ns => applyNodeChanges(ch, ns)), [])
+
+  /**
+   * When ReactFlow measures a node and its height is not already a grid
+   * multiple, snap it up to the next multiple by setting style.height.
+   * This ensures every handle lands exactly on a 20 px grid line.
+   */
+  const onNodesChange: OnNodesChange = useCallback((changes) => {
+    const hasDim = changes.some(c => c.type === 'dimensions')
+    setNodes(nds => {
+      const updated = applyNodeChanges(changes, nds)
+      if (!hasDim) return updated
+      return updated.map(n => {
+        const h = n.measured?.height
+        if (!h) return n
+        const sh = snapH(h)
+        if ((n.style as Record<string, unknown>)?.height === sh) return n
+        return { ...n, style: { ...(n.style ?? {}), height: sh } }
+      })
+    })
+  }, [])
+
   const onEdgesChange: OnEdgesChange = useCallback(ch => setEdges(es => applyEdgeChanges(ch, es)), [])
   const onConnect: OnConnect = useCallback((p: Connection) =>
     setEdges(es => addEdge({ ...p, type: 'smoothstep', animated: true, style: { stroke: '#9FEF0080', strokeWidth: 1.5 } }, es)), [])
 
+  // ── Viewport center helper ────────────────────────────────────────────────
+  /** Convert the canvas center (screen px) to flow-space coordinates. */
+  const getViewportCenter = useCallback((): { x: number; y: number } => {
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (!rfInstance.current || !rect) return { x: 200, y: 200 }
+    return rfInstance.current.screenToFlowPosition({
+      x: rect.left + rect.width  / 2,
+      y: rect.top  + rect.height / 2,
+    })
+  }, [])
+
   // ── Add helpers ───────────────────────────────────────────────────────────
-  const pushNode = (n: Node) => {
-    dropY.current += 120
+  const pushNode = useCallback((n: Node) => {
     setNodes(ns => [...ns, n])
-  }
+  }, [])
 
   // NODE_WIDTH is exported from AttackGraphNodes — all nodes share the same width
   // so that React Flow knows the handle positions before layout.
   const W = NODE_WIDTH
 
-  const addTimeline = (ev: TimelineEvent) => pushNode({
-    id: nextId(), type: 'timeline',
-    position: { x: snap(200), y: snap(dropY.current) },
-    style: { width: W },
-    data: {
-      label: ev.title,
-      subLabel: format(new Date(ev.event_ts), 'yyyy-MM-dd HH:mm'),
-      nodeKind: 'timeline',
-      notes: ev.actor ? `Actor: ${ev.actor}` : (ev.description || undefined),
-      sourceId: ev.id,
-    } satisfies AGNodeData,
-  })
+  const addTimeline = (ev: TimelineEvent) => {
+    const center = getViewportCenter()
+    pushNode({
+      id: nextId(), type: 'timeline',
+      position: { x: snap(center.x), y: snap(center.y) },
+      style: { width: W },
+      data: {
+        label: ev.title,
+        subLabel: format(new Date(ev.event_ts), 'yyyy-MM-dd HH:mm'),
+        nodeKind: 'timeline',
+        notes: ev.actor ? `Actor: ${ev.actor}` : (ev.description || undefined),
+        sourceId: ev.id,
+      } satisfies AGNodeData,
+    })
+  }
 
-  const addAsset = (a: Asset) => pushNode({
-    id: nextId(), type: 'asset',
-    position: { x: snap(80), y: snap(dropY.current) },
-    style: { width: W },
-    data: {
-      label: a.name,
-      subLabel: [a.ip_address, a.hostname].filter(Boolean).join(' · ') || a.type,
-      nodeKind: 'asset', compromised: a.compromised, iocType: a.type, sourceId: a.id,
-    } satisfies AGNodeData,
-  })
+  const addAsset = (a: Asset) => {
+    const center = getViewportCenter()
+    pushNode({
+      id: nextId(), type: 'asset',
+      position: { x: snap(center.x), y: snap(center.y) },
+      style: { width: W },
+      data: {
+        label: a.name,
+        subLabel: [a.ip_address, a.hostname].filter(Boolean).join(' · ') || a.type,
+        nodeKind: 'asset', compromised: a.compromised, iocType: a.type, sourceId: a.id,
+      } satisfies AGNodeData,
+    })
+  }
 
-  const addIOC = (ioc: IOC) => pushNode({
-    id: nextId(), type: 'ioc',
-    position: { x: snap(80), y: snap(dropY.current) },
-    style: { width: W },
-    data: {
-      label: ioc.value.length > 48 ? ioc.value.slice(0, 48) + '…' : ioc.value,
-      subLabel: ioc.type.replace('hash_', '').toUpperCase(),
-      nodeKind: 'ioc', iocType: ioc.type,
-      notes: ioc.description || undefined, sourceId: ioc.id,
-    } satisfies AGNodeData,
-  })
+  const addIOC = (ioc: IOC) => {
+    const center = getViewportCenter()
+    pushNode({
+      id: nextId(), type: 'ioc',
+      position: { x: snap(center.x), y: snap(center.y) },
+      style: { width: W },
+      data: {
+        label: ioc.value.length > 48 ? ioc.value.slice(0, 48) + '…' : ioc.value,
+        subLabel: ioc.type.replace('hash_', '').toUpperCase(),
+        nodeKind: 'ioc', iocType: ioc.type,
+        notes: ioc.description || undefined, sourceId: ioc.id,
+      } satisfies AGNodeData,
+    })
+  }
 
   const addAttacker = () => {
-    setNodes(ns => [...ns, {
+    const center = getViewportCenter()
+    pushNode({
       id: nextId(), type: 'attacker',
-      position: { x: snap(200), y: snap(40) },
+      position: { x: snap(center.x), y: snap(center.y) },
       style: { width: W },
       data: { label: 'Attacker', nodeKind: 'attacker' } satisfies AGNodeData,
-    }])
+    })
   }
 
   const addNote = () => {
-    dropY.current += 120
-    setNodes(ns => [...ns, {
+    const center = getViewportCenter()
+    pushNode({
       id: nextId(), type: 'free',
-      position: { x: snap(200), y: snap(dropY.current) },
+      position: { x: snap(center.x), y: snap(center.y) },
       style: { width: W },
       data: { label: 'Note', nodeKind: 'free' } satisfies AGNodeData,
-    }])
+    })
   }
 
   // ── Edit / delete ─────────────────────────────────────────────────────────
@@ -203,7 +251,15 @@ export default function AttackGraphTab({ caseId }: Props) {
   const applyEdit = () => {
     if (!selected) return
     setNodes(ns => ns.map(n =>
-      n.id === selected.id ? { ...n, data: { ...n.data, label: editForm.label, notes: editForm.notes } } : n
+      n.id === selected.id
+        ? {
+            ...n,
+            data:  { ...n.data, label: editForm.label, notes: editForm.notes },
+            // Clear height so ReactFlow re-measures the new content size,
+            // then the onNodesChange handler snaps it back to the grid.
+            style: { ...(n.style ?? {}), height: undefined },
+          }
+        : n
     ))
     setEditOpen(false)
   }
@@ -226,6 +282,22 @@ export default function AttackGraphTab({ caseId }: Props) {
       saveTimer.current = setTimeout(() => setSaveState('idle'), 2500)
     } catch { setSaveState('idle') }
   }, [caseId, nodes, edges, qc])
+
+  // ── ELK auto-layout ───────────────────────────────────────────────────────
+  const runLayout = async () => {
+    setLaying(true)
+    try {
+      const laid = await applyElkLayout(nodes, edges, {
+        direction:    'DOWN',
+        layerSpacing: 60,
+        nodeSpacing:  40,
+      })
+      setNodes(laid)
+      setTimeout(() => rfInstance.current?.fitView({ padding: 0.2, duration: 300 }), 50)
+    } finally {
+      setLaying(false)
+    }
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -269,8 +341,17 @@ export default function AttackGraphTab({ caseId }: Props) {
           </>
         )}
 
-        {/* Right: save */}
-        <div className="ml-auto">
+        {/* Right: auto-layout + save */}
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={runLayout}
+            disabled={laying || nodes.length === 0}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-white/10 text-xs text-accent-muted hover:text-white hover:border-white/25 disabled:opacity-40 transition-colors"
+            title="Arrange nodes automatically with ELK layered layout"
+          >
+            <Wand2 size={12} />
+            {laying ? 'Laying out…' : 'Auto layout'}
+          </button>
           <button
             onClick={doSave}
             disabled={saveState === 'saving'}
@@ -331,13 +412,14 @@ export default function AttackGraphTab({ caseId }: Props) {
         </div>
 
         {/* Canvas */}
-        <div className="flex-1 min-w-0">
+        <div ref={canvasRef} className="flex-1 min-w-0">
           <ReactFlow
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onInit={inst => { rfInstance.current = inst }}
             onNodeClick={(_, node) => setSelected(prev => prev?.id === node.id ? null : node)}
             onPaneClick={() => setSelected(null)}
             onNodeDoubleClick={(_, node) => openEdit(node)}

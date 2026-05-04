@@ -16,10 +16,11 @@ import AssetsTab from '../components/case/tabs/AssetsTab'
 import EvidencesTab from '../components/case/tabs/EvidencesTab'
 import TimelineTab from '../components/case/tabs/TimelineTab'
 import AttackGraphTab from '../components/case/tabs/AttackGraphTab'
+import MitreTab from '../components/case/tabs/MitreTab'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import { format } from 'date-fns'
 
-type Tab = 'summary' | 'playbook' | 'report' | 'iocs' | 'assets' | 'evidences' | 'timeline' | 'attack_graph'
+type Tab = 'summary' | 'playbook' | 'report' | 'iocs' | 'assets' | 'evidences' | 'timeline' | 'attack_graph' | 'mitre'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'summary',      label: 'Executive Summary' },
@@ -29,6 +30,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'assets',       label: 'Assets' },
   { id: 'evidences',    label: 'Evidence' },
   { id: 'timeline',     label: 'Timeline' },
+  { id: 'mitre',        label: 'MITRE ATT&CK' },
   { id: 'attack_graph', label: 'Attack Graph' },
 ]
 
@@ -184,14 +186,19 @@ export default function CaseDetail() {
 
       {/* Tab content */}
       <div className="flex-1 overflow-hidden">
-        {/* Attack Graph: needs full height without padding */}
+        {/* Full-height tabs (no padding, custom layout) */}
         {activeTab === 'attack_graph' && (
           <div className="h-full">
             <AttackGraphTab caseId={case_.id} />
           </div>
         )}
+        {activeTab === 'mitre' && (
+          <div className="h-full">
+            <MitreTab caseId={case_.id} />
+          </div>
+        )}
 
-        {activeTab !== 'attack_graph' && (
+        {activeTab !== 'attack_graph' && activeTab !== 'mitre' && (
           <div className="h-full overflow-auto p-6">
             {activeTab === 'playbook' && (
               <PlaybookNotesTab caseId={case_.id} case_={case_} />

@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     secret_key: str = secrets.token_hex(32)  # override via SECRET_KEY in .env
     default_admin_password: str = "admin"    # override via DEFAULT_ADMIN_PASSWORD in .env
 
+    # Chainsaw integration — set in .env
+    chainsaw_bin_path: str   = "chainsaw"  # name or full path to chainsaw binary
+    chainsaw_rules_path: str = ""          # path to Sigma rules dir (required for scanning)
+
     class Config:
         env_file = ".env"
 

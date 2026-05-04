@@ -119,6 +119,13 @@ export interface TimelineEvent {
   created_at: string
 }
 
+export interface TTPDefinition {
+  technique_id:   string
+  technique_name: string
+  tactic:         string
+  tactic_name:    string
+}
+
 export interface Template {
   id: string
   name: string
@@ -130,4 +137,5 @@ export interface Template {
   executive_summary_template?: string
   report_sections?: { name: string; template: string }[]
   metadata?: Record<string, unknown>
+  ttp_definitions?: TTPDefinition[]
 }

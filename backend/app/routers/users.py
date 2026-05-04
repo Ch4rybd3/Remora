@@ -27,8 +27,8 @@ def create_user(
     db: Session = Depends(get_db),
     current: User = Depends(require_admin),
 ):
-    # Un admin ne peut pas créer un owner
-    if ROLE_RANK[payload.role] >= ROLE_RANK[current.role]:
+    # On ne peut pas créer un compte de rang strictement supérieur au sien
+    if ROLE_RANK[payload.role] > ROLE_RANK[current.role]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Impossible de créer un compte de rôle '{payload.role.value}'",
@@ -69,8 +69,8 @@ def update_user(
     if user.id == current.id and payload.is_active is False:
         raise HTTPException(status_code=400, detail="Impossible de se désactiver soi-même")
 
-    # Vérifier que le nouveau rôle demandé est accessible
-    if payload.role and ROLE_RANK[payload.role] >= ROLE_RANK[current.role]:
+    # On ne peut pas assigner un rôle de rang strictement supérieur au sien
+    if payload.role and ROLE_RANK[payload.role] > ROLE_RANK[current.role]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Impossible d'assigner le rôle '{payload.role.value}'",

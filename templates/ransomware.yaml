@@ -1,6 +1,6 @@
 name: "Ransomware Incident"
 description: "Template for ransomware incidents — covers encryption, lateral movement, and recovery"
-version: "1.0"
+version: "1.1"
 tags:
   - ransomware
   - malware
@@ -18,6 +18,163 @@ metadata:
     - "TA0008 - Lateral Movement"
     - "TA0010 - Exfiltration"
     - "TA0040 - Impact"
+
+ttp_definitions:
+  # Initial Access
+  - technique_id: T1566.001
+    technique_name: Spearphishing Attachment
+    tactic: initial-access
+    tactic_name: Initial Access
+  - technique_id: T1190
+    technique_name: Exploit Public-Facing Application
+    tactic: initial-access
+    tactic_name: Initial Access
+  - technique_id: T1078
+    technique_name: Valid Accounts
+    tactic: initial-access
+    tactic_name: Initial Access
+  # Execution
+  - technique_id: T1059.001
+    technique_name: PowerShell
+    tactic: execution
+    tactic_name: Execution
+  - technique_id: T1059.003
+    technique_name: Windows Command Shell
+    tactic: execution
+    tactic_name: Execution
+  - technique_id: T1047
+    technique_name: Windows Management Instrumentation
+    tactic: execution
+    tactic_name: Execution
+  - technique_id: T1204.002
+    technique_name: Malicious File
+    tactic: execution
+    tactic_name: Execution
+  # Persistence
+  - technique_id: T1543.003
+    technique_name: Windows Service
+    tactic: persistence
+    tactic_name: Persistence
+  - technique_id: T1547.001
+    technique_name: Registry Run Keys / Startup Folder
+    tactic: persistence
+    tactic_name: Persistence
+  - technique_id: T1136.001
+    technique_name: Local Account
+    tactic: persistence
+    tactic_name: Persistence
+  # Privilege Escalation
+  - technique_id: T1548.002
+    technique_name: Bypass User Account Control
+    tactic: privilege-escalation
+    tactic_name: Privilege Escalation
+  - technique_id: T1068
+    technique_name: Exploitation for Privilege Escalation
+    tactic: privilege-escalation
+    tactic_name: Privilege Escalation
+  # Defense Evasion
+  - technique_id: T1562.001
+    technique_name: Disable or Modify Tools
+    tactic: defense-evasion
+    tactic_name: Defense Evasion
+  - technique_id: T1070.001
+    technique_name: Clear Windows Event Logs
+    tactic: defense-evasion
+    tactic_name: Defense Evasion
+  - technique_id: T1027
+    technique_name: Obfuscated Files or Information
+    tactic: defense-evasion
+    tactic_name: Defense Evasion
+  - technique_id: T1036.005
+    technique_name: Match Legitimate Name or Location
+    tactic: defense-evasion
+    tactic_name: Defense Evasion
+  # Credential Access
+  - technique_id: T1003.001
+    technique_name: LSASS Memory
+    tactic: credential-access
+    tactic_name: Credential Access
+  - technique_id: T1110
+    technique_name: Brute Force
+    tactic: credential-access
+    tactic_name: Credential Access
+  # Discovery
+  - technique_id: T1083
+    technique_name: File and Directory Discovery
+    tactic: discovery
+    tactic_name: Discovery
+  - technique_id: T1018
+    technique_name: Remote System Discovery
+    tactic: discovery
+    tactic_name: Discovery
+  - technique_id: T1135
+    technique_name: Network Share Discovery
+    tactic: discovery
+    tactic_name: Discovery
+  - technique_id: T1482
+    technique_name: Domain Trust Discovery
+    tactic: discovery
+    tactic_name: Discovery
+  - technique_id: T1087.002
+    technique_name: Domain Account
+    tactic: discovery
+    tactic_name: Discovery
+  # Lateral Movement
+  - technique_id: T1021.001
+    technique_name: Remote Desktop Protocol
+    tactic: lateral-movement
+    tactic_name: Lateral Movement
+  - technique_id: T1021.002
+    technique_name: SMB/Windows Admin Shares
+    tactic: lateral-movement
+    tactic_name: Lateral Movement
+  - technique_id: T1570
+    technique_name: Lateral Tool Transfer
+    tactic: lateral-movement
+    tactic_name: Lateral Movement
+  - technique_id: T1210
+    technique_name: Exploitation of Remote Services
+    tactic: lateral-movement
+    tactic_name: Lateral Movement
+  # Collection
+  - technique_id: T1005
+    technique_name: Data from Local System
+    tactic: collection
+    tactic_name: Collection
+  - technique_id: T1039
+    technique_name: Data from Network Shared Drive
+    tactic: collection
+    tactic_name: Collection
+  - technique_id: T1560.001
+    technique_name: Archive via Utility
+    tactic: collection
+    tactic_name: Collection
+  # Exfiltration
+  - technique_id: T1048
+    technique_name: Exfiltration Over Alternative Protocol
+    tactic: exfiltration
+    tactic_name: Exfiltration
+  - technique_id: T1041
+    technique_name: Exfiltration Over C2 Channel
+    tactic: exfiltration
+    tactic_name: Exfiltration
+  # Impact
+  - technique_id: T1486
+    technique_name: Data Encrypted for Impact
+    tactic: impact
+    tactic_name: Impact
+  - technique_id: T1489
+    technique_name: Service Stop
+    tactic: impact
+    tactic_name: Impact
+  - technique_id: T1490
+    technique_name: Inhibit System Recovery
+    tactic: impact
+    tactic_name: Impact
+  - technique_id: T1485
+    technique_name: Data Destruction
+    tactic: impact
+    tactic_name: Impact
 
 executive_summary_template: |
   On [DATE], [ORGANIZATION] was targeted by a ransomware attack attributed to [THREAT_ACTOR/UNKNOWN].

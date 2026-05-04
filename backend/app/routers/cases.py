@@ -51,13 +51,37 @@ def create_case(
     current_user: User = Depends(get_current_user),
 ):
     data = payload.model_dump()
-    if data.get("template_id") and not data.get("executive_summary"):
+    template_ttps: list[dict] = []
+
+    if data.get("template_id"):
         tpl = TemplateService().get_template(data["template_id"])
-        if tpl and tpl.get("executive_summary_template"):
-            data["executive_summary"] = tpl["executive_summary_template"]
+        if tpl:
+            if not data.get("executive_summary") and tpl.get("executive_summary_template"):
+                data["executive_summary"] = tpl["executive_summary_template"]
+            # Collect TTP definitions from the template (if any)
+            template_ttps = tpl.get("ttp_definitions", [])
+
     case = Case(**data)
     db.add(case)
     db.flush()   # populate case.id before auditing
+
+    # Seed TTPs from template
+    if template_ttps:
+        from ..models.mitre import CaseTTP
+        for ttp_def in template_ttps:
+            tid = ttp_def.get("technique_id", "").strip()
+            if not tid:
+                continue
+            ttp = CaseTTP(
+                id             = str(uuid.uuid4()),
+                case_id        = case.id,
+                technique_id   = tid,
+                technique_name = ttp_def.get("technique_name"),
+                tactic         = ttp_def.get("tactic", ""),
+                tactic_name    = ttp_def.get("tactic_name"),
+            )
+            db.add(ttp)
+
     audit_log(db, user=current_user, action="case.create",
               resource_type="case", resource_id=case.id,
               resource_name=case.title, case_id=case.id, case_title=case.title)

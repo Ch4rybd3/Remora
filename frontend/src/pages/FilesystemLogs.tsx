@@ -2,12 +2,13 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   HardDrive, Terminal, ChevronLeft, ChevronRight, Menu,
-  CheckCircle2, Info, TableProperties, BookmarkPlus,
+  CheckCircle2, Info, TableProperties, BookmarkPlus, Swords,
 } from 'lucide-react'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import EvtxFileList from '../components/evtx/EvtxFileList'
 import TimelineExplorer from '../components/evtx/TimelineExplorer'
 import EventSelectionPanel from '../components/evtx/EventSelectionPanel'
+import ChainsawTab from '../components/evtx/ChainsawTab'
 import { evtxApi, type EvtxEvent, type PinnedEvtxEvent } from '../api/evtx'
 
 // ── Tab button ────────────────────────────────────────────────────────────────
@@ -286,7 +287,7 @@ function LinuxTab() {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-type OsTab = 'windows' | 'linux'
+type OsTab = 'windows' | 'linux' | 'chainsaw'
 
 export default function FilesystemLogs() {
   const { currentCase } = useCurrentCase()
@@ -300,7 +301,7 @@ export default function FilesystemLogs() {
           <HardDrive size={16} className="text-accent-green" />
           <div>
             <h1 className="text-base font-bold text-white leading-tight">
-              Filesystem &amp; Logs
+              Logs
             </h1>
             <p className="text-[11px] text-accent-muted/50 mt-0.5">
               Parse and explore Windows event logs (.evtx) and system artifacts
@@ -323,8 +324,9 @@ export default function FilesystemLogs() {
 
         {/* OS tabs */}
         <div className="flex items-end gap-0 px-5">
-          <TabBtn active={tab === 'windows'} onClick={() => setTab('windows')} icon={HardDrive} label="Windows" />
-          <TabBtn active={tab === 'linux'}   onClick={() => setTab('linux')}   icon={Terminal}  label="Linux"   />
+          <TabBtn active={tab === 'windows'}  onClick={() => setTab('windows')}  icon={HardDrive} label="Windows" />
+          <TabBtn active={tab === 'linux'}    onClick={() => setTab('linux')}    icon={Terminal}  label="Linux"   />
+          <TabBtn active={tab === 'chainsaw'} onClick={() => setTab('chainsaw')} icon={Swords}    label="Chainsaw" />
         </div>
       </div>
 
@@ -339,8 +341,9 @@ export default function FilesystemLogs() {
         </div>
       ) : (
         <div className="flex-1 overflow-hidden">
-          {tab === 'windows' && <WindowsTab caseId={currentCase.id} />}
-          {tab === 'linux'   && <LinuxTab />}
+          {tab === 'windows'  && <WindowsTab   caseId={currentCase.id} />}
+          {tab === 'linux'    && <LinuxTab />}
+          {tab === 'chainsaw' && <ChainsawTab  caseId={currentCase.id} />}
         </div>
       )}
     </div>

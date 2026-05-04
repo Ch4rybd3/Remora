@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Layers, AlignLeft, Code2, BarChart3, Package, ShieldAlert,
   ChevronDown, ChevronRight, Loader2, AlertTriangle, RefreshCw,
-  Eye, EyeOff, Lock, Database, BookmarkPlus,
+  Eye, EyeOff, Lock, Database,
 } from 'lucide-react'
 import { binaryApi, type BinaryFile, type BinaryAnalysis, type SectionInfo } from '../../api/binary'
 
@@ -420,11 +420,6 @@ export default function BinaryExplorer({ caseId, file, onFileUpdate }: Props) {
     enabled:  currentFile?.status === 'ready',
   })
 
-  const addEvidence = useMutation({
-    mutationFn: () => binaryApi.addEvidence(caseId, file.id),
-    onSuccess:  (f) => { onFileUpdate(f); qc.invalidateQueries({ queryKey: ['binary-files', caseId] }) },
-  })
-
   const f = currentFile ?? file
   const isAnalysing = f.status === 'pending' || f.status === 'analysing'
   const isError     = f.status === 'error'
@@ -454,19 +449,6 @@ export default function BinaryExplorer({ caseId, file, onFileUpdate }: Props) {
             >
               <RefreshCw size={10} />
               Re-analyse
-            </button>
-            <button
-              onClick={() => addEvidence.mutate()}
-              disabled={f.added_to_evidence || addEvidence.isPending}
-              className={`flex items-center gap-1 px-2 py-1 rounded border text-[9px] transition-colors ${
-                f.added_to_evidence
-                  ? 'border-accent-green/30 text-accent-green/60 bg-accent-green/5 cursor-default'
-                  : 'border-white/10 text-accent-muted/40 hover:border-accent-green/30 hover:text-accent-green hover:bg-accent-green/5'
-              }`}
-              title="Add encrypted binary to case evidence"
-            >
-              <BookmarkPlus size={10} />
-              {f.added_to_evidence ? 'In evidence' : 'Add to evidence'}
             </button>
           </div>
         </div>

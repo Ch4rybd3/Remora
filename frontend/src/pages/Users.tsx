@@ -173,7 +173,7 @@ export default function Users() {
             <label className="label">Rôle</label>
             <select className="input" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
               {['analyst', 'admin', 'owner']
-                .filter(r => ROLE_RANK[r] < ROLE_RANK[me?.role ?? 'analyst'])
+                .filter(r => ROLE_RANK[r] <= ROLE_RANK[me?.role ?? 'analyst'])
                 .map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
@@ -194,9 +194,9 @@ export default function Users() {
             defaultValue={editTarget?.role}
             onChange={e => setEditTarget(t => t ? { ...t, role: e.target.value as any } : null)}
           >
-            <option value="analyst">Analyst</option>
-            <option value="owner">Owner</option>
-            <option value="admin">Admin</option>
+            {['analyst', 'admin', 'owner']
+              .filter(r => ROLE_RANK[r] <= ROLE_RANK[me?.role ?? 'analyst'])
+              .map(r => <option key={r} value={r}>{r}</option>)}
           </select>
           <div className="flex justify-end gap-3">
             <button className="btn-secondary" onClick={() => setEditTarget(null)}>Annuler</button>

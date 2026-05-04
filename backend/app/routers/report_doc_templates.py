@@ -25,6 +25,7 @@ Block tags (replaced with a table or image):
   {{evidence_table}}          Full evidence table
   {{timeline_table}}          Timeline (chronological)
   {{attack_graph}}            Attack-graph PNG image (DOCX) or placeholder (MD)
+  {{mitre_matrix}}            MITRE ATT&CK coverage table (parents + selected sub-techniques)
 """
 
 from __future__ import annotations
@@ -60,7 +61,8 @@ TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 TAG_RE = re.compile(r'\{\{[\w.]+\}\}')
 
 BLOCK_TAGS: set[str] = {
-    "ioc_table", "asset_table", "evidence_table", "timeline_table", "attack_graph",
+    "ioc_table", "asset_table", "evidence_table", "timeline_table",
+    "attack_graph", "mitre_matrix",
 }
 
 ALL_TAGS: list[str] = [
@@ -68,7 +70,8 @@ ALL_TAGS: list[str] = [
     "case.created_at", "case.closed_at", "case.description",
     "case.executive_summary", "case.quick_notes", "case.assigned_to", "case.tags",
     "report.date", "report.author",
-    "ioc_table", "asset_table", "evidence_table", "timeline_table", "attack_graph",
+    "ioc_table", "asset_table", "evidence_table", "timeline_table",
+    "attack_graph", "mitre_matrix",
 ]
 
 # ── Pydantic schema ────────────────────────────────────────────────────────────
@@ -198,6 +201,79 @@ def _md_timeline_table(case: Case) -> str:
     return "\n".join(rows)
 
 
+def _load_mitre_sub_map() -> dict[str, list[str]]:
+    """Return {parent_id: [sub_id, ...]} from the local compact ATT&CK cache."""
+    import json
+    compact = settings.evidence_store_path.parent / "mitre" / "attack_enterprise_compact.json"
+    if not compact.is_file():
+        return {}
+    sub_map: dict[str, list[str]] = {}
+    data = json.loads(compact.read_text())
+    for tactic in data.get("tactics", []):
+        for tech in tactic.get("techniques", []):
+            sub_map.setdefault(tech["id"], []).extend(
+                s["id"] for s in tech.get("sub_techniques", [])
+            )
+    return sub_map
+
+
+def _md_mitre_matrix(case: Case) -> str:
+    """
+    Render MITRE ATT&CK TTPs as a Markdown table.
+    Rules:
+    - Techniques with selected sub-techniques are "expanded": parent row + sub rows.
+    - Techniques without selected sub-techniques show only the parent.
+    - Sub-techniques are shown indented with ↳.
+    """
+    ttps = sorted(getattr(case, "ttps", []) or [], key=lambda t: (t.tactic or "", t.technique_id))
+    if not ttps:
+        return "*No MITRE ATT&CK techniques recorded.*"
+
+    sub_map = _load_mitre_sub_map()
+    selected_ids = {t.technique_id for t in ttps}
+
+    rows = [
+        "| Tactic | Technique ID | Technique Name |",
+        "|--------|-------------|----------------|",
+    ]
+    emitted_parents: set[str] = set()
+
+    for ttp in ttps:
+        tid  = ttp.technique_id
+        name = (ttp.technique_name or "").replace("|", "\\|")
+        tact = (ttp.tactic_name or ttp.tactic or "Unknown").replace("|", "\\|")
+        url  = f"https://attack.mitre.org/techniques/{tid.replace('.', '/')}/"
+        link = f"[{tid}]({url})"
+        is_sub = "." in tid
+
+        if is_sub:
+            # Sub-technique: ensure parent row appears first (once)
+            parent_id = tid.rsplit(".", 1)[0]
+            if parent_id not in emitted_parents:
+                # Parent is not directly in the case — emit a placeholder row
+                rows.append(f"| {tact} | {parent_id} | *(parent)* |")
+                emitted_parents.add(parent_id)
+            sub_link = f"[{tid}]({url})"
+            rows.append(f"| | ↳ {sub_link} | {name} |")
+        else:
+            # Parent technique
+            if tid in emitted_parents:
+                continue  # already emitted as parent of a sub-tech
+            emitted_parents.add(tid)
+            has_selected_subs = any(s in selected_ids for s in sub_map.get(tid, []))
+            rows.append(f"| {tact} | {link} | {name} |")
+            if has_selected_subs:
+                # Expanded: emit all selected sub-techniques inline
+                for sub_id in sub_map.get(tid, []):
+                    if sub_id in selected_ids:
+                        sub_ttp = next((t for t in ttps if t.technique_id == sub_id), None)
+                        sub_name = (sub_ttp.technique_name or "").replace("|", "\\|") if sub_ttp else ""
+                        sub_url  = f"https://attack.mitre.org/techniques/{sub_id.replace('.', '/')}/"
+                        rows.append(f"| | ↳ [{sub_id}]({sub_url}) | {sub_name} |")
+
+    return "\n".join(rows)
+
+
 def _render_markdown(template_text: str, case: Case, ctx: dict[str, str]) -> str:
     text = template_text
     for tag, value in ctx.items():
@@ -207,6 +283,7 @@ def _render_markdown(template_text: str, case: Case, ctx: dict[str, str]) -> str
     text = text.replace("{{evidence_table}}", _md_evidence_table(case))
     text = text.replace("{{timeline_table}}", _md_timeline_table(case))
     text = text.replace("{{attack_graph}}", "_[Attach the attack graph image — export it from the Attack Graph tab]_")
+    text = text.replace("{{mitre_matrix}}", _md_mitre_matrix(case))
     return text
 
 
@@ -366,6 +443,147 @@ def _build_word_table(
             para = cell.paragraphs[0]
             run = para.add_run(str(val) if val is not None else "")
             run.font.size = Pt(8)
+
+    return table
+
+
+def _build_mitre_word_table(doc, case: Case) -> "Table":  # type: ignore[name-defined]
+    """
+    Build a MITRE ATT&CK coverage Word table for the case.
+
+    Layout: Tactic | Technique ID | Technique Name
+    Rules:
+    - Parent techniques are shown as regular rows.
+    - If a parent has selected sub-techniques → it is "expanded":
+      sub-technique rows appear immediately below, indented with ↳.
+    - If a parent has no selected sub-techniques → only parent row shown.
+    - Free-standing sub-techniques (selected without parent) appear indented
+      after an auto-inserted parent placeholder row.
+    """
+    from docx.shared import Pt, RGBColor
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+
+    HEADER_COLOR = "0F2942"   # Deep navy — neutral DFIR feel
+    SUB_BG       = "F0FDF4"   # Very light green — sub-technique rows
+    ALT_BG       = "F3F4F6"   # Light gray — alternating parent rows
+
+    sub_map = _load_mitre_sub_map()
+    ttps = sorted(getattr(case, "ttps", []) or [], key=lambda t: (t.tactic or "", t.technique_id))
+
+    if not ttps:
+        # Return an empty placeholder paragraph cast as a table-like object
+        # by abusing _build_word_table with empty rows
+        return _build_word_table(doc, ["Tactic", "Technique ID", "Technique Name"], [], HEADER_COLOR)
+
+    selected_ids = {t.technique_id for t in ttps}
+    ttp_by_id    = {t.technique_id: t for t in ttps}
+
+    # Build ordered display rows: (tactic_name, tech_id, tech_name, is_sub)
+    display: list[tuple[str, str, str, bool]] = []
+    emitted: set[str] = set()
+
+    for ttp in ttps:
+        tid  = ttp.technique_id
+        tact = ttp.tactic_name or ttp.tactic or "Unknown"
+        name = ttp.technique_name or ""
+        is_sub = "." in tid
+
+        if is_sub:
+            parent_id = tid.rsplit(".", 1)[0]
+            if parent_id not in emitted:
+                # Emit parent placeholder if not already in the case
+                if parent_id in ttp_by_id:
+                    parent = ttp_by_id[parent_id]
+                    display.append((parent.tactic_name or parent.tactic or tact, parent_id, parent.technique_name or "", False))
+                else:
+                    display.append((tact, parent_id, "", False))
+                emitted.add(parent_id)
+            display.append((tact, tid, name, True))
+            emitted.add(tid)
+        else:
+            if tid in emitted:
+                continue
+            emitted.add(tid)
+            display.append((tact, tid, name, False))
+            # Immediately after parent: emit any selected sub-techniques
+            for sub_id in sub_map.get(tid, []):
+                if sub_id in selected_ids and sub_id not in emitted:
+                    sub_ttp = ttp_by_id.get(sub_id)
+                    sub_name = sub_ttp.technique_name or "" if sub_ttp else ""
+                    display.append((tact, sub_id, sub_name, True))
+                    emitted.add(sub_id)
+
+    # ── Build the Word table ──────────────────────────────────────────────────
+    n_rows = len(display)
+    table  = doc.add_table(rows=1 + n_rows, cols=3)
+    tbl    = table._tbl
+    tblPr  = tbl.find(qn("w:tblPr"))
+    if tblPr is None:
+        tblPr = OxmlElement("w:tblPr")
+        tbl.insert(0, tblPr)
+
+    # Width: full page text area
+    tblW = OxmlElement("w:tblW")
+    tblW.set(qn("w:w"), "5000")
+    tblW.set(qn("w:type"), "pct")
+    tblPr.append(tblW)
+
+    # Borders
+    BORDER = "9CA3AF"
+    tblBorders = OxmlElement("w:tblBorders")
+    for side, sz in [("top","12"),("left","12"),("bottom","12"),("right","12"),("insideH","6"),("insideV","4")]:
+        b = OxmlElement(f"w:{side}")
+        b.set(qn("w:val"), "single"); b.set(qn("w:sz"), sz)
+        b.set(qn("w:space"), "0");    b.set(qn("w:color"), BORDER)
+        tblBorders.append(b)
+    tblPr.append(tblBorders)
+
+    # Column widths (approx): Tactic 25%, ID 20%, Name 55%
+    COL_PCTS = [1250, 1000, 2750]  # out of 5000 twips
+    tblGrid = OxmlElement("w:tblGrid")
+    for w in COL_PCTS:
+        gc = OxmlElement("w:gridCol"); gc.set(qn("w:w"), str(w)); tblGrid.append(gc)
+    tblPr.addnext(tblGrid)
+
+    def _set_col_w(cell, w: int) -> None:
+        tc = cell._tc; tcPr = tc.get_or_add_tcPr()
+        tcW = OxmlElement("w:tcW"); tcW.set(qn("w:w"), str(w)); tcW.set(qn("w:type"), "dxa"); tcPr.append(tcW)
+
+    # Header row
+    hdr = table.rows[0].cells
+    for i, (label, w) in enumerate(zip(["Tactic", "Technique ID", "Technique Name"], COL_PCTS)):
+        _set_cell_bg(hdr[i], HEADER_COLOR); _set_col_w(hdr[i], w)
+        run = hdr[i].paragraphs[0].add_run(label)
+        run.bold = True; run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF); run.font.size = Pt(9)
+
+    # Data rows
+    prev_tactic = None
+    for r_i, (tact, tid, name, is_sub) in enumerate(display):
+        cells = table.rows[r_i + 1].cells
+        for c_i, w in enumerate(COL_PCTS):
+            _set_col_w(cells[c_i], w)
+
+        if is_sub:
+            # Sub-technique row: light green background, indented ID
+            for c in cells: _set_cell_bg(c, SUB_BG.lstrip("#"))
+            cells[0].paragraphs[0].add_run("").font.size = Pt(8)   # blank tactic cell
+            id_run  = cells[1].paragraphs[0].add_run(f"  ↳ {tid}")
+            name_run = cells[2].paragraphs[0].add_run(name)
+            for r in (id_run, name_run):
+                r.font.size = Pt(8)
+                r.font.color.rgb = RGBColor(0x16, 0x6A, 0x34)  # forest green
+        else:
+            # Parent technique row: alternate shading
+            if r_i % 2 == 1:
+                for c in cells: _set_cell_bg(c, ALT_BG.lstrip("#"))
+            tact_text = tact if tact != prev_tactic else ""  # only show tactic on first row of group
+            prev_tactic = tact
+            for c_i, (text, w) in enumerate(zip([tact_text, tid, name], COL_PCTS)):
+                run = cells[c_i].paragraphs[0].add_run(text)
+                run.font.size = Pt(8)
+                if c_i == 1:  # technique ID — slightly bold
+                    run.bold = True
 
     return table
 
@@ -632,6 +850,9 @@ def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
             elif block_tag == "evidence_table":
                 # Dark slate — forensic artefacts
                 tbl = _build_word_table(doc, evidence_headers, evidence_rows, "1E293B")
+            elif block_tag == "mitre_matrix":
+                # Dark green-blue — ATT&CK matrix
+                tbl = _build_mitre_word_table(doc, case)
             else:  # timeline_table
                 # Dark green — chronology
                 tbl = _build_word_table(doc, timeline_headers, timeline_rows, "14532D")

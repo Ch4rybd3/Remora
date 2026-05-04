@@ -1,8 +1,9 @@
 import { useCallback, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { useDropzone } from 'react-dropzone'
 import {
   Upload, Trash2, Loader2, AlertTriangle, Lock, Eye, EyeOff, ShieldCheck,
+  BookmarkPlus,
 } from 'lucide-react'
 import { binaryApi, type BinaryFile } from '../../api/binary'
 import { format } from 'date-fns'
@@ -52,11 +53,15 @@ function FileRow({
   selected,
   onSelect,
   onDelete,
+  onAddEvidence,
+  addingEvidence,
 }: {
-  f:        BinaryFile
-  selected: boolean
-  onSelect: () => void
-  onDelete: () => void
+  f:              BinaryFile
+  selected:       boolean
+  onSelect:       () => void
+  onDelete:       () => void
+  onAddEvidence:  () => void
+  addingEvidence: boolean
 }) {
   return (
     <div
@@ -89,6 +94,24 @@ function FileRow({
           <Trash2 size={11} />
         </button>
       </div>
+
+      {/* Evidence button — visible only when this file is selected */}
+      {selected && (
+        <div className="mt-2 pt-2 border-t border-white/5">
+          <button
+            onClick={e => { e.stopPropagation(); onAddEvidence() }}
+            disabled={f.added_to_evidence || addingEvidence}
+            className={`w-full flex items-center justify-center gap-1.5 py-1 rounded text-[10px] transition-colors ${
+              f.added_to_evidence
+                ? 'border border-accent-green/20 text-accent-green/60 bg-accent-green/5 cursor-default'
+                : 'border border-white/10 text-accent-muted/50 hover:border-accent-green/30 hover:text-accent-green hover:bg-accent-green/5'
+            } disabled:opacity-50`}
+          >
+            <BookmarkPlus size={10} />
+            {f.added_to_evidence ? 'In evidence' : 'Add to evidence'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -218,6 +241,14 @@ export default function BinaryFileList({ caseId, selectedFileId, onSelectFile }:
     qc.invalidateQueries({ queryKey: ['binary-files', caseId] })
   }
 
+  const addEvidence = useMutation({
+    mutationFn: (fileId: string) => binaryApi.addEvidence(caseId, fileId),
+    onSuccess: (_, fileId) => {
+      qc.invalidateQueries({ queryKey: ['binary-files', caseId] })
+      qc.invalidateQueries({ queryKey: ['binary-file', fileId] })
+    },
+  })
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <UploadForm caseId={caseId} onDone={() => qc.invalidateQueries({ queryKey: ['binary-files', caseId] })} />
@@ -238,6 +269,8 @@ export default function BinaryFileList({ caseId, selectedFileId, onSelectFile }:
             selected={f.id === selectedFileId}
             onSelect={() => onSelectFile(f)}
             onDelete={() => handleDelete(f)}
+            onAddEvidence={() => addEvidence.mutate(f.id)}
+            addingEvidence={addEvidence.isPending && addEvidence.variables === f.id}
           />
         ))}
       </div>

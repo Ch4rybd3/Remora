@@ -1,5 +1,14 @@
+import logging
+import sys
 from pathlib import Path
 from fastapi import FastAPI, Depends
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s:     %(name)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+    force=True,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -24,7 +33,13 @@ from .routers import browser as browser_router
 from .routers import binary as binary_router
 from .routers import registry as registry_router
 from .routers import report_doc_templates as report_doc_templates_router
+from .routers import chainsaw as chainsaw_router
+from .routers import chainsaw_rules as chainsaw_rules_router
+from .routers import mitre as mitre_router
 from .models import evtx as _evtx_models          # ensure tables are registered
+from .models import chainsaw as _chainsaw_models   # ensure tables are registered
+from .models import mitre as _mitre_models         # ensure tables are registered
+from .services.chainsaw_setup import setup_chainsaw
 from .models import audit as _audit_models         # ensure tables are registered
 from .models import attack_graph as _ag_models     # ensure tables are registered
 from .models import memory as _memory_models       # ensure tables are registered
@@ -83,6 +98,26 @@ def _setup_binary() -> None:
 
 _setup_binary()
 
+
+def _setup_chainsaw() -> None:
+    """
+    Ensure Chainsaw binary + Sigma rules are available.
+    Downloads the latest release from GitHub if not already present.
+    Patches settings in-place so all subsequent code uses the correct paths.
+    """
+    install_dir = settings.evidence_store_path.parent / "chainsaw"
+    bin_path, rules_path = setup_chainsaw(
+        install_dir=install_dir,
+        current_bin=settings.chainsaw_bin_path,
+        current_rules=settings.chainsaw_rules_path,
+    )
+    # Patch settings so the router picks up auto-downloaded paths
+    settings.chainsaw_bin_path   = bin_path
+    settings.chainsaw_rules_path = rules_path
+
+
+_setup_chainsaw()
+
 NOTE_IMAGES_DIR = settings.evidence_store_path.parent / "note_images"
 NOTE_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -95,7 +130,7 @@ def _seed_admin():
             admin = User(
                 username="admin",
                 hashed_password=hash_password(settings.default_admin_password),
-                role=UserRole.admin,
+                role=UserRole.owner,
             )
             db.add(admin)
             db.commit()
@@ -148,6 +183,9 @@ app.include_router(browser_router.router, prefix="/api/v1", **_auth)
 app.include_router(binary_router.router,   prefix="/api/v1", **_auth)
 app.include_router(registry_router.router,            prefix="/api/v1", **_auth)
 app.include_router(report_doc_templates_router.router, prefix="/api/v1", **_auth)
+app.include_router(chainsaw_router.router,             prefix="/api/v1", **_auth)
+app.include_router(chainsaw_rules_router.router,       prefix="/api/v1", **_auth)
+app.include_router(mitre_router.router,                prefix="/api/v1", **_auth)
 
 
 @app.get("/api/v1/health")
