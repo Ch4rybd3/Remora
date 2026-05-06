@@ -1,45 +1,10 @@
 import { useMemo, useRef, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import {
-  Shield, Download, RefreshCw, ExternalLink, X,
-  Upload, FileJson,
-} from 'lucide-react'
+import { Shield, ExternalLink, X, Upload, FileJson } from 'lucide-react'
 import { mitreApi, type MitreTTP, type Technique, type SubTechnique, type Tactic } from '../../../api/mitre'
 import MitreMatrixPicker from '../../mitre/MitreMatrixPicker'
 
 interface Props { caseId: string }
-
-// ── Download / status screen ──────────────────────────────────────────────────
-
-function DownloadPrompt({ onDownload, state }: { onDownload: () => void; state: string }) {
-  return (
-    <div className="h-full flex flex-col items-center justify-center gap-4 text-center px-8">
-      <Shield size={48} className="opacity-10" />
-      <div>
-        <p className="text-sm text-white/60 font-medium mb-1">
-          {state === 'downloading' ? 'Downloading ATT&CK data…' : 'ATT&CK data not available'}
-        </p>
-        <p className="text-xs text-accent-muted/40 max-w-sm">
-          {state === 'downloading'
-            ? 'The Enterprise ATT&CK STIX bundle is being downloaded and processed. This takes ~30 seconds. Refresh to check.'
-            : 'Download the MITRE ATT&CK Enterprise technique tree to enable the matrix. The data is fetched once and cached locally.'}
-        </p>
-      </div>
-      {state !== 'downloading' && (
-        <button
-          onClick={onDownload}
-          className="flex items-center gap-2 px-4 py-2 rounded border border-accent-green/40 text-accent-green text-sm hover:bg-accent-green/10 transition-colors"
-        >
-          <Download size={14} />
-          Download ATT&CK Enterprise (~30 MB, one-time)
-        </button>
-      )}
-      {state === 'downloading' && (
-        <RefreshCw size={18} className="animate-spin text-accent-muted/40" />
-      )}
-    </div>
-  )
-}
 
 // ── Right selection panel ─────────────────────────────────────────────────────
 
@@ -161,21 +126,10 @@ function SelectionPanel({
 export default function MitreTab({ caseId }: Props) {
   const qc = useQueryClient()
 
-  // ── Data queries ─────────────────────────────────────────────────────────
-
-  const { data: mitreStatus, refetch: refetchStatus } = useQuery({
-    queryKey:        ['mitre-status'],
-    queryFn:         mitreApi.status,
-    refetchInterval: (q) =>
-      q.state.data?.state === 'downloading' ? 3000 : false,
-  })
-
   const { data: caseTTPs = [] } = useQuery({
     queryKey: ['mitre-ttps', caseId],
     queryFn:  () => mitreApi.listTTPs(caseId),
   })
-
-  // ── Mutations ─────────────────────────────────────────────────────────────
 
   const addTTP = useMutation({
     mutationFn: (data: Parameters<typeof mitreApi.addTTP>[1]) =>
@@ -196,19 +150,10 @@ export default function MitreTab({ caseId }: Props) {
     },
   })
 
-  const downloadMut = useMutation({
-    mutationFn: mitreApi.download,
-    onSuccess:  () => { setTimeout(() => refetchStatus(), 1000) },
-  })
-
-  // ── Derived state ─────────────────────────────────────────────────────────
-
   const selectedKeys = useMemo(
     () => new Set(caseTTPs.map(t => `${t.technique_id}|${t.tactic ?? ''}`)),
     [caseTTPs],
   )
-
-  // ── Toggle handler ────────────────────────────────────────────────────────
 
   const handleToggle = useCallback((
     tech:   Technique | SubTechnique,
@@ -230,8 +175,6 @@ export default function MitreTab({ caseId }: Props) {
     }
   }, [selectedKeys, caseTTPs, addTTP, delTTP])
 
-  // ── Export layer ──────────────────────────────────────────────────────────
-
   const handleExport = async () => {
     const layer = await mitreApi.exportLayer(caseId)
     const blob  = new Blob([JSON.stringify(layer, null, 2)], { type: 'application/json' })
@@ -242,21 +185,10 @@ export default function MitreTab({ caseId }: Props) {
     URL.revokeObjectURL(a.href)
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
-
-  if (!mitreStatus?.available) {
-    return (
-      <DownloadPrompt
-        state={mitreStatus?.state ?? 'not_downloaded'}
-        onDownload={() => downloadMut.mutate()}
-      />
-    )
-  }
-
   return (
     <div className="flex h-full overflow-hidden">
 
-      {/* ── Center: shared matrix picker ────────────────────────────────── */}
+      {/* Matrix — MitreMatrixPicker handles download state itself */}
       <div className="flex-1 overflow-hidden min-w-0">
         <MitreMatrixPicker
           selectedKeys={selectedKeys}
@@ -264,7 +196,7 @@ export default function MitreTab({ caseId }: Props) {
         />
       </div>
 
-      {/* ── Right: selection panel ───────────────────────────────────────── */}
+      {/* Right: selection panel */}
       <div className="w-56 shrink-0 border-l border-white/5 bg-bg-secondary flex flex-col">
         <SelectionPanel
           ttps={caseTTPs}

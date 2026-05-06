@@ -26,6 +26,7 @@ Block tags (replaced with a table or image):
   {{timeline_table}}          Timeline (chronological)
   {{attack_graph}}            Attack-graph PNG image (DOCX) or placeholder (MD)
   {{mitre_matrix}}            MITRE ATT&CK coverage table (parents + selected sub-techniques)
+  {{mitre_matrix_img}}        MITRE ATT&CK matrix as a visual PNG image (DOCX only)
 """
 
 from __future__ import annotations
@@ -62,7 +63,7 @@ TAG_RE = re.compile(r'\{\{[\w.]+\}\}')
 
 BLOCK_TAGS: set[str] = {
     "ioc_table", "asset_table", "evidence_table", "timeline_table",
-    "attack_graph", "mitre_matrix",
+    "attack_graph", "mitre_matrix", "mitre_matrix_img",
 }
 
 ALL_TAGS: list[str] = [
@@ -71,7 +72,7 @@ ALL_TAGS: list[str] = [
     "case.executive_summary", "case.quick_notes", "case.assigned_to", "case.tags",
     "report.date", "report.author",
     "ioc_table", "asset_table", "evidence_table", "timeline_table",
-    "attack_graph", "mitre_matrix",
+    "attack_graph", "mitre_matrix", "mitre_matrix_img",
 ]
 
 # ── Pydantic schema ────────────────────────────────────────────────────────────
@@ -274,6 +275,261 @@ def _md_mitre_matrix(case: Case) -> str:
     return "\n".join(rows)
 
 
+
+# ── MITRE ATT&CK matrix image renderer ────────────────────────────────────────
+
+# ATT&CK v19: defense-evasion split into stealth + defense-impairment
+_TACTICS_V19 = [
+    ("reconnaissance",       "Recon"),
+    ("resource-development", "Rsrc Dev"),
+    ("initial-access",       "Initial Access"),
+    ("execution",            "Execution"),
+    ("persistence",          "Persistence"),
+    ("privilege-escalation", "Priv. Escalation"),
+    ("stealth",              "Stealth"),
+    ("defense-impairment",   "Def. Impairment"),
+    ("credential-access",    "Cred. Access"),
+    ("discovery",            "Discovery"),
+    ("lateral-movement",     "Lateral Movement"),
+    ("collection",           "Collection"),
+    ("command-and-control",  "C2"),
+    ("exfiltration",         "Exfiltration"),
+    ("impact",               "Impact"),
+]
+
+_TACTIC_COLORS = {
+    "reconnaissance":       "#a855f7",
+    "resource-development": "#9333ea",
+    "initial-access":       "#ef4444",
+    "execution":            "#f97316",
+    "persistence":          "#eab308",
+    "privilege-escalation": "#f59e0b",
+    "stealth":              "#84cc16",
+    "defense-impairment":   "#d946ef",
+    "credential-access":    "#22c55e",
+    "discovery":            "#14b8a6",
+    "lateral-movement":     "#06b6d4",
+    "collection":           "#3b82f6",
+    "command-and-control":  "#6366f1",
+    "exfiltration":         "#8b5cf6",
+    "impact":               "#f43f5e",
+}
+
+
+def _hex_to_rgb(h: str) -> tuple:
+    h = h.lstrip("#")
+    return tuple(int(h[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+
+
+def _render_mitre_matrix_png(case: Case) -> "Optional[tuple[bytes, float]]":
+    """
+    Render a clean, report-ready MITRE ATT&CK matrix image.
+
+    Design:
+    - White background (print-friendly), single horizontal row of tactic columns.
+    - Column widths are auto-sized to fit their content (no text truncation).
+    - Solid coloured tactic header bar with white bold text.
+    - Each selected technique appears as a white card with a coloured
+      left-accent stripe; sub-techniques are indented and slightly smaller.
+    - Only the tactics that have ≥1 selected TTP are shown (simplified view).
+    - Returns (png_bytes, embed_width_inches) so the DOCX can embed at the
+      natural width (capped at 6.5" if the matrix is very wide).
+
+    Note: TTPs saved with the legacy ``defense-evasion`` tactic slug (ATT&CK
+    v18 and earlier) appear at the end under "Def. Evasion (legacy)".  To
+    display them under the correct v19 Stealth / Defense Impairment columns
+    the case TTPs must be deleted and re-added from the updated matrix.
+    """
+    try:
+        import matplotlib                                   # type: ignore
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt                    # type: ignore
+        from matplotlib.patches import Rectangle           # type: ignore
+
+        ttps = sorted(
+            getattr(case, "ttps", []) or [],
+            key=lambda t: (t.tactic or "", t.technique_id or ""),
+        )
+        if not ttps:
+            return None
+
+        # ── Group TTPs by tactic, respecting ATT&CK v19 order ─────────────
+        by_tactic: dict[str, list] = {}
+        for ttp in ttps:
+            by_tactic.setdefault(ttp.tactic or "", []).append(ttp)
+
+        active = [(slug, label) for slug, label in _TACTICS_V19 if slug in by_tactic]
+        known_slugs = {s for s, _ in _TACTICS_V19}
+        for slug in by_tactic:          # legacy / unknown tactics at the end
+            if slug not in known_slugs:
+                if slug == "defense-evasion":
+                    label = "Def. Evasion (legacy)"
+                else:
+                    label = slug.replace("-", " ").title()
+                active.append((slug, label))
+        if not active:
+            return None
+
+        # ── Layout constants (all in inches) ──────────────────────────────
+        COL_GAP    = 0.08   # horizontal gap between adjacent columns
+        HDR_H      = 0.38   # tactic header height
+        CARD_H     = 0.36   # technique card height
+        CARD_GAP   = 0.04   # vertical gap between cards
+        MARGIN_X   = 0.15   # left/right page margin
+        MARGIN_Y   = 0.15   # top/bottom page margin
+        ACCENT_W   = 0.055  # width of the left colour stripe on cards
+        INNER_X    = 0.075  # text left offset inside card (after accent stripe)
+        SUB_INDENT = 0.10   # extra indent for sub-technique cards
+        PAD_R      = 0.10   # right padding inside card before right edge
+
+        # Colour palette
+        BG_PAGE  = "#FFFFFF"
+        BG_COL   = "#F8FAFC"   # slate-50 — column background
+        BG_CARD  = "#FFFFFF"   # technique card
+        BG_SUB   = "#F0FDF4"   # sub-technique card — light green tint
+        TXT_ID   = "#1E293B"   # slate-800 — technique ID
+        TXT_NAME = "#475569"   # slate-600 — technique name
+        TXT_SUB  = "#15803D"   # green-700 — sub-technique name
+        BORDER   = "#E2E8F0"   # slate-200
+
+        # ── Auto-size each column to fit its content (no truncation) ──────
+        # Approximate character widths at the rendered font sizes
+        CHAR_MONO = 0.056   # monospace 5.6 pt  (technique IDs)
+        CHAR_REG  = 0.046   # regular   5.0 pt  (technique names)
+        CHAR_HDR  = 0.058   # bold      6.0 pt  (header labels)
+        MIN_COL_W = 0.72    # absolute minimum column width
+
+        col_widths: list[float] = []
+        for slug, label in active:
+            techs = by_tactic.get(slug, [])
+            needed = 0.0
+            for ttp in techs:
+                tid    = ttp.technique_id or ""
+                name   = (ttp.technique_name or "").strip()
+                is_sub = "." in tid
+                indent = SUB_INDENT if is_sub else 0.0
+                text_x = ACCENT_W + INNER_X + indent
+                w_id   = text_x + len(tid)  * CHAR_MONO + PAD_R
+                w_name = text_x + len(name) * CHAR_REG  + PAD_R
+                needed = max(needed, w_id, w_name)
+            # Also ensure header text fits
+            w_hdr = len(label) * CHAR_HDR + 0.22
+            col_widths.append(max(MIN_COL_W, needed, w_hdr))
+
+        N = len(active)
+        fig_w = 2 * MARGIN_X + sum(col_widths) + COL_GAP * max(N - 1, 0)
+
+        # Cap figure width at 14" to stay reasonable
+        MAX_FIG_W = 14.0
+        if fig_w > MAX_FIG_W:
+            scale = MAX_FIG_W / fig_w
+            col_widths = [w * scale for w in col_widths]
+            fig_w = MAX_FIG_W
+
+        # Height: tallest column determines figure height
+        max_techs = max((len(by_tactic[slug]) for slug, _ in active), default=0)
+        body_h = HDR_H + CARD_GAP + max_techs * (CARD_H + CARD_GAP)
+        fig_h  = MARGIN_Y + body_h + MARGIN_Y
+
+        DPI = 200
+
+        fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+        fig.patch.set_facecolor(BG_PAGE)
+        ax.set_facecolor(BG_PAGE)
+        ax.set_xlim(0, fig_w)
+        ax.set_ylim(fig_h, 0)   # y=0 at top, increases downward
+        ax.axis("off")
+
+        cursor_x = MARGIN_X
+        for col_i, (slug, short_label) in enumerate(active):
+            cx0   = cursor_x
+            col_w = col_widths[col_i]
+            color = _TACTIC_COLORS.get(slug, "#6b7280")
+            r, g, b = _hex_to_rgb(color)
+
+            # ── Column background ──────────────────────────────────────────
+            ax.add_patch(Rectangle(
+                (cx0, MARGIN_Y), col_w, body_h,
+                facecolor=BG_COL, edgecolor=BORDER, linewidth=0.5, zorder=1,
+            ))
+
+            # ── Tactic header bar ──────────────────────────────────────────
+            ax.add_patch(Rectangle(
+                (cx0, MARGIN_Y), col_w, HDR_H,
+                facecolor=(r, g, b), edgecolor="none", zorder=2,
+            ))
+            # Header text — break into two lines if the label is long
+            words = short_label.split()
+            if len(words) > 2 and len(short_label) > 13:
+                mid   = len(words) // 2
+                line1 = " ".join(words[:mid])
+                line2 = " ".join(words[mid:])
+                ax.text(cx0 + col_w / 2, MARGIN_Y + HDR_H / 2 - 0.055, line1,
+                        color="white", fontsize=5.8, fontweight="bold",
+                        ha="center", va="center", zorder=3)
+                ax.text(cx0 + col_w / 2, MARGIN_Y + HDR_H / 2 + 0.055, line2,
+                        color="white", fontsize=5.8, fontweight="bold",
+                        ha="center", va="center", zorder=3)
+            else:
+                ax.text(cx0 + col_w / 2, MARGIN_Y + HDR_H / 2, short_label,
+                        color="white", fontsize=6.0, fontweight="bold",
+                        ha="center", va="center", zorder=3)
+
+            # ── Technique cards ────────────────────────────────────────────
+            techs = sorted(by_tactic.get(slug, []), key=lambda t: t.technique_id or "")
+            for row_i, ttp in enumerate(techs):
+                ty0    = MARGIN_Y + HDR_H + CARD_GAP + row_i * (CARD_H + CARD_GAP)
+                is_sub = "." in (ttp.technique_id or "")
+                indent = SUB_INDENT if is_sub else 0.0
+                card_x = cx0 + indent
+                card_w = col_w - indent
+
+                # Card background
+                ax.add_patch(Rectangle(
+                    (card_x, ty0), card_w, CARD_H,
+                    facecolor=BG_SUB if is_sub else BG_CARD,
+                    edgecolor=BORDER, linewidth=0.4, zorder=2,
+                ))
+                # Left colour accent stripe
+                ax.add_patch(Rectangle(
+                    (card_x, ty0), ACCENT_W, CARD_H,
+                    facecolor=(r, g, b, 0.55 if is_sub else 0.85),
+                    edgecolor="none", zorder=3,
+                ))
+
+                text_x = card_x + ACCENT_W + INNER_X
+                tid    = ttp.technique_id or ""
+                name   = (ttp.technique_name or "").strip()
+
+                # Technique ID (monospace)
+                ax.text(text_x, ty0 + 0.085, tid,
+                        color=TXT_SUB if is_sub else TXT_ID,
+                        fontsize=5.2 if is_sub else 5.6,
+                        fontweight="bold", ha="left", va="top",
+                        zorder=4, fontfamily="monospace")
+
+                # Technique name — no truncation (column is sized to fit)
+                ax.text(text_x, ty0 + 0.205, name,
+                        color=TXT_SUB if is_sub else TXT_NAME,
+                        fontsize=4.8 if is_sub else 5.0,
+                        ha="left", va="top", zorder=4)
+
+            cursor_x += col_w + COL_GAP
+
+        buf = io.BytesIO()
+        plt.savefig(buf, format="png", bbox_inches="tight",
+                    facecolor=BG_PAGE, dpi=DPI)
+        plt.close(fig)
+        buf.seek(0)
+
+        # Embed width: natural size, capped at 6.5" (Word page text area)
+        embed_w = min(fig_w, 6.5)
+        return buf.read(), embed_w
+
+    except Exception:
+        return None
+
+
 def _render_markdown(template_text: str, case: Case, ctx: dict[str, str]) -> str:
     text = template_text
     for tag, value in ctx.items():
@@ -284,6 +540,7 @@ def _render_markdown(template_text: str, case: Case, ctx: dict[str, str]) -> str
     text = text.replace("{{timeline_table}}", _md_timeline_table(case))
     text = text.replace("{{attack_graph}}", "_[Attach the attack graph image — export it from the Attack Graph tab]_")
     text = text.replace("{{mitre_matrix}}", _md_mitre_matrix(case))
+    text = text.replace("{{mitre_matrix_img}}", "_[MITRE ATT&CK matrix image — available in DOCX export only]_")
     return text
 
 
@@ -830,35 +1087,40 @@ def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
     # ── Second pass: replace block-tag paragraphs ──────────────────────────────
     for para, block_tag in block_paras:
 
-        if block_tag == "attack_graph":
-            # Clear runs, insert picture (or placeholder text)
+        if block_tag in ("attack_graph", "mitre_matrix_img"):
+            # Image blocks — clear runs and embed a PNG picture
             for r_elem in list(para._p.findall(qn("w:r"))):
                 para._p.remove(r_elem)
-            if attack_graph_png:
-                para.add_run().add_picture(io.BytesIO(attack_graph_png), width=Inches(6))
+
+            if block_tag == "attack_graph":
+                png        = attack_graph_png
+                embed_w    = 6.0
+                placeholder = "[Attack graph not available — no data recorded]"
+            else:  # mitre_matrix_img
+                result     = _render_mitre_matrix_png(case)
+                png        = result[0] if result else None
+                embed_w    = result[1] if result else 6.5
+                placeholder = "[MITRE ATT&CK matrix — no techniques recorded]"
+
+            if png:
+                para.add_run().add_picture(io.BytesIO(png), width=Inches(embed_w))
             else:
-                para.add_run("[Attack graph not available — no data recorded]")
+                para.add_run(placeholder)
 
         else:
-            # Build the appropriate Word table (header colour per type)
+            # Table blocks
             if block_tag == "ioc_table":
-                # Dark red — threat indicators
                 tbl = _build_word_table(doc, ioc_headers, ioc_rows, "7F1D1D")
             elif block_tag == "asset_table":
-                # Dark blue — infrastructure
                 tbl = _build_word_table(doc, asset_headers, asset_rows, "1E3A5F")
             elif block_tag == "evidence_table":
-                # Dark slate — forensic artefacts
                 tbl = _build_word_table(doc, evidence_headers, evidence_rows, "1E293B")
             elif block_tag == "mitre_matrix":
-                # Dark green-blue — ATT&CK matrix
                 tbl = _build_mitre_word_table(doc, case)
             else:  # timeline_table
-                # Dark green — chronology
                 tbl = _build_word_table(doc, timeline_headers, timeline_rows, "14532D")
 
             # Move the new table (currently at end of body) to replace the paragraph.
-            # addnext() moves tbl._tbl from its current parent to after para._p.
             para._p.addnext(tbl._tbl)
             para._p.getparent().remove(para._p)
 

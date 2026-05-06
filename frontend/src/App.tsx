@@ -11,6 +11,7 @@ import Playbooks from './pages/Playbooks'
 import PlaybookEditor from './pages/PlaybookEditor'
 import EmailAnalysis from './pages/EmailAnalysis'
 import KnowledgeBase from './pages/KnowledgeBase'
+import KnowledgeEditor from './pages/KnowledgeEditor'
 import FilesystemLogs from './pages/FilesystemLogs'
 import AuditLog from './pages/AuditLog'
 import Memory from './pages/Memory'
@@ -20,6 +21,7 @@ import BinaryAnalysis from './pages/BinaryAnalysis'
 import RegistryAnalysis from './pages/RegistryAnalysis'
 import ReportTemplates from './pages/ReportTemplates'
 import ChainsawRules from './pages/ChainsawRules'
+import VaultManagement from './pages/VaultManagement'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth()
@@ -61,7 +63,9 @@ export default function App() {
         <Route path="/artifacts/binary"    element={<BinaryAnalysis />} />
         <Route path="/artifacts/registry"  element={<RegistryAnalysis />} />
         <Route path="/knowledge" element={<KnowledgeBase />} />
+        <Route path="/knowledge/editor" element={<KnowledgeEditor />} />
         <Route path="/config/chainsaw-rules" element={<ChainsawRules />} />
+        <Route path="/config/vaults" element={<VaultManagement />} />
         <Route
           path="/users"
           element={

@@ -97,4 +97,8 @@ export const mitreApi = {
   /** Import techniques from a Navigator layer JSON object. */
   importLayer: (caseId: string, layer: object) =>
     api.post<{ added: number }>(`/cases/${caseId}/ttp/import-layer`, { layer }).then(r => r.data),
+
+  /** Delete the local ATT&CK cache to reset a stuck download. */
+  resetCache: () =>
+    api.delete<{ reset: boolean; removed: string[] }>('/mitre/cache').then(r => r.data),
 }

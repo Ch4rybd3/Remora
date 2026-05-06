@@ -72,23 +72,24 @@ ttp_definitions:
     technique_name: Exploitation for Privilege Escalation
     tactic: privilege-escalation
     tactic_name: Privilege Escalation
-  # Defense Evasion
+  # Defense Impairment (ATT&CK v19 — disabling security tools / logs)
   - technique_id: T1562.001
     technique_name: Disable or Modify Tools
-    tactic: defense-evasion
-    tactic_name: Defense Evasion
+    tactic: defense-impairment
+    tactic_name: Defense Impairment
   - technique_id: T1070.001
     technique_name: Clear Windows Event Logs
-    tactic: defense-evasion
-    tactic_name: Defense Evasion
+    tactic: defense-impairment
+    tactic_name: Defense Impairment
+  # Stealth (ATT&CK v19 — obfuscation / masquerading)
   - technique_id: T1027
     technique_name: Obfuscated Files or Information
-    tactic: defense-evasion
-    tactic_name: Defense Evasion
+    tactic: stealth
+    tactic_name: Stealth
   - technique_id: T1036.005
     technique_name: Match Legitimate Name or Location
-    tactic: defense-evasion
-    tactic_name: Defense Evasion
+    tactic: stealth
+    tactic_name: Stealth
   # Credential Access
   - technique_id: T1003.001
     technique_name: LSASS Memory

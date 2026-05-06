@@ -8,10 +8,11 @@
  * The component handles its own data-fetching (technique tree + status).
  * Callers provide `selectedKeys` and `onToggle` to control selection.
  */
-import { useState, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useState, useMemo, useRef, useEffect } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ExternalLink, Search, Eye, EyeOff, RefreshCw, Shield,
+  ChevronRight, ChevronDown, RotateCcw, AlertTriangle,
 } from 'lucide-react'
 import {
   mitreApi,
@@ -20,6 +21,7 @@ import {
 
 // ── Tactic colour maps ────────────────────────────────────────────────────────
 
+// ATT&CK v19: defense-evasion split into stealth (TA0005) + defense-impairment (TA0112)
 export const TACTIC_COLORS: Record<string, string> = {
   'reconnaissance':       'border-t-purple-500/60',
   'resource-development': 'border-t-purple-400/60',
@@ -27,7 +29,8 @@ export const TACTIC_COLORS: Record<string, string> = {
   'execution':            'border-t-orange-500/60',
   'persistence':          'border-t-yellow-500/60',
   'privilege-escalation': 'border-t-amber-500/60',
-  'defense-evasion':      'border-t-lime-500/60',
+  'stealth':              'border-t-lime-500/60',      // was defense-evasion
+  'defense-impairment':   'border-t-fuchsia-500/60',  // new in v19
   'credential-access':    'border-t-green-500/60',
   'discovery':            'border-t-teal-500/60',
   'lateral-movement':     'border-t-cyan-500/60',
@@ -44,7 +47,8 @@ export const TACTIC_HEADER_COLORS: Record<string, string> = {
   'execution':            'text-orange-400',
   'persistence':          'text-yellow-400',
   'privilege-escalation': 'text-amber-400',
-  'defense-evasion':      'text-lime-400',
+  'stealth':              'text-lime-400',       // was defense-evasion
+  'defense-impairment':   'text-fuchsia-400',   // new in v19
   'credential-access':    'text-green-400',
   'discovery':            'text-teal-400',
   'lateral-movement':     'text-cyan-400',
@@ -117,6 +121,18 @@ export function TacticColumn({
 }) {
   const q = search.toLowerCase()
 
+  // Per-technique expand override: undefined = auto (expand if has selected sub or search match),
+  // true/false = user-forced open/closed.
+  const [expandOverrides, setExpandOverrides] = useState<Map<string, boolean>>(new Map())
+
+  const toggleExpand = (techId: string, currentExpanded: boolean) => {
+    setExpandOverrides(prev => {
+      const next = new Map(prev)
+      next.set(techId, !currentExpanded)
+      return next
+    })
+  }
+
   const visibleTechs = useMemo(() => {
     if (!q) return tactic.techniques
     return tactic.techniques.filter(t =>
@@ -160,8 +176,10 @@ export function TacticColumn({
           <p className="text-[8px] text-white/20 italic px-1 py-2">No match</p>
         )}
         {visibleTechs.map(tech => {
-          const techKey = `${tech.id}|${tactic.short_name}`
-          const hasSubs = showSubs && tech.sub_techniques.length > 0
+          const techKey   = `${tech.id}|${tactic.short_name}`
+          const hasSubs   = showSubs && tech.sub_techniques.length > 0
+
+          // Sub-techniques visible in the current search
           const parentMatches = !q || tech.id.toLowerCase().includes(q) || tech.name.toLowerCase().includes(q)
           const visibleSubs = hasSubs
             ? (parentMatches || !q)
@@ -171,16 +189,49 @@ export function TacticColumn({
                 )
             : []
 
+          // Expand logic:
+          // - user override takes priority
+          // - default: expanded only when at least one sub is selected, or search is active
+          const hasSelectedSub = hasSubs && tech.sub_techniques.some(
+            s => selectedKeys.has(`${s.id}|${tactic.short_name}`)
+          )
+          const autoExpand = hasSelectedSub || (!!q && visibleSubs.length > 0)
+          const isExpanded = expandOverrides.has(tech.id)
+            ? expandOverrides.get(tech.id)!
+            : autoExpand
+
           return (
-            <div key={tech.id}>
-              <TechCard
-                tech={tech}
-                tactic={tactic}
-                isSelected={selectedKeys.has(techKey)}
-                onToggle={onToggle}
-              />
-              {visibleSubs.length > 0 && (
-                <div className="mt-0.5 ml-1 pl-1 border-l border-white/10 space-y-0.5">
+            <div key={tech.id} className="space-y-0.5">
+              {/* Parent row: chevron + card */}
+              <div className="flex items-center gap-0.5">
+                {/* Expand toggle — only shown when sub-techniques exist */}
+                {hasSubs ? (
+                  <button
+                    onClick={e => { e.stopPropagation(); toggleExpand(tech.id, isExpanded) }}
+                    className="shrink-0 w-4 h-full flex items-center justify-center text-white/20 hover:text-white/60 transition-colors"
+                    title={isExpanded ? 'Collapse sub-techniques' : 'Expand sub-techniques'}
+                  >
+                    {isExpanded
+                      ? <ChevronDown  size={8} />
+                      : <ChevronRight size={8} />
+                    }
+                  </button>
+                ) : (
+                  <span className="w-4 shrink-0" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <TechCard
+                    tech={tech}
+                    tactic={tactic}
+                    isSelected={selectedKeys.has(techKey)}
+                    onToggle={onToggle}
+                  />
+                </div>
+              </div>
+
+              {/* Sub-techniques — only when expanded */}
+              {isExpanded && visibleSubs.length > 0 && (
+                <div className="ml-4 pl-1 border-l border-white/10 space-y-0.5">
                   {visibleSubs.map(sub => (
                     <TechCard
                       key={sub.id}
@@ -212,14 +263,64 @@ export default function MitreMatrixPicker({
   selectedKeys,
   onToggle,
 }: MitreMatrixPickerProps) {
+  const qc = useQueryClient()
   const [search,   setSearch]   = useState('')
   const [showSubs, setShowSubs] = useState(true)
 
-  const { data: mitreStatus } = useQuery({
-    queryKey: ['mitre-status'],
-    queryFn:  mitreApi.status,
+  // Track how long we have been in the 'downloading' state so we can surface
+  // a "Reset stuck download" button if things take too long.
+  const [downloadingFor, setDownloadingFor] = useState(0) // seconds
+  const downloadTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // ── Status polling ────────────────────────────────────────────────────────
+  // refetchInterval handles all polling — no manual setInterval needed.
+  const prevStateRef = useRef<string | undefined>(undefined)
+
+  const { data: mitreStatus, refetch: refetchStatus } = useQuery({
+    queryKey:        ['mitre-status'],
+    queryFn:         mitreApi.status,
+    // Poll every 3 s while a download is in progress; stop when done.
+    refetchInterval: (q) =>
+      q.state.data?.state === 'downloading' ? 3000 : false,
   })
 
+  // When state transitions from 'downloading' → 'ready', flush the technique
+  // tree cache so the fresh data is fetched immediately.
+  useEffect(() => {
+    const prev    = prevStateRef.current
+    const current = mitreStatus?.state
+    if (prev === 'downloading' && current === 'ready') {
+      qc.removeQueries({ queryKey: ['mitre-techniques'] })
+    }
+    prevStateRef.current = current
+  }, [mitreStatus?.state, qc])
+
+  // Count seconds in the downloading state.
+  useEffect(() => {
+    const isDownloading = mitreStatus?.state === 'downloading'
+    if (isDownloading) {
+      if (!downloadTimerRef.current) {
+        setDownloadingFor(0)
+        downloadTimerRef.current = setInterval(() => {
+          setDownloadingFor(s => s + 1)
+        }, 1000)
+      }
+    } else {
+      if (downloadTimerRef.current) {
+        clearInterval(downloadTimerRef.current)
+        downloadTimerRef.current = null
+      }
+      setDownloadingFor(0)
+    }
+    return () => {
+      if (downloadTimerRef.current) {
+        clearInterval(downloadTimerRef.current)
+        downloadTimerRef.current = null
+      }
+    }
+  }, [mitreStatus?.state])
+
+  // ── Technique tree ────────────────────────────────────────────────────────
   const { data: tree } = useQuery({
     queryKey:  ['mitre-techniques'],
     queryFn:   mitreApi.techniques,
@@ -227,22 +328,122 @@ export default function MitreMatrixPicker({
     staleTime: Infinity,
   })
 
+  // ── Mutations ─────────────────────────────────────────────────────────────
+  // Download: rely entirely on refetchInterval for polling — no manual setInterval.
+  const downloadMut = useMutation({
+    mutationFn: mitreApi.download,
+    onSuccess:  () => refetchStatus(),
+  })
+
+  // Reset: clear cache files on the server, then re-check status.
+  const resetMut = useMutation({
+    mutationFn: mitreApi.resetCache,
+    onSuccess: () => {
+      qc.removeQueries({ queryKey: ['mitre-techniques'] })
+      refetchStatus()
+    },
+  })
+
+  const isDownloading = mitreStatus?.state === 'downloading' || downloadMut.isPending
+
+  // Detect stale cache: tree is available but has no sub-techniques anywhere.
+  const hasSubTechniques = tree
+    ? tree.tactics.some(t => t.techniques.some(tech => (tech.sub_techniques?.length ?? 0) > 0))
+    : true  // assume ok while loading
+
+  // ── Not-available screen ──────────────────────────────────────────────────
   if (!mitreStatus?.available) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-8">
         <Shield size={32} className="opacity-10" />
-        <p className="text-sm text-white/40">
-          ATT&amp;CK data not downloaded yet.
-        </p>
-        <p className="text-xs text-accent-muted/30 max-w-xs">
-          Open the MITRE ATT&amp;CK tab on any case and click "Download ATT&amp;CK Enterprise" first.
-        </p>
+
+        {isDownloading ? (
+          <>
+            <p className="text-sm text-white/40">Downloading ATT&CK data…</p>
+            <RefreshCw size={18} className="animate-spin text-accent-muted/30" />
+            <p className="text-xs text-accent-muted/30">
+              {downloadingFor > 0 ? `${downloadingFor}s elapsed` : 'Starting download…'}
+            </p>
+            {/* Show reset button after 60 s — likely stuck */}
+            {downloadingFor >= 60 && (
+              <div className="flex flex-col items-center gap-2 mt-2">
+                <div className="flex items-center gap-1.5 text-amber-400/70 text-xs">
+                  <AlertTriangle size={12} />
+                  Download appears stuck
+                </div>
+                <button
+                  onClick={() => resetMut.mutate()}
+                  disabled={resetMut.isPending}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded border border-amber-500/40 text-amber-400 text-xs hover:bg-amber-500/10 transition-colors disabled:opacity-40"
+                >
+                  <RotateCcw size={12} className={resetMut.isPending ? 'animate-spin' : ''} />
+                  Reset and retry
+                </button>
+              </div>
+            )}
+          </>
+        ) : mitreStatus?.state === 'error' ? (
+          <>
+            <p className="text-sm text-severity-critical/70">Download failed</p>
+            <p className="text-xs text-accent-muted/40 max-w-xs font-mono">{mitreStatus.error}</p>
+            <div className="flex gap-2 mt-1">
+              <button
+                onClick={() => downloadMut.mutate()}
+                className="flex items-center gap-2 px-3 py-1.5 rounded border border-accent-green/40 text-accent-green text-xs hover:bg-accent-green/10 transition-colors"
+              >
+                <RefreshCw size={12} /> Retry download
+              </button>
+              <button
+                onClick={() => resetMut.mutate()}
+                disabled={resetMut.isPending}
+                className="flex items-center gap-2 px-3 py-1.5 rounded border border-white/10 text-white/40 text-xs hover:text-white hover:border-white/20 transition-colors disabled:opacity-40"
+              >
+                <RotateCcw size={12} className={resetMut.isPending ? 'animate-spin' : ''} />
+                Reset cache
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-white/40">ATT&CK data not downloaded yet.</p>
+            <p className="text-xs text-accent-muted/30 max-w-xs">
+              The Enterprise ATT&CK dataset (~50 MB) will be downloaded once and cached locally.
+            </p>
+            <button
+              onClick={() => downloadMut.mutate()}
+              className="flex items-center gap-2 px-4 py-2 rounded border border-accent-green/40 text-accent-green text-sm hover:bg-accent-green/10 transition-colors"
+            >
+              <RefreshCw size={14} />
+              Download ATT&CK Enterprise
+            </button>
+          </>
+        )}
       </div>
     )
   }
 
+  // ── Main matrix view ──────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full overflow-hidden">
+
+      {/* Stale/incomplete cache warning */}
+      {tree && !hasSubTechniques && (
+        <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-[10px] text-amber-400">
+          <AlertTriangle size={10} className="shrink-0" />
+          <span className="flex-1">
+            Le cache ATT&CK ne contient pas de sub-techniques — il date probablement d'avant la mise à jour.
+            Cliquez "Refresh" pour le régénérer.
+          </span>
+          <button
+            onClick={() => downloadMut.mutate()}
+            disabled={isDownloading}
+            className="flex items-center gap-1 px-2 py-0.5 rounded border border-amber-500/40 hover:bg-amber-500/10 transition-colors disabled:opacity-40"
+          >
+            <RotateCcw size={9} className={isDownloading ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+        </div>
+      )}
 
       {/* Toolbar */}
       <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-white/5 bg-bg-secondary/50">
@@ -263,9 +464,10 @@ export default function MitreMatrixPicker({
               ? 'border-accent-green/30 text-accent-green bg-accent-green/5'
               : 'border-white/8 text-accent-muted/40 hover:text-white hover:border-white/20'
           }`}
+          title={showSubs ? 'Hide sub-techniques' : 'Show sub-techniques'}
         >
           {showSubs ? <Eye size={10} /> : <EyeOff size={10} />}
-          Sub-techniques
+          Sub-tech
         </button>
 
         {tree?.version && (
@@ -273,6 +475,17 @@ export default function MitreMatrixPicker({
             {tree.version}
           </span>
         )}
+
+        {/* Re-download button */}
+        <button
+          onClick={() => downloadMut.mutate()}
+          disabled={isDownloading}
+          title="Re-download ATT&CK data"
+          className="text-accent-muted/30 hover:text-white/60 transition-colors disabled:opacity-30"
+        >
+          <RotateCcw size={10} className={isDownloading ? 'animate-spin' : ''} />
+        </button>
+
         {selectedKeys.size > 0 && (
           <span className="text-[10px] text-accent-green/70 font-mono">
             {selectedKeys.size} selected
@@ -282,7 +495,12 @@ export default function MitreMatrixPicker({
 
       {/* Matrix */}
       <div className="flex-1 overflow-auto bg-bg-primary">
-        {tree ? (
+        {isDownloading ? (
+          <div className="h-full flex flex-col items-center justify-center gap-3">
+            <RefreshCw size={18} className="animate-spin text-accent-muted/30" />
+            <p className="text-xs text-accent-muted/30">Rebuilding ATT&CK cache…</p>
+          </div>
+        ) : tree ? (
           <div className="flex min-w-max h-full">
             {tree.tactics.map(tactic => (
               <TacticColumn

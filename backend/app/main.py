@@ -36,6 +36,9 @@ from .routers import report_doc_templates as report_doc_templates_router
 from .routers import chainsaw as chainsaw_router
 from .routers import chainsaw_rules as chainsaw_rules_router
 from .routers import mitre as mitre_router
+from .routers import dashboard as dashboard_router
+from .routers import vault as vault_router
+from .models import vault as _vault_models             # ensure table is registered
 from .models import evtx as _evtx_models          # ensure tables are registered
 from .models import chainsaw as _chainsaw_models   # ensure tables are registered
 from .models import mitre as _mitre_models         # ensure tables are registered
@@ -186,6 +189,8 @@ app.include_router(report_doc_templates_router.router, prefix="/api/v1", **_auth
 app.include_router(chainsaw_router.router,             prefix="/api/v1", **_auth)
 app.include_router(chainsaw_rules_router.router,       prefix="/api/v1", **_auth)
 app.include_router(mitre_router.router,                prefix="/api/v1", **_auth)
+app.include_router(dashboard_router.router,            prefix="/api/v1", **_auth)
+app.include_router(vault_router.router,                prefix="/api/v1", **_auth)
 
 
 @app.get("/api/v1/health")

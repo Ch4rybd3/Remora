@@ -9,6 +9,8 @@ MITRE ATT&CK integration.
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,7 +36,11 @@ router = APIRouter(tags=["mitre"])
 TACTIC_ORDER = [
     "reconnaissance", "resource-development", "initial-access",
     "execution", "persistence", "privilege-escalation",
-    "defense-evasion", "credential-access", "discovery",
+    # ATT&CK v19: Defense Evasion (TA0005) was split into two tactics:
+    #   - Stealth       (TA0005) — camouflage / living-off-the-land / obfuscation
+    #   - Defense Impairment (TA0112) — disabling security tools / logging / EDRs
+    "stealth", "defense-impairment",
+    "credential-access", "discovery",
     "lateral-movement", "collection", "command-and-control",
     "exfiltration", "impact",
 ]
@@ -46,7 +52,9 @@ TACTIC_META: dict[str, dict[str, str]] = {
     "execution":            {"id": "TA0002", "name": "Execution"},
     "persistence":          {"id": "TA0003", "name": "Persistence"},
     "privilege-escalation": {"id": "TA0004", "name": "Privilege Escalation"},
-    "defense-evasion":      {"id": "TA0005", "name": "Defense Evasion"},
+    # ATT&CK v19 — formerly "Defense Evasion" (TA0005)
+    "stealth":              {"id": "TA0005", "name": "Stealth"},
+    "defense-impairment":   {"id": "TA0112", "name": "Defense Impairment"},
     "credential-access":    {"id": "TA0006", "name": "Credential Access"},
     "discovery":            {"id": "TA0007", "name": "Discovery"},
     "lateral-movement":     {"id": "TA0008", "name": "Lateral Movement"},
@@ -77,19 +85,46 @@ def _status_path() -> Path:
     return _mitre_dir() / "download_status.json"
 
 
+# ── Atomic status writer ──────────────────────────────────────────────────────
+
+def _write_status(data: dict) -> None:
+    """Write status JSON atomically (write-then-rename) to avoid race conditions."""
+    path = _status_path()
+    try:
+        fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+        except Exception:
+            os.unlink(tmp)
+            raise
+        os.replace(tmp, path)
+    except Exception:
+        # Fallback: direct write (still better than nothing)
+        path.write_text(json.dumps(data), encoding="utf-8")
+
+
 # ── STIX → compact tree ───────────────────────────────────────────────────────
 
 def _build_compact_tree(stix_data: dict) -> dict[str, Any]:
     objects = stix_data.get("objects", [])
 
-    # Extract ATT&CK version from the collection object
+    # ── ATT&CK version ────────────────────────────────────────────────────────
     version = "unknown"
     for o in objects:
         if o.get("type") == "x-mitre-collection":
             version = o.get("x_mitre_version", "unknown")
             break
+    # Fallback: try identity objects
+    if version == "unknown":
+        for o in objects:
+            ver = o.get("x_mitre_version")
+            if ver:
+                version = ver
+                break
 
-    # Collect all non-deprecated, non-revoked attack-patterns
+    # ── Collect all live attack-patterns ─────────────────────────────────────
+    # Key: ATT&CK ID (e.g. "T1566", "T1566.001")
     raw: dict[str, dict[str, Any]] = {}
     for o in objects:
         if o.get("type") != "attack-pattern":
@@ -97,31 +132,46 @@ def _build_compact_tree(stix_data: dict) -> dict[str, Any]:
         if o.get("x_mitre_deprecated") or o.get("revoked"):
             continue
         ext = next(
-            (r for r in o.get("external_references", []) if r.get("source_name") == "mitre-attack"),
+            (r for r in o.get("external_references", [])
+             if r.get("source_name") == "mitre-attack"),
             None,
         )
         if not ext:
             continue
-        tid = ext["external_id"]
+        tid = ext.get("external_id", "")
+        if not tid.startswith("T"):
+            continue  # skip non-technique IDs (e.g. G-group, S-software)
+
         tactics = [
             p["phase_name"]
             for p in o.get("kill_chain_phases", [])
             if p.get("kill_chain_name") == "mitre-attack"
         ]
+        url = ext.get("url") or f"https://attack.mitre.org/techniques/{tid.replace('.', '/')}/"
+
+        # Sub-technique detection: reliable via ID format (T1234.001 has a dot)
+        is_sub = "." in tid
+
         raw[tid] = {
             "id":     tid,
-            "name":   o["name"],
-            "url":    ext.get("url", f"https://attack.mitre.org/techniques/{tid.replace('.', '/')}/"),
-            "tactics":  tactics,
-            "is_sub":   o.get("x_mitre_subtechnique", False),
-            "sub_techniques": [],
+            "name":   o.get("name", tid),
+            "url":    url,
+            "tactics": tactics,
+            "is_sub":  is_sub,
         }
 
-    # Build tactic columns — parent techniques first
+    print(
+        f"[mitre] Parsed {len(raw)} live techniques "
+        f"({sum(1 for t in raw.values() if not t['is_sub'])} parents, "
+        f"{sum(1 for t in raw.values() if t['is_sub'])} sub-techniques)",
+        flush=True,
+    )
+
+    # ── Build tactic columns — parents first ──────────────────────────────────
     tactic_map: dict[str, list[dict[str, Any]]] = {t: [] for t in TACTIC_ORDER}
     # A technique can appear in multiple tactic columns (e.g. T1078 → 4 tactics).
-    # Track all column entries per parent so sub-techniques are added to each.
-    parent_entries: dict[str, list[dict[str, Any]]] = {}  # tid → [entry, ...]
+    # Keep a list per parent ID so sub-techniques are attached to each occurrence.
+    parent_entries: dict[str, list[dict[str, Any]]] = {}
 
     for tid in sorted(raw):
         tech = raw[tid]
@@ -131,15 +181,15 @@ def _build_compact_tree(stix_data: dict) -> dict[str, Any]:
             if tactic not in tactic_map:
                 continue
             entry: dict[str, Any] = {
-                "id":   tech["id"],
-                "name": tech["name"],
-                "url":  tech["url"],
+                "id":             tech["id"],
+                "name":           tech["name"],
+                "url":            tech["url"],
                 "sub_techniques": [],
             }
             tactic_map[tactic].append(entry)
             parent_entries.setdefault(tech["id"], []).append(entry)
 
-    # Attach sub-techniques to every tactic column their parent appears in
+    # ── Attach sub-techniques to every column their parent appears in ─────────
     for tid in sorted(raw):
         tech = raw[tid]
         if not tech["is_sub"]:
@@ -152,10 +202,15 @@ def _build_compact_tree(stix_data: dict) -> dict[str, Any]:
                 "url":  tech["url"],
             })
 
-    # Sort sub-techniques by ID
+    # Sort sub-techniques by ID within each parent
     for lst in tactic_map.values():
         for entry in lst:
             entry["sub_techniques"].sort(key=lambda x: x["id"])
+
+    # ── Debug summary ─────────────────────────────────────────────────────────
+    total_parents  = sum(len(lst) for lst in tactic_map.values())
+    total_subs     = sum(len(e["sub_techniques"]) for lst in tactic_map.values() for e in lst)
+    print(f"[mitre] Tree built: {total_parents} parent slots, {total_subs} sub-technique slots", flush=True)
 
     return {
         "version": f"ATT&CK v{version}",
@@ -176,7 +231,7 @@ def _download_and_cache() -> None:
     status_path = _status_path()
     compact_path = _compact_path()
 
-    status_path.write_text(json.dumps({"state": "downloading"}), encoding="utf-8")
+    _write_status({"state": "downloading"})
     print(f"[mitre] Downloading ATT&CK STIX data from {STIX_URL}", flush=True)
 
     try:
@@ -185,23 +240,31 @@ def _download_and_cache() -> None:
             raw_bytes = r.read()
     except (URLError, Exception) as exc:
         print(f"[mitre] Download failed: {exc}", flush=True)
-        status_path.write_text(json.dumps({"state": "error", "error": str(exc)}), encoding="utf-8")
+        _write_status({"state": "error", "error": str(exc)})
         return
 
     print(f"[mitre] Downloaded {len(raw_bytes) // 1024} KB — parsing STIX…", flush=True)
     try:
         stix_data = json.loads(raw_bytes)
         tree = _build_compact_tree(stix_data)
-        compact_path.write_text(json.dumps(tree, separators=(",", ":")), encoding="utf-8")
+        # Write compact cache atomically too
+        fd, tmp = tempfile.mkstemp(dir=compact_path.parent, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(tree, f, separators=(",", ":"))
+        except Exception:
+            os.unlink(tmp)
+            raise
+        os.replace(tmp, compact_path)
     except Exception as exc:
         print(f"[mitre] Parse failed: {exc}", flush=True)
-        status_path.write_text(json.dumps({"state": "error", "error": str(exc)}), encoding="utf-8")
+        _write_status({"state": "error", "error": str(exc)})
         return
 
     total = sum(len(t["techniques"]) for t in tree["tactics"])
     size_kb = compact_path.stat().st_size // 1024
     print(f"[mitre] Done — {total} techniques, {size_kb} KB compact cache", flush=True)
-    status_path.write_text(json.dumps({"state": "ready"}), encoding="utf-8")
+    _write_status({"state": "ready"})
 
 
 # ── MITRE data endpoints ──────────────────────────────────────────────────────
@@ -211,9 +274,13 @@ def mitre_status(current_user: User = Depends(get_current_user)) -> dict:
     compact = _compact_path()
     status_p = _status_path()
 
-    # Check ongoing download
+    # Check ongoing download — guard against transient empty file during atomic write
     if status_p.is_file():
-        status = json.loads(status_p.read_text())
+        try:
+            raw = status_p.read_text(encoding="utf-8").strip()
+            status = json.loads(raw) if raw else {}
+        except (json.JSONDecodeError, OSError):
+            status = {}
         if status.get("state") == "downloading":
             return {"available": False, "state": "downloading", "version": None, "technique_count": 0}
         if status.get("state") == "error":
@@ -237,9 +304,34 @@ def mitre_download(
     bg: BackgroundTasks,
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    """Trigger a background download of the ATT&CK Enterprise STIX bundle."""
+    """Trigger a background download / re-download of the ATT&CK Enterprise STIX bundle.
+
+    Safe to call even when data is already available — rewrites the compact cache.
+    """
+    # Mark as downloading immediately (atomic) so callers see the state change right away
+    _write_status({"state": "downloading"})
     bg.add_task(_download_and_cache)
     return {"status": "download_started"}
+
+
+@router.delete("/mitre/cache")
+def mitre_reset_cache(current_user: User = Depends(get_current_user)) -> dict:
+    """Delete the local ATT&CK cache files so a fresh download can start.
+
+    Useful when the download state is stuck (e.g. the server was killed
+    mid-download and the status file still shows 'downloading').
+    """
+    compact  = _compact_path()
+    status_p = _status_path()
+    removed: list[str] = []
+    if compact.is_file():
+        compact.unlink()
+        removed.append("compact")
+    if status_p.is_file():
+        status_p.unlink()
+        removed.append("status")
+    print(f"[mitre] Cache reset — removed: {removed}", flush=True)
+    return {"reset": True, "removed": removed}
 
 
 @router.get("/mitre/techniques")

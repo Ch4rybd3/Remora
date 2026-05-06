@@ -46,15 +46,15 @@ ttp_definitions:
     technique_name: Bypass User Account Control
     tactic: privilege-escalation
     tactic_name: Privilege Escalation
-  # Defense Evasion
+  # Defense Impairment (ATT&CK v19 — disabling security tools / logs)
   - technique_id: T1562.001
     technique_name: Disable or Modify Tools
-    tactic: defense-evasion
-    tactic_name: Defense Evasion
+    tactic: defense-impairment
+    tactic_name: Defense Impairment
   - technique_id: T1070.001
     technique_name: Clear Windows Event Logs
-    tactic: defense-evasion
-    tactic_name: Defense Evasion
+    tactic: defense-impairment
+    tactic_name: Defense Impairment
   # Credential Access
   - technique_id: T1003.001
     technique_name: LSASS Memory
