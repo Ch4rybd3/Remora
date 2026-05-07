@@ -25,13 +25,13 @@ type Tab = 'summary' | 'playbook' | 'report' | 'iocs' | 'assets' | 'evidences' |
 const TABS: { id: Tab; label: string }[] = [
   { id: 'summary',      label: 'Executive Summary' },
   { id: 'playbook',     label: 'Playbook' },
-  { id: 'report',       label: 'Report' },
   { id: 'iocs',         label: 'IOCs' },
   { id: 'assets',       label: 'Assets' },
   { id: 'evidences',    label: 'Evidence' },
   { id: 'timeline',     label: 'Timeline' },
   { id: 'mitre',        label: 'MITRE ATT&CK' },
   { id: 'attack_graph', label: 'Attack Graph' },
+  { id: 'report',       label: 'Report' },
 ]
 
 export default function CaseDetail() {

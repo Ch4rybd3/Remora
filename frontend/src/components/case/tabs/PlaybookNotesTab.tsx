@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ReactFlow, Background, BackgroundVariant, Controls, MiniMap,
@@ -53,11 +53,23 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [draftNotes, setDraftNotes] = useState<Record<string, string>>({})
 
+  // Pre-populate drafts whenever the active playbook changes so that
+  // steps expanded by default already have their saved notes loaded.
+  useEffect(() => {
+    if (!activeCp) return
+    const drafts: Record<string, string> = {}
+    stepNodes(activeCp).forEach(n => {
+      drafts[n.id] = activeCp.step_states[n.id]?.notes ?? ''
+    })
+    setDraftNotes(drafts)
+  }, [activeCp?.id])
+
+  // isExpanded defaults to true (open) unless the user explicitly closed a step
   const toggleExpand = (nodeId: string, cp: CasePlaybook) => {
     if (!expanded[nodeId]) {
       setDraftNotes(d => ({ ...d, [nodeId]: cp.step_states[nodeId]?.notes ?? '' }))
     }
-    setExpanded(e => ({ ...e, [nodeId]: !e[nodeId] }))
+    setExpanded(e => ({ ...e, [nodeId]: !(e[nodeId] ?? true) }))
   }
 
   /* ── Step mutations ── */
@@ -226,7 +238,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
                 const state = activeCp.step_states[node.id]
                 const done = state?.done ?? false
                 const savedNotes = state?.notes ?? ''
-                const isExpanded = expanded[node.id] ?? false
+                const isExpanded = expanded[node.id] ?? true
                 const draft = draftNotes[node.id] ?? savedNotes
                 const hasNotes = savedNotes.trim().length > 0
 
@@ -310,8 +322,43 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
         )}
       </div>
 
-      {/* ══ RIGHT : Quick Notes 1/3 ══════════════════════════════════════════ */}
+      {/* ══ RIGHT : Mini-graph + Quick Notes 1/3 ══════════════════════════════ */}
       <div className="flex-1 min-w-0 flex flex-col pl-5">
+
+        {/* ── Mini playbook graph ─────────────────────────────────────────── */}
+        {activeCp && (
+          <div className="mb-4 shrink-0">
+            <p className="text-[9px] font-semibold tracking-widest uppercase text-accent-muted/30 mb-1.5 flex items-center gap-1">
+              <Network size={9} /> {activeCp.playbook.name}
+            </p>
+            <div
+              className="w-full rounded-lg border border-white/8 overflow-hidden"
+              style={{ height: 148 }}
+            >
+              <ReactFlow
+                nodes={buildViewNodes(activeCp)}
+                edges={activeCp.playbook.edges as Edge[]}
+                nodeTypes={NODE_TYPES}
+                fitView
+                fitViewOptions={{ padding: 0.15 }}
+                nodesDraggable={false}
+                nodesConnectable={false}
+                elementsSelectable={false}
+                panOnDrag={true}
+                zoomOnScroll={true}
+                zoomOnPinch={true}
+                zoomOnDoubleClick={false}
+                preventScrolling={true}
+                proOptions={{ hideAttribution: true }}
+                style={{ background: '#080e18' }}
+              >
+                <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="#1a2535" />
+              </ReactFlow>
+            </div>
+          </div>
+        )}
+
+        {/* ── Notes libres ────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between mb-3 shrink-0">
           <h3 className="text-accent-muted font-semibold text-[11px] uppercase tracking-wide flex items-center gap-1.5">
             <StickyNote size={12} /> Notes libres
@@ -334,7 +381,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
             value={quickNotes}
             onChange={v => { setQuickNotes(v); setNotesDirty(true) }}
             caseId={caseId}
-            minHeight={480}
+            minHeight={300}
             placeholder={'# Notes libres\n\n- Info donnée à l\'oral…'}
           />
         </div>
