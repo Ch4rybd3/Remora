@@ -53,12 +53,21 @@ def _get_case_or_404(case_id: str, db: Session) -> Case:
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @router.get("/generate", response_class=PlainTextResponse)
-def generate_report(case_id: str, db: Session = Depends(get_db)):
+def generate_report(
+    case_id:      str,
+    db:           Session = Depends(get_db),
+    current_user: User    = Depends(get_current_user),
+):
+    """
+    Generate the analyst-facing analysis skeleton only (Technical Analysis,
+    Remediations, Recommendations).  Annexe data (IOC table, MITRE matrix,
+    timeline …) are rendered by the Report Template via {{ }} tags.
+    """
     case = _get_case_or_404(case_id, db)
     template = None
     if case.template_id:
         template = TemplateService().get_template(case.template_id)
-    return ReportService().generate(case, template)
+    return ReportService().generate_analysis(case, template)
 
 
 @router.get("/versions", response_model=list[ReportVersionMeta])

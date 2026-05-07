@@ -62,10 +62,11 @@ When a page has a left file-list sidebar (like Logs, Chainsaw, MFT, USN):
 ---
 
 ## Report Template Tags
-To add a section to auto-generated case reports, add a `_render_<section>` method to `backend/app/services/report_service.py` and include it in the `generate()` f-string.
 
-Current tags rendered automatically:
-- Executive Summary, Notes, MITRE ATT&CK TTPs, IOCs, Assets, Evidence, Timeline
+### Report workflow
+- **Auto-generate** (`GET /cases/{id}/report/generate`) produces only the analyst-authored sections (Technical Analysis, Remediations, Recommendations) from the case template's `report_sections`. No annexes, no context header — just the analysis skeleton.
+- The structural/data parts (IOC tables, MITRE, timeline, …) are injected by the **Report Template** via `{{ }}` tags at export time.
+- `{{report_content}}` bridges both worlds: it injects the Report-tab markdown (case.report) into the document.
 
 ### DOCX/MD block tags (in `report_doc_templates.py`)
 - `{{ioc_table}}` — IOC table
@@ -75,6 +76,45 @@ Current tags rendered automatically:
 - `{{mitre_matrix}}` — MITRE ATT&CK coverage table (text); parents expanded only when they have selected sub-techniques
 - `{{mitre_matrix_img}}` — MITRE ATT&CK matrix as a **visual PNG image** (DOCX only; placeholder in MD)
 - `{{attack_graph}}` — Attack graph image (ReactFlow nodes rendered via matplotlib)
+- `{{report_content}}` — **analyst-authored report** (the Report tab's markdown editor content, `case.report`)
+
+#### `{{report_content}}` — Analyst report content
+
+**DOCX**: the case's `report` field (markdown) is rendered as **formatted DOCX paragraphs** inline at the placeholder position.
+- `#` / `##` / `###` headings → Word Heading 1/2/3 styles
+- `**bold**` → bold run, `*italic*` → italic run, `` `inline code` `` → Courier New run
+- Fenced ` ``` ` code blocks → Courier New paragraph
+- Bullet lists (`- ` / `* `) → List Bullet style; numbered lists → List Number style
+- `---` horizontal rules → blank paragraph separator
+- Typical placement in a DOCX template: put `{{report_content}}` after the TOC and before the annexes (IOC table, MITRE, timeline).
+
+**Markdown**: replaced with the raw markdown string from `case.report` as-is.
+
+**When empty**: replaced with `_[Aucun contenu de rapport rédigé.]_` (MD) or a blank paragraph (DOCX).
+
+**Typical report template structure using all tags:**
+```
+{{report_content}}          ← analyst Technical Analysis / Remediations / Recommendations
+
+---
+
+## Annexes
+
+### Indicateurs de Compromission
+{{ioc_table}}
+
+### Actifs
+{{asset_table}}
+
+### Timeline
+{{timeline_table}}
+
+### MITRE ATT&CK
+{{mitre_matrix_img}}
+
+### Attack Graph
+{{attack_graph}}
+```
 
 #### `{{attack_graph}}` — Attack graph rendering
 

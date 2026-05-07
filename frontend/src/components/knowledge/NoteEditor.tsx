@@ -1,69 +1,29 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Save, Loader2, ImageIcon, AlertCircle } from 'lucide-react'
+import { Save, Loader2, AlertCircle } from 'lucide-react'
 import { knowledgeApi } from '../../api/knowledge'
+import { LiveEditor } from '../ui/MarkdownEditor'
 import { slugify } from './NoteTOC'
 
-type ViewMode = 'edit' | 'split' | 'preview'
+// ── Flatten vault tree into note stem names ────────────────────────────────
 
-// ── Line-break & blank-line preservation ──────────────────────────────────
-// Standard markdown ignores single newlines (merges into same paragraph)
-// and collapses multiple blank lines into one.  This preprocessor:
-//   • Appends two trailing spaces to every non-blank line outside code blocks
-//     → forces a hard line-break (<br>) so every Enter press is visible.
-//   • Converts each *extra* blank line into a paragraph containing a
-//     non-breaking space (U+00A0) so multiple blank lines stay visible too.
-// Fenced code blocks are passed through verbatim — no modifications inside.
+type TreeNode = { name: string; path: string; is_dir: boolean; children?: TreeNode[] }
 
-function preprocessBlankLines(md: string): string {
-  const NBSP   = ' '  // non-breaking space — markdown treats as content
-  const lines  = md.split('\n')
-  const out:   string[] = []
-  let fenceStr = ''         // non-empty while inside a fenced code block
-  let blankRun = 0
-
-  const flushBlanks = () => {
-    if (blankRun === 0) return
-    out.push('')                          // first blank -> normal paragraph break
-    for (let i = 1; i < blankRun; i++) { // extra blanks -> visible spacer paras
-      out.push(NBSP)
-      out.push('')
-    }
-    blankRun = 0
-  }
-
-  for (let idx = 0; idx < lines.length; idx++) {
-    const line       = lines[idx]
-    const isLast     = idx === lines.length - 1
-    const fenceMatch = line.match(/^(`{3,}|~{3,})/)
-
-    if (fenceStr === '') {
-      if (fenceMatch) {
-        // Opening fence — flush pending blanks, then emit the fence line as-is
-        fenceStr = fenceMatch[1]
-        flushBlanks()
-        out.push(line)
-      } else if (line.trim() === '') {
-        blankRun++
-      } else {
-        flushBlanks()
-        // Two trailing spaces = markdown hard line-break (rendered as <br>).
-        // Skip on the very last line — a trailing break there is meaningless.
-        out.push(isLast ? line : line + '  ')
-      }
-    } else {
-      // Inside code block — pass everything verbatim, no trailing spaces
-      if (fenceMatch && line.startsWith(fenceStr)) fenceStr = ''
-      flushBlanks()   // blankRun should be 0 here, but flush for safety
-      out.push(line)
+function flattenNoteNames(nodes: TreeNode[]): string[] {
+  const out: string[] = []
+  for (const n of nodes) {
+    if (!n.is_dir) {
+      out.push(n.name.replace(/\.md$/i, ''))
+    } else if (n.children) {
+      out.push(...flattenNoteNames(n.children))
     }
   }
-
-  flushBlanks()
-  return out.join('\n')
+  return out
 }
+
+type ViewMode = 'live' | 'split' | 'preview'
 
 // ── Wikilink preprocessing ─────────────────────────────────────────────────
 
@@ -100,7 +60,7 @@ function makeHeadingComponent(tag: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6') {
   }
 }
 
-// ── Markdown preview panel ─────────────────────────────────────────────────
+// ── Wikilink-aware markdown preview ───────────────────────────────────────
 
 function MarkdownPreview({
   content, onWikilinkClick, scrollRef,
@@ -109,7 +69,7 @@ function MarkdownPreview({
   onWikilinkClick: (noteName: string) => void
   scrollRef?: React.Ref<HTMLDivElement>
 }) {
-  const processed = preprocessWikilinks(preprocessBlankLines(content))
+  const processed = preprocessWikilinks(content)
   return (
     <div
       ref={scrollRef}
@@ -125,16 +85,6 @@ function MarkdownPreview({
             h4: makeHeadingComponent('h4'),
             h5: makeHeadingComponent('h5'),
             h6: makeHeadingComponent('h6'),
-            p: ({ children, ...props }) => {
-              // Paragraphs containing only U+00A0 are blank-line spacers
-              // inserted by preprocessBlankLines — render as a slim spacer div
-              // instead of a full prose <p> with its top/bottom margins.
-              const text = extractChildText(children)
-              if (text === ' ') {
-                return <div style={{ height: '0.75em' }} aria-hidden />
-              }
-              return <p {...props}>{children}</p>
-            },
             a: ({ href, children, ...props }) => {
               if (href?.startsWith('kb:')) {
                 const note = decodeURIComponent(href.slice(3))
@@ -213,27 +163,34 @@ interface Props {
 
 export default function NoteEditor({ path, onNodeNavigate, onContentChange, scrollRequest }: Props) {
   const qc = useQueryClient()
-  const [content, setContent] = useState('')
-  const [mode, setMode] = useState<ViewMode>('split')
-  const [dirty, setDirty] = useState(false)
+  const [content, setContent]   = useState('')
+  const [mode, setMode]         = useState<ViewMode>('live')
+  const [dirty, setDirty]       = useState(false)
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [uploading, setUploading] = useState(false)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const previewRef = useRef<HTMLDivElement>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── Note names for wikilink autocomplete ────────────────────────────────────
+  const { data: tree = [] } = useQuery({
+    queryKey: ['knowledge-tree'],
+    queryFn:  knowledgeApi.tree,
+    staleTime: 60_000,
+  })
+  const noteNames = useMemo(() => flattenNoteNames(tree as TreeNode[]), [tree])
+
+  const previewRef    = useRef<HTMLDivElement>(null)
+  const liveEditorRef = useRef<HTMLDivElement>(null)
+  const debounceRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Refs to avoid stale closures in async save callbacks
-  const pathRef = useRef<string | null>(path)
-  const contentRef = useRef('')
-  const dirtyRef = useRef(false)
+  const pathRef           = useRef<string | null>(path)
+  const contentRef        = useRef('')
+  const dirtyRef          = useRef(false)
   const saveStateSetterRef = useRef(setSaveState)
   saveStateSetterRef.current = setSaveState
 
-  // Stable ref for the onContentChange callback
   const onContentChangeRef = useRef(onContentChange)
   onContentChangeRef.current = onContentChange
 
-  // Keep pathRef in sync with prop
   useEffect(() => { pathRef.current = path }, [path])
 
   // Load file content when path changes
@@ -241,7 +198,6 @@ export default function NoteEditor({ path, onNodeNavigate, onContentChange, scro
     queryKey: ['knowledge-file', path],
     queryFn: () => knowledgeApi.getFile(path!),
     enabled: !!path,
-    // Don't cache stale data to avoid showing old content briefly
     staleTime: 0,
   })
 
@@ -256,13 +212,10 @@ export default function NoteEditor({ path, onNodeNavigate, onContentChange, scro
     }
   }, [fileData])
 
-  // Flush any pending save when path changes (cleanup runs before next effect)
+  // Flush pending save on unmount / path change
   useEffect(() => {
     return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current)
-        debounceRef.current = null
-      }
+      if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null }
       const p = pathRef.current
       const c = contentRef.current
       const d = dirtyRef.current
@@ -275,14 +228,13 @@ export default function NoteEditor({ path, onNodeNavigate, onContentChange, scro
     }
   }, [path, qc])
 
-  // Direct save function (no closure issues — reads from refs/params)
   const doSave = useCallback((val: string, p: string) => {
     saveStateSetterRef.current('saving')
     knowledgeApi.saveFile(p, val)
       .then(() => {
         dirtyRef.current = false
         saveStateSetterRef.current('saved')
-        qc.invalidateQueries({ queryKey: ['knowledge-graph'] })
+        qc.refetchQueries({ queryKey: ['knowledge-graph'] })
         setTimeout(() => saveStateSetterRef.current('idle'), 2000)
       })
       .catch(() => {
@@ -305,92 +257,49 @@ export default function NoteEditor({ path, onNodeNavigate, onContentChange, scro
     }, 1500)
   }, [doSave])
 
-  // Insert text at cursor
-  const insertAt = useCallback((text: string) => {
-    const ta = textareaRef.current
-    if (!ta) { handleChange(content + text); return }
-    const s = ta.selectionStart, e = ta.selectionEnd
-    const next = content.slice(0, s) + text + content.slice(e)
-    handleChange(next)
-    requestAnimationFrame(() => {
-      ta.selectionStart = ta.selectionEnd = s + text.length
-      ta.focus()
-    })
-  }, [content, handleChange])
-
-  // Image paste
-  const handlePaste = async (ev: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const img = Array.from(ev.clipboardData.items).find(i => i.type.startsWith('image/'))
-    if (!img) return
-    ev.preventDefault()
-    const blob = img.getAsFile()
-    if (!blob) return
+  // ── Image upload handlers for live editor ──────────────────────────────────
+  const handleLivePaste = useCallback(async (blob: Blob) => {
     setUploading(true)
     try {
       const url = await knowledgeApi.uploadImage(blob)
-      insertAt(`![screenshot](${url})`)
-    } catch {
-      insertAt('![upload failed]()')
-    } finally {
-      setUploading(false)
-    }
-  }
+      handleChange(contentRef.current.trimEnd() + `\n\n![screenshot](${url})\n`)
+    } catch { /* silent */ }
+    finally { setUploading(false) }
+  }, [handleChange])
 
-  // Image drop
-  const handleDrop = async (ev: React.DragEvent<HTMLTextAreaElement>) => {
-    const file = Array.from(ev.dataTransfer.files).find(f => f.type.startsWith('image/'))
-    if (!file) return
-    ev.preventDefault()
+  const handleLiveDrop = useCallback(async (file: File) => {
     setUploading(true)
     try {
       const url = await knowledgeApi.uploadImage(file)
-      insertAt(`![${file.name}](${url})`)
-    } catch {
-      insertAt('![upload failed]()')
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  // Proportional scroll sync textarea → preview
-  const handleScroll = () => {
-    const ta = textareaRef.current
-    const pv = previewRef.current
-    if (!ta || !pv) return
-    const ratio = ta.scrollTop / Math.max(ta.scrollHeight - ta.clientHeight, 1)
-    pv.scrollTop = ratio * (pv.scrollHeight - pv.clientHeight)
-  }
+      handleChange(contentRef.current.trimEnd() + `\n\n![${file.name}](${url})\n`)
+    } catch { /* silent */ }
+    finally { setUploading(false) }
+  }, [handleChange])
 
   // ── Scroll to heading when TOC item is clicked ─────────────────────────────
   useEffect(() => {
     if (!scrollRequest) return
 
-    // Preview / split — scroll the rendered preview div
-    const pv = previewRef.current
-    if (pv && (mode === 'preview' || mode === 'split')) {
-      const el = pv.querySelector<HTMLElement>(`[data-heading-slug="${scrollRequest.slug}"]`)
-      if (el) {
-        // Scroll within the preview container (not window)
-        pv.scrollTo({ top: Math.max(0, el.offsetTop - 24), behavior: 'smooth' })
+    // Live mode: query actual DOM headings rendered by TipTap
+    if (mode === 'live' && liveEditorRef.current) {
+      const headings = liveEditorRef.current.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6')
+      for (const el of headings) {
+        if (slugify(el.textContent ?? '') === scrollRequest.slug) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          break
+        }
       }
     }
 
-    // Edit / split — position cursor at heading line in textarea
-    const ta = textareaRef.current
-    if (ta && (mode === 'edit' || mode === 'split')) {
-      const lines = contentRef.current.split('\n')
-      let charOffset = 0
-      for (let i = 0; i < scrollRequest.line && i < lines.length; i++) {
-        charOffset += lines[i].length + 1
+    // Preview / split: scroll the rendered preview div
+    if ((mode === 'preview' || mode === 'split') && previewRef.current) {
+      const el = previewRef.current.querySelector<HTMLElement>(`[data-heading-slug="${scrollRequest.slug}"]`)
+      if (el) {
+        previewRef.current.scrollTo({ top: Math.max(0, el.offsetTop - 24), behavior: 'smooth' })
       }
-      ta.focus()
-      ta.setSelectionRange(charOffset, charOffset)
-      // Approximate scroll: ratio of line index over total lines
-      const lineH = ta.scrollHeight / Math.max(lines.length, 1)
-      ta.scrollTop = Math.max(0, scrollRequest.line * lineH - ta.clientHeight * 0.2)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scrollRequest?.tick])   // only fire when tick changes (new click)
+  }, [scrollRequest?.tick])
 
   // Wikilink navigation
   const handleWikilinkClick = useCallback((noteName: string) => {
@@ -414,20 +323,20 @@ export default function NoteEditor({ path, onNodeNavigate, onContentChange, scro
 
   const filename = path.split('/').pop() ?? path
 
-  // Shared textarea element
-  const textareaEl = (
-    <textarea
-      ref={textareaRef}
-      value={content}
-      onChange={e => handleChange(e.target.value)}
-      onPaste={handlePaste}
-      onDrop={handleDrop}
-      onDragOver={e => e.preventDefault()}
-      onScroll={mode === 'split' ? handleScroll : undefined}
-      className="w-full h-full bg-transparent resize-none outline-none font-mono text-xs leading-relaxed text-white/75 p-6 placeholder:text-white/20"
-      placeholder={`# ${filename.replace(/\.md$/i, '')}\n\nStart writing…\n\nLink notes with [[Note Name]]`}
-      spellCheck={false}
-    />
+  // Shared live editor element
+  const liveEl = (
+    <div ref={liveEditorRef} className="h-full overflow-auto px-2 py-2">
+      <LiveEditor
+        value={content}
+        onChange={handleChange}
+        placeholder={`# ${filename.replace(/\.md$/i, '')}\n\nStart writing…\n\nLink notes with [[Note Name]]`}
+        minHeight={400}
+        onPasteImage={handleLivePaste}
+        onDropImage={handleLiveDrop}
+        suggestions={noteNames}
+        onWikilinkClick={handleWikilinkClick}
+      />
+    </div>
   )
 
   const previewEl = (
@@ -444,36 +353,30 @@ export default function NoteEditor({ path, onNodeNavigate, onContentChange, scro
       <div className="flex items-center gap-3 px-4 py-2 border-b border-white/5 shrink-0">
         <span className="flex-1 text-sm font-medium text-white/80 truncate">{filename}</span>
 
-        {/* Save status */}
+        {/* Save / upload status */}
         <span className="text-[10px] shrink-0">
-          {saveState === 'saving' && (
+          {uploading && (
+            <span className="text-accent-muted/50 flex items-center gap-1">
+              <Loader2 size={10} className="animate-spin" /> Uploading…
+            </span>
+          )}
+          {!uploading && saveState === 'saving' && (
             <span className="text-accent-muted/50 flex items-center gap-1">
               <Loader2 size={10} className="animate-spin" /> Saving…
             </span>
           )}
-          {saveState === 'saved' && <span className="text-accent-green/60">Saved</span>}
-          {saveState === 'error' && (
+          {!uploading && saveState === 'saved'  && <span className="text-accent-green/60">Saved</span>}
+          {!uploading && saveState === 'error'  && (
             <span className="text-severity-critical flex items-center gap-1">
               <AlertCircle size={10} /> Save error
             </span>
           )}
-          {dirty && saveState === 'idle' && <span className="text-accent-muted/40">Unsaved</span>}
+          {!uploading && dirty && saveState === 'idle' && <span className="text-accent-muted/40">Unsaved</span>}
         </span>
-
-        {uploading && (
-          <span className="flex items-center gap-1 text-[10px] text-accent-muted shrink-0">
-            <Loader2 size={10} className="animate-spin" /> Uploading…
-          </span>
-        )}
-        {!uploading && mode !== 'preview' && (
-          <span className="text-[9px] text-accent-muted/25 flex items-center gap-1 shrink-0">
-            <ImageIcon size={9} /> Ctrl+V to paste image
-          </span>
-        )}
 
         {/* Mode toggle */}
         <div className="flex rounded border border-white/10 overflow-hidden shrink-0">
-          <ModeBtn active={mode === 'edit'}    onClick={() => setMode('edit')}    label="Edit" />
+          <ModeBtn active={mode === 'live'}    onClick={() => setMode('live')}    label="Live" />
           <ModeBtn active={mode === 'split'}   onClick={() => setMode('split')}   label="Split" />
           <ModeBtn active={mode === 'preview'} onClick={() => setMode('preview')} label="Preview" />
         </div>
@@ -499,18 +402,18 @@ export default function NoteEditor({ path, onNodeNavigate, onContentChange, scro
           <div className="h-full flex items-center justify-center">
             <Loader2 size={20} className="animate-spin text-accent-muted/30" />
           </div>
-        ) : mode === 'edit' ? (
-          textareaEl
+        ) : mode === 'live' ? (
+          liveEl
         ) : mode === 'preview' ? (
           previewEl
         ) : (
-          /* Split view */
+          /* Split: live editor left + wikilink preview right */
           <div className="flex h-full">
             <div className="flex-1 border-r border-white/5 overflow-hidden flex flex-col">
               <div className="px-4 pt-2 pb-0 shrink-0">
-                <span className="text-[9px] text-accent-muted/25 uppercase tracking-widest">Markdown</span>
+                <span className="text-[9px] text-accent-muted/25 uppercase tracking-widest">Live</span>
               </div>
-              {textareaEl}
+              {liveEl}
             </div>
             <div className="flex-1 overflow-hidden flex flex-col">
               <div className="px-6 pt-2 pb-0 shrink-0">

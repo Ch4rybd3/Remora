@@ -64,6 +64,7 @@ TAG_RE = re.compile(r'\{\{[\w.]+\}\}')
 BLOCK_TAGS: set[str] = {
     "ioc_table", "asset_table", "evidence_table", "timeline_table",
     "attack_graph", "mitre_matrix", "mitre_matrix_img",
+    "report_content",   # case.report markdown → formatted paragraphs
 }
 
 ALL_TAGS: list[str] = [
@@ -73,6 +74,7 @@ ALL_TAGS: list[str] = [
     "report.date", "report.author",
     "ioc_table", "asset_table", "evidence_table", "timeline_table",
     "attack_graph", "mitre_matrix", "mitre_matrix_img",
+    "report_content",
 ]
 
 # ── Pydantic schema ────────────────────────────────────────────────────────────
@@ -541,6 +543,7 @@ def _render_markdown(template_text: str, case: Case, ctx: dict[str, str]) -> str
     text = text.replace("{{attack_graph}}", "_[Attach the attack graph image — export it from the Attack Graph tab]_")
     text = text.replace("{{mitre_matrix}}", _md_mitre_matrix(case))
     text = text.replace("{{mitre_matrix_img}}", "_[MITRE ATT&CK matrix image — available in DOCX export only]_")
+    text = text.replace("{{report_content}}", case.report or "_[Aucun contenu de rapport rédigé.]_")
     return text
 
 
@@ -1013,6 +1016,175 @@ def _render_attack_graph_png(nodes: list, edges: list) -> Optional[bytes]:
         return None
 
 
+def _resolve_image_url(url: str) -> "Optional[Path]":
+    """
+    Map a note-image URL (or vault view URL) to an absolute local path.
+
+    Handles:
+      /note-images/{case_id}/{filename}   → note_images dir on disk
+      /api/v1/vaults/{id}/view            → vault file path from DB (not resolved here —
+                                            caller should pass the path directly if needed)
+    Returns None if the file cannot be resolved or does not exist.
+    """
+    base = settings.evidence_store_path.parent
+
+    # /note-images/{case_id}/{filename}
+    if url.startswith("/note-images/"):
+        rel  = url[len("/note-images/"):]          # e.g. "abc123/image.png"
+        path = base / "note_images" / rel
+        return path if path.exists() else None
+
+    # Absolute filesystem path (edge case — tiptap sometimes emits data URIs
+    # or local paths; ignore those silently)
+    return None
+
+
+def _md_to_docx_paragraphs(doc, placeholder_para, md_text: str) -> None:
+    """
+    Replace *placeholder_para* with markdown rendered as proper DOCX content.
+
+    Supported syntax:
+      • # / ## / ### headings          → Heading 1 / 2 / 3 styles
+      • ``` fenced code blocks         → Courier New paragraph
+      • **bold**, *italic*, `code`     → character formatting
+      • - / * bullet lists             → List Bullet style
+      • 1. numbered lists              → List Number style
+      • --- horizontal rules           → blank separator paragraph
+      • ![alt](url)  standalone line   → embedded picture paragraph
+      • ![alt](url)  inline in text    → embedded picture + surrounding text
+        (falls back to [alt] if the image cannot be resolved)
+    """
+    import re as _re
+    from docx.shared import Inches  # type: ignore
+
+    # Regex that matches a full markdown image token
+    IMG_RE = _re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
+    # A line that is *only* an image (optional surrounding whitespace)
+    ONLY_IMG_RE = _re.compile(r"^\s*!\[([^\]]*)\]\(([^)]+)\)\s*$")
+
+    ref    = placeholder_para._p
+    parent = ref.getparent()
+
+    def _insert_before(para):
+        parent.remove(para._p)
+        ref.addprevious(para._p)
+
+    def _make_para(style: str = "Normal"):
+        try:
+            p = doc.add_paragraph(style=style)
+        except KeyError:
+            p = doc.add_paragraph()
+        _insert_before(p)
+        return p
+
+    def _embed_image(para, url: str, max_w: float = 5.5) -> bool:
+        """Try to embed an image from *url* into *para*. Returns True on success."""
+        path = _resolve_image_url(url)
+        if not path:
+            return False
+        try:
+            para.add_run().add_picture(str(path), width=Inches(max_w))
+            return True
+        except Exception:
+            return False
+
+    def _add_inline(para, text: str) -> None:
+        """
+        Add runs to *para* parsing **bold**, *italic*, `code`, and ![img](url).
+        Images found inline are embedded as picture runs; if embedding fails
+        the alt text is inserted as a plain run.
+
+        IMG_RE.split gives: [text_before, alt1, url1, text_between, alt2, url2, …, text_after]
+        We iterate in steps of 3: plain text chunk, then optional (alt, url) image pair.
+        """
+        segments = IMG_RE.split(text)
+        # segments = [text_before, alt, url, text_between, alt, url, …, text_after]
+        idx = 0
+        while idx < len(segments):
+            chunk = segments[idx]
+            # Inline formatting in the text chunk
+            fmt_parts = _re.split(r"(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)", chunk)
+            for fp in fmt_parts:
+                if not fp:
+                    continue
+                if fp.startswith("**") and fp.endswith("**"):
+                    r = para.add_run(fp[2:-2]); r.bold = True
+                elif fp.startswith("*") and fp.endswith("*"):
+                    r = para.add_run(fp[1:-1]); r.italic = True
+                elif fp.startswith("`") and fp.endswith("`"):
+                    r = para.add_run(fp[1:-1]); r.font.name = "Courier New"
+                else:
+                    if fp:
+                        para.add_run(fp)
+
+            # If there is a following (alt, url) image pair, embed it
+            if idx + 2 < len(segments):
+                alt = segments[idx + 1]
+                url = segments[idx + 2]
+                ok  = _embed_image(para, url)
+                if not ok:
+                    para.add_run(f"[{alt}]")  # fallback: alt text
+                idx += 3
+            else:
+                idx += 1
+
+    lines      = (md_text or "").split("\n")
+    in_code    = False
+    code_lines: list[str] = []
+
+    for line in lines:
+        # ── Fenced code block ──────────────────────────────────────────────
+        if line.startswith("```"):
+            if not in_code:
+                in_code    = True
+                code_lines = []
+            else:
+                p = _make_para()
+                r = p.add_run("\n".join(code_lines))
+                r.font.name = "Courier New"
+                in_code = False
+                code_lines = []
+            continue
+
+        if in_code:
+            code_lines.append(line)
+            continue
+
+        # ── Standalone image line → own paragraph ─────────────────────────
+        m = ONLY_IMG_RE.match(line)
+        if m:
+            alt, url = m.group(1), m.group(2)
+            p = _make_para()
+            ok = _embed_image(p, url)
+            if not ok:
+                para = p
+                para.add_run(f"[Image: {alt or url}]").italic = True
+            continue
+
+        # ── Headings ───────────────────────────────────────────────────────
+        if line.startswith("### "):
+            p = _make_para("Heading 3"); _add_inline(p, line[4:])
+        elif line.startswith("## "):
+            p = _make_para("Heading 2"); _add_inline(p, line[3:])
+        elif line.startswith("# "):
+            p = _make_para("Heading 1"); _add_inline(p, line[2:])
+        # ── Horizontal rule ────────────────────────────────────────────────
+        elif line.strip() in ("---", "***", "___"):
+            _make_para()
+        # ── Bullet list ────────────────────────────────────────────────────
+        elif _re.match(r"^[-*+] ", line):
+            p = _make_para("List Bullet"); _add_inline(p, line[2:])
+        elif _re.match(r"^\d+\. ", line):
+            p = _make_para("List Number"); _add_inline(p, _re.sub(r"^\d+\. ", "", line, count=1))
+        # ── Non-empty line (may contain inline images) ─────────────────────
+        elif line.strip():
+            p = _make_para(); _add_inline(p, line)
+        # ── Empty line → implicit paragraph break (no-op) ──────────────────
+
+    # Remove the original placeholder paragraph
+    parent.remove(ref)
+
+
 def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
                  attack_graph_png: Optional[bytes]) -> bytes:
     from docx import Document  # type: ignore
@@ -1087,7 +1259,11 @@ def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
     # ── Second pass: replace block-tag paragraphs ──────────────────────────────
     for para, block_tag in block_paras:
 
-        if block_tag in ("attack_graph", "mitre_matrix_img"):
+        if block_tag == "report_content":
+            # Multi-paragraph markdown block
+            _md_to_docx_paragraphs(doc, para, case.report or "")
+
+        elif block_tag in ("attack_graph", "mitre_matrix_img"):
             # Image blocks — clear runs and embed a PNG picture
             for r_elem in list(para._p.findall(qn("w:r"))):
                 para._p.remove(r_elem)

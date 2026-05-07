@@ -1,137 +1,122 @@
-from datetime import datetime
+"""
+Report generation service.
+
+generate_analysis()  — builds the analyst-facing sections only
+  (Technical Analysis / Remediations / Recommendations)
+  from the case template's `report_sections`.  The annexe data
+  (IOC table, assets, MITRE matrix, timeline …) are handled by
+  the Report Template via {{ }} tags in report_doc_templates.py.
+"""
+
 from ..models.case import Case
 
 
+# ── Default sections used when the case has no template attached ───────────
+
+DEFAULT_SECTIONS = [
+    {
+        "name": "Analyse Technique",
+        "template": (
+            "### Cause Racine\n\n"
+            "*Décrire l'origine de l'incident (vecteur initial, vulnérabilité exploitée…)*\n\n"
+            "### Chaîne d'Attaque\n\n"
+            "*Décrire chronologiquement comment l'attaque a progressé.*\n\n"
+            "### Impact\n\n"
+            "*Décrire l'impact technique et métier de l'incident.*"
+        ),
+    },
+    {
+        "name": "Remédiations",
+        "template": (
+            "*Lister les actions de remédiation réalisées ou en cours, avec statut et responsable.*\n\n"
+            "- [ ] Action 1\n"
+            "- [ ] Action 2"
+        ),
+    },
+    {
+        "name": "Recommandations",
+        "template": (
+            "*Lister les recommandations long terme pour réduire la surface d'attaque "
+            "et prévenir la récidive.*\n\n"
+            "- [ ] Recommandation 1\n"
+            "- [ ] Recommandation 2"
+        ),
+    },
+]
+
+
 class ReportService:
-    def generate(self, case: Case, template: dict | None = None) -> str:
-        now = datetime.utcnow().strftime("%Y-%m-%d")
-        iocs_md = self._render_iocs(case)
-        assets_md = self._render_assets(case)
-        evidences_md = self._render_evidences(case)
-        timeline_md = self._render_timeline(case)
-        mitre_md = self._render_mitre(case)
+    # ── Public API ─────────────────────────────────────────────────────────────
 
-        report_sections = ""
-        if template and "report_sections" in template:
-            for section in template["report_sections"]:
-                report_sections += f"\n## {section['name']}\n\n{section.get('template', '')}\n"
+    def generate_analysis(self, case: Case, template: dict | None = None) -> str:
+        """
+        Return a markdown skeleton of the analyst-authored sections only.
 
-        return f"""# Incident Report — {case.title}
+        Sections come from the case template's `report_sections` list.
+        If no template (or no `report_sections`), fall back to DEFAULT_SECTIONS.
 
-**Case ID:** {case.id}
-**Severity:** {case.severity.value.upper()}
-**Status:** {case.status.value.replace('_', ' ').title()}
-**TLP:** {case.tlp}
-**Date:** {now}
-**Assigned To:** {case.assigned_to or 'Unassigned'}
+        Prefixes the skeleton with a short context header (compromised assets,
+        key TTPs) so the analyst has the most relevant facts right at hand.
+        """
+        sections_def = (
+            template.get("report_sections") or []
+            if template else []
+        ) or DEFAULT_SECTIONS
 
----
+        lines: list[str] = []
 
-## Executive Summary
+        # ── One H2 section per report_sections entry ───────────────────────────
+        for section in sections_def:
+            name     = section.get("name", "Section")
+            template_text = (section.get("template") or "").strip()
 
-{case.executive_summary or '*No executive summary provided.*'}
-
----
-
-## Notes
-
-{case.quick_notes or '*No notes.*'}
-
----
-
-{report_sections}
-
-## Indicators of Compromise
-
-{iocs_md}
-
-## Affected Assets
-
-{assets_md}
-
-## Evidence
-
-{evidences_md}
-
-## MITRE ATT&CK TTPs
-
-{mitre_md}
-
-## Timeline
-
-{timeline_md}
-"""
-
-    def _render_iocs(self, case: Case) -> str:
-        if not case.iocs:
-            return "*No IOCs recorded.*"
-        rows = ["| Type | Value | Confidence | TLP | Description |",
-                "|------|-------|------------|-----|-------------|"]
-        for ioc in case.iocs:
-            rows.append(f"| {ioc.type.value} | `{ioc.value}` | {ioc.confidence.value} "
-                        f"| {ioc.tlp} | {ioc.description} |")
-        return "\n".join(rows)
-
-    def _render_assets(self, case: Case) -> str:
-        if not case.assets:
-            return "*No assets recorded.*"
-        rows = ["| Name | Type | IP | Hostname | OS | Compromised |",
-                "|------|------|----|----------|----|-------------|"]
-        for a in case.assets:
-            rows.append(f"| {a.name} | {a.type.value} | {a.ip_address} "
-                        f"| {a.hostname} | {a.os} | {'Yes' if a.compromised else 'No'} |")
-        return "\n".join(rows)
-
-    def _render_evidences(self, case: Case) -> str:
-        if not case.evidences:
-            return "*No evidence recorded.*"
-        rows = ["| Name | File | SHA-256 | Collected By |",
-                "|------|------|---------|--------------|"]
-        for e in case.evidences:
-            rows.append(f"| {e.name} | {e.original_filename} "
-                        f"| `{e.sha256_hash[:16]}…` | {e.collected_by} |")
-        return "\n".join(rows)
-
-    def _render_mitre(self, case: Case) -> str:
-        """Render MITRE ATT&CK TTPs grouped by tactic."""
-        ttps = getattr(case, "ttps", None)
-        if not ttps:
-            # Lazy-load via relationship if available
-            try:
-                from ..models.mitre import CaseTTP
-                # Accessed through case.ttps relationship if mapped; otherwise skip
-                ttps = case.ttps if hasattr(case, "ttps") else []
-            except Exception:
-                ttps = []
-
-        if not ttps:
-            return "*No MITRE ATT&CK techniques recorded.*"
-
-        # Group by tactic
-        from collections import defaultdict
-        by_tactic: dict[str, list] = defaultdict(list)
-        for t in ttps:
-            tactic_label = t.tactic_name or t.tactic or "Unknown"
-            by_tactic[tactic_label].append(t)
-
-        lines = ["| Tactic | Technique ID | Name | Comment |",
-                 "|--------|-------------|------|---------|"]
-        for tactic in sorted(by_tactic):
-            for t in sorted(by_tactic[tactic], key=lambda x: x.technique_id):
-                url = f"https://attack.mitre.org/techniques/{t.technique_id.replace('.', '/')}/"
-                link = f"[{t.technique_id}]({url})"
-                comment = (t.comment or "").replace("|", "\\|")
-                name = (t.technique_name or "").replace("|", "\\|")
-                lines.append(f"| {tactic} | {link} | {name} | {comment} |")
+            lines.append(f"## {name}\n")
+            if template_text:
+                lines.append(template_text + "\n")
+            else:
+                lines.append("*…*\n")
 
         return "\n".join(lines)
 
-    def _render_timeline(self, case: Case) -> str:
-        if not case.timeline:
-            return "*No timeline events recorded.*"
-        rows = ["| Timestamp | Event | Actor | Source |",
-                "|-----------|-------|-------|--------|"]
-        for ev in case.timeline:
-            ts = ev.event_ts.strftime("%Y-%m-%d %H:%M:%S UTC")
-            rows.append(f"| {ts} | {ev.title} | {ev.actor} | {ev.source} |")
-        return "\n".join(rows)
+    # ── Private helpers ────────────────────────────────────────────────────────
+
+    def _context_header(self, case: Case) -> str:
+        """
+        Small reference block (collapsed under a details/summary-style heading)
+        with the most useful case facts for the analyst:
+        compromised assets + initial-access / execution TTPs.
+        """
+        parts: list[str] = []
+
+        # Compromised assets
+        compromised = [a for a in (getattr(case, "assets", None) or []) if a.compromised]
+        if compromised:
+            asset_lines = "\n".join(
+                f"- **{a.name}** ({a.type.value})"
+                + (f" — `{a.ip_address}`" if a.ip_address else "")
+                + (f" / {a.hostname}"      if a.hostname   else "")
+                for a in compromised
+            )
+            parts.append(f"**Actifs compromis ({len(compromised)}) :**\n{asset_lines}")
+
+        # Key TTPs (initial access + execution)
+        key_tactics = {"initial-access", "execution", "impact"}
+        ttps = [
+            t for t in (getattr(case, "ttps", None) or [])
+            if t.tactic in key_tactics
+        ]
+        if ttps:
+            ttp_lines = "\n".join(
+                f"- `{t.technique_id}` {t.technique_name} *({t.tactic_name})*"
+                for t in sorted(ttps, key=lambda x: x.technique_id)
+            )
+            parts.append(f"**TTPs clés :**\n{ttp_lines}")
+
+        if not parts:
+            return ""
+
+        return (
+            "> **Contexte rapide** *(retirer avant export)*\n>\n"
+            + "\n>\n".join("> " + p.replace("\n", "\n> ") for p in parts)
+            + "\n"
+        )

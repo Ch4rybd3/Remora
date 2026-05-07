@@ -197,8 +197,13 @@ export default function CaseDetail() {
             <MitreTab caseId={case_.id} />
           </div>
         )}
+        {activeTab === 'report' && (
+          <div className="h-full">
+            <ReportTab case_={case_} />
+          </div>
+        )}
 
-        {activeTab !== 'attack_graph' && activeTab !== 'mitre' && (
+        {activeTab !== 'attack_graph' && activeTab !== 'mitre' && activeTab !== 'report' && (
           <div className="h-full overflow-auto p-6">
             {activeTab === 'playbook' && (
               <PlaybookNotesTab caseId={case_.id} case_={case_} />
@@ -209,7 +214,6 @@ export default function CaseDetail() {
                 <SummaryTab case_={case_} />
               </div>
             )}
-            {activeTab === 'report' && <ReportTab case_={case_} />}
             {/* Data tabs: full width */}
             {activeTab === 'iocs'      && <IOCsTab caseId={case_.id} />}
             {activeTab === 'assets'    && <AssetsTab caseId={case_.id} />}

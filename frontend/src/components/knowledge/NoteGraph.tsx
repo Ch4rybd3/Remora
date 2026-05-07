@@ -156,52 +156,72 @@ interface Props {
 
 export default function NoteGraph({ currentPath, onNodeClick }: Props) {
   const { data: graph } = useQuery({
-    queryKey: ['knowledge-graph'],
-    queryFn: knowledgeApi.graph,
-    staleTime: 30_000,
+    queryKey:         ['knowledge-graph'],
+    queryFn:          knowledgeApi.graph,
+    staleTime:        0,           // always considered stale → refetch on mount/focus
+    structuralSharing: false,      // new object reference on every fetch → effect always runs
   })
 
   // ── All nodes / edges (full graph, kept in state for dragging) ────────────
   const [allNodes, setAllNodes] = useState<Node[]>([])
   const [allEdges, setAllEdges] = useState<Edge[]>([])
-  const layoutDone = useRef(false)
-  const rfRef      = useRef<ReactFlowInstance | null>(null)
+  const rfRef = useRef<ReactFlowInstance | null>(null)
 
-  // Build layout once when data arrives
+  // Ref so the effect always reads the latest currentPath without it being a dependency
+  const currentPathRef = useRef(currentPath)
+  useEffect(() => { currentPathRef.current = currentPath }, [currentPath])
+
+  // Build / incrementally update layout when graph data changes
   useEffect(() => {
-    if (!graph || graph.nodes.length === 0 || layoutDone.current) return
-    layoutDone.current = true
+    if (!graph) return
 
-    const positions = forceLayout(
-      graph.nodes.map(n => n.id),
-      graph.edges,
-    )
+    setAllNodes(prev => {
+      // Build a position map from nodes we've already laid out
+      const posMap = new Map(prev.map(n => [n.id, n.position]))
 
-    setAllNodes(
-      graph.nodes.map(n => ({
+      if (posMap.size === 0 && graph.nodes.length > 0) {
+        // ── First load: run full force layout ─────────────────────────────
+        const positions = forceLayout(graph.nodes.map(n => n.id), graph.edges)
+        graph.nodes.forEach(n => posMap.set(n.id, positions[n.id] ?? { x: 0, y: 0 }))
+      } else {
+        // ── Incremental: place new nodes near the current note ─────────────
+        const newIds = graph.nodes.filter(n => !posMap.has(n.id))
+        if (newIds.length > 0) {
+          const curNode = prev.find(n => (n.data.path as string) === currentPathRef.current)
+          const cx = curNode?.position.x ?? 450
+          const cy = curNode?.position.y ?? 350
+          newIds.forEach((gn, i) => {
+            const angle = (i / Math.max(newIds.length, 1)) * 2 * Math.PI
+            const r = 90 + Math.random() * 50
+            posMap.set(gn.id, { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) })
+          })
+        }
+      }
+
+      // Rebuild nodes array from latest graph data, keeping existing positions
+      return graph.nodes.map(n => ({
         id:       n.id,
         type:     'graphNode',
-        // nodeOrigin={[0.5,0.5]} on ReactFlow means position = centre of node
-        position: positions[n.id] ?? { x: 0, y: 0 },
+        position: posMap.get(n.id) ?? { x: 0, y: 0 },
         data: {
           label:     n.label,
           path:      n.path,
           linkCount: n.link_count,
-          isCurrent: n.path === currentPath,
+          isCurrent: n.path === currentPathRef.current,
         },
       }))
-    )
+    })
 
     setAllEdges(
       graph.edges.map((e, i) => ({
         id:     `e${i}`,
         source: e.source,
         target: e.target,
-        type:   'straight',   // ← straight line, not bezier
+        type:   'straight',
         style:  { stroke: 'rgba(163,179,188,0.18)', strokeWidth: 1 },
       }))
     )
-  }, [graph])  // intentionally omitting currentPath — layout is stable
+  }, [graph])
 
   // ── Update isCurrent flag when selected note changes ──────────────────────
   useEffect(() => {
