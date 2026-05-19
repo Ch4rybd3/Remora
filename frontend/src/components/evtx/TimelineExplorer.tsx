@@ -5,6 +5,7 @@ import {
   ArrowUp, ArrowDown, SlidersHorizontal, X, ChevronDown, BookmarkPlus, BookmarkCheck,
 } from 'lucide-react'
 import { evtxApi, type EvtxEvent, type EventFilters, type FileSummary } from '../../api/evtx'
+import { fmtDateTime } from '../../utils/dateUtils'
 
 // ── Level styling ─────────────────────────────────────────────────────────────
 
@@ -251,7 +252,7 @@ function EventDetail({ event, onClose }: { event: EvtxEvent; onClose: () => void
       {/* Meta grid */}
       <div className="grid grid-cols-2 gap-x-6 gap-y-1 mb-3 text-[11px]">
         {([
-          ['Time',     event.time_created ? new Date(event.time_created).toISOString().replace('T', ' ').slice(0, 23) : '—'],
+          ['Time',     fmtDateTime(event.time_created)],
           ['Event ID', String(event.event_id ?? '—')],
           ['Level',    event.level_name ?? '—'],
           ['Channel',  event.channel ?? '—'],
@@ -578,10 +579,7 @@ const COLUMNS: ColDef[] = [
   { key: 'preview',      label: 'Data',     cls: 'w-56 shrink-0',       filterKey: 'data'        },
 ]
 
-function fmtTime(ts: string | null): string {
-  if (!ts) return '—'
-  try { return new Date(ts).toISOString().replace('T', ' ').slice(0, 23) } catch { return ts }
-}
+function fmtTime(ts: string | null): string { return fmtDateTime(ts) }
 
 function dataPreview(ev: EvtxEvent): string {
   if (!ev.event_data) return ''

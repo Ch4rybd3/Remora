@@ -5,6 +5,7 @@ import {
   Trash2, Clock, Plus, RefreshCw, RotateCcw,
 } from 'lucide-react'
 import { evtxApi, type EvtxFile } from '../../api/evtx'
+import { fmtDateTimeShort } from '../../utils/dateUtils'
 
 interface Props {
   caseId:           string
@@ -230,7 +231,7 @@ export default function EvtxFileList({ caseId, selectedFileId, onSelectFile }: P
 
           {/* Upload date */}
           <p className="text-[9px] text-accent-muted/25">
-            {new Date(f.uploaded_at).toLocaleString()}
+            {fmtDateTimeShort(f.uploaded_at)}
           </p>
         </div>
       ))}

@@ -5,7 +5,7 @@ import {
   Cookie, Star, BookmarkPlus, BookmarkCheck, X, ArrowUpDown, Clock,
 } from 'lucide-react'
 import { browserApi, type BrowserFile, type BrowserEntry, type BrowserSummary } from '../../api/browser'
-import { format } from 'date-fns'
+import { fmtDateTime, fmtCompact } from '../../utils/dateUtils'
 
 interface Props {
   caseId:    string
@@ -17,15 +17,8 @@ interface Props {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmtTs(s: string | null): string {
-  if (!s) return '—'
-  try { return format(new Date(s), 'yyyy-MM-dd HH:mm:ss') } catch { return s }
-}
-
-function fmtTsShort(s: string | null): string {
-  if (!s) return '—'
-  try { return format(new Date(s), 'MM-dd HH:mm:ss') } catch { return s }
-}
+function fmtTs(s: string | null): string { return fmtDateTime(s) }
+function fmtTsShort(s: string | null): string { return fmtCompact(s) }
 
 function domain(url: string | null): string {
   if (!url) return '—'

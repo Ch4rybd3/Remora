@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, FolderOpen, FileText, Users, LogOut, GitBranch, Mail, HardDrive, Shield, Cpu, Database, Globe, Binary, KeyRound, FileOutput, Swords, Archive } from 'lucide-react'
+import { LayoutDashboard, FolderOpen, FileText, Users, LogOut, GitBranch, Mail, HardDrive, Shield, Cpu, Database, Globe, Binary, KeyRound, FileOutput, Swords, Archive, Clock, AlertTriangle, ChevronDown, Zap, Plug } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import { useTimezone, TIMEZONE_OPTIONS, type TzOption } from '../../context/TimezoneContext'
 
 const ROLE_COLORS: Record<string, string> = {
   admin:   'bg-severity-critical/10 text-severity-critical border-severity-critical/20',
@@ -46,6 +48,89 @@ function NavItem({ to, icon: Icon, label }: NavItem) {
   )
 }
 
+// ── Timezone selector ─────────────────────────────────────────────────────────
+
+function groupBy<T>(arr: T[], key: keyof T): Record<string, T[]> {
+  return arr.reduce((acc, item) => {
+    const k = String(item[key])
+    ;(acc[k] ??= []).push(item)
+    return acc
+  }, {} as Record<string, T[]>)
+}
+
+function TimezoneSelector() {
+  const { timezone, setTz, isUTC } = useTimezone()
+  const [open, setOpen] = useState(false)
+
+  const current = TIMEZONE_OPTIONS.find(o => o.value === timezone)
+  const grouped  = groupBy(TIMEZONE_OPTIONS, 'region')
+
+  return (
+    <div className="relative">
+      {/* Trigger */}
+      <button
+        onClick={() => setOpen(v => !v)}
+        className={`flex items-center gap-1.5 w-full px-2 py-1.5 rounded-md text-[11px] transition-colors ${
+          isUTC
+            ? 'text-accent-muted hover:text-white hover:bg-white/5'
+            : 'text-orange-400 hover:bg-orange-400/5'
+        }`}
+        title={isUTC ? 'Timezone (UTC recommandé)' : '⚠ UTC recommandé pour l\'analyse forensique'}
+      >
+        <Clock size={12} className="shrink-0" />
+        <span className="flex-1 text-left truncate font-mono">{current?.label ?? timezone}</span>
+        {!isUTC && <AlertTriangle size={10} className="shrink-0 text-orange-400" />}
+        <ChevronDown size={10} className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <>
+          {/* Backdrop */}
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+
+          {/* Menu — opens upward */}
+          <div className="absolute bottom-full left-0 right-0 mb-1 z-50 bg-bg-card border border-white/10 rounded-lg shadow-xl overflow-hidden max-h-80 overflow-y-auto">
+
+            {/* Warning banner when non-UTC */}
+            {!isUTC && (
+              <div className="flex items-start gap-2 px-3 py-2 bg-orange-400/8 border-b border-orange-400/20 text-[10px] text-orange-300">
+                <AlertTriangle size={11} className="shrink-0 mt-0.5" />
+                <span>UTC recommandé pour l&rsquo;analyse forensique. Le changement de timezone peut fausser la corrélation des événements.</span>
+              </div>
+            )}
+
+            {Object.entries(grouped).map(([region, opts]: [string, TzOption[]]) => (
+              <div key={region}>
+                <p className="px-3 pt-2 pb-0.5 text-[9px] font-semibold tracking-widest uppercase text-accent-muted/40 select-none">
+                  {region}
+                </p>
+                {opts.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => { setTz(opt.value); setOpen(false) }}
+                    className={`flex items-center gap-2 w-full px-3 py-1.5 text-[11px] text-left transition-colors ${
+                      opt.value === timezone
+                        ? 'text-accent-green bg-accent-green/8'
+                        : 'text-accent-muted hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    {opt.value === 'UTC' && (
+                      <span className="text-[9px] text-accent-green/60 font-mono border border-accent-green/20 px-1 rounded">REC</span>
+                    )}
+                    <span className={opt.value === 'UTC' ? 'font-medium' : ''}>{opt.label}</span>
+                    <span className="ml-auto text-[9px] font-mono text-accent-muted/30">{opt.value.split('/')[1] ?? opt.value}</span>
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function Sidebar() {
   const { user, logout, isAdmin } = useAuth()
   const navigate = useNavigate()
@@ -68,6 +153,8 @@ export default function Sidebar() {
         { to: '/artifacts/memory',      icon: Cpu,       label: 'Memory Analysis' },
         { to: '/artifacts/binary',      icon: Binary,    label: 'Binary Analysis' },
         { to: '/artifacts/registry',    icon: KeyRound,  label: 'Registry' },
+        { to: '/artifacts/prefetch',   icon: Zap,       label: 'Prefetch' },
+        { to: '/artifacts/cti',        icon: Shield,    label: 'CTI Lookup' },
       ],
     },
     {
@@ -83,6 +170,7 @@ export default function Sidebar() {
         { to: '/report-templates',       icon: FileOutput, label: 'Report Templates' },
         { to: '/playbooks',              icon: GitBranch,  label: 'Playbooks' },
         { to: '/config/chainsaw-rules',  icon: Swords,     label: 'Detection Rules' },
+        { to: '/config/connectors',      icon: Plug,       label: 'Connectors' },
         { to: '/config/vaults',          icon: Archive,    label: 'Vault Management' },
         ...(isAdmin ? [{ to: '/users', icon: Users, label: 'Utilisateurs' }] : []),
         ...(isAdmin ? [{ to: '/audit', icon: Shield, label: 'Audit' }] : []),
@@ -133,8 +221,16 @@ export default function Sidebar() {
         ))}
       </nav>
 
+      {/* Timezone selector */}
+      <div className="px-3 pb-1 border-t border-white/5 pt-2">
+        <p className="px-2 pb-0.5 text-[9px] font-semibold tracking-widest uppercase text-accent-muted/30 select-none">
+          Timezone
+        </p>
+        <TimezoneSelector />
+      </div>
+
       {/* User info + logout */}
-      <div className="px-4 py-4 border-t border-white/5 space-y-3">
+      <div className="px-4 py-3 border-t border-white/5 space-y-3">
         {user && (
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-full bg-accent-green/10 border border-accent-green/20 flex items-center justify-center shrink-0">

@@ -10,7 +10,8 @@ import { evidencesApi } from '../../../api/evidences'
 import { casesApi } from '../../../api/cases'
 import { useAuth } from '../../../context/AuthContext'
 import type { Evidence } from '../../../types'
-import { format } from 'date-fns'
+import { fmtDateTime, fmtDateTimeShort, fmtDateStamp } from '../../../utils/dateUtils'
+import { fmtBytes as formatBytes } from '../../../utils/formatUtils'
 import ConfirmDialog from '../../ui/ConfirmDialog'
 import EmptyState from '../../ui/EmptyState'
 
@@ -45,11 +46,6 @@ function typeInfo(value: string) {
 function methodLabel(value: string) {
   return ACQUISITION_METHODS.find(m => m.value === value)?.label ?? value
 }
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / 1024 ** 2).toFixed(1)} MB`
-}
 function cocId(index: number) {
   return `COC-${String(index + 1).padStart(3, '0')}`
 }
@@ -73,7 +69,7 @@ function CopyButton({ value }: { value: string }) {
 // ── Markdown export ───────────────────────────────────────────────────────────
 
 function exportMarkdown(caseTitle: string, caseId: string, assignedTo: string, evidences: Evidence[]) {
-  const now = format(new Date(), "yyyy-MM-dd HH:mm 'UTC'")
+  const now = fmtDateTime(new Date().toISOString())
   const lines: string[] = [
     '# Chain of Custody Report',
     '',
@@ -92,8 +88,8 @@ function exportMarkdown(caseTitle: string, caseId: string, assignedTo: string, e
   evidences.forEach((e, i) => {
     const type = typeInfo(e.evidence_type ?? 'other')
     const collectedDate = e.collected_at
-      ? format(new Date(e.collected_at), 'yyyy-MM-dd HH:mm')
-      : format(new Date(e.created_at), 'yyyy-MM-dd HH:mm') + ' (upload date)'
+      ? fmtDateTime(e.collected_at)
+      : `${fmtDateTime(e.created_at)} (upload date)`
 
     lines.push(`## ${cocId(i)} — ${e.name}`)
     lines.push('')
@@ -137,7 +133,7 @@ function exportMarkdown(caseTitle: string, caseId: string, assignedTo: string, e
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `CoC_${caseId.slice(0, 8)}_${format(new Date(), 'yyyyMMdd')}.md`
+  a.download = `CoC_${caseId.slice(0, 8)}_${fmtDateStamp()}.md`
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -359,7 +355,7 @@ export default function EvidencesTab({ caseId }: Props) {
             const type = typeInfo((e as any).evidence_type ?? 'other')
             const TypeIcon = type.icon
             const collectedDate = e.collected_at
-              ? format(new Date(e.collected_at), 'dd MMM yyyy HH:mm')
+              ? fmtDateTimeShort(e.collected_at)
               : null
 
             return (

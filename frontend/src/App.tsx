@@ -22,6 +22,9 @@ import RegistryAnalysis from './pages/RegistryAnalysis'
 import ReportTemplates from './pages/ReportTemplates'
 import ChainsawRules from './pages/ChainsawRules'
 import VaultManagement from './pages/VaultManagement'
+import PrefetchAnalysis from './pages/PrefetchAnalysis'
+import CTILookup from './pages/CTILookup'
+import Connectors from './pages/Connectors'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth()
@@ -61,7 +64,10 @@ export default function App() {
         <Route path="/artifacts/mft"     element={<MftAnalysis />} />
         <Route path="/artifacts/browser" element={<BrowserAnalysis />} />
         <Route path="/artifacts/binary"    element={<BinaryAnalysis />} />
-        <Route path="/artifacts/registry"  element={<RegistryAnalysis />} />
+        <Route path="/artifacts/registry"   element={<RegistryAnalysis />} />
+        <Route path="/artifacts/prefetch"  element={<PrefetchAnalysis />} />
+        <Route path="/artifacts/cti"       element={<CTILookup />} />
+        <Route path="/config/connectors"   element={<Connectors />} />
         <Route path="/knowledge" element={<KnowledgeBase />} />
         <Route path="/knowledge/editor" element={<KnowledgeEditor />} />
         <Route path="/config/chainsaw-rules" element={<ChainsawRules />} />

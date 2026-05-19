@@ -10,13 +10,11 @@ import {
 } from 'lucide-react'
 import { timelineApi } from '../../api/timeline'
 import type { PinnedRegistryEntry } from '../../api/registry'
+import { fmtDateTime } from '../../utils/dateUtils'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmtTs(s: string | null): string {
-  if (!s) return '—'
-  try { return new Date(s).toISOString().replace('T', ' ').slice(0, 19) } catch { return s }
-}
+function fmtTs(s: string | null): string { return fmtDateTime(s) }
 
 function buildTitle(e: PinnedRegistryEntry): string {
   const name  = e.value_name || '(default)'

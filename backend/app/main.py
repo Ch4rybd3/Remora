@@ -33,6 +33,9 @@ from .routers import browser as browser_router
 from .routers import binary as binary_router
 from .routers import registry as registry_router
 from .routers import report_doc_templates as report_doc_templates_router
+from .routers import prefetch as prefetch_router
+from .routers import connectors as connectors_router
+from .routers import cti as cti_router
 from .routers import chainsaw as chainsaw_router
 from .routers import chainsaw_rules as chainsaw_rules_router
 from .routers import mitre as mitre_router
@@ -53,6 +56,8 @@ from .models import browser as _browser_models    # ensure tables are registered
 from .models import binary as _binary_models      # ensure tables are registered
 from .models import registry as _registry_models           # ensure tables are registered
 from .models import report_doc_template as _rdt_models    # ensure tables are registered
+from .models import prefetch as _prefetch_models          # ensure tables are registered
+from .models import connector as _connector_models        # ensure tables are registered
 
 Base.metadata.create_all(bind=engine)
 settings.evidence_store_path.mkdir(parents=True, exist_ok=True)
@@ -137,12 +142,48 @@ def _seed_admin():
             )
             db.add(admin)
             db.commit()
-            print(f"[remora] Default admin created — username: admin / password: {settings.default_admin_password}")
+            print(f"[remora] Default admin created — username: admin / password: {settings.default_admin_password}", flush=True)
     finally:
         db.close()
 
 
 _seed_admin()
+
+
+def _seed_playbooks():
+    """Import sample playbooks from samples/playbooks/ on first startup."""
+    import json
+    from .models.playbook import Playbook
+
+    samples_dir = Path(__file__).parent.parent.parent / "samples" / "playbooks"
+    if not samples_dir.is_dir():
+        return
+
+    db = SessionLocal()
+    try:
+        if db.query(Playbook).count() > 0:
+            return  # Already seeded
+
+        for path in sorted(samples_dir.glob("*.json")):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                pb = Playbook(
+                    name=data.get("name", path.stem),
+                    description=data.get("description", ""),
+                    nodes=json.dumps(data.get("nodes", [])),
+                    edges=json.dumps(data.get("edges", [])),
+                )
+                db.add(pb)
+                print(f"[remora] Seeded playbook: {pb.name}", flush=True)
+            except Exception as exc:
+                print(f"[remora] Failed to seed {path.name}: {exc}", flush=True)
+
+        db.commit()
+    finally:
+        db.close()
+
+
+_seed_playbooks()
 
 app = FastAPI(
     title="Remora API",
@@ -191,6 +232,9 @@ app.include_router(chainsaw_rules_router.router,       prefix="/api/v1", **_auth
 app.include_router(mitre_router.router,                prefix="/api/v1", **_auth)
 app.include_router(dashboard_router.router,            prefix="/api/v1", **_auth)
 app.include_router(vault_router.router,                prefix="/api/v1", **_auth)
+app.include_router(prefetch_router.router,             prefix="/api/v1", **_auth)
+app.include_router(connectors_router.router,           prefix="/api/v1", **_auth)
+app.include_router(cti_router.router,                  prefix="/api/v1", **_auth)
 
 
 @app.get("/api/v1/health")

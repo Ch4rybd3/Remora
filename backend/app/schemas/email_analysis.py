@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Literal
 
 
 class HeaderItem(BaseModel):
@@ -16,14 +16,23 @@ class AttachmentItem(BaseModel):
     sha256: str
 
 
+class EmailWarning(BaseModel):
+    level: Literal["critical", "high", "medium", "info"]
+    title: str
+    detail: str
+
+
 class EmailAnalysisResult(BaseModel):
     subject: str
     from_addr: str
     to_addr: str
+    reply_to: str
+    return_path: str
     date: str
     key_headers: list[HeaderItem]
     all_headers: list[HeaderItem]
     urls: list[str]
     attachments: list[AttachmentItem]
+    warnings: list[EmailWarning] = []
     body_plain: Optional[str] = None
     body_html: Optional[str] = None

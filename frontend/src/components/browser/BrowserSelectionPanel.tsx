@@ -7,13 +7,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { X, Send, Trash2, CheckCircle2, Loader2, Clock, ChevronRight, ChevronDown, Globe } from 'lucide-react'
 import { timelineApi } from '../../api/timeline'
 import type { PinnedBrowserEntry } from '../../api/browser'
+import { fmtDateTime } from '../../utils/dateUtils'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmtTs(s: string | null): string {
-  if (!s) return '—'
-  try { return new Date(s).toISOString().replace('T', ' ').slice(0, 19) } catch { return s }
-}
+function fmtTs(s: string | null): string { return fmtDateTime(s) }
 
 function domain(url: string | null): string {
   if (!url) return ''

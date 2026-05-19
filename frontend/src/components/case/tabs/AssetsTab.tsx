@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Monitor, AlertTriangle, Edit2 } from 'lucide-react'
+import { Plus, Trash2, Monitor, AlertTriangle, Edit2, Download } from 'lucide-react'
 import { assetsApi } from '../../../api/assets'
 import type { Asset, AssetType } from '../../../types'
 import Modal from '../../ui/Modal'
 import ConfirmDialog from '../../ui/ConfirmDialog'
 import EmptyState from '../../ui/EmptyState'
+import { exportCsv } from '../../../utils/formatUtils'
 
 const ASSET_TYPES: { value: AssetType; label: string; group: string }[] = [
   { value: 'workstation',       label: 'Workstation',        group: 'Endpoints' },
@@ -231,6 +232,24 @@ export default function AssetsTab({ caseId }: Props) {
   const isEditing = !!editTarget
   const isPending = isEditing ? update.isPending : create.isPending
 
+  const handleExport = () => {
+    exportCsv(
+      `assets-case-${caseId}.csv`,
+      ['Name', 'Type', 'IP Address', 'Hostname', 'OS', 'Domain', 'Compromised', 'Tags', 'Description'],
+      assets.map(a => [
+        a.name,
+        TYPE_LABELS[a.type] ?? a.type,
+        a.ip_address ?? '',
+        a.hostname ?? '',
+        a.os ?? '',
+        a.domain ?? '',
+        a.compromised ? 'Yes' : 'No',
+        a.tags ?? '',
+        a.description ?? '',
+      ]),
+    )
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -238,9 +257,20 @@ export default function AssetsTab({ caseId }: Props) {
           Assets
           <span className="ml-2 text-accent-muted font-normal normal-case">({assets.length})</span>
         </h3>
-        <button className="btn-primary text-xs flex items-center gap-1.5" onClick={openCreate}>
-          <Plus size={13} /> Add Asset
-        </button>
+        <div className="flex items-center gap-2">
+          {assets.length > 0 && (
+            <button
+              className="btn-secondary text-xs flex items-center gap-1.5"
+              onClick={handleExport}
+              title="Export assets as CSV"
+            >
+              <Download size={13} /> CSV
+            </button>
+          )}
+          <button className="btn-primary text-xs flex items-center gap-1.5" onClick={openCreate}>
+            <Plus size={13} /> Add Asset
+          </button>
+        </div>
       </div>
 
       {assets.length === 0 ? (

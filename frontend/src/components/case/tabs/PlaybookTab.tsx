@@ -51,6 +51,15 @@ export default function PlaybookTab({ caseId }: Props) {
   })
 
   const activeCp = casePlaybooks.find(cp => cp.id === activeTab) ?? casePlaybooks[0] ?? null
+
+  // Key that changes whenever any step's done-state flips → forces ReactFlow remount
+  // so the graph re-renders with the updated node styling.
+  const graphKey = activeCp
+    ? activeCp.id + '|' + Object.entries(activeCp.step_states)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([id, s]) => `${id}=${s.done ? 1 : 0}`)
+        .join(',')
+    : 'empty'
   const availablePlaybooks = allPlaybooks.filter(pb => !casePlaybooks.find(cp => cp.playbook_id === pb.id))
 
   const stepNodes = (cp: CasePlaybook) =>
@@ -109,6 +118,7 @@ export default function PlaybookTab({ caseId }: Props) {
           {/* Graph view */}
           <div className="card overflow-hidden" style={{ height: 380 }}>
             <ReactFlow
+              key={graphKey}
               nodes={buildViewNodes(activeCp)}
               edges={activeCp.playbook.edges as Edge[]}
               nodeTypes={NODE_TYPES}

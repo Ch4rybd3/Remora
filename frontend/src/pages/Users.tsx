@@ -5,7 +5,7 @@ import { usersApi, type AuthUser } from '../api/auth'
 import { useAuth } from '../context/AuthContext'
 import Modal from '../components/ui/Modal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
-import { format } from 'date-fns'
+import { fmtDateTimeShort } from '../utils/dateUtils'
 
 const ROLE_COLORS: Record<string, string> = {
   admin:   'bg-severity-critical/10 text-severity-critical border-severity-critical/20',
@@ -115,7 +115,7 @@ export default function Users() {
                   </button>
                 </td>
                 <td className="px-4 py-3 text-xs text-accent-muted">
-                  {u.last_login ? format(new Date(u.last_login), 'dd MMM yyyy HH:mm') : '—'}
+                  {fmtDateTimeShort(u.last_login)}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">

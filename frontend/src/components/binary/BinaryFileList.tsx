@@ -6,7 +6,7 @@ import {
   BookmarkPlus,
 } from 'lucide-react'
 import { binaryApi, type BinaryFile } from '../../api/binary'
-import { format } from 'date-fns'
+import { fmtDateTimeShort } from '../../utils/dateUtils'
 
 interface Props {
   caseId:         string
@@ -83,7 +83,7 @@ function FileRow({
             )}
           </div>
           <p className="text-[8px] text-accent-muted/25 mt-0.5">
-            {format(new Date(f.uploaded_at), 'dd MMM yyyy HH:mm')}
+            {fmtDateTimeShort(f.uploaded_at)}
           </p>
         </div>
         <button

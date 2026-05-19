@@ -1,0 +1,127 @@
+{
+  "name": "Phishing Investigation",
+  "description": "End-to-end investigation playbook for phishing campaigns — from email triage through IOC collection and user remediation.",
+  "nodes": [
+    {
+      "id": "n-start",
+      "type": "start",
+      "position": { "x": 260, "y": 0 },
+      "data": { "label": "Phishing Report Received" }
+    },
+    {
+      "id": "n-quarantine",
+      "type": "step",
+      "position": { "x": 180, "y": 100 },
+      "data": {
+        "label": "Quarantine Email",
+        "description": "Pull the email from affected mailboxes. Do NOT forward or open attachments. Export as .eml for analysis."
+      }
+    },
+    {
+      "id": "n-headers",
+      "type": "step",
+      "position": { "x": 180, "y": 220 },
+      "data": {
+        "label": "Analyse Email Headers",
+        "description": "Inspect From, Reply-To, Return-Path, Received chain. Check SPF / DKIM / DMARC results. Identify originating IP."
+      }
+    },
+    {
+      "id": "n-artifacts",
+      "type": "step",
+      "position": { "x": 180, "y": 340 },
+      "data": {
+        "label": "Extract & Detonate Artifacts",
+        "description": "Extract URLs and attachments. Submit to sandbox (Any.run, MalwareBazaar). Hash all files."
+      }
+    },
+    {
+      "id": "n-scope",
+      "type": "step",
+      "position": { "x": 180, "y": 460 },
+      "data": {
+        "label": "Determine Scope",
+        "description": "Search mail gateway logs for similar messages. Identify all recipients. Correlate delivery timestamps."
+      }
+    },
+    {
+      "id": "n-dec-cred",
+      "type": "decision",
+      "position": { "x": 180, "y": 580 },
+      "data": { "label": "Credential compromise suspected?" }
+    },
+    {
+      "id": "n-cred",
+      "type": "step",
+      "position": { "x": 40, "y": 700 },
+      "data": {
+        "label": "Reset Compromised Credentials",
+        "description": "Force password reset for all affected accounts. Invalidate active sessions and MFA tokens. Check for mail forwarding rules."
+      }
+    },
+    {
+      "id": "n-dec-exec",
+      "type": "decision",
+      "position": { "x": 180, "y": 820 },
+      "data": { "label": "Malicious payload executed?" }
+    },
+    {
+      "id": "n-host",
+      "type": "step",
+      "position": { "x": 40, "y": 940 },
+      "data": {
+        "label": "Triage Affected Hosts",
+        "description": "Collect EDR telemetry from machines that opened the attachment or clicked the link. Hunt for persistence mechanisms."
+      }
+    },
+    {
+      "id": "n-ioc",
+      "type": "step",
+      "position": { "x": 180, "y": 1060 },
+      "data": {
+        "label": "Collect & Share IOCs",
+        "description": "Document sender domains, IPs, URLs, file hashes, and subject lines. Share via MISP or sector ISAC."
+      }
+    },
+    {
+      "id": "n-block",
+      "type": "step",
+      "position": { "x": 180, "y": 1180 },
+      "data": {
+        "label": "Block IOCs",
+        "description": "Add sender domain/IP to email gateway blocklist. Block URLs at proxy/firewall. Create EDR detection rules."
+      }
+    },
+    {
+      "id": "n-notify",
+      "type": "step",
+      "position": { "x": 180, "y": 1300 },
+      "data": {
+        "label": "Notify & Educate Users",
+        "description": "Inform affected users of the incident. Provide phishing awareness reminder. Collect user reports for timeline."
+      }
+    },
+    {
+      "id": "n-end",
+      "type": "end",
+      "position": { "x": 260, "y": 1420 },
+      "data": { "label": "Case Closed" }
+    }
+  ],
+  "edges": [
+    { "id": "e1",  "source": "n-start",     "target": "n-quarantine", "type": "smoothstep", "animated": true },
+    { "id": "e2",  "source": "n-quarantine","target": "n-headers",    "type": "smoothstep", "animated": true },
+    { "id": "e3",  "source": "n-headers",   "target": "n-artifacts",  "type": "smoothstep", "animated": true },
+    { "id": "e4",  "source": "n-artifacts", "target": "n-scope",      "type": "smoothstep", "animated": true },
+    { "id": "e5",  "source": "n-scope",     "target": "n-dec-cred",   "type": "smoothstep", "animated": true },
+    { "id": "e6",  "source": "n-dec-cred",  "target": "n-cred",       "type": "smoothstep", "animated": true, "sourceHandle": "yes", "label": "Yes" },
+    { "id": "e7",  "source": "n-dec-cred",  "target": "n-dec-exec",   "type": "smoothstep", "animated": true, "sourceHandle": "no",  "label": "No" },
+    { "id": "e8",  "source": "n-cred",      "target": "n-dec-exec",   "type": "smoothstep", "animated": true },
+    { "id": "e9",  "source": "n-dec-exec",  "target": "n-host",       "type": "smoothstep", "animated": true, "sourceHandle": "yes", "label": "Yes" },
+    { "id": "e10", "source": "n-dec-exec",  "target": "n-ioc",        "type": "smoothstep", "animated": true, "sourceHandle": "no",  "label": "No" },
+    { "id": "e11", "source": "n-host",      "target": "n-ioc",        "type": "smoothstep", "animated": true },
+    { "id": "e12", "source": "n-ioc",       "target": "n-block",      "type": "smoothstep", "animated": true },
+    { "id": "e13", "source": "n-block",     "target": "n-notify",     "type": "smoothstep", "animated": true },
+    { "id": "e14", "source": "n-notify",    "target": "n-end",        "type": "smoothstep", "animated": true }
+  ]
+}

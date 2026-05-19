@@ -2,7 +2,8 @@ import { useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Upload, Trash2, HardDrive, AlertCircle, Loader2, CheckCircle2, Clock } from 'lucide-react'
 import { memoryApi, type MemoryDump } from '../../api/memory'
-import { formatDistanceToNow } from 'date-fns'
+import { fmtRelative } from '../../utils/dateUtils'
+import { fmtBytes as formatBytes } from '../../utils/formatUtils'
 
 // ── Status badge ───────────────────────────────────────────────────────────────
 
@@ -144,13 +145,6 @@ function UploadForm({ caseId, onSuccess }: { caseId: string; onSuccess: () => vo
 
 // ── Dump list ──────────────────────────────────────────────────────────────────
 
-function formatBytes(n: number | null): string {
-  if (!n) return '—'
-  if (n < 1024) return `${n} B`
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
-  if (n < 1024 ** 3) return `${(n / 1024 / 1024).toFixed(1)} MB`
-  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`
-}
 
 interface Props {
   caseId:         string
@@ -203,7 +197,7 @@ export default function MemoryDumpList({ caseId, selectedDumpId, onSelect }: Pro
                     <span className="text-[9px] text-accent-muted/30 font-mono">{formatBytes(dump.file_size)}</span>
                   </div>
                   <p className="text-[9px] text-accent-muted/30 mt-0.5">
-                    {formatDistanceToNow(new Date(dump.uploaded_at), { addSuffix: true })}
+                    {fmtRelative(dump.uploaded_at)}
                   </p>
                   {dump.error_msg && (
                     <p className="text-[9px] text-severity-critical mt-1 line-clamp-2">{dump.error_msg}</p>

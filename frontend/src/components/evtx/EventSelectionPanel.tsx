@@ -20,10 +20,8 @@ const EVTX_TAG = 'evtx-import'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmtTime(ts: string | null): string {
-  if (!ts) return '—'
-  try { return new Date(ts).toISOString().replace('T', ' ').slice(0, 19) } catch { return ts }
-}
+import { fmtDateTime } from '../../utils/dateUtils'
+function fmtTime(ts: string | null): string { return fmtDateTime(ts) }
 
 function buildTitle(ev: PinnedEvtxEvent): string {
   const parts: string[] = []

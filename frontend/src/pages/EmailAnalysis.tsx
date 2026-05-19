@@ -3,8 +3,9 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Upload, Mail, Link2, Paperclip, ChevronDown, ChevronRight,
   CheckCircle2, AlertCircle, Copy, Plus, Loader2, Info, FileText,
+  ShieldAlert, ShieldX, AlertTriangle,
 } from 'lucide-react'
-import { emailAnalysisApi, type EmailAnalysisResult, type HeaderItem, type AttachmentItem } from '../api/emailAnalysis'
+import { emailAnalysisApi, type EmailAnalysisResult, type HeaderItem, type AttachmentItem, type EmailWarning, type WarningLevel } from '../api/emailAnalysis'
 import { iocsApi } from '../api/iocs'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 
@@ -57,6 +58,76 @@ function extractSenderName(raw: string): string | null {
     return name.length > 0 ? name : null
   }
   return null
+}
+
+// ── Warnings ───────────────────────────────────────────────────────────────
+
+const WARNING_STYLES: Record<WarningLevel, { bar: string; icon: string; badge: string }> = {
+  critical: {
+    bar:   'border-severity-critical/30 bg-severity-critical/8',
+    icon:  'text-severity-critical',
+    badge: 'bg-severity-critical/15 text-severity-critical border-severity-critical/30',
+  },
+  high: {
+    bar:   'border-orange-500/30 bg-orange-500/8',
+    icon:  'text-orange-400',
+    badge: 'bg-orange-500/15 text-orange-400 border-orange-500/30',
+  },
+  medium: {
+    bar:   'border-severity-medium/30 bg-severity-medium/8',
+    icon:  'text-severity-medium',
+    badge: 'bg-severity-medium/15 text-severity-medium border-severity-medium/30',
+  },
+  info: {
+    bar:   'border-blue-500/30 bg-blue-500/8',
+    icon:  'text-blue-400',
+    badge: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+  },
+}
+
+const WARNING_ICONS: Record<WarningLevel, React.ElementType> = {
+  critical: ShieldX,
+  high:     ShieldAlert,
+  medium:   AlertTriangle,
+  info:     Info,
+}
+
+function WarningBadge({ level }: { level: WarningLevel }) {
+  const s = WARNING_STYLES[level]
+  return (
+    <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${s.badge}`}>
+      {level}
+    </span>
+  )
+}
+
+function WarningsSection({ warnings }: { warnings: EmailWarning[] }) {
+  if (warnings.length === 0) return null
+  const order: WarningLevel[] = ['critical', 'high', 'medium', 'info']
+  const sorted = [...warnings].sort((a, b) => order.indexOf(a.level) - order.indexOf(b.level))
+  return (
+    <div className="space-y-2">
+      <p className="text-[10px] font-semibold tracking-widest uppercase text-accent-muted/50">
+        Security Alerts ({warnings.length})
+      </p>
+      {sorted.map((w, i) => {
+        const s    = WARNING_STYLES[w.level]
+        const Icon = WARNING_ICONS[w.level]
+        return (
+          <div key={i} className={`flex items-start gap-3 rounded-lg border px-4 py-3 ${s.bar}`}>
+            <Icon size={15} className={`shrink-0 mt-0.5 ${s.icon}`} />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-sm font-semibold text-white">{w.title}</span>
+                <WarningBadge level={w.level} />
+              </div>
+              <p className="text-[11px] text-white/60 leading-relaxed">{w.detail}</p>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 // ── IocButton ──────────────────────────────────────────────────────────────
@@ -425,8 +496,11 @@ export default function EmailAnalysis() {
 
       {result && (
         <div className="space-y-4">
-          {/* Summary cards */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {/* Security warnings */}
+          <WarningsSection warnings={result.warnings} />
+
+          {/* Summary cards — row 1: From / To / Date */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <SummaryCard
               label="From" value={result.from_addr}
               iocActions={[
@@ -442,13 +516,58 @@ export default function EmailAnalysis() {
               iocActions={[{ type: 'email', value: extractEmailAddress(result.to_addr), label: 'Email' }]}
               {...iocProps}
             />
-            <SummaryCard
-              label="Subject" value={result.subject}
-              iocActions={[{ type: 'email_subject', value: result.subject, description: `Email subject: ${result.subject}` }]}
-              {...iocProps}
-            />
             <SummaryCard label="Date" value={result.date} addedKeys={addedKeys} onAdded={handleAdded} />
           </div>
+
+          {/* Reply-To / Return-Path — shown only when present, with mismatch badges */}
+          {(result.reply_to || result.return_path) && (() => {
+            const fromEmail    = extractEmailAddress(result.from_addr)
+            const replyEmail   = result.reply_to    ? extractEmailAddress(result.reply_to)    : ''
+            const returnEmail  = result.return_path ? extractEmailAddress(result.return_path) : ''
+            const replyMismatch  = !!(replyEmail  && replyEmail  !== fromEmail)
+            const returnMismatch = !!(returnEmail && returnEmail.split('@')[1] !== fromEmail.split('@')[1])
+            return (
+              <div className="grid grid-cols-2 gap-3">
+                {result.reply_to && (
+                  <div className={`rounded-lg border px-3 py-2.5 min-w-0 ${replyMismatch ? 'border-severity-critical/30 bg-severity-critical/5' : 'border-white/8 bg-bg-secondary'}`}>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <p className="text-[9px] font-semibold tracking-widest uppercase text-accent-muted/50">Reply-To</p>
+                      {replyMismatch && (
+                        <span className="flex items-center gap-0.5 text-[9px] font-bold text-severity-critical bg-severity-critical/10 border border-severity-critical/30 px-1.5 py-0.5 rounded">
+                          <AlertTriangle size={8} /> MISMATCH
+                        </span>
+                      )}
+                    </div>
+                    <p className={`text-[11px] font-mono truncate ${replyMismatch ? 'text-severity-critical/90' : 'text-white/80'}`} title={result.reply_to}>
+                      {result.reply_to || '—'}
+                    </p>
+                  </div>
+                )}
+                {result.return_path && (
+                  <div className={`rounded-lg border px-3 py-2.5 min-w-0 ${returnMismatch ? 'border-orange-500/30 bg-orange-500/5' : 'border-white/8 bg-bg-secondary'}`}>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <p className="text-[9px] font-semibold tracking-widest uppercase text-accent-muted/50">Return-Path</p>
+                      {returnMismatch && (
+                        <span className="flex items-center gap-0.5 text-[9px] font-bold text-orange-400 bg-orange-500/10 border border-orange-500/30 px-1.5 py-0.5 rounded">
+                          <AlertTriangle size={8} /> DOMAIN MISMATCH
+                        </span>
+                      )}
+                    </div>
+                    <p className={`text-[11px] font-mono truncate ${returnMismatch ? 'text-orange-400/90' : 'text-white/80'}`} title={result.return_path}>
+                      {result.return_path || '—'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
+          {/* Subject — full width */}
+          <SummaryCard
+            label="Subject" value={result.subject}
+            iocActions={[{ type: 'email_subject', value: result.subject, description: `Email subject: ${result.subject}` }]}
+            {...iocProps}
+          />
 
           {/* Body */}
           {(result.body_plain || result.body_html) && (

@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useDropzone } from 'react-dropzone'
 import { Upload, Trash2, RotateCcw, Plus, Check, Loader2, Clock, AlertTriangle } from 'lucide-react'
 import { mftApi, type MftFile } from '../../api/mft'
-import { format } from 'date-fns'
+import { fmtDateTimeShort } from '../../utils/dateUtils'
+import { fmtDuration } from '../../utils/formatUtils'
 
 interface Props {
   caseId:         string
@@ -13,11 +14,6 @@ interface Props {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmtDuration(s: number): string {
-  if (s < 60)  return `${s}s`
-  const m = Math.floor(s / 60), rem = s % 60
-  return rem > 0 ? `${m}m ${rem}s` : `${m}m`
-}
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 
@@ -184,7 +180,7 @@ export default function MftFileList({ caseId, selectedFileId, onSelectFile }: Pr
                 <div className="flex items-center justify-between mt-1">
                   <StatusBadge f={f} />
                   <span className="text-[9px] text-accent-muted/30">
-                    {format(new Date(f.uploaded_at), 'dd MMM HH:mm')}
+                    {fmtDateTimeShort(f.uploaded_at)}
                   </span>
                 </div>
 

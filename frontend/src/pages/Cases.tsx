@@ -13,7 +13,7 @@ import Modal from '../components/ui/Modal'
 import EmptyState from '../components/ui/EmptyState'
 import TagInput, { type InputTag } from '../components/ui/TagInput'
 import { GitBranch } from 'lucide-react'
-import { format } from 'date-fns'
+import { fmtDate } from '../utils/dateUtils'
 
 const USER_BADGE = 'bg-blue-500/10 text-blue-400 border-blue-500/20'
 
@@ -175,7 +175,7 @@ export default function Cases() {
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-accent-muted">{c.ioc_count}</td>
                   <td className="px-4 py-3 text-xs text-accent-muted">
-                    {format(new Date(c.updated_at), 'dd MMM yyyy')}
+                    {fmtDate(c.updated_at)}
                   </td>
                 </tr>
               ))}

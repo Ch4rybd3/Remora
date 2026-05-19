@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import {
   FolderOpen, AlertTriangle, Activity, Shield,
   Crosshair, Server, FileArchive, Clock, RefreshCw,
-  Target, List,
+  Target, List, TrendingUp, TrendingDown, Minus,
+  Users, Timer,
 } from 'lucide-react'
 import { dashboardApi, type DashboardStats, type KVCount, type AgingBucket, type RecentCase, type RecentEvent } from '../api/dashboard'
 import { SeverityBadge, StatusBadge } from '../components/ui/Badge'
 import type { CaseSeverity, CaseStatus } from '../types'
+import { fmtTimeOnly } from '../utils/dateUtils'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -19,10 +21,31 @@ function maxCount(items: KVCount[]): number {
   return Math.max(1, ...items.map(i => i.count))
 }
 
+// ── Trend badge ────────────────────────────────────────────────────────────────
+
+function TrendBadge({ current, previous }: { current: number; previous: number }) {
+  const diff = current - previous
+  if (diff === 0 && previous === 0) return null
+  if (diff === 0) return (
+    <span className="flex items-center gap-0.5 text-[9px] text-accent-muted/40 font-mono">
+      <Minus size={9} /> same as prev week
+    </span>
+  )
+  const pct = previous > 0 ? Math.abs(Math.round((diff / previous) * 100)) : null
+  const up  = diff > 0
+  return (
+    <span className={`flex items-center gap-0.5 text-[9px] font-mono ${up ? 'text-severity-medium' : 'text-accent-green'}`}>
+      {up ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
+      {pct != null ? `${pct}%` : (up ? `+${diff}` : `${diff}`)}
+      <span className="text-accent-muted/40 font-sans ml-0.5">vs prev week</span>
+    </span>
+  )
+}
+
 // ── KPI Card ───────────────────────────────────────────────────────────────────
 
 function KpiCard({
-  label, value, sub, icon: Icon, color, dim = false,
+  label, value, sub, icon: Icon, color, dim = false, trend,
 }: {
   label: string
   value: string | number
@@ -30,15 +53,19 @@ function KpiCard({
   icon: React.ElementType
   color: string
   dim?: boolean
+  trend?: React.ReactNode
 }) {
   return (
-    <div className={`card p-5 flex flex-col gap-2 ${dim ? 'opacity-60' : ''}`}>
+    <div className={`bg-bg-card border border-white/8 rounded-xl p-5 flex flex-col gap-2 ${dim ? 'opacity-55' : ''}`}>
       <div className="flex items-center justify-between">
-        <span className="text-[11px] text-accent-muted uppercase tracking-widest font-medium">{label}</span>
-        <Icon size={14} className={color} />
+        <span className="text-[10px] text-accent-muted/50 uppercase tracking-widest font-semibold">{label}</span>
+        <Icon size={13} className={color} />
       </div>
       <p className={`text-3xl font-bold font-mono leading-none ${color}`}>{value}</p>
-      {sub && <p className="text-[11px] text-accent-muted mt-0.5">{sub}</p>}
+      <div className="flex flex-col gap-0.5 mt-0.5">
+        {sub && <p className="text-[10px] text-accent-muted/50">{sub}</p>}
+        {trend}
+      </div>
     </div>
   )
 }
@@ -53,13 +80,13 @@ function BarRow({
   const pct = max > 0 ? (count / max) * 100 : 0
   return (
     <div className="flex items-center gap-2 group">
-      <span className="text-xs text-accent-muted w-32 truncate shrink-0 group-hover:text-foreground transition-colors" title={label}>
+      <span className="text-[11px] text-accent-muted/60 w-32 truncate shrink-0 group-hover:text-white transition-colors" title={label}>
         {label}
       </span>
       <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
         <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-xs font-mono text-accent-muted w-6 text-right shrink-0">{count}</span>
+      <span className="text-[11px] font-mono text-accent-muted/50 w-6 text-right shrink-0">{count}</span>
     </div>
   )
 }
@@ -68,10 +95,116 @@ function BarRow({
 
 function SectionHeader({ icon: Icon, title }: { icon?: React.ElementType; title: string }) {
   return (
-    <h2 className="text-accent-green font-semibold text-xs uppercase tracking-widest mb-4 flex items-center gap-2">
-      {Icon && <Icon size={12} />}
+    <h2 className="text-accent-green font-semibold text-[10px] uppercase tracking-widest mb-4 flex items-center gap-2">
+      {Icon && <Icon size={11} />}
       {title}
     </h2>
+  )
+}
+
+// ── Weekly Activity Chart ──────────────────────────────────────────────────────
+
+function ActivityChart({ weeks }: { weeks: KVCount[] }) {
+  const max = Math.max(1, ...weeks.map(w => w.count))
+  const CHART_H = 72
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {/* Bars */}
+      <div className="flex items-end gap-1" style={{ height: CHART_H }}>
+        {weeks.map((w, i) => {
+          const barH = w.count > 0 ? Math.max(4, Math.round((w.count / max) * CHART_H)) : 2
+          const intensity = 0.25 + 0.75 * (w.count / max)
+          return (
+            <div
+              key={i}
+              className="flex-1 rounded-sm cursor-default transition-all hover:opacity-90"
+              style={{
+                height: barH,
+                backgroundColor: w.count > 0
+                  ? `rgba(159,239,0,${intensity})`
+                  : 'rgba(255,255,255,0.04)',
+              }}
+              title={`${w.key}: ${w.count} case${w.count !== 1 ? 's' : ''} opened`}
+            />
+          )
+        })}
+      </div>
+      {/* X-axis labels — every 3rd */}
+      <div className="flex gap-1">
+        {weeks.map((w, i) => (
+          <div key={i} className="flex-1 text-center overflow-hidden">
+            {i % 3 === 0 && (
+              <span className="text-[8px] text-accent-muted/30 whitespace-nowrap">{w.key}</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Status / Severity donut-style summary ──────────────────────────────────────
+
+function StatusDonut({ items, colors }: { items: KVCount[]; colors: Record<string, string> }) {
+  const total = items.reduce((a, b) => a + b.count, 0)
+  if (total === 0) return <p className="text-accent-muted/40 text-xs py-2 text-center">No data</p>
+
+  // Build SVG donut segments
+  const R = 36, STROKE = 10
+  const circ = 2 * Math.PI * R
+  let offset = 0
+
+  const colorMap: Record<string, string> = {
+    open: '#9FEF00', in_progress: '#FFAF00', closed: '#4b5563', archived: '#374151',
+    critical: '#ef4444', high: '#f97316', medium: '#FFAF00', low: '#3b82f6', informational: '#4b5563',
+  }
+
+  const segments = items.filter(i => i.count > 0).map(item => {
+    const pct = item.count / total
+    const dash = circ * pct
+    const gap  = circ * (1 - pct)
+    const seg  = { key: item.key, count: item.count, dash, gap, offset, color: colorMap[item.key] ?? '#6b7280' }
+    offset += dash
+    return seg
+  })
+
+  return (
+    <div className="flex items-center gap-4">
+      {/* Donut */}
+      <div className="relative shrink-0">
+        <svg width="80" height="80" viewBox="0 0 80 80">
+          <circle cx="40" cy="40" r={R} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={STROKE} />
+          {segments.map(seg => (
+            <circle
+              key={seg.key}
+              cx="40" cy="40" r={R}
+              fill="none"
+              stroke={seg.color}
+              strokeWidth={STROKE}
+              strokeDasharray={`${seg.dash} ${seg.gap}`}
+              strokeDashoffset={-seg.offset + circ * 0.25}
+              strokeLinecap="butt"
+            />
+          ))}
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-lg font-bold font-mono text-white">{total}</span>
+          <span className="text-[8px] text-accent-muted/40">total</span>
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div className="flex-1 space-y-1.5 min-w-0">
+        {items.filter(i => i.count > 0).map(({ key, count }) => (
+          <div key={key} className="flex items-center gap-2 min-w-0">
+            <div className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: colorMap[key] ?? '#6b7280' }} />
+            <span className="text-[10px] text-accent-muted/60 truncate flex-1">{fmtKey(key)}</span>
+            <span className="text-[10px] font-mono text-accent-muted/50 shrink-0">{count}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -81,7 +214,7 @@ function RecentCasesWidget({ cases }: { cases: RecentCase[] }) {
   const navigate = useNavigate()
   if (cases.length === 0) {
     return (
-      <p className="text-accent-muted text-sm text-center py-10">
+      <p className="text-accent-muted/50 text-sm text-center py-10">
         No cases yet.{' '}
         <button className="text-accent-green hover:underline" onClick={() => navigate('/cases')}>
           Create one →
@@ -93,26 +226,26 @@ function RecentCasesWidget({ cases }: { cases: RecentCase[] }) {
     <div className="overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
-          <tr className="text-left text-accent-muted uppercase tracking-wider border-b border-border">
-            <th className="pb-2 pr-3 font-medium">Case</th>
-            <th className="pb-2 pr-3 font-medium">Severity</th>
-            <th className="pb-2 pr-3 font-medium">Status</th>
-            <th className="pb-2 pr-3 font-medium text-right">IOCs</th>
-            <th className="pb-2 pr-3 font-medium text-right">Assets</th>
-            <th className="pb-2 pr-3 font-medium text-right">Evidence</th>
-            <th className="pb-2 font-medium text-right">Age</th>
+          <tr className="text-left text-accent-muted/40 uppercase tracking-wider border-b border-white/5">
+            <th className="pb-2 pr-3 font-semibold text-[9px]">Case</th>
+            <th className="pb-2 pr-3 font-semibold text-[9px]">Severity</th>
+            <th className="pb-2 pr-3 font-semibold text-[9px]">Status</th>
+            <th className="pb-2 pr-3 font-semibold text-[9px] text-right">IOCs</th>
+            <th className="pb-2 pr-3 font-semibold text-[9px] text-right">Assets</th>
+            <th className="pb-2 pr-3 font-semibold text-[9px] text-right">Evid.</th>
+            <th className="pb-2 font-semibold text-[9px] text-right">Age</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-border/40">
+        <tbody className="divide-y divide-white/[0.03]">
           {cases.map(c => (
             <tr
               key={c.id}
-              className="hover:bg-white/5 cursor-pointer transition-colors"
+              className="hover:bg-white/[0.03] cursor-pointer transition-colors group"
               onClick={() => navigate(`/cases/${c.id}`)}
             >
               <td className="py-2.5 pr-3">
-                <p className="font-medium text-foreground truncate max-w-[220px]">{c.title}</p>
-                <p className="text-accent-muted text-[10px] mt-0.5">{c.updated_at}</p>
+                <p className="font-medium text-white/80 group-hover:text-white transition-colors truncate max-w-[200px]">{c.title}</p>
+                <p className="text-accent-muted/30 text-[10px] mt-0.5 font-mono">{c.updated_at}</p>
               </td>
               <td className="py-2.5 pr-3">
                 <SeverityBadge severity={c.severity as CaseSeverity} />
@@ -120,23 +253,21 @@ function RecentCasesWidget({ cases }: { cases: RecentCase[] }) {
               <td className="py-2.5 pr-3">
                 <StatusBadge status={c.status as CaseStatus} />
               </td>
-              <td className="py-2.5 pr-3 text-right font-mono text-accent-muted">
-                {c.ioc_count > 0 ? <span className="text-severity-high">{c.ioc_count}</span> : '—'}
+              <td className="py-2.5 pr-3 text-right font-mono text-accent-muted/50">
+                {c.ioc_count > 0 ? <span className="text-severity-high">{c.ioc_count}</span> : <span className="text-white/15">—</span>}
               </td>
-              <td className="py-2.5 pr-3 text-right font-mono text-accent-muted">
-                {c.asset_count > 0
-                  ? <span className="text-severity-medium">{c.asset_count}</span>
-                  : '—'}
+              <td className="py-2.5 pr-3 text-right font-mono text-accent-muted/50">
+                {c.asset_count > 0 ? <span className="text-blue-400/80">{c.asset_count}</span> : <span className="text-white/15">—</span>}
               </td>
-              <td className="py-2.5 pr-3 text-right font-mono text-accent-muted">
-                {c.evidence_count > 0 ? c.evidence_count : '—'}
+              <td className="py-2.5 pr-3 text-right font-mono text-accent-muted/50">
+                {c.evidence_count > 0 ? c.evidence_count : <span className="text-white/15">—</span>}
               </td>
               <td className="py-2.5 text-right font-mono">
                 {c.days_open >= 0
-                  ? <span className={c.days_open > 30 ? 'text-severity-critical' : c.days_open > 7 ? 'text-severity-high' : 'text-accent-muted'}>
+                  ? <span className={c.days_open > 30 ? 'text-severity-critical' : c.days_open > 7 ? 'text-severity-high' : 'text-accent-muted/50'}>
                       {c.days_open === 0 ? '<1d' : `${c.days_open}d`}
                     </span>
-                  : <span className="text-accent-muted/40">—</span>}
+                  : <span className="text-white/15">—</span>}
               </td>
             </tr>
           ))}
@@ -146,68 +277,12 @@ function RecentCasesWidget({ cases }: { cases: RecentCase[] }) {
   )
 }
 
-// ── Case Status + Severity combined widget ─────────────────────────────────────
-
-function CaseStatsWidget({ stats }: { stats: DashboardStats }) {
-  const totalBySev = stats.by_severity.reduce((a, b) => a + b.count, 0)
-  const totalByStatus = stats.by_status.reduce((a, b) => a + b.count, 0)
-
-  const sevColors: Record<string, string> = {
-    critical:      'bg-severity-critical/60',
-    high:          'bg-severity-high/60',
-    medium:        'bg-severity-medium/60',
-    low:           'bg-severity-low/60',
-    informational: 'bg-accent-muted/40',
-  }
-  const statusColors: Record<string, string> = {
-    open:        'bg-accent-green/60',
-    in_progress: 'bg-severity-medium/60',
-    closed:      'bg-accent-muted/40',
-    archived:    'bg-white/10',
-  }
-
-  return (
-    <div className="flex flex-col gap-6">
-      {/* Status */}
-      <div>
-        <SectionHeader icon={Activity} title="By Status" />
-        <div className="space-y-2.5">
-          {stats.by_status.map(({ key, count }) => (
-            <BarRow
-              key={key}
-              label={fmtKey(key)}
-              count={count}
-              max={totalByStatus}
-              color={statusColors[key] ?? 'bg-white/20'}
-            />
-          ))}
-        </div>
-      </div>
-      {/* Severity */}
-      <div>
-        <SectionHeader icon={Shield} title="By Severity" />
-        <div className="space-y-2.5">
-          {stats.by_severity.map(({ key, count }) => (
-            <BarRow
-              key={key}
-              label={fmtKey(key)}
-              count={count}
-              max={totalBySev}
-              color={sevColors[key] ?? 'bg-white/20'}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ── IOC Types ──────────────────────────────────────────────────────────────────
 
 function IocTypesWidget({ data }: { data: KVCount[] }) {
   const top = data.slice(0, 8)
   const mx  = maxCount(top)
-  if (top.length === 0) return <p className="text-accent-muted text-xs py-4 text-center">No IOCs recorded.</p>
+  if (top.length === 0) return <p className="text-accent-muted/40 text-xs py-4 text-center">No IOCs recorded.</p>
 
   const iocColors: Record<string, string> = {
     ip:          'bg-severity-critical/55',
@@ -217,8 +292,6 @@ function IocTypesWidget({ data }: { data: KVCount[] }) {
     hash_sha1:   'bg-purple-400/50',
     hash_sha256: 'bg-purple-400/50',
     email:       'bg-blue-400/50',
-    email_subject: 'bg-blue-400/40',
-    sender_name: 'bg-blue-400/35',
     filename:    'bg-severity-medium/55',
     registry:    'bg-pink-400/50',
     user_agent:  'bg-teal-400/50',
@@ -227,13 +300,7 @@ function IocTypesWidget({ data }: { data: KVCount[] }) {
   return (
     <div className="space-y-2.5">
       {top.map(({ key, count }) => (
-        <BarRow
-          key={key}
-          label={fmtKey(key)}
-          count={count}
-          max={mx}
-          color={iocColors[key] ?? 'bg-accent-green/40'}
-        />
+        <BarRow key={key} label={fmtKey(key)} count={count} max={mx} color={iocColors[key] ?? 'bg-accent-green/40'} />
       ))}
     </div>
   )
@@ -242,49 +309,63 @@ function IocTypesWidget({ data }: { data: KVCount[] }) {
 // ── Asset Health ───────────────────────────────────────────────────────────────
 
 function AssetHealthWidget({ stats }: { stats: DashboardStats }) {
-  const clean = stats.total_assets - stats.compromised_assets
-  const pctComp = stats.total_assets > 0
-    ? Math.round((stats.compromised_assets / stats.total_assets) * 100)
-    : 0
-
+  const clean    = stats.total_assets - stats.compromised_assets
+  const pctComp  = stats.total_assets > 0
+    ? Math.round((stats.compromised_assets / stats.total_assets) * 100) : 0
   const mx = maxCount(stats.asset_by_type)
 
   return (
     <div className="space-y-4">
-      {/* Compromised gauge */}
       <div className="flex items-center gap-4">
         <div className="text-center">
           <p className="text-2xl font-bold font-mono text-severity-critical">{stats.compromised_assets}</p>
-          <p className="text-[10px] text-accent-muted mt-0.5">Compromised</p>
+          <p className="text-[9px] text-accent-muted/40 mt-0.5">Compromised</p>
         </div>
         <div className="flex-1 space-y-1.5">
           <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-severity-critical/60 rounded-full transition-all"
-              style={{ width: `${pctComp}%` }}
-            />
+            <div className="h-full bg-severity-critical/60 rounded-full transition-all" style={{ width: `${pctComp}%` }} />
           </div>
-          <div className="flex justify-between text-[10px] text-accent-muted">
+          <div className="flex justify-between text-[10px] text-accent-muted/40">
             <span>{pctComp}% compromised</span>
             <span>{clean} clean</span>
           </div>
         </div>
       </div>
 
-      {/* Asset types */}
       {stats.asset_by_type.length > 0 && (
-        <div className="space-y-2 pt-2 border-t border-border/40">
+        <div className="space-y-2 pt-2 border-t border-white/5">
           {stats.asset_by_type.slice(0, 6).map(({ key, count }) => (
-            <BarRow
-              key={key}
-              label={fmtKey(key)}
-              count={count}
-              max={mx}
-              color="bg-blue-400/45"
-            />
+            <BarRow key={key} label={fmtKey(key)} count={count} max={mx} color="bg-blue-400/45" />
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Analyst Workload ───────────────────────────────────────────────────────────
+
+function AnalystWidget({ data }: { data: KVCount[] }) {
+  const mx = maxCount(data)
+  if (data.length === 0) {
+    return <p className="text-accent-muted/40 text-xs py-4 text-center">No active assignments.</p>
+  }
+  return (
+    <div className="space-y-2.5">
+      {data.map(({ key, count }) => (
+        <div key={key} className="flex items-center gap-2 group">
+          <div className="w-5 h-5 rounded-full bg-accent-green/10 border border-accent-green/20 flex items-center justify-center shrink-0">
+            <span className="text-[9px] font-bold text-accent-green">{key[0]?.toUpperCase()}</span>
+          </div>
+          <span className="text-[11px] text-accent-muted/60 truncate flex-1 group-hover:text-white transition-colors" title={key}>
+            {key}
+          </span>
+          <div className="flex-1 max-w-20 h-1.5 bg-white/5 rounded-full overflow-hidden">
+            <div className="h-full rounded-full bg-accent-green/40 transition-all" style={{ width: `${(count / mx) * 100}%` }} />
+          </div>
+          <span className="text-[11px] font-mono text-accent-muted/50 shrink-0">{count}</span>
+        </div>
+      ))}
     </div>
   )
 }
@@ -293,34 +374,28 @@ function AssetHealthWidget({ stats }: { stats: DashboardStats }) {
 
 function TopTacticsWidget({ data }: { data: KVCount[] }) {
   const mx = maxCount(data)
-  if (data.length === 0) return <p className="text-accent-muted text-xs py-4 text-center">No ATT&CK techniques recorded.</p>
+  if (data.length === 0) return <p className="text-accent-muted/40 text-xs py-4 text-center">No ATT&CK techniques recorded.</p>
 
   const tacticColors: Record<string, string> = {
-    'Initial Access':      'bg-severity-critical/55',
-    'Execution':           'bg-severity-high/55',
-    'Persistence':         'bg-severity-medium/55',
-    'Privilege Escalation':'bg-severity-high/45',
-    'Stealth':             'bg-lime-400/45',
-    'Defense Impairment':  'bg-fuchsia-400/45',
-    'Credential Access':   'bg-accent-green/55',
-    'Discovery':           'bg-teal-400/45',
-    'Lateral Movement':    'bg-cyan-400/45',
-    'Collection':          'bg-blue-400/45',
-    'Command And Control': 'bg-indigo-400/45',
-    'Exfiltration':        'bg-purple-400/45',
-    'Impact':              'bg-severity-critical/60',
+    'Initial Access':       'bg-severity-critical/55',
+    'Execution':            'bg-severity-high/55',
+    'Persistence':          'bg-severity-medium/55',
+    'Privilege Escalation': 'bg-severity-high/45',
+    'Stealth':              'bg-lime-400/45',
+    'Defense Impairment':   'bg-fuchsia-400/45',
+    'Credential Access':    'bg-accent-green/55',
+    'Discovery':            'bg-teal-400/45',
+    'Lateral Movement':     'bg-cyan-400/45',
+    'Collection':           'bg-blue-400/45',
+    'Command And Control':  'bg-indigo-400/45',
+    'Exfiltration':         'bg-purple-400/45',
+    'Impact':               'bg-severity-critical/60',
   }
 
   return (
     <div className="space-y-2.5">
       {data.map(({ key, count }) => (
-        <BarRow
-          key={key}
-          label={key}
-          count={count}
-          max={mx}
-          color={tacticColors[key] ?? 'bg-accent-green/40'}
-        />
+        <BarRow key={key} label={key} count={count} max={mx} color={tacticColors[key] ?? 'bg-accent-green/40'} />
       ))}
     </div>
   )
@@ -328,39 +403,48 @@ function TopTacticsWidget({ data }: { data: KVCount[] }) {
 
 // ── Case Aging ─────────────────────────────────────────────────────────────────
 
-function CaseAgingWidget({ buckets, avgDays }: { buckets: AgingBucket[]; avgDays: number }) {
+function CaseAgingWidget({ buckets, avgDays, mttr }: { buckets: AgingBucket[]; avgDays: number; mttr: number }) {
   const total = buckets.reduce((a, b) => a + b.count, 0)
   const mx    = Math.max(1, ...buckets.map(b => b.count))
 
   const agingColors = [
-    'bg-accent-green/60',       // < 1 day
-    'bg-severity-medium/60',    // 1-7 days
-    'bg-severity-high/60',      // 7-30 days
-    'bg-severity-critical/60',  // > 30 days
+    'bg-accent-green/60',
+    'bg-severity-medium/60',
+    'bg-severity-high/60',
+    'bg-severity-critical/60',
   ]
 
   return (
     <div className="space-y-4">
-      <div className="flex items-baseline gap-3">
-        <p className="text-2xl font-bold font-mono text-accent-muted">{avgDays}d</p>
-        <p className="text-[11px] text-accent-muted">avg age (active cases)</p>
+      {/* Two metrics side by side */}
+      <div className="flex gap-4">
+        <div>
+          <p className="text-2xl font-bold font-mono text-accent-muted/70">{avgDays}d</p>
+          <p className="text-[9px] text-accent-muted/40 mt-0.5">avg age (active)</p>
+        </div>
+        {mttr > 0 && (
+          <div className="border-l border-white/8 pl-4">
+            <p className="text-2xl font-bold font-mono text-teal-400/70">{mttr}d</p>
+            <p className="text-[9px] text-accent-muted/40 mt-0.5">MTTR (closed)</p>
+          </div>
+        )}
       </div>
       <div className="space-y-2.5">
         {buckets.map(({ label, count }, i) => (
           <div key={label} className="flex items-center gap-2">
-            <span className="text-xs text-accent-muted w-24 shrink-0">{label}</span>
+            <span className="text-[11px] text-accent-muted/50 w-24 shrink-0">{label}</span>
             <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all ${agingColors[i]}`}
                 style={{ width: mx > 0 ? `${(count / mx) * 100}%` : '0%' }}
               />
             </div>
-            <span className="text-xs font-mono text-accent-muted w-4 text-right">{count}</span>
+            <span className="text-[11px] font-mono text-accent-muted/50 w-4 text-right">{count}</span>
           </div>
         ))}
       </div>
       {total === 0 && (
-        <p className="text-[11px] text-accent-muted/60 text-center">No active cases.</p>
+        <p className="text-[10px] text-accent-muted/40 text-center">No active cases.</p>
       )}
     </div>
   )
@@ -371,25 +455,25 @@ function CaseAgingWidget({ buckets, avgDays }: { buckets: AgingBucket[]; avgDays
 function TimelineFeedWidget({ events }: { events: RecentEvent[] }) {
   const navigate = useNavigate()
   if (events.length === 0) {
-    return <p className="text-accent-muted text-xs py-4 text-center">No timeline events yet.</p>
+    return <p className="text-accent-muted/40 text-xs py-4 text-center">No timeline events yet.</p>
   }
   return (
-    <div className="space-y-0 divide-y divide-border/30">
+    <div className="space-y-0 divide-y divide-white/[0.03]">
       {events.map((ev, i) => (
         <div
           key={i}
-          className="flex items-start gap-3 py-2.5 hover:bg-white/5 px-2 -mx-2 rounded cursor-pointer transition-colors"
+          className="flex items-start gap-3 py-2.5 hover:bg-white/[0.03] px-2 -mx-2 rounded cursor-pointer transition-colors"
           onClick={() => navigate(`/cases/${ev.case_id}?tab=timeline`)}
         >
-          <div className="w-1.5 h-1.5 rounded-full bg-accent-green/60 shrink-0 mt-1.5" />
+          <div className="w-1.5 h-1.5 rounded-full bg-accent-green/50 shrink-0 mt-1.5" />
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-foreground truncate">{ev.title}</p>
-            <p className="text-[10px] text-accent-muted mt-0.5 truncate">
-              <span className="text-accent-green/70">{ev.case_title}</span>
+            <p className="text-[11px] font-medium text-white/70 truncate">{ev.title}</p>
+            <p className="text-[10px] text-accent-muted/40 mt-0.5 truncate">
+              <span className="text-accent-green/60">{ev.case_title}</span>
               {ev.actor && <> · {ev.actor}</>}
             </p>
           </div>
-          <p className="text-[10px] text-accent-muted/60 shrink-0 whitespace-nowrap">{ev.event_ts}</p>
+          <p className="text-[9px] text-accent-muted/40 shrink-0 whitespace-nowrap font-mono">{ev.event_ts}</p>
         </div>
       ))}
     </div>
@@ -400,8 +484,8 @@ function TimelineFeedWidget({ events }: { events: RecentEvent[] }) {
 
 function SkeletonCard() {
   return (
-    <div className="card p-5 animate-pulse">
-      <div className="h-3 bg-white/5 rounded w-20 mb-3" />
+    <div className="bg-bg-card border border-white/8 rounded-xl p-5 animate-pulse">
+      <div className="h-2.5 bg-white/5 rounded w-20 mb-3" />
       <div className="h-8 bg-white/5 rounded w-16" />
     </div>
   )
@@ -417,23 +501,21 @@ export default function Dashboard() {
     staleTime: 30_000,
   })
 
-  const lastUpdated = dataUpdatedAt
-    ? new Date(dataUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    : null
+  const lastUpdated = dataUpdatedAt ? fmtTimeOnly(dataUpdatedAt) : null
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 max-w-7xl mx-auto space-y-5">
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-accent-green">Dashboard</h1>
-          <p className="text-accent-muted text-sm mt-0.5">DFIR Operations Overview</p>
+          <h1 className="text-xl font-bold text-white">Dashboard</h1>
+          <p className="text-accent-muted/50 text-xs mt-0.5">DFIR Operations Overview</p>
         </div>
         <button
           onClick={() => refetch()}
           disabled={isRefetching}
-          className="flex items-center gap-1.5 text-xs text-accent-muted hover:text-foreground transition-colors disabled:opacity-40"
+          className="flex items-center gap-1.5 text-[11px] text-accent-muted/40 hover:text-white transition-colors disabled:opacity-40"
         >
           <RefreshCw size={11} className={isRefetching ? 'animate-spin' : ''} />
           {lastUpdated ? `Updated ${lastUpdated}` : 'Refresh'}
@@ -442,31 +524,41 @@ export default function Dashboard() {
 
       {/* ── KPI Strip ───────────────────────────────────────────────────────── */}
       {isLoading ? (
-        <div className="grid grid-cols-6 gap-3">
-          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        <div className="grid grid-cols-4 md:grid-cols-8 gap-3">
+          {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
         </div>
       ) : stats && (
-        <div className="grid grid-cols-6 gap-3">
+        <div className="grid grid-cols-4 gap-3">
           <KpiCard
             label="Total Cases"
             value={stats.total_cases}
             icon={FolderOpen}
             color="text-accent-green"
-            sub={`${stats.closed_archived} closed`}
+            sub={`${stats.closed_archived} closed · ${stats.active_cases} active`}
           />
           <KpiCard
-            label="Active"
-            value={stats.active_cases}
+            label="This Week"
+            value={stats.cases_this_week}
             icon={Activity}
             color="text-severity-medium"
-            sub="open + in progress"
+            sub="cases opened"
+            trend={<TrendBadge current={stats.cases_this_week} previous={stats.cases_last_week} />}
           />
           <KpiCard
             label="Critical / High"
             value={stats.critical_high}
             icon={AlertTriangle}
             color={stats.critical_high > 0 ? 'text-severity-critical' : 'text-accent-muted'}
+            sub="severity cases"
             dim={stats.critical_high === 0}
+          />
+          <KpiCard
+            label="MTTR"
+            value={stats.mttr_days > 0 ? `${stats.mttr_days}d` : '—'}
+            icon={Timer}
+            color="text-teal-400"
+            sub="mean time to resolve"
+            dim={stats.mttr_days === 0}
           />
           <KpiCard
             label="Total IOCs"
@@ -488,62 +580,89 @@ export default function Dashboard() {
             value={stats.total_evidence}
             icon={FileArchive}
             color="text-blue-400"
-            sub={`${stats.total_events} timeline events`}
+            sub="files collected"
+          />
+          <KpiCard
+            label="Timeline Events"
+            value={stats.total_events}
+            icon={List}
+            color="text-indigo-400"
+            sub={`${stats.total_ttps} TTP${stats.total_ttps !== 1 ? 's' : ''} mapped`}
           />
         </div>
       )}
 
-      {/* ── Row 2: Recent Cases + Case Stats ────────────────────────────────── */}
+      {/* ── Activity Chart ───────────────────────────────────────────────────── */}
+      {stats && (
+        <div className="bg-bg-card border border-white/8 rounded-xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <SectionHeader icon={Activity} title="Case Activity — Last 12 Weeks" />
+            <span className="text-[10px] text-accent-muted/30 font-mono -mt-4">
+              {stats.activity_by_week.reduce((a, b) => a + b.count, 0)} cases opened
+            </span>
+          </div>
+          <ActivityChart weeks={stats.activity_by_week} />
+        </div>
+      )}
+
+      {/* ── Row: Recent Cases + Distribution ────────────────────────────────── */}
       {stats && (
         <div className="grid grid-cols-3 gap-5">
           {/* Recent Cases */}
-          <div className="col-span-2 card p-5">
+          <div className="col-span-2 bg-bg-card border border-white/8 rounded-xl p-5">
             <SectionHeader icon={FolderOpen} title="Recent Cases" />
             <RecentCasesWidget cases={stats.recent_cases} />
           </div>
 
-          {/* Case Status + Severity */}
-          <div className="card p-5">
-            <CaseStatsWidget stats={stats} />
+          {/* Status + Severity donuts */}
+          <div className="bg-bg-card border border-white/8 rounded-xl p-5 space-y-6">
+            <div>
+              <SectionHeader icon={Activity} title="By Status" />
+              <StatusDonut items={stats.by_status} colors={{}} />
+            </div>
+            <div className="border-t border-white/5 pt-5">
+              <SectionHeader icon={Shield} title="By Severity" />
+              <StatusDonut items={stats.by_severity} colors={{}} />
+            </div>
           </div>
         </div>
       )}
 
-      {/* ── Row 3: IOC Types / Asset Health / MITRE Tactics ─────────────────── */}
+      {/* ── Row: IOC / Asset / Analyst ───────────────────────────────────────── */}
       {stats && (
         <div className="grid grid-cols-3 gap-5">
-          {/* IOC Types */}
-          <div className="card p-5">
+          <div className="bg-bg-card border border-white/8 rounded-xl p-5">
             <SectionHeader icon={Crosshair} title={`IOC Breakdown · ${stats.total_iocs}`} />
             <IocTypesWidget data={stats.ioc_by_type} />
           </div>
 
-          {/* Asset Health */}
-          <div className="card p-5">
+          <div className="bg-bg-card border border-white/8 rounded-xl p-5">
             <SectionHeader icon={Server} title={`Asset Health · ${stats.total_assets}`} />
             <AssetHealthWidget stats={stats} />
           </div>
 
-          {/* MITRE Tactics */}
-          <div className="card p-5">
-            <SectionHeader icon={Target} title={`Top ATT&CK Tactics · ${stats.total_ttps}`} />
-            <TopTacticsWidget data={stats.top_tactics} />
+          <div className="bg-bg-card border border-white/8 rounded-xl p-5">
+            <SectionHeader icon={Users} title="Analyst Workload (active)" />
+            <AnalystWidget data={stats.by_analyst} />
           </div>
         </div>
       )}
 
-      {/* ── Row 4: Case Aging + Timeline Feed ───────────────────────────────── */}
+      {/* ── Row: Aging / MITRE / Timeline ───────────────────────────────────── */}
       {stats && (
         <div className="grid grid-cols-3 gap-5">
-          {/* Case Aging */}
-          <div className="card p-5">
-            <SectionHeader icon={Clock} title="Case Aging (Active)" />
-            <CaseAgingWidget buckets={stats.case_aging} avgDays={stats.avg_age_days} />
+          <div className="bg-bg-card border border-white/8 rounded-xl p-5">
+            <SectionHeader icon={Clock} title="Case Aging" />
+            <CaseAgingWidget buckets={stats.case_aging} avgDays={stats.avg_age_days} mttr={stats.mttr_days} />
           </div>
 
-          {/* Timeline Feed */}
-          <div className="col-span-2 card p-5">
-            <SectionHeader icon={List} title={`Recent Timeline Activity · ${stats.total_events} events`} />
+          <div className="bg-bg-card border border-white/8 rounded-xl p-5">
+            <SectionHeader icon={Target} title={`ATT&CK Tactics · ${stats.total_ttps}`} />
+            <TopTacticsWidget data={stats.top_tactics} />
+          </div>
+
+          <div className="bg-bg-card border border-white/8 rounded-xl p-5">
+            <SectionHeader icon={List} title={`Recent Timeline · ${stats.total_events}`} />
             <TimelineFeedWidget events={stats.recent_timeline} />
           </div>
         </div>

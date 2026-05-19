@@ -10,7 +10,7 @@ import {
   Save, Plus, Trash2, Skull, StickyNote, Wand2,
   Clock, Monitor, Shield, Edit2, ChevronDown, ChevronRight,
 } from 'lucide-react'
-import { format } from 'date-fns'
+import { fmtDateTime, fmtCompactShort } from '../../../utils/dateUtils'
 
 import { attackGraphApi } from '../../../api/attackGraph'
 import { timelineApi } from '../../../api/timeline'
@@ -183,7 +183,7 @@ export default function AttackGraphTab({ caseId }: Props) {
       style: { width: W },
       data: {
         label: ev.title,
-        subLabel: format(new Date(ev.event_ts), 'yyyy-MM-dd HH:mm'),
+        subLabel: fmtDateTime(ev.event_ts),
         nodeKind: 'timeline',
         notes: ev.actor ? `Actor: ${ev.actor}` : (ev.description || undefined),
         sourceId: ev.id,
@@ -465,7 +465,7 @@ export default function AttackGraphTab({ caseId }: Props) {
                 <Clock size={11} className="text-accent-green/50 mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] font-mono text-accent-green/60 mb-0.5 leading-none">
-                    {format(new Date(ev.event_ts), 'MM-dd HH:mm')}
+                    {fmtCompactShort(ev.event_ts)}
                   </p>
                   <p className="text-[11px] font-medium text-white/90 leading-snug line-clamp-2">{ev.title}</p>
                   {ev.actor && (

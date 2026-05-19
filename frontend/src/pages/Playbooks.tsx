@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, GitBranch, Edit2, Trash2 } from 'lucide-react'
 import { playbooksApi } from '../api/playbooks'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
-import { format } from 'date-fns'
+import { fmtDate } from '../utils/dateUtils'
 
 export default function Playbooks() {
   const navigate = useNavigate()
@@ -66,7 +66,7 @@ export default function Playbooks() {
                 <p className="text-xs text-accent-muted mt-0.5 line-clamp-2">{pb.description}</p>
               )}
               <p className="text-[10px] text-accent-muted/60 mt-1">
-                {pb.nodes.length} step(s) · Updated {format(new Date(pb.updated_at), 'dd MMM yyyy')}
+                {pb.nodes.length} step(s) · Updated {fmtDate(pb.updated_at)}
               </p>
             </div>
             <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">

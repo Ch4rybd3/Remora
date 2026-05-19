@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Shield } from 'lucide-react'
+import { Plus, Trash2, Shield, Copy, Check, Download } from 'lucide-react'
 import { iocsApi } from '../../../api/iocs'
 import type { IOC, IOCType, IOCConfidence } from '../../../types'
 import Modal from '../../ui/Modal'
 import ConfirmDialog from '../../ui/ConfirmDialog'
 import EmptyState from '../../ui/EmptyState'
+import { defang, exportCsv } from '../../../utils/formatUtils'
 
 // ── Type catalogue ─────────────────────────────────────────────────────────
 
@@ -66,6 +67,37 @@ const TYPE_COLORS: Record<IOCType, string> = {
   other:         'bg-white/5 text-accent-muted border-white/10',
 }
 
+// ── Defanging ──────────────────────────────────────────────────────────────
+
+/** IOC types that support defanging */
+const DEFANGABLE: Set<IOCType> = new Set(['ip', 'domain', 'url'])
+
+/** Small copy button with a brief ✓ feedback tick */
+function CopyBtn({ text, label }: { text: string; label: string }) {
+  const [copied, setCopied] = useState(false)
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }
+  return (
+    <button
+      onClick={handleClick}
+      title={`Copy ${label}: ${text}`}
+      className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] border transition-colors ${
+        copied
+          ? 'border-accent-green/40 text-accent-green bg-accent-green/10'
+          : 'border-white/10 text-accent-muted hover:border-white/25 hover:text-white'
+      }`}
+    >
+      {copied ? <Check size={9} /> : <Copy size={9} />}
+      {label}
+    </button>
+  )
+}
+
 // ── helpers ────────────────────────────────────────────────────────────────
 
 interface Props { caseId: string }
@@ -108,6 +140,22 @@ export default function IOCsTab({ caseId }: Props) {
     },
   })
 
+  const handleExport = () => {
+    exportCsv(
+      `iocs-case-${caseId}.csv`,
+      ['Type', 'Value', 'Defanged Value', 'Confidence', 'TLP', 'Tags', 'Description'],
+      iocs.map(ioc => [
+        IOC_TYPE_MAP[ioc.type]?.label ?? ioc.type,
+        ioc.value,
+        DEFANGABLE.has(ioc.type) ? defang(ioc.value, ioc.type) : '',
+        ioc.confidence,
+        ioc.tlp,
+        ioc.tags ?? '',
+        ioc.description ?? '',
+      ]),
+    )
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -115,9 +163,20 @@ export default function IOCsTab({ caseId }: Props) {
           Indicators of Compromise
           <span className="ml-2 text-accent-muted font-normal normal-case">({iocs.length})</span>
         </h3>
-        <button className="btn-primary text-xs flex items-center gap-1.5" onClick={() => setModalOpen(true)}>
-          <Plus size={13} /> Add IOC
-        </button>
+        <div className="flex items-center gap-2">
+          {iocs.length > 0 && (
+            <button
+              className="btn-secondary text-xs flex items-center gap-1.5"
+              onClick={handleExport}
+              title="Export IOCs as CSV"
+            >
+              <Download size={13} /> CSV
+            </button>
+          )}
+          <button className="btn-primary text-xs flex items-center gap-1.5" onClick={() => setModalOpen(true)}>
+            <Plus size={13} /> Add IOC
+          </button>
+        </div>
       </div>
 
       {iocs.length === 0 ? (
@@ -143,7 +202,17 @@ export default function IOCsTab({ caseId }: Props) {
                       {IOC_TYPE_MAP[ioc.type]?.label ?? ioc.type}
                     </span>
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-white max-w-xs truncate">{ioc.value}</td>
+                  <td className="px-4 py-3 max-w-xs">
+                    <div className="flex items-center gap-2 group/val">
+                      <span className="font-mono text-xs text-white truncate" title={ioc.value}>{ioc.value}</span>
+                      {DEFANGABLE.has(ioc.type) && (
+                        <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/val:opacity-100 transition-opacity">
+                          <CopyBtn text={defang(ioc.value, ioc.type)} label="defanged" />
+                          <CopyBtn text={ioc.value} label="original" />
+                        </div>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-3">
                     <span className={`text-xs font-mono ${confidenceColor[ioc.confidence]}`}>
                       {ioc.confidence}

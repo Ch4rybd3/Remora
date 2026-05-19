@@ -7,10 +7,11 @@ import {
   type Node, type Edge, type OnConnect, type OnNodesChange, type OnEdgesChange,
   type Connection, type ReactFlowInstance,
 } from '@xyflow/react'
-import { ArrowLeft, Save, Plus, Trash2, GitBranch, Wand2, Link2Off } from 'lucide-react'
+import { ArrowLeft, Save, Plus, Trash2, GitBranch, Wand2, Link2Off, ArrowDown, ArrowRight, ImageDown } from 'lucide-react'
 import { playbooksApi, type PlaybookNode, type PlaybookEdge } from '../api/playbooks'
-import { NODE_TYPES } from '../components/playbook/PlaybookNodes'
+import { NODE_TYPES, LayoutDirContext } from '../components/playbook/PlaybookNodes'
 import { applyElkLayout } from '../utils/elkLayout'
+import { renderPlaybookToCanvas } from '../utils/playbookExport'
 import Modal from '../components/ui/Modal'
 import { useEffect } from 'react'
 
@@ -46,6 +47,8 @@ export default function PlaybookEditor() {
   const [nodeForm,    setNodeForm]    = useState({ label: '', description: '' })
   const [initialized, setInitialized] = useState(false)
   const [laying,      setLaying]      = useState(false)
+  const [layoutDir,   setLayoutDir]   = useState<'DOWN' | 'RIGHT'>('DOWN')
+  const [exporting,   setExporting]   = useState(false)
 
   const idCounter  = useRef(1)
   /** Captured ReactFlow instance — used to get viewport center for new nodes. */
@@ -196,12 +199,12 @@ export default function PlaybookEditor() {
 
   // ── ELK auto-layout ───────────────────────────────────────────────────────
 
-  const runLayout = async () => {
+  const runLayout = async (dir: 'DOWN' | 'RIGHT' = layoutDir) => {
     setLaying(true)
     try {
       const laid = await applyElkLayout(nodes, edges, {
-        direction:    'DOWN',
-        layerSpacing: 60,
+        direction:    dir,
+        layerSpacing: dir === 'RIGHT' ? 80 : 60,
         nodeSpacing:  40,
       })
       setNodes(laid)
@@ -210,6 +213,36 @@ export default function PlaybookEditor() {
     } finally {
       setLaying(false)
     }
+  }
+
+  // ── PNG export ────────────────────────────────────────────────────────────
+
+  const exportPng = async () => {
+    const rf = rfInstance.current
+    if (!rf || nodes.length === 0) return
+    setExporting(true)
+    try {
+      const canvas  = renderPlaybookToCanvas(rf.getNodes(), rf.getEdges(), layoutDir)
+      const dataUrl = canvas.toDataURL('image/png')
+      Object.assign(document.createElement('a'), {
+        href:     dataUrl,
+        download: `${name || 'playbook'}.png`,
+      }).click()
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const switchLayout = (dir: 'DOWN' | 'RIGHT') => {
+    setLayoutDir(dir)
+    // Drop sourceHandle/targetHandle overrides so edges reconnect to the
+    // new handle positions automatically after re-layout.
+    setEdges(eds => eds.map(e => ({
+      ...e,
+      sourceHandle: undefined,
+      targetHandle: undefined,
+    })))
+    if (nodes.length > 0) runLayout(dir)
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -236,16 +269,55 @@ export default function PlaybookEditor() {
         />
 
         <div className="ml-auto flex items-center gap-2">
-          {/* Auto-layout */}
+          {/* Export PNG */}
           <button
-            onClick={runLayout}
-            disabled={laying || nodes.length === 0}
+            onClick={exportPng}
+            disabled={exporting || nodes.length === 0}
+            title="Export playbook as PNG image"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-white/10 text-xs text-accent-muted hover:text-white hover:border-white/25 disabled:opacity-40 transition-colors"
-            title="Arrange nodes automatically with ELK layered layout"
           >
-            <Wand2 size={12} />
-            {laying ? 'Laying out…' : 'Auto layout'}
+            <ImageDown size={12} />
+            {exporting ? 'Exporting…' : 'Export PNG'}
           </button>
+
+          {/* Layout direction toggle + apply */}
+          <div className="flex items-center rounded border border-white/10 overflow-hidden">
+            <button
+              onClick={() => switchLayout('DOWN')}
+              disabled={laying || nodes.length === 0}
+              title="Vertical layout (top → bottom)"
+              className={`flex items-center gap-1 px-2.5 py-1.5 text-xs transition-colors disabled:opacity-40 ${
+                layoutDir === 'DOWN'
+                  ? 'bg-accent-green/10 text-accent-green'
+                  : 'text-accent-muted hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <ArrowDown size={12} />
+            </button>
+            <div className="w-px h-4 bg-white/10" />
+            <button
+              onClick={() => switchLayout('RIGHT')}
+              disabled={laying || nodes.length === 0}
+              title="Horizontal layout (left → right)"
+              className={`flex items-center gap-1 px-2.5 py-1.5 text-xs transition-colors disabled:opacity-40 ${
+                layoutDir === 'RIGHT'
+                  ? 'bg-accent-green/10 text-accent-green'
+                  : 'text-accent-muted hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <ArrowRight size={12} />
+            </button>
+            <div className="w-px h-4 bg-white/10" />
+            <button
+              onClick={() => runLayout()}
+              disabled={laying || nodes.length === 0}
+              title="Re-apply auto layout"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-accent-muted hover:text-white hover:bg-white/5 transition-colors disabled:opacity-40"
+            >
+              <Wand2 size={12} />
+              {laying ? 'Laying out…' : 'Auto layout'}
+            </button>
+          </div>
 
           {selectedNode && (
             <>
@@ -298,6 +370,7 @@ export default function PlaybookEditor() {
 
         {/* ── Canvas ──────────────────────────────────────────────────── */}
         <div ref={canvasRef} className="flex-1 bg-bg-primary">
+          <LayoutDirContext.Provider value={layoutDir}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -321,6 +394,7 @@ export default function PlaybookEditor() {
             <Controls />
             <MiniMap nodeColor={() => '#9FEF00'} />
           </ReactFlow>
+          </LayoutDirContext.Provider>
         </div>
       </div>
 

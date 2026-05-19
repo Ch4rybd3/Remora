@@ -34,7 +34,7 @@ import { playbooksApi, type CasePlaybook }                   from '../../../api/
 import { NODE_TYPES }                                        from '../../playbook/PlaybookNodes'
 import MarkdownEditor                                        from '../../ui/MarkdownEditor'
 import type { Case }                                         from '../../../types'
-import { formatDistanceToNow, format }                       from 'date-fns'
+import { fmtRelative, fmtDateTime }                          from '../../../utils/dateUtils'
 
 interface Props { case_: Case }
 
@@ -74,8 +74,8 @@ function VersionCard({
       <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-accent-green/10 text-accent-green border border-accent-green/20 shrink-0">
         v{v.version}
       </span>
-      <span className="text-[10px] text-white/60 flex-1 truncate" title={format(new Date(v.created_at), 'dd MMM yyyy HH:mm:ss')}>
-        {formatDistanceToNow(new Date(v.created_at), { addSuffix: true })}
+      <span className="text-[10px] text-white/60 flex-1 truncate" title={fmtDateTime(v.created_at)}>
+        {fmtRelative(v.created_at)}
       </span>
       {v.created_by && (
         <span className="flex items-center gap-1 text-[9px] text-accent-muted/40">

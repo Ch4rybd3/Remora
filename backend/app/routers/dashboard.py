@@ -5,7 +5,7 @@ Returns aggregated metrics across all cases, IOCs, assets, evidence, timeline an
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -64,6 +64,13 @@ class DashboardStats(BaseModel):
     closed_archived: int
     avg_age_days:    float
 
+    # Trend (this week vs last week)
+    cases_this_week: int
+    cases_last_week: int
+
+    # MTTR (mean time to resolve, recent closed cases)
+    mttr_days: float
+
     # Raw entity counts
     total_iocs:      int
     total_assets:    int
@@ -81,6 +88,10 @@ class DashboardStats(BaseModel):
     evidence_by_type: list[KVCount]
     top_tactics: list[KVCount]
     case_aging:  list[AgingBucket]
+    by_analyst:  list[KVCount]
+
+    # Activity sparkline — 12 weekly buckets (oldest first)
+    activity_by_week: list[KVCount]
 
     # Feeds
     recent_cases:    list[RecentCase]
@@ -165,6 +176,49 @@ def get_dashboard_stats(
         AgingBucket(label="7 – 30 days",count=age_7_30,  max_days=30),
         AgingBucket(label="> 30 days",  count=age_gt30,  max_days=999),
     ]
+
+    # ── Trend: this week vs last week ─────────────────────────────────────────
+    one_week_ago  = now - timedelta(days=7)
+    two_weeks_ago = now - timedelta(days=14)
+    cases_this_week = sum(1 for c in all_cases if _to_utc(c.created_at) >= one_week_ago)
+    cases_last_week = sum(1 for c in all_cases if two_weeks_ago <= _to_utc(c.created_at) < one_week_ago)
+
+    # ── MTTR (mean time to resolve) ────────────────────────────────────────────
+    closed_cases = [
+        c for c in all_cases
+        if (c.status.value if hasattr(c.status, "value") else str(c.status)) in ("closed", "archived")
+    ]
+    if closed_cases:
+        # Use updated_at as a proxy for close date (best approximation without a closed_at column)
+        durations = [
+            max(0, (_to_utc(c.updated_at) - _to_utc(c.created_at)).days)
+            for c in closed_cases[-50:]  # last 50 closed
+        ]
+        mttr_days = round(sum(durations) / len(durations), 1)
+    else:
+        mttr_days = 0.0
+
+    # ── Weekly activity (last 12 weeks) ────────────────────────────────────────
+    activity_by_week: list[KVCount] = []
+    for w in range(11, -1, -1):
+        week_start = now - timedelta(weeks=w + 1)
+        week_end   = now - timedelta(weeks=w)
+        cnt = sum(1 for c in all_cases if week_start <= _to_utc(c.created_at) < week_end)
+        activity_by_week.append(KVCount(key=week_start.strftime("%b %d"), count=cnt))
+
+    # ── Analyst workload ───────────────────────────────────────────────────────
+    analyst_map: dict[str, int] = {}
+    for c in all_cases:
+        s = c.status.value if hasattr(c.status, "value") else str(c.status)
+        if s not in ("closed", "archived"):
+            for a in (c.assigned_to or "").split(","):
+                a = a.strip()
+                if a and a != "—":
+                    analyst_map[a] = analyst_map.get(a, 0) + 1
+    by_analyst = sorted(
+        [KVCount(key=k, count=v) for k, v in analyst_map.items()],
+        key=lambda x: -x.count,
+    )[:8]
 
     # ── Recent cases feed (last 8, with counts pre-loaded via relationship) ────
     recent_raw = all_cases[:8]
@@ -267,6 +321,9 @@ def get_dashboard_stats(
         critical_high=critical_high,
         closed_archived=closed_archived,
         avg_age_days=round(avg_age, 1),
+        cases_this_week=cases_this_week,
+        cases_last_week=cases_last_week,
+        mttr_days=mttr_days,
         total_iocs=total_iocs,
         total_assets=total_assets,
         compromised_assets=compromised_assets,
@@ -281,6 +338,8 @@ def get_dashboard_stats(
         evidence_by_type=evidence_by_type,
         top_tactics=top_tactics,
         case_aging=case_aging,
+        by_analyst=by_analyst,
+        activity_by_week=activity_by_week,
         recent_cases=recent_cases,
         recent_timeline=recent_timeline,
     )

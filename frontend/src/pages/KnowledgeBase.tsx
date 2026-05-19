@@ -23,6 +23,7 @@ import {
   BookOpen, Package, FileType,
 } from 'lucide-react'
 import { vaultApi, type VaultEntry } from '../api/vault'
+import { fmtDate } from '../utils/dateUtils'
 
 // ── Vault type detection ───────────────────────────────────────────────────────
 
@@ -87,13 +88,9 @@ const ICON_BG: Record<VaultType, string> = {
   other:       'bg-white/5       border-white/10      text-accent-muted',
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+import { fmtBytes as fmtSize } from '../utils/formatUtils'
 
-function fmtSize(bytes: number): string {
-  if (bytes < 1024)          return `${bytes} B`
-  if (bytes < 1024 * 1024)   return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
 function parseTags(raw: string): string[] {
   return raw.split(',').map(t => t.trim()).filter(Boolean)
@@ -172,7 +169,7 @@ function VaultMetaHeader({ vault }: { vault: VaultEntry }) {
           </div>
         )}
         <p className="text-[10px] text-accent-muted/30 mt-2">
-          Importé par {vault.created_by ?? '—'} · {new Date(vault.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
+          Importé par {vault.created_by ?? '—'} · {fmtDate(vault.created_at)}
         </p>
       </div>
     </div>

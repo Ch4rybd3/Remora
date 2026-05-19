@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { auditApi, type AuditFilters, type AuditLogEntry } from '../api/audit'
+import { fmtDateTime } from '../utils/dateUtils'
 import {
   Search, ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
   Filter, X, RefreshCw, Shield,
@@ -27,19 +28,6 @@ function actionColor(action: string): string {
   return ACTION_COLORS[prefix] ?? 'bg-white/5 text-accent-muted border-white/10'
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function fmtDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString('fr-FR', {
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit',
-    })
-  } catch {
-    return iso
-  }
-}
-
 // ── Row detail panel ─────────────────────────────────────────────────────────
 
 function DetailPanel({ entry, onClose }: { entry: AuditLogEntry; onClose: () => void }) {
@@ -55,7 +43,7 @@ function DetailPanel({ entry, onClose }: { entry: AuditLogEntry; onClose: () => 
       </div>
       <div className="grid grid-cols-2 gap-x-8 gap-y-1.5">
         {[
-          ['Timestamp',      fmtDate(entry.timestamp)],
+          ['Timestamp',      fmtDateTime(entry.timestamp)],
           ['Utilisateur',    entry.username ?? '—'],
           ['Rôle',           entry.user_role ?? '—'],
           ['Action',         entry.action],
@@ -355,7 +343,7 @@ export default function AuditLog() {
                   }`}
                 >
                   <td className="px-4 py-2 font-mono text-accent-muted whitespace-nowrap">
-                    {fmtDate(entry.timestamp)}
+                    {fmtDateTime(entry.timestamp)}
                   </td>
                   <td className="px-4 py-2 text-white whitespace-nowrap">
                     {entry.username ?? <span className="text-accent-muted/40 italic">système</span>}

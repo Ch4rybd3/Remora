@@ -12,23 +12,15 @@ import {
 import { timelineApi } from '../../api/timeline'
 import type { PinnedMftEntry } from '../../api/mft'
 import type { PinnedUsnEntry } from '../../api/usn'
+import { fmtDateTime } from '../../utils/dateUtils'
+import { fmtBytes } from '../../utils/formatUtils'
 
 export type PinnedFsEntry = PinnedMftEntry | PinnedUsnEntry
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmtTs(s: string | null): string {
-  if (!s) return '—'
-  try { return new Date(s).toISOString().replace('T', ' ').slice(0, 19) } catch { return s }
-}
+function fmtTs(s: string | null): string { return fmtDateTime(s) }
 
-function fmtBytes(n: number | null): string {
-  if (n === null || n === undefined) return '—'
-  if (n < 1024) return `${n} B`
-  if (n < 1048576) return `${(n / 1024).toFixed(1)} KB`
-  if (n < 1073741824) return `${(n / 1048576).toFixed(1)} MB`
-  return `${(n / 1073741824).toFixed(2)} GB`
-}
 
 function buildTitle(entry: PinnedFsEntry): string {
   if (entry._sourceType === 'mft') {

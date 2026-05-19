@@ -6,21 +6,10 @@ import {
   AlertCircle, Tag, Package,
 } from 'lucide-react'
 import { vaultApi, type VaultEntry, type VaultPatch } from '../api/vault'
+import { fmtDateTimeShort } from '../utils/dateUtils'
+import { fmtBytes as fmtSize } from '../utils/formatUtils'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-function fmtSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-FR', {
-    day: '2-digit', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  })
-}
 
 function parseTags(raw: string): string[] {
   return raw.split(',').map(t => t.trim()).filter(Boolean)
@@ -156,7 +145,7 @@ function VaultCard({
           <p className="text-[10px] text-accent-muted/30 mt-1">
             {vault.file_name}
             {' · '}
-            Importé le {fmtDate(vault.created_at)}
+            Importé le {fmtDateTimeShort(vault.created_at)}
             {vault.created_by ? ` par ${vault.created_by}` : ''}
           </p>
         </div>

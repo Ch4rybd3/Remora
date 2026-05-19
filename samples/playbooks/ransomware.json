@@ -1,0 +1,129 @@
+{
+  "name": "Ransomware Response",
+  "description": "Standard response playbook for ransomware incidents — from initial detection through recovery and hardening.",
+  "nodes": [
+    {
+      "id": "n-start",
+      "type": "start",
+      "position": { "x": 260, "y": 0 },
+      "data": { "label": "Incident Declared" }
+    },
+    {
+      "id": "n-isolate",
+      "type": "step",
+      "position": { "x": 180, "y": 100 },
+      "data": {
+        "label": "Isolate Affected Systems",
+        "description": "Disconnect infected hosts from the network (unplug cable / disable NIC). Do NOT power off — volatile memory may contain decryption keys."
+      }
+    },
+    {
+      "id": "n-identify",
+      "type": "step",
+      "position": { "x": 180, "y": 220 },
+      "data": {
+        "label": "Identify Ransomware Variant",
+        "description": "Collect ransom note, encrypted file extension, and sample. Cross-reference with ID Ransomware / No More Ransom."
+      }
+    },
+    {
+      "id": "n-evidence",
+      "type": "step",
+      "position": { "x": 180, "y": 340 },
+      "data": {
+        "label": "Preserve Forensic Evidence",
+        "description": "Capture memory dump, disk image, and Windows event logs before any remediation. Hash all images."
+      }
+    },
+    {
+      "id": "n-scope",
+      "type": "step",
+      "position": { "x": 180, "y": 460 },
+      "data": {
+        "label": "Determine Blast Radius",
+        "description": "Identify all encrypted shares, lateral movement paths, and compromised accounts. Map patient-zero host."
+      }
+    },
+    {
+      "id": "n-dec-backup",
+      "type": "decision",
+      "position": { "x": 180, "y": 580 },
+      "data": { "label": "Clean backup available?" }
+    },
+    {
+      "id": "n-restore",
+      "type": "step",
+      "position": { "x": 60, "y": 700 },
+      "data": {
+        "label": "Restore from Backup",
+        "description": "Validate backup integrity before restoration. Restore to a clean rebuild, not the infected OS."
+      }
+    },
+    {
+      "id": "n-decrypt",
+      "type": "step",
+      "position": { "x": 360, "y": 700 },
+      "data": {
+        "label": "Assess Decryption Options",
+        "description": "Check No More Ransom for a free decryptor. Engage vendor support. Evaluate ransom payment risk with Legal."
+      }
+    },
+    {
+      "id": "n-eradicate",
+      "type": "step",
+      "position": { "x": 180, "y": 840 },
+      "data": {
+        "label": "Eradicate & Rebuild",
+        "description": "Wipe and rebuild all infected hosts from golden images. Rotate all credentials. Revoke compromised certificates."
+      }
+    },
+    {
+      "id": "n-notify",
+      "type": "step",
+      "position": { "x": 180, "y": 960 },
+      "data": {
+        "label": "Notify Stakeholders",
+        "description": "Brief management, legal, and communications. Assess regulatory notification obligations (GDPR, etc.)."
+      }
+    },
+    {
+      "id": "n-harden",
+      "type": "step",
+      "position": { "x": 180, "y": 1080 },
+      "data": {
+        "label": "Harden & Monitor",
+        "description": "Apply patches, enforce MFA, review firewall rules and backup strategy. Deploy EDR on rebuilt hosts. Monitor for re-infection."
+      }
+    },
+    {
+      "id": "n-lessons",
+      "type": "step",
+      "position": { "x": 180, "y": 1200 },
+      "data": {
+        "label": "Post-Incident Review",
+        "description": "Conduct root-cause analysis. Document timeline, impact, and remediation. Update IR playbooks and tabletops."
+      }
+    },
+    {
+      "id": "n-end",
+      "type": "end",
+      "position": { "x": 260, "y": 1320 },
+      "data": { "label": "Case Closed" }
+    }
+  ],
+  "edges": [
+    { "id": "e1",  "source": "n-start",      "target": "n-isolate",    "type": "smoothstep", "animated": true },
+    { "id": "e2",  "source": "n-isolate",    "target": "n-identify",   "type": "smoothstep", "animated": true },
+    { "id": "e3",  "source": "n-identify",   "target": "n-evidence",   "type": "smoothstep", "animated": true },
+    { "id": "e4",  "source": "n-evidence",   "target": "n-scope",      "type": "smoothstep", "animated": true },
+    { "id": "e5",  "source": "n-scope",      "target": "n-dec-backup", "type": "smoothstep", "animated": true },
+    { "id": "e6",  "source": "n-dec-backup", "target": "n-restore",    "type": "smoothstep", "animated": true, "sourceHandle": "yes", "label": "Yes" },
+    { "id": "e7",  "source": "n-dec-backup", "target": "n-decrypt",    "type": "smoothstep", "animated": true, "sourceHandle": "no",  "label": "No" },
+    { "id": "e8",  "source": "n-restore",    "target": "n-eradicate",  "type": "smoothstep", "animated": true },
+    { "id": "e9",  "source": "n-decrypt",    "target": "n-eradicate",  "type": "smoothstep", "animated": true },
+    { "id": "e10", "source": "n-eradicate",  "target": "n-notify",     "type": "smoothstep", "animated": true },
+    { "id": "e11", "source": "n-notify",     "target": "n-harden",     "type": "smoothstep", "animated": true },
+    { "id": "e12", "source": "n-harden",     "target": "n-lessons",    "type": "smoothstep", "animated": true },
+    { "id": "e13", "source": "n-lessons",    "target": "n-end",        "type": "smoothstep", "animated": true }
+  ]
+}

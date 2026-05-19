@@ -5,7 +5,8 @@ import {
   Upload, Trash2, RotateCcw, Loader2, AlertTriangle, CheckCircle2,
 } from 'lucide-react'
 import { registryApi, type RegistryFile } from '../../api/registry'
-import { format } from 'date-fns'
+import { fmtDateTimeShort } from '../../utils/dateUtils'
+import { fmtDuration } from '../../utils/formatUtils'
 
 interface Props {
   caseId:         string
@@ -48,7 +49,7 @@ function StatusBadge({ f }: { f: RegistryFile }) {
         </span>
         {f.parse_duration_seconds != null && (
           <span className="text-[8px] text-accent-muted/35">
-            parsed in {f.parse_duration_seconds}s
+            parsed in {fmtDuration(f.parse_duration_seconds)}
           </span>
         )}
       </div>
@@ -83,12 +84,6 @@ function StatusBadge({ f }: { f: RegistryFile }) {
   return null
 }
 
-function fmtDuration(s: number) {
-  if (s < 60) return `${s}s`
-  const m = Math.floor(s / 60), r = s % 60
-  return r > 0 ? `${m}m ${r}s` : `${m}m`
-}
-
 // ── File row ──────────────────────────────────────────────────────────────────
 
 function FileRow({
@@ -117,7 +112,7 @@ function FileRow({
           </p>
           <StatusBadge f={f} />
           <p className="text-[8px] text-accent-muted/25">
-            {format(new Date(f.uploaded_at), 'dd MMM yyyy HH:mm')}
+            {fmtDateTimeShort(f.uploaded_at)}
           </p>
         </div>
         <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">

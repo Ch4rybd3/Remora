@@ -7,7 +7,7 @@ from typing import Optional
 
 from fastapi import APIRouter, UploadFile, File
 
-from ..schemas.email_analysis import EmailAnalysisResult, HeaderItem, AttachmentItem
+from ..schemas.email_analysis import EmailAnalysisResult, HeaderItem, AttachmentItem, EmailWarning
 
 router = APIRouter(prefix="/artifacts/email", tags=["artifacts"])
 
@@ -64,6 +64,127 @@ _HREF_RE = re.compile(r'(?:href|src)=["\']?(https?://[^\s"\'<>]+)', re.IGNORECAS
 
 # Email address extraction
 _EMAIL_RE = re.compile(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}')
+
+
+_EMAIL_ADDR_RE = re.compile(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}')
+
+def _extract_email(raw: str) -> str:
+    """Extract the bare email address from a header like 'Display Name <addr@domain>'."""
+    m = _EMAIL_ADDR_RE.search(raw)
+    return m.group(0).lower() if m else raw.strip().lower()
+
+def _domain(addr: str) -> str:
+    """Return the domain part of an email address (lowercased)."""
+    return addr.split('@', 1)[-1] if '@' in addr else ''
+
+def _compute_warnings(
+    from_raw: str,
+    reply_to_raw: str,
+    return_path_raw: str,
+    all_headers: list[HeaderItem],
+) -> list[EmailWarning]:
+    warnings: list[EmailWarning] = []
+
+    from_email   = _extract_email(from_raw)
+    from_domain  = _domain(from_email)
+
+    # ── 1. Reply-To ≠ From ────────────────────────────────────────────────────
+    if reply_to_raw:
+        rt_email  = _extract_email(reply_to_raw)
+        rt_domain = _domain(rt_email)
+        if rt_email and rt_email != from_email:
+            level = "critical" if rt_domain != from_domain else "high"
+            warnings.append(EmailWarning(
+                level=level,
+                title="Reply-To differs from From",
+                detail=(
+                    f"Replies will be sent to {rt_email} instead of {from_email}. "
+                    "This is a classic phishing technique — the victim responds to the attacker's address "
+                    "while the email appears to come from a legitimate sender."
+                ),
+            ))
+
+    # ── 2. Return-Path domain ≠ From domain ───────────────────────────────────
+    if return_path_raw:
+        rp_email  = _extract_email(return_path_raw)
+        rp_domain = _domain(rp_email)
+        if rp_domain and from_domain and rp_domain != from_domain:
+            warnings.append(EmailWarning(
+                level="high",
+                title="Return-Path domain differs from From domain",
+                detail=(
+                    f"From domain: {from_domain} — Return-Path domain: {rp_domain}. "
+                    "A mismatch often indicates spoofing or third-party relay abuse. "
+                    "Cross-check with SPF and DMARC results."
+                ),
+            ))
+
+    # Build a quick lookup of header values by name (lowercase)
+    header_map: dict[str, list[str]] = {}
+    for h in all_headers:
+        header_map.setdefault(h.name.lower(), []).append(h.value.lower())
+
+    # ── 3. SPF fail / softfail ───────────────────────────────────────────────
+    spf_values = header_map.get('received-spf', []) + header_map.get('authentication-results', [])
+    spf_fail   = any(('spf=fail' in v or 'spf=softfail' in v) for v in spf_values)
+    spf_none   = any('spf=none' in v for v in header_map.get('authentication-results', []))
+    if spf_fail:
+        warnings.append(EmailWarning(
+            level="high",
+            title="SPF check failed",
+            detail=(
+                "The sending server is not authorised to send email on behalf of the From domain. "
+                "'fail' means a hard SPF failure (spoofing detected). "
+                "'softfail' is a softer indication but still suspicious."
+            ),
+        ))
+    elif spf_none:
+        warnings.append(EmailWarning(
+            level="medium",
+            title="SPF record missing (SPF=none)",
+            detail=(
+                f"The domain {from_domain} has no SPF record published in DNS. "
+                "Anyone can send email appearing to come from this domain without authentication."
+            ),
+        ))
+
+    # ── 4. DKIM fail / missing ────────────────────────────────────────────────
+    auth_results = ' '.join(header_map.get('authentication-results', []))
+    dkim_headers = header_map.get('dkim-signature', [])
+    if 'dkim=fail' in auth_results:
+        warnings.append(EmailWarning(
+            level="high",
+            title="DKIM signature invalid",
+            detail=(
+                "The DKIM signature failed verification. "
+                "This means the message body or signed headers were tampered with after signing, "
+                "or the signature was forged."
+            ),
+        ))
+    elif not dkim_headers and 'dkim=pass' not in auth_results:
+        warnings.append(EmailWarning(
+            level="medium",
+            title="No DKIM signature",
+            detail=(
+                "This email has no DKIM signature. "
+                "Without DKIM, it is impossible to verify that the message was not modified in transit "
+                "or that it was genuinely sent by the stated domain."
+            ),
+        ))
+
+    # ── 5. DMARC fail ────────────────────────────────────────────────────────
+    if 'dmarc=fail' in auth_results:
+        warnings.append(EmailWarning(
+            level="critical",
+            title="DMARC policy failed",
+            detail=(
+                "DMARC validation failed — neither SPF nor DKIM alignment passed. "
+                "The domain owner's published policy was violated. "
+                "This strongly suggests spoofing or a misconfigured legitimate sender."
+            ),
+        ))
+
+    return warnings
 
 
 def _extract_urls(text: str) -> list[str]:
@@ -166,15 +287,24 @@ async def analyze_email(file: UploadFile = File(...)):
                 sha256=sha256,
             ))
 
+    from_addr    = _decode_header_value(str(msg.get("From",        "") or "")).strip()
+    reply_to     = _decode_header_value(str(msg.get("Reply-To",   "") or "")).strip()
+    return_path  = _decode_header_value(str(msg.get("Return-Path","") or "")).strip()
+
+    warnings = _compute_warnings(from_addr, reply_to, return_path, all_headers)
+
     return EmailAnalysisResult(
         subject=_decode_header_value(str(msg.get("Subject", "") or "")).strip(),
-        from_addr=_decode_header_value(str(msg.get("From", "") or "")).strip(),
+        from_addr=from_addr,
         to_addr=_decode_header_value(str(msg.get("To", "") or "")).strip(),
+        reply_to=reply_to,
+        return_path=return_path,
         date=_decode_header_value(str(msg.get("Date", "") or "")).strip(),
         key_headers=key_headers,
         all_headers=all_headers,
         urls=urls,
         attachments=attachments,
+        warnings=warnings,
         body_plain=body_plain or None,
         body_html=body_html or None,
     )

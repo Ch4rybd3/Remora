@@ -5,7 +5,8 @@ import {
   AlertTriangle, Filter, X, ArrowUpDown, BookmarkPlus, BookmarkCheck,
 } from 'lucide-react'
 import { mftApi, type MftEntry, type MftSummary } from '../../api/mft'
-import { format } from 'date-fns'
+import { fmtDateTime, fmtCompact } from '../../utils/dateUtils'
+import { fmtBytes } from '../../utils/formatUtils'
 
 interface Props {
   caseId:    string
@@ -18,24 +19,9 @@ interface Props {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmtBytes(n: number | null): string {
-  if (n === null || n === undefined) return '—'
-  if (n === 0) return '0 B'
-  if (n < 1024) return `${n} B`
-  if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`
-  if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(1)} MB`
-  return `${(n / 1024 ** 3).toFixed(2)} GB`
-}
 
-function fmtTs(s: string | null): string {
-  if (!s) return '—'
-  try { return format(new Date(s), 'yyyy-MM-dd HH:mm:ss') } catch { return s }
-}
-
-function fmtTsShort(s: string | null): string {
-  if (!s) return '—'
-  try { return format(new Date(s), 'MM-dd HH:mm:ss') } catch { return s }
-}
+function fmtTs(s: string | null): string { return fmtDateTime(s) }
+function fmtTsShort(s: string | null): string { return fmtCompact(s) }
 
 // ── Time-field selector ───────────────────────────────────────────────────────
 

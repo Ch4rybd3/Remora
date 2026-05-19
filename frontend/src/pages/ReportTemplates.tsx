@@ -5,21 +5,10 @@ import {
   ChevronDown, ChevronUp, X, Check, AlertCircle,
 } from 'lucide-react'
 import { reportDocTemplatesApi, type ReportDocTemplate } from '../api/reportDocTemplates'
+import { fmtDateTimeShort } from '../utils/dateUtils'
+import { fmtBytes as fmtSize } from '../utils/formatUtils'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-function fmtSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('fr-FR', {
-    day: '2-digit', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  })
-}
 
 // ── Format badge ───────────────────────────────────────────────────────────────
 
@@ -82,7 +71,7 @@ function TemplateCard({
             <p className="text-xs text-accent-muted mt-0.5">{tpl.description}</p>
           )}
           <p className="text-[10px] text-accent-muted/30 mt-1">
-            Imported {fmtDate(tpl.created_at)}{tpl.created_by ? ` by ${tpl.created_by}` : ''}
+            Imported {fmtDateTimeShort(tpl.created_at)}{tpl.created_by ? ` by ${tpl.created_by}` : ''}
           </p>
         </div>
 

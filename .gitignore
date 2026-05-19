@@ -1,25 +1,42 @@
-# Python
+# ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *.pyo
-.venv/
 *.egg-info/
 dist/
 .env
 
-# Runtime data — DB, evidences, EVTX uploads, memory dumps, knowledge base, note images
-# Nothing in data/ should ever be committed
-data/*
-# Keep the placeholder so the folder exists on a fresh clone
-!data/.gitkeep
+# Virtual environments
+.venv/
+backend/.venv/
 
-# Node
+# ── Runtime data ──────────────────────────────────────────────────────────────
+# data/ holds the SQLite DB, uploaded forensic files, evidence, memory dumps,
+# knowledge vaults, note images — none of this should ever be committed.
+data/*
+# Allow directory placeholders so the folder structure survives a fresh clone
+!data/.gitkeep
+!data/*/.gitkeep
+
+# Databases (belt-and-suspenders in case files escape data/)
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+
+# ── Sample / template content (ALWAYS committed) ──────────────────────────────
+# templates/ — case template YAML files shipped with the platform
+# samples/   — sample playbooks, demo cases, example vaults
+# These directories must remain trackable; do NOT add them here.
+
+# ── Node ──────────────────────────────────────────────────────────────────────
 node_modules/
 frontend/dist/
 frontend/.vite/
 
-# IDE
+# ── IDE & OS ──────────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 .DS_Store
+Thumbs.db

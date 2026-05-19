@@ -8,6 +8,7 @@ import {
 import { evtxApi, type EvtxFile } from '../../api/evtx'
 import { chainsawApi, type ChainsawScan, type ChainsawAlert, type PinnedChainsawAlert } from '../../api/chainsaw'
 import { timelineApi } from '../../api/timeline'
+import { fmtDateTime, fmtDateTimeShort } from '../../utils/dateUtils'
 
 interface Props { caseId: string }
 
@@ -226,7 +227,7 @@ function AlertRow({
         </td>
         {/* Timestamp */}
         <td className="px-2 py-2 w-36 text-[10px] font-mono text-accent-muted/70 whitespace-nowrap cursor-pointer" onClick={() => setOpen(o => !o)}>
-          {ts ? ts.toISOString().replace('T', ' ').slice(0, 19) : '—'}
+          {ts ? fmtDateTime(ts.toISOString()) : '—'}
         </td>
         {/* Rule */}
         <td className="px-2 py-2 text-[11px] text-white/90 cursor-pointer" onClick={() => setOpen(o => !o)}>
@@ -353,7 +354,7 @@ function SelectionPanel({
         )}
         {alerts.map(a => {
           const isSent = sentIds.has(a.id)
-          const ts = a.timestamp ? new Date(a.timestamp).toISOString().replace('T', ' ').slice(0, 16) : null
+          const ts = a.timestamp ? fmtDateTimeShort(a.timestamp) : null
           return (
             <div key={a.id} className="px-3 py-2.5">
               <div className="flex items-start gap-1.5 mb-1.5">

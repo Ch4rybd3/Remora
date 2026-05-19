@@ -7,7 +7,7 @@ import { assetsApi } from '../../../api/assets'
 import type { TimelineEvent, IOC, Asset } from '../../../types'
 import type { Suggestion } from '../../ui/SuggestInput'
 import type { InputTag } from '../../ui/TagInput'
-import { format } from 'date-fns'
+import { fmtDateTime } from '../../../utils/dateUtils'
 import Modal from '../../ui/Modal'
 import ConfirmDialog from '../../ui/ConfirmDialog'
 import EmptyState from '../../ui/EmptyState'
@@ -171,7 +171,7 @@ export default function TimelineTab({ caseId }: Props) {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
                           <span className="text-xs font-mono text-accent-green shrink-0">
-                            {format(new Date(ev.event_ts), 'yyyy-MM-dd HH:mm:ss')} UTC
+                            {fmtDateTime(ev.event_ts)}
                           </span>
                           {ev.source && (
                             <span className="text-xs text-accent-muted/60 shrink-0">via {ev.source}</span>

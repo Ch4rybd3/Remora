@@ -18,7 +18,7 @@ import TimelineTab from '../components/case/tabs/TimelineTab'
 import AttackGraphTab from '../components/case/tabs/AttackGraphTab'
 import MitreTab from '../components/case/tabs/MitreTab'
 import { useCurrentCase } from '../context/CurrentCaseContext'
-import { format } from 'date-fns'
+import { fmtDateTimeShort } from '../utils/dateUtils'
 
 type Tab = 'summary' | 'playbook' | 'report' | 'iocs' | 'assets' | 'evidences' | 'timeline' | 'attack_graph' | 'mitre'
 
@@ -145,8 +145,8 @@ export default function CaseDetail() {
               )}
             </div>
             <p className="text-xs text-accent-muted/60 mt-1">
-              Created {format(new Date(case_.created_at), 'dd MMM yyyy HH:mm')} ·
-              Updated {format(new Date(case_.updated_at), 'dd MMM yyyy HH:mm')}
+              Created {fmtDateTimeShort(case_.created_at)} ·
+              Updated {fmtDateTimeShort(case_.updated_at)}
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">

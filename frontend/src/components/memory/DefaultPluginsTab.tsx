@@ -4,7 +4,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { memoryApi, type MemoryPluginResult } from '../../api/memory'
-import { formatDistanceToNow } from 'date-fns'
+import { fmtRelative } from '../../utils/dateUtils'
 
 // ── Status chip ────────────────────────────────────────────────────────────────
 
@@ -60,7 +60,7 @@ function PluginCard({
         </span>
         {plugin.completed_at && (
           <span className="text-[9px] text-accent-muted/30">
-            {formatDistanceToNow(new Date(plugin.completed_at), { addSuffix: true })}
+            {fmtRelative(plugin.completed_at)}
           </span>
         )}
         <button

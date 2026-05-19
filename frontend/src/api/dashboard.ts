@@ -40,6 +40,10 @@ export interface DashboardStats {
   closed_archived: number
   avg_age_days: number
 
+  cases_this_week: number
+  cases_last_week: number
+  mttr_days: number
+
   total_iocs: number
   total_assets: number
   compromised_assets: number
@@ -55,6 +59,8 @@ export interface DashboardStats {
   evidence_by_type: KVCount[]
   top_tactics: KVCount[]
   case_aging: AgingBucket[]
+  by_analyst: KVCount[]
+  activity_by_week: KVCount[]
 
   recent_cases: RecentCase[]
   recent_timeline: RecentEvent[]

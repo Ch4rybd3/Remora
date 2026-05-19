@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Play, RotateCcw, ChevronDown, ChevronUp, Terminal, AlertCircle, Loader2, CheckCircle2, Clock } from 'lucide-react'
 import { memoryApi, type MemoryPluginResult } from '../../api/memory'
-import { formatDistanceToNow } from 'date-fns'
+import { fmtRelative } from '../../utils/dateUtils'
 
 // ── Plugin catalog ─────────────────────────────────────────────────────────────
 
@@ -156,7 +156,7 @@ function HistoryCard({ p, caseId, dumpId }: { p: MemoryPluginResult; caseId: str
         )}
         {p.completed_at && (
           <span className="text-[9px] text-accent-muted/30 shrink-0">
-            {formatDistanceToNow(new Date(p.completed_at), { addSuffix: true })}
+            {fmtRelative(p.completed_at)}
           </span>
         )}
         <button
