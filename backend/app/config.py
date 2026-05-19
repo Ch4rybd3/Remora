@@ -1,10 +1,39 @@
 import secrets
+from typing import Any, Tuple, Type
 from pydantic import field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, EnvSettingsSource, PydanticBaseSettingsSource
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
+
+# ── Custom env source ─────────────────────────────────────────────────────────
+# pydantic-settings v2 tries json.loads() on list[str] fields before validators
+# run, which crashes on plain comma-separated values like "http://a,http://b".
+# This subclass handles cors_origins by splitting on commas instead of JSON.
+
+class _CorsAwareEnvSource(EnvSettingsSource):
+    def decode_complex_value(
+        self, field_name: str, field_type: Any, value: str
+    ) -> Any:
+        if field_name == "cors_origins":
+            stripped = value.strip()
+            if stripped.startswith("["):
+                # Looks like a JSON array — try standard JSON path
+                try:
+                    return super().decode_complex_value(field_name, field_type, value)
+                except Exception:
+                    pass
+            # Comma-separated (or single-origin) fallback
+            return [
+                o.strip().strip('"').strip("'")
+                for o in stripped.split(",")
+                if o.strip()
+            ]
+        return super().decode_complex_value(field_name, field_type, value)
+
+
+# ── Settings ──────────────────────────────────────────────────────────────────
 
 class Settings(BaseSettings):
     app_name: str = "Remora"
@@ -35,6 +64,23 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: Type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> Tuple[PydanticBaseSettingsSource, ...]:
+        # Replace the default env source with our CORS-aware version
+        return (
+            init_settings,
+            _CorsAwareEnvSource(settings_cls),
+            dotenv_settings,
+            file_secret_settings,
+        )
 
 
 settings = Settings()
