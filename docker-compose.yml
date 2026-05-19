@@ -1,0 +1,51 @@
+services:
+
+  # ── Backend — FastAPI + Uvicorn ──────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: remora-backend
+    restart: unless-stopped
+    volumes:
+      # All runtime data (SQLite DB, evidences, DuckDB files, Chainsaw, …)
+      - remora_data:/app/data
+    environment:
+      # Validation: docker compose will refuse to start if SECRET_KEY is missing
+      SECRET_KEY:             ${SECRET_KEY:?Please set SECRET_KEY in .env (see .env.example)}
+      DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-admin}
+      CORS_ORIGINS:           ${CORS_ORIGINS:-http://localhost}
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - remora-net
+
+  # ── Frontend — React SPA served by nginx + API reverse proxy ────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: remora-frontend
+    restart: unless-stopped
+    ports:
+      - "${PORT:-80}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - remora-net
+
+# ── Persistent storage ────────────────────────────────────────────────────────
+volumes:
+  remora_data:
+    name: remora_data
+
+# ── Internal network ──────────────────────────────────────────────────────────
+networks:
+  remora-net:
+    driver: bridge
