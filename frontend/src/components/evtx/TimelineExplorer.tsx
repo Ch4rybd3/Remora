@@ -794,13 +794,11 @@ export default function TimelineExplorer({ caseId, fileId, filename = '', pinned
                           <BookmarkCheck
                             size={13}
                             className="mx-auto text-accent-green/60"
-                            title="Already selected"
                           />
                         ) : (
                           <BookmarkPlus
                             size={13}
                             className="mx-auto text-accent-muted/20 group-hover:text-accent-muted/50 hover:!text-accent-green transition-colors"
-                            title="Add to selection"
                           />
                         )}
                       </td>

@@ -353,7 +353,7 @@ export function LiveEditor({
     ],
     content: value,
     onUpdate({ editor }) {
-      let md = editor.storage.markdown.getMarkdown()
+      let md = (editor.storage as any).markdown.getMarkdown()
       // prosemirror-markdown escapes [ and ] in text nodes, which breaks
       // Obsidian-style [[wikilinks]] saved to disk.
       // The esc() function turns [[Note Name]] into \[\[Note Name\]\].
@@ -441,7 +441,7 @@ export function LiveEditor({
     const normalised = value.replace(/\\\[\\\[([^\\\]]*)\\\]\\\]/g, '[[$1]]')
     if (normalised !== lastEmitted.current) {
       lastEmitted.current = normalised
-      editor.commands.setContent(normalised, false)
+      editor.commands.setContent(normalised)
     }
   }, [value, editor])
 

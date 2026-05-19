@@ -159,7 +159,7 @@ function TemplateCard({ tpl, onEdit, onDelete, onEditTTPs }: TemplateCardProps) 
       )}
 
       {/* Expandable detail section */}
-      {(tpl.report_sections || tpl.metadata?.mitre_tactics || ttpCount > 0) && (
+      {(!!tpl.report_sections || !!tpl.metadata?.mitre_tactics || ttpCount > 0) && (
         <>
           <button
             onClick={() => setExpanded(e => !e)}
@@ -196,7 +196,7 @@ function TemplateCard({ tpl, onEdit, onDelete, onEditTTPs }: TemplateCardProps) 
                 </div>
               )}
 
-              {tpl.report_sections && (
+              {tpl.report_sections != null && (
                 <div className="border-t border-white/5 pt-3">
                   <p className="text-xs text-accent-muted uppercase tracking-wide mb-2">Report Sections</p>
                   <div className="flex flex-wrap gap-2">
@@ -209,7 +209,7 @@ function TemplateCard({ tpl, onEdit, onDelete, onEditTTPs }: TemplateCardProps) 
                 </div>
               )}
 
-              {tpl.metadata?.mitre_tactics && Array.isArray(tpl.metadata.mitre_tactics) && (
+              {tpl.metadata?.mitre_tactics != null && Array.isArray(tpl.metadata.mitre_tactics) && (
                 <div className="border-t border-white/5 pt-3">
                   <p className="text-xs text-accent-muted uppercase tracking-wide mb-2">MITRE Tactics (legacy)</p>
                   <div className="flex flex-wrap gap-2">
@@ -329,7 +329,7 @@ export default function Templates() {
           onClose={() => { setEditTarget(null); setYamlError(null) }}
           initialYaml={editTarget.yaml}
           title={`Edit — ${editTarget.id}.yaml`}
-          onSave={yaml => updateMutation.mutateAsync({ id: editTarget.id, yaml })}
+          onSave={async yaml => { await updateMutation.mutateAsync({ id: editTarget.id, yaml }) }}
           isSaving={updateMutation.isPending}
           error={yamlError}
         />
@@ -341,7 +341,7 @@ export default function Templates() {
         onClose={() => { setCreateOpen(false); setYamlError(null) }}
         initialYaml={NEW_TEMPLATE_YAML}
         title="New Template"
-        onSave={yaml => createMutation.mutateAsync(yaml)}
+        onSave={async yaml => { await createMutation.mutateAsync(yaml) }}
         isSaving={createMutation.isPending}
         error={yamlError}
       />

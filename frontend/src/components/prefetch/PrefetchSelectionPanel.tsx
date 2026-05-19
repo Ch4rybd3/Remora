@@ -83,7 +83,7 @@ function PinnedCard({ entry, caseId, isSent, isLast, tz, onRemove, onSent }: Pin
         <div className="flex items-center gap-1.5 px-2.5 pt-2 mb-1">
           <Clock size={9} className="text-accent-muted/30 shrink-0" />
           <p className="text-[9px] font-mono text-accent-muted/40">
-            {entry.last_run ? fmtDateTime(entry.last_run, tz) : '—'}
+            {entry.last_run ? fmtDateTime(entry.last_run) : '—'}
           </p>
         </div>
 

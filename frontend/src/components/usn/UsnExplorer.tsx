@@ -121,8 +121,8 @@ function EntryRow({
           onClick={ev => { ev.stopPropagation(); isPinned ? onUnpin(key) : onPin(e, idx) }}
         >
           {isPinned
-            ? <BookmarkCheck size={12} className="mx-auto text-accent-green/60" title="Remove from selection" />
-            : <BookmarkPlus  size={12} className="mx-auto text-accent-muted/20 group-hover:text-accent-muted/50 hover:!text-accent-green transition-colors" title="Add to selection" />
+            ? <BookmarkCheck size={12} className="mx-auto text-accent-green/60" />
+            : <BookmarkPlus  size={12} className="mx-auto text-accent-muted/20 group-hover:text-accent-muted/50 hover:!text-accent-green transition-colors" />
           }
         </td>
 

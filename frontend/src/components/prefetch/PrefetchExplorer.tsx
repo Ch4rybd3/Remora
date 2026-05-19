@@ -79,7 +79,7 @@ function ExpandedDetail({ entry, tz }: { entry: PrefetchEntry; tz: string }) {
                     {i === 0 ? 'last' : `−${i}`}
                   </span>
                   <span className="text-[10px] font-mono text-white/70">
-                    {fmtDateTime(ts, tz)}
+                    {fmtDateTime(ts)}
                   </span>
                 </div>
               ))}
@@ -184,13 +184,13 @@ function SummaryBar({ caseId, file, tz }: { caseId: string; file: PrefetchFile; 
       {summary.oldest_last_run && (
         <div className="flex items-center gap-1.5 shrink-0">
           <span className="text-accent-muted/40">Earliest run</span>
-          <span className="font-mono text-white/50">{fmtDateTime(summary.oldest_last_run, tz)}</span>
+          <span className="font-mono text-white/50">{fmtDateTime(summary.oldest_last_run)}</span>
         </div>
       )}
       {summary.newest_last_run && (
         <div className="flex items-center gap-1.5 shrink-0">
           <span className="text-accent-muted/40">Latest run</span>
-          <span className="font-mono text-white/50">{fmtDateTime(summary.newest_last_run, tz)}</span>
+          <span className="font-mono text-white/50">{fmtDateTime(summary.newest_last_run)}</span>
         </div>
       )}
       {summary.versions.map(v => (
@@ -400,7 +400,7 @@ export default function PrefetchExplorer({ caseId, file, pinnedIds, onPin, onUnp
                     {/* Last run */}
                     <td className="px-3 py-1.5 font-mono text-white/60 whitespace-nowrap">
                       {entry.last_run
-                        ? fmtDateTime(entry.last_run, timezone)
+                        ? fmtDateTime(entry.last_run)
                         : <span className="text-accent-muted/25">—</span>
                       }
                     </td>
@@ -416,7 +416,7 @@ export default function PrefetchExplorer({ caseId, file, pinnedIds, onPin, onUnp
                                 ? 'w-2 h-2 bg-accent-green'
                                 : 'w-1.5 h-1.5 bg-white/20'
                             }`}
-                            title={fmtDateTime(runs[i]!, timezone)}
+                            title={fmtDateTime(runs[i]!)}
                           />
                         ))}
                       </div>
