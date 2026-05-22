@@ -1,33 +1,79 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ReactFlow, Background, BackgroundVariant, Controls, MiniMap,
-  addEdge, applyNodeChanges, applyEdgeChanges,
+  addEdge, applyNodeChanges, applyEdgeChanges, useUpdateNodeInternals,
   type Node, type Edge, type OnConnect, type OnNodesChange, type OnEdgesChange,
-  type Connection, type ReactFlowInstance,
+  type Connection, type ReactFlowInstance, type OnSelectionChangeFunc,
 } from '@xyflow/react'
-import { ArrowLeft, Save, Plus, Trash2, GitBranch, Wand2, Link2Off, ArrowDown, ArrowRight, ImageDown } from 'lucide-react'
+
+// Must be rendered inside <ReactFlow> so the hook has access to the RF context.
+function NodeInternalsSync({ trigger, nodeIds }: { trigger: number; nodeIds: string[] }) {
+  const updateNodeInternals = useUpdateNodeInternals()
+  useEffect(() => {
+    if (trigger > 0) requestAnimationFrame(() => updateNodeInternals(nodeIds))
+  }, [trigger]) // eslint-disable-line react-hooks/exhaustive-deps
+  return null
+}
+import { ArrowLeft, Save, Plus, Trash2, GitBranch, Wand2, Link2Off, ArrowDown, ArrowRight, ImageDown, SquareDashed } from 'lucide-react'
 import { playbooksApi, type PlaybookNode, type PlaybookEdge } from '../api/playbooks'
-import { NODE_TYPES, LayoutDirContext } from '../components/playbook/PlaybookNodes'
+import { NODE_TYPES, EDGE_TYPES, LayoutDirContext } from '../components/playbook/PlaybookNodes'
 import { applyElkLayout } from '../utils/elkLayout'
 import { renderPlaybookToCanvas } from '../utils/playbookExport'
 import Modal from '../components/ui/Modal'
-import { useEffect } from 'react'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const GRID = 20
-const snap = (v: number) => Math.round(v / GRID) * GRID
-/** Snap height UP to the next grid multiple so handles land on grid lines. */
+const GRID      = 20        // visual grid dots + dimension snap (20 px)
+const MOVE_SNAP = GRID / 2  // 10 px — position snap (finer movement)
+
+/** Snap a POSITION coordinate to the movement grid (10 px). */
+const snap  = (v: number) => Math.round(v / MOVE_SNAP) * MOVE_SNAP
+/** Snap a height UP to the next 20 px multiple (auto-measured nodes). */
 const snapH = (h: number) => Math.ceil(h / GRID) * GRID
+/** Snap an explicit DIMENSION (resize) to the nearest 20 px. */
+const snapR = (v: number) => Math.round(v / GRID) * GRID
+
+/** Default widths so all nodes have the same handle alignment as Decision (160 px). */
+const NODE_DEFAULT_WIDTH: Partial<Record<string, number>> = {
+  step:        160,
+  remediation: 160,
+  decision:    160,
+  start:       160,
+  end:         160,
+}
 
 const NODE_PALETTE = [
-  { type: 'start',    label: 'Start',    color: 'text-accent-green' },
-  { type: 'step',     label: 'Step',     color: 'text-white' },
-  { type: 'decision', label: 'Decision', color: 'text-severity-medium' },
-  { type: 'end',      label: 'End',      color: 'text-severity-critical' },
+  { type: 'start',       label: 'Start',       color: 'text-accent-green' },
+  { type: 'step',        label: 'Analyse',     color: 'text-white' },
+  { type: 'decision',    label: 'Decision',    color: 'text-severity-medium' },
+  { type: 'remediation', label: 'Remediation', color: 'text-blue-400' },
+  { type: 'end',         label: 'End',         color: 'text-severity-critical' },
 ] as const
+
+/**
+ * Strip ReactFlow runtime-only properties before saving/exporting a node.
+ * `measured`, `positionAbsolute`, `selected`, `dragging`, `initialized` are
+ * set at runtime and must not be persisted — they confuse ReactFlow on reload.
+ */
+function cleanNode(n: Node): Omit<Node, 'measured' | 'positionAbsolute' | 'selected' | 'dragging' | 'initialized'> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { measured, positionAbsolute, selected, dragging, initialized, ...rest } = n as Node & {
+    positionAbsolute?: unknown; initialized?: unknown
+  }
+  return rest
+}
+
+const FRAME_COLORS: string[] = [
+  '#3b82f6',  // blue
+  '#22c55e',  // green
+  '#f97316',  // orange
+  '#ef4444',  // red
+  '#a855f7',  // purple
+  '#eab308',  // yellow
+  '#6b7280',  // gray
+]
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -41,20 +87,31 @@ export default function PlaybookEditor() {
   const [description, setDescription] = useState('')
   const [nodes,       setNodes]       = useState<Node[]>([])
   const [edges,       setEdges]       = useState<Edge[]>([])
-  const [selectedNode, setSelectedNode] = useState<Node | null>(null)
-  const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null)
+
+  // ── Selection (multi-select aware) ────────────────────────────────────────
+  const [selNodes,     setSelNodes]     = useState<Node[]>([])
+  const [selEdges,     setSelEdges]     = useState<Edge[]>([])
+  const selectedNode = selNodes.length === 1 ? selNodes[0] : null
+  const selectedEdge = selEdges.length === 1 ? selEdges[0] : null
+
+  // ── Edit modal ────────────────────────────────────────────────────────────
   const [editNodeOpen, setEditNodeOpen] = useState(false)
-  const [nodeForm,    setNodeForm]    = useState({ label: '', description: '' })
+  const [nodeForm, setNodeForm] = useState({ label: '', description: '', color: FRAME_COLORS[0] })
+
+  // ── Frame controls (top bar) ──────────────────────────────────────────────
+  const [frameColor, setFrameColor] = useState<string>(FRAME_COLORS[0])
+
   const [initialized, setInitialized] = useState(false)
   const [laying,      setLaying]      = useState(false)
   const [layoutDir,   setLayoutDir]   = useState<'DOWN' | 'RIGHT'>('DOWN')
   const [exporting,   setExporting]   = useState(false)
 
-  const idCounter  = useRef(1)
-  /** Captured ReactFlow instance — used to get viewport center for new nodes. */
-  const rfInstance = useRef<ReactFlowInstance | null>(null)
-  /** Ref to the canvas wrapper div — needed for getBoundingClientRect. */
-  const canvasRef  = useRef<HTMLDivElement>(null)
+  const [updateInternalsTrigger, setUpdateInternalsTrigger] = useState(0)
+
+  const idCounter    = useRef(1)
+  const rfInstance   = useRef<ReactFlowInstance | null>(null)
+  const canvasRef    = useRef<HTMLDivElement>(null)
+  const clipboardRef = useRef<{ nodes: Node[]; edges: Edge[] } | null>(null)
 
   // ── Load existing playbook ─────────────────────────────────────────────────
 
@@ -70,6 +127,9 @@ export default function PlaybookEditor() {
       setDescription(pbData.description)
       setNodes(pbData.nodes as Node[])
       setEdges(pbData.edges as Edge[])
+      if (pbData.layout_dir === 'RIGHT' || pbData.layout_dir === 'DOWN') {
+        setLayoutDir(pbData.layout_dir)
+      }
       setInitialized(true)
     }
   }, [pbData, initialized])
@@ -81,7 +141,8 @@ export default function PlaybookEditor() {
       const payload = {
         name,
         description,
-        nodes: nodes as unknown as PlaybookNode[],
+        layout_dir: layoutDir,
+        nodes: nodes.map(cleanNode) as unknown as PlaybookNode[],
         edges: edges as unknown as PlaybookEdge[],
       }
       return isNew ? playbooksApi.create(payload) : playbooksApi.update(id!, payload)
@@ -95,22 +156,36 @@ export default function PlaybookEditor() {
   // ── ReactFlow handlers ────────────────────────────────────────────────────
 
   /**
-   * When ReactFlow measures a node and its height is not already a grid
-   * multiple, snap it up to the next multiple by setting style.height.
-   * This ensures every handle lands exactly on a 20 px grid line.
+   * Snap node dimensions after any change:
+   *  - style.height (explicit, from NodeResizer) → snapDim (10 px)
+   *  - measured.height (auto-measured)           → snapH   (20 px, ceil)
+   *  - style.width  (explicit, from NodeResizer) → snapDim (10 px)
+   *
+   * This ensures nodes always align on the movement grid after resize,
+   * fixing the visual misalignment between Analyse and Decision nodes.
    */
   const onNodesChange: OnNodesChange = useCallback((changes) => {
-    const hasDim = changes.some(c => c.type === 'dimensions')
     setNodes(nds => {
       const updated = applyNodeChanges(changes, nds)
+      const hasDim = changes.some(c => c.type === 'dimensions')
       if (!hasDim) return updated
       return updated.map(n => {
-        const h = n.measured?.height
-        if (!h) return n
-        const sh = snapH(h)
-        // Avoid redundant updates (would cause infinite loop)
-        if ((n.style as Record<string, unknown>)?.height === sh) return n
-        return { ...n, style: { ...(n.style ?? {}), height: sh } }
+        // Frame nodes manage their own dimensions — only snap if user has resized them
+        const s = (n.style ?? {}) as Record<string, unknown>
+        const styleH = typeof s.height === 'number' ? s.height : undefined
+        const styleW = typeof s.width  === 'number' ? s.width  : undefined
+        const measH  = n.measured?.height
+
+        // Explicit resize: snap to 10 px. Auto-measured: snap UP to 20 px.
+        const targetH = styleH !== undefined
+          ? snapR(styleH)   // resize → round to nearest 20 px
+          : measH !== undefined
+            ? snapH(measH)  // auto-measure → ceil to next 20 px
+            : undefined
+        const targetW = styleW !== undefined ? snapR(styleW) : undefined
+
+        if (s.height === targetH && s.width === targetW) return n
+        return { ...n, style: { ...s, height: targetH, width: targetW } }
       })
     })
   }, [])
@@ -126,9 +201,13 @@ export default function PlaybookEditor() {
     [],
   )
 
+  const onSelectionChange: OnSelectionChangeFunc = useCallback(({ nodes, edges }) => {
+    setSelNodes(nodes)
+    setSelEdges(edges)
+  }, [])
+
   // ── Add node at viewport center ───────────────────────────────────────────
 
-  /** Convert the canvas center (screen px) to flow-space coordinates. */
   const getViewportCenter = useCallback((): { x: number; y: number } => {
     const rect = canvasRef.current?.getBoundingClientRect()
     if (!rfInstance.current || !rect) return { x: 200, y: 200 }
@@ -138,21 +217,37 @@ export default function PlaybookEditor() {
     })
   }, [])
 
-  const addNode = useCallback((type: string) => {
-    const id = `node-${Date.now()}-${idCounter.current++}`
+  const addNode = useCallback((type: string, extraData?: Record<string, unknown>) => {
+    const nodeId = `node-${Date.now()}-${idCounter.current++}`
     const defaults: Record<string, { label: string; description?: string }> = {
-      start:    { label: 'Start' },
-      end:      { label: 'End' },
-      step:     { label: 'New Step', description: 'Describe this step…' },
-      decision: { label: 'Decision?' },
+      start:       { label: 'Start' },
+      end:         { label: 'End' },
+      step:        { label: 'Nouvelle analyse', description: 'Décrivez cette étape…' },
+      decision:    { label: 'Decision?' },
+      remediation: { label: 'New Remediation', description: 'Describe the remediation action…' },
+      frame:       { label: 'Zone' },
     }
     const center = getViewportCenter()
+    const isFrame = type === 'frame'
+
+    // Center the new node at the viewport center (not top-left aligned)
+    const defaultW  = NODE_DEFAULT_WIDTH[type] ?? 160
+    const approxH   = type === 'decision' ? 80 : 60  // rough initial height
+    const px = isFrame ? snap(center.x - 100) : snap(center.x - defaultW / 2)
+    const py = isFrame ? snap(center.y - 80)  : snap(center.y - approxH  / 2)
+
     const newNode: Node = {
-      id,
+      id: nodeId,
       type,
-      // Place at viewport center, snapped to grid
-      position: { x: snap(center.x), y: snap(center.y) },
-      data: defaults[type] ?? { label: 'Node' },
+      position: { x: px, y: py },
+      data: { ...defaults[type] ?? { label: 'Node' }, ...extraData },
+      ...(isFrame ? {
+        style:  { width: 200, height: 160 },
+        zIndex: -1,
+      } : {
+        // Explicit 160 px width on all content nodes so handles always align
+        style: { width: 160 },
+      }),
     }
     setNodes(nds => [...nds, newNode])
   }, [getViewportCenter])
@@ -160,41 +255,50 @@ export default function PlaybookEditor() {
   // ── Edit / delete ─────────────────────────────────────────────────────────
 
   const openEditNode = (node: Node) => {
-    setSelectedNode(node)
     setNodeForm({
       label:       (node.data as Record<string, unknown>).label as string       ?? '',
       description: (node.data as Record<string, unknown>).description as string ?? '',
+      color:       (node.data as Record<string, unknown>).color as string       ?? FRAME_COLORS[0],
     })
     setEditNodeOpen(true)
+    // Ensure selectedNode reflects this specific node when called via double-click
+    setSelNodes(prev => prev.some(n => n.id === node.id) ? prev : [node])
   }
 
   const saveNodeEdit = () => {
     if (!selectedNode) return
+    const isFrame = selectedNode.type === 'frame'
     setNodes(nds => nds.map(n =>
       n.id === selectedNode.id
         ? {
             ...n,
-            data:  { ...n.data, label: nodeForm.label, description: nodeForm.description },
-            // Clear height so ReactFlow re-measures the new content size,
-            // then the onNodesChange handler snaps it back to the grid.
-            style: { ...(n.style ?? {}), height: undefined },
+            data: {
+              ...n.data,
+              label:       nodeForm.label,
+              description: nodeForm.description,
+              ...(isFrame ? { color: nodeForm.color } : {}),
+            },
+            // Only reset height for non-frame nodes so ReactFlow re-measures.
+            style: isFrame ? (n.style ?? {}) : { ...(n.style ?? {}), height: undefined },
           }
         : n,
     ))
     setEditNodeOpen(false)
   }
 
+  /** Delete all selected nodes (and their connected edges). */
   const deleteSelected = () => {
-    if (!selectedNode) return
-    setNodes(nds => nds.filter(n => n.id !== selectedNode.id))
-    setEdges(eds => eds.filter(e => e.source !== selectedNode.id && e.target !== selectedNode.id))
-    setSelectedNode(null)
+    const idsToRemove = new Set(selNodes.map(n => n.id))
+    setNodes(nds => nds.filter(n => !idsToRemove.has(n.id)))
+    setEdges(eds => eds.filter(e => !idsToRemove.has(e.source) && !idsToRemove.has(e.target)))
+    setSelNodes([])
   }
 
-  const deleteEdge = () => {
-    if (!selectedEdge) return
-    setEdges(eds => eds.filter(e => e.id !== selectedEdge.id))
-    setSelectedEdge(null)
+  /** Delete all selected edges. */
+  const deleteEdges = () => {
+    const idsToRemove = new Set(selEdges.map(e => e.id))
+    setEdges(eds => eds.filter(e => !idsToRemove.has(e.id)))
+    setSelEdges([])
   }
 
   // ── ELK auto-layout ───────────────────────────────────────────────────────
@@ -202,13 +306,16 @@ export default function PlaybookEditor() {
   const runLayout = async (dir: 'DOWN' | 'RIGHT' = layoutDir) => {
     setLaying(true)
     try {
-      const laid = await applyElkLayout(nodes, edges, {
+      // Exclude frame nodes from layout — they're decorative
+      const flowNodes  = nodes.filter(n => n.type !== 'frame')
+      const laid = await applyElkLayout(flowNodes, edges, {
         direction:    dir,
         layerSpacing: dir === 'RIGHT' ? 80 : 60,
         nodeSpacing:  40,
       })
-      setNodes(laid)
-      // Fit view after layout settles (next tick)
+      // Merge laid-out positions back, keep frame nodes in place
+      const laidMap = new Map(laid.map(n => [n.id, n]))
+      setNodes(nds => nds.map(n => laidMap.get(n.id) ?? n))
       setTimeout(() => rfInstance.current?.fitView({ padding: 0.2, duration: 300 }), 50)
     } finally {
       setLaying(false)
@@ -222,7 +329,7 @@ export default function PlaybookEditor() {
     if (!rf || nodes.length === 0) return
     setExporting(true)
     try {
-      const canvas  = renderPlaybookToCanvas(rf.getNodes(), rf.getEdges(), layoutDir)
+      const canvas  = renderPlaybookToCanvas(rf.getNodes().map(cleanNode) as Node[], rf.getEdges(), layoutDir)
       const dataUrl = canvas.toDataURL('image/png')
       Object.assign(document.createElement('a'), {
         href:     dataUrl,
@@ -233,17 +340,63 @@ export default function PlaybookEditor() {
     }
   }
 
+  // ── Copy / paste (Ctrl+C / Ctrl+V) ──────────────────────────────────────
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const ctrl = e.ctrlKey || e.metaKey
+      if (!ctrl) return
+
+      if (e.key === 'c' && selNodes.length > 0) {
+        const selectedIds = new Set(selNodes.map(n => n.id))
+        const internalEdges = edges.filter(
+          ed => selectedIds.has(ed.source) && selectedIds.has(ed.target),
+        )
+        clipboardRef.current = { nodes: selNodes, edges: internalEdges }
+      }
+
+      if (e.key === 'v' && clipboardRef.current) {
+        const { nodes: cbNodes, edges: cbEdges } = clipboardRef.current
+        const idMap = new Map<string, string>()
+        const OFFSET = 40
+        const newNodes: Node[] = cbNodes.map(n => {
+          const newId = `node-${Date.now()}-${idCounter.current++}`
+          idMap.set(n.id, newId)
+          return {
+            ...n,
+            id: newId,
+            position: { x: n.position.x + OFFSET, y: n.position.y + OFFSET },
+            selected: true,
+          }
+        })
+        const newEdges: Edge[] = cbEdges.map(ed => ({
+          ...ed,
+          id: `edge-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          source: idMap.get(ed.source) ?? ed.source,
+          target: idMap.get(ed.target) ?? ed.target,
+        }))
+        setNodes(nds => [...nds.map(n => ({ ...n, selected: false })), ...newNodes])
+        setEdges(eds => [...eds, ...newEdges])
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [selNodes, edges])
+
   const switchLayout = (dir: 'DOWN' | 'RIGHT') => {
     setLayoutDir(dir)
-    // Drop sourceHandle/targetHandle overrides so edges reconnect to the
-    // new handle positions automatically after re-layout.
-    setEdges(eds => eds.map(e => ({
-      ...e,
-      sourceHandle: undefined,
-      targetHandle: undefined,
-    })))
+    // Do NOT clear sourceHandle/targetHandle — handle IDs (yes/no) are stable across
+    // layout changes; only their visual positions change.
+    // NodeInternalsSync triggers useUpdateNodeInternals to recompute handle positions.
+    setUpdateInternalsTrigger(t => t + 1)
     if (nodes.length > 0) runLayout(dir)
   }
+
+  // ── Derived selection state ───────────────────────────────────────────────
+
+  const selNodeCount = selNodes.length
+  const selEdgeCount = selEdges.length
+  const hasSelection = selNodeCount > 0 || selEdgeCount > 0
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -279,6 +432,30 @@ export default function PlaybookEditor() {
             <ImageDown size={12} />
             {exporting ? 'Exporting…' : 'Export PNG'}
           </button>
+
+          {/* ── Frame zone controls ─────────────────────────────────────── */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-white/10 bg-white/[0.02]">
+            <SquareDashed size={11} className="text-accent-muted shrink-0" />
+            {FRAME_COLORS.map(c => (
+              <button
+                key={c}
+                onClick={() => setFrameColor(c)}
+                title={c}
+                className="w-3.5 h-3.5 rounded-sm transition-all"
+                style={{
+                  backgroundColor: c,
+                  outline: frameColor === c ? `2px solid ${c}` : '2px solid transparent',
+                  outlineOffset: 2,
+                }}
+              />
+            ))}
+            <button
+              onClick={() => addNode('frame', { color: frameColor })}
+              className="ml-1 text-[10px] text-accent-muted hover:text-white border border-white/10 hover:border-white/30 px-2 py-0.5 rounded transition-colors"
+            >
+              + Cadre
+            </button>
+          </div>
 
           {/* Layout direction toggle + apply */}
           <div className="flex items-center rounded border border-white/10 overflow-hidden">
@@ -319,30 +496,34 @@ export default function PlaybookEditor() {
             </button>
           </div>
 
-          {selectedNode && (
-            <>
-              <button
-                className="btn-secondary text-xs flex items-center gap-1"
-                onClick={() => openEditNode(selectedNode)}
-              >
-                Edit node
-              </button>
-              <button
-                className="btn-danger text-xs flex items-center gap-1"
-                onClick={deleteSelected}
-              >
-                <Trash2 size={12} /> Delete node
-              </button>
-            </>
-          )}
-          {selectedEdge && (
+          {/* ── Selection-aware action buttons ─────────────────────────── */}
+          {selectedNode && selNodeCount === 1 && (
             <button
-              className="btn-danger text-xs flex items-center gap-1"
-              onClick={deleteEdge}
+              className="btn-secondary text-xs flex items-center gap-1"
+              onClick={() => openEditNode(selectedNode)}
             >
-              <Link2Off size={12} /> Delete link
+              Edit node
             </button>
           )}
+          {selNodeCount > 0 && (
+            <button
+              className="btn-danger text-xs flex items-center gap-1"
+              onClick={deleteSelected}
+            >
+              <Trash2 size={12} />
+              {selNodeCount > 1 ? `Delete (${selNodeCount})` : 'Delete node'}
+            </button>
+          )}
+          {selEdgeCount > 0 && (
+            <button
+              className="btn-danger text-xs flex items-center gap-1"
+              onClick={deleteEdges}
+            >
+              <Link2Off size={12} />
+              {selEdgeCount > 1 ? `Delete (${selEdgeCount})` : 'Delete link'}
+            </button>
+          )}
+
           <button
             className="btn-primary text-xs flex items-center gap-1.5"
             onClick={() => save.mutate()}
@@ -378,14 +559,15 @@ export default function PlaybookEditor() {
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onInit={inst => { rfInstance.current = inst }}
-            onNodeClick={(_, node) => { setSelectedNode(node); setSelectedEdge(null) }}
-            onEdgeClick={(_, edge) => { setSelectedEdge(edge); setSelectedNode(null) }}
-            onPaneClick={() => { setSelectedNode(null); setSelectedEdge(null) }}
+            onSelectionChange={onSelectionChange}
             onNodeDoubleClick={(_, node) => openEditNode(node)}
             nodeTypes={NODE_TYPES}
+            edgeTypes={EDGE_TYPES}
             defaultEdgeOptions={{ type: 'smoothstep', animated: true }}
             snapToGrid
-            snapGrid={[GRID, GRID]}
+            snapGrid={[MOVE_SNAP, MOVE_SNAP]}
+            selectionOnDrag
+            panOnDrag={[1, 2]}
             fitView
             deleteKeyCode="Delete"
             style={{ background: '#0B121F' }}
@@ -393,6 +575,7 @@ export default function PlaybookEditor() {
             <Background variant={BackgroundVariant.Dots} gap={GRID} size={1.5} color="#1e2e42" />
             <Controls />
             <MiniMap nodeColor={() => '#9FEF00'} />
+            <NodeInternalsSync trigger={updateInternalsTrigger} nodeIds={nodes.map(n => n.id)} />
           </ReactFlow>
           </LayoutDirContext.Provider>
         </div>
@@ -410,7 +593,9 @@ export default function PlaybookEditor() {
               onKeyDown={e => e.key === 'Enter' && saveNodeEdit()}
             />
           </div>
-          {selectedNode?.type !== 'start' && selectedNode?.type !== 'end' && (
+
+          {/* Description — for step / decision / remediation */}
+          {selectedNode?.type !== 'start' && selectedNode?.type !== 'end' && selectedNode?.type !== 'frame' && (
             <div>
               <label className="label">Description</label>
               <textarea
@@ -420,6 +605,28 @@ export default function PlaybookEditor() {
               />
             </div>
           )}
+
+          {/* Color — for frame nodes only */}
+          {selectedNode?.type === 'frame' && (
+            <div>
+              <label className="label">Couleur de la zone</label>
+              <div className="flex gap-2 mt-1">
+                {FRAME_COLORS.map(c => (
+                  <button
+                    key={c}
+                    onClick={() => setNodeForm(f => ({ ...f, color: c }))}
+                    className="w-6 h-6 rounded transition-all"
+                    style={{
+                      backgroundColor: c,
+                      outline: nodeForm.color === c ? `2px solid ${c}` : '2px solid transparent',
+                      outlineOffset: 2,
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-end gap-3">
             <button className="btn-secondary" onClick={() => setEditNodeOpen(false)}>Cancel</button>
             <button className="btn-primary" onClick={saveNodeEdit}>Apply</button>

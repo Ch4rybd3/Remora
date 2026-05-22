@@ -9,6 +9,7 @@ class PlaybookCreate(BaseModel):
     description: str = ""
     nodes: list[Any] = []
     edges: list[Any] = []
+    layout_dir: str = "DOWN"
 
 
 class PlaybookUpdate(BaseModel):
@@ -16,6 +17,7 @@ class PlaybookUpdate(BaseModel):
     description: str | None = None
     nodes: list[Any] | None = None
     edges: list[Any] | None = None
+    layout_dir: str | None = None
 
 
 class PlaybookRead(BaseModel):
@@ -24,6 +26,7 @@ class PlaybookRead(BaseModel):
     description: str
     nodes: list[Any]
     edges: list[Any]
+    layout_dir: str
     created_at: datetime
     updated_at: datetime
 

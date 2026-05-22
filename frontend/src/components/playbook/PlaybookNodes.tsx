@@ -1,6 +1,9 @@
 import { createContext, useContext } from 'react'
-import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { CheckCircle2 } from 'lucide-react'
+import {
+  Handle, Position, NodeResizer, BaseEdge, getBezierPath,
+  type NodeProps, type EdgeProps,
+} from '@xyflow/react'
+import { CheckCircle2, ShieldCheck } from 'lucide-react'
 
 // ── Layout direction context ──────────────────────────────────────────────────
 // Allows PlaybookEditor to tell node components which direction the graph flows,
@@ -60,13 +63,20 @@ export function StepNode({ data, selected }: NodeProps) {
   const dir = useContext(LayoutDirContext)
   const done = !!d.done
   return (
-    <div className={`relative px-4 py-3 rounded-lg border min-w-[160px] max-w-[220px] shadow-lg transition-colors ${
+    <div className={`relative px-4 py-3 rounded-lg border min-w-[120px] w-full h-full shadow-lg transition-colors ${
       done
         ? 'border-accent-green/60 bg-accent-green/10'
         : selected
           ? 'border-accent-green bg-bg-card'
           : 'border-white/20 bg-bg-card'
     }`}>
+      <NodeResizer
+        isVisible={selected && !done}
+        minWidth={120}
+        minHeight={40}
+        lineStyle={{ borderColor: 'rgba(255,255,255,0.15)' }}
+        handleStyle={{ backgroundColor: '#9FEF00', borderColor: '#9FEF00', width: 6, height: 6, borderRadius: 2 }}
+      />
       <Handle
         type="target"
         position={dir === 'RIGHT' ? Position.Left : Position.Top}
@@ -147,7 +157,7 @@ export function DecisionNode({ data, selected }: NodeProps) {
       {/* "No" — branch */}
       <Handle
         type="source"
-        position={dir === 'RIGHT' ? Position.Bottom : Position.Right}
+        position={dir === 'RIGHT' ? Position.Top : Position.Right}
         id="no"
         className="!bg-severity-critical !border-severity-critical"
         title="No"
@@ -156,11 +166,123 @@ export function DecisionNode({ data, selected }: NodeProps) {
   )
 }
 
+// ── RemediationNode ───────────────────────────────────────────────────────────
+
+export function RemediationNode({ data, selected }: NodeProps) {
+  const d   = data as NodeData
+  const dir = useContext(LayoutDirContext)
+  const done = !!d.done
+  return (
+    <div className={`relative px-4 py-3 rounded-lg border min-w-[120px] w-full h-full shadow-lg transition-colors ${
+      done
+        ? 'border-blue-400/60 bg-blue-400/10'
+        : selected
+          ? 'border-blue-400 bg-bg-card'
+          : 'border-blue-400/40 bg-bg-card'
+    }`}>
+      <NodeResizer
+        isVisible={selected && !done}
+        minWidth={120}
+        minHeight={40}
+        lineStyle={{ borderColor: 'rgba(96,165,250,0.20)' }}
+        handleStyle={{ backgroundColor: '#60a5fa', borderColor: '#60a5fa', width: 6, height: 6, borderRadius: 2 }}
+      />
+      <Handle
+        type="target"
+        position={dir === 'RIGHT' ? Position.Left : Position.Top}
+        className="!bg-blue-400/40 !border-blue-400/40"
+      />
+      <span className="absolute top-1.5 left-1.5 text-blue-400/50">
+        <ShieldCheck size={10} />
+      </span>
+      {done && (
+        <span className="absolute top-1.5 right-1.5 text-blue-400">
+          <CheckCircle2 size={11} />
+        </span>
+      )}
+      <p className={`text-xs font-semibold leading-snug pl-4 pr-4 ${done ? 'text-blue-400/80' : 'text-blue-300'}`}>
+        {d.label}
+      </p>
+      {d.description && !done && (
+        <p className="text-[10px] text-accent-muted mt-1 leading-snug pl-4">{d.description}</p>
+      )}
+      <Handle
+        type="source"
+        position={dir === 'RIGHT' ? Position.Right : Position.Bottom}
+        className="!bg-blue-400/40 !border-blue-400/40"
+      />
+    </div>
+  )
+}
+
+// ── FrameNode ─────────────────────────────────────────────────────────────────
+// Decorative zone node: transparent colored background + title, no handles.
+// Rendered behind other nodes via zIndex: -1 set at creation.
+
+export function FrameNode({ data, selected }: NodeProps) {
+  const d     = data as { label?: string; color?: string; [key: string]: unknown }
+  const color = d.color ?? '#3b82f6'
+  const label = d.label ?? 'Zone'
+
+  return (
+    <div
+      className="w-full h-full rounded-xl"
+      style={{
+        backgroundColor: `${color}18`,
+        border: `1.5px solid ${color}${selected ? '70' : '28'}`,
+        borderRadius: 12,
+      }}
+    >
+      <NodeResizer
+        isVisible={selected}
+        minWidth={150}
+        minHeight={100}
+        lineStyle={{ borderColor: `${color}50` }}
+        handleStyle={{ backgroundColor: color, borderColor: color, width: 8, height: 8, borderRadius: 2 }}
+      />
+      <span
+        className="absolute top-2.5 left-3.5 text-[11px] font-bold tracking-wider select-none pointer-events-none"
+        style={{ color: `${color}cc` }}
+      >
+        {label}
+      </span>
+    </div>
+  )
+}
+
 // ── Node type map ─────────────────────────────────────────────────────────────
 
 export const NODE_TYPES = {
-  start:    StartNode,
-  step:     StepNode,
-  decision: DecisionNode,
-  end:      EndNode,
+  start:       StartNode,
+  step:        StepNode,
+  decision:    DecisionNode,
+  end:         EndNode,
+  remediation: RemediationNode,
+  frame:       FrameNode,
+}
+
+// ── SmartEdge — anti-loop bezier ──────────────────────────────────────────────
+// Replaces smoothstep: uses adaptive curvature so short edges stay straight
+// instead of folding back on themselves.
+
+function SmartEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, style }: EdgeProps) {
+  const dx = targetX - sourceX
+  const dy = targetY - sourceY
+  const dist = Math.sqrt(dx * dx + dy * dy)
+  const curvature = dist < 80 ? 0.05 : 0.25
+
+  const [edgePath] = getBezierPath({
+    sourceX, sourceY, sourcePosition,
+    targetX, targetY, targetPosition,
+    curvature,
+  })
+
+  return <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
+}
+
+// ── Edge type map ─────────────────────────────────────────────────────────────
+// Override 'smoothstep' so existing saved playbooks automatically get anti-loop behavior.
+
+export const EDGE_TYPES = {
+  smoothstep: SmartEdge,
 }

@@ -4,7 +4,8 @@ import { ReactFlow, Background, Controls, type Node, type Edge } from '@xyflow/r
 import '@xyflow/react/dist/style.css'
 import { Plus, Trash2, GitBranch, CheckCircle2, Circle, ChevronDown, ChevronUp, X } from 'lucide-react'
 import { playbooksApi, type CasePlaybook, type Playbook } from '../../../api/playbooks'
-import { NODE_TYPES } from '../../playbook/PlaybookNodes'
+import { topoSortNodes } from '../../../utils/playbookUtils'
+import { NODE_TYPES, EDGE_TYPES } from '../../playbook/PlaybookNodes'
 import Modal from '../../ui/Modal'
 
 interface Props { caseId: string }
@@ -62,8 +63,10 @@ export default function PlaybookTab({ caseId }: Props) {
     : 'empty'
   const availablePlaybooks = allPlaybooks.filter(pb => !casePlaybooks.find(cp => cp.playbook_id === pb.id))
 
-  const stepNodes = (cp: CasePlaybook) =>
-    cp.playbook.nodes.filter(n => n.type === 'step' || n.type === 'decision')
+  const stepNodes = (cp: CasePlaybook) => {
+    const sorted = topoSortNodes(cp.playbook.nodes, cp.playbook.edges)
+    return sorted.filter(n => n.type === 'step' || n.type === 'decision' || n.type === 'remediation')
+  }
 
   const doneCount = (cp: CasePlaybook) =>
     stepNodes(cp).filter(n => cp.step_states[n.id]?.done).length
@@ -122,6 +125,7 @@ export default function PlaybookTab({ caseId }: Props) {
               nodes={buildViewNodes(activeCp)}
               edges={activeCp.playbook.edges as Edge[]}
               nodeTypes={NODE_TYPES}
+              edgeTypes={EDGE_TYPES}
               fitView
               nodesDraggable={false}
               nodesConnectable={false}

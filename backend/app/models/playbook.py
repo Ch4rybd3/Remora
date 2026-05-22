@@ -13,8 +13,9 @@ class Playbook(Base):
     name = Column(String(255), nullable=False)
     description = Column(Text, default="")
     # React Flow graph stored as JSON strings
-    nodes = Column(Text, default="[]")
-    edges = Column(Text, default="[]")
+    nodes    = Column(Text, default="[]")
+    edges    = Column(Text, default="[]")
+    layout_dir = Column(String(10), default="DOWN")
 
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),

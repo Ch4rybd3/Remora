@@ -36,6 +36,7 @@ def create_playbook(
         description=payload.description,
         nodes=json.dumps(payload.nodes),
         edges=json.dumps(payload.edges),
+        layout_dir=payload.layout_dir,
     )
     db.add(pb)
     db.flush()

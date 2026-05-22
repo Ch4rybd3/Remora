@@ -9,8 +9,9 @@ import {
   Plus, X, GitBranch, StickyNote, Save, List, Network,
 } from 'lucide-react'
 import { playbooksApi, type CasePlaybook } from '../../../api/playbooks'
+import { topoSortNodes } from '../../../utils/playbookUtils'
 import { casesApi } from '../../../api/cases'
-import { NODE_TYPES } from '../../playbook/PlaybookNodes'
+import { NODE_TYPES, EDGE_TYPES } from '../../playbook/PlaybookNodes'
 import MarkdownEditor from '../../ui/MarkdownEditor'
 import Modal from '../../ui/Modal'
 import type { Case } from '../../../types'
@@ -20,7 +21,8 @@ interface Props { caseId: string; case_: Case }
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function stepNodes(cp: CasePlaybook) {
-  return cp.playbook.nodes.filter(n => n.type === 'step' || n.type === 'decision')
+  const sorted = topoSortNodes(cp.playbook.nodes, cp.playbook.edges)
+  return sorted.filter(n => n.type === 'step' || n.type === 'decision' || n.type === 'remediation')
 }
 function doneCount(cp: CasePlaybook) {
   return stepNodes(cp).filter(n => cp.step_states[n.id]?.done).length
@@ -199,6 +201,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
               nodes={buildViewNodes(activeCp)}
               edges={activeCp.playbook.edges as Edge[]}
               nodeTypes={NODE_TYPES}
+              edgeTypes={EDGE_TYPES}
               fitView
               nodesDraggable={false}
               nodesConnectable={false}
@@ -339,6 +342,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
                 nodes={buildViewNodes(activeCp)}
                 edges={activeCp.playbook.edges as Edge[]}
                 nodeTypes={NODE_TYPES}
+                edgeTypes={EDGE_TYPES}
                 fitView
                 fitViewOptions={{ padding: 0.15 }}
                 nodesDraggable={false}

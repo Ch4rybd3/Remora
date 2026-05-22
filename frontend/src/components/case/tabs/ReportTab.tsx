@@ -31,7 +31,8 @@ import { casesApi }                                          from '../../../api/
 import { reportVersionsApi, type ReportVersionMeta }        from '../../../api/reportVersions'
 import { reportDocTemplatesApi }                             from '../../../api/reportDocTemplates'
 import { playbooksApi, type CasePlaybook }                   from '../../../api/playbooks'
-import { NODE_TYPES }                                        from '../../playbook/PlaybookNodes'
+import { topoSortNodes }                                      from '../../../utils/playbookUtils'
+import { NODE_TYPES, EDGE_TYPES }                            from '../../playbook/PlaybookNodes'
 import MarkdownEditor                                        from '../../ui/MarkdownEditor'
 import type { Case }                                         from '../../../types'
 import { fmtRelative, fmtDateTime }                          from '../../../utils/dateUtils'
@@ -41,7 +42,8 @@ interface Props { case_: Case }
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function stepNodes(cp: CasePlaybook) {
-  return cp.playbook.nodes.filter(n => n.type === 'step' || n.type === 'decision')
+  const sorted = topoSortNodes(cp.playbook.nodes, cp.playbook.edges)
+  return sorted.filter(n => n.type === 'step' || n.type === 'decision' || n.type === 'remediation')
 }
 function buildViewNodes(cp: CasePlaybook): Node[] {
   return cp.playbook.nodes.map(n => ({
@@ -260,6 +262,7 @@ function PlaybookReference({ caseId }: { caseId: string }) {
             nodes={buildViewNodes(activeCp)}
             edges={activeCp.playbook.edges as Edge[]}
             nodeTypes={NODE_TYPES}
+            edgeTypes={EDGE_TYPES}
             fitView
             nodesDraggable={false}
             nodesConnectable={false}

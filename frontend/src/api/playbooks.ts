@@ -2,7 +2,7 @@ import api from './client'
 
 export interface PlaybookNode {
   id: string
-  type: 'start' | 'step' | 'decision' | 'end'
+  type: 'start' | 'step' | 'decision' | 'end' | 'remediation' | 'frame'
   position: { x: number; y: number }
   data: { label: string; description?: string }
 }
@@ -21,6 +21,7 @@ export interface Playbook {
   description: string
   nodes: PlaybookNode[]
   edges: PlaybookEdge[]
+  layout_dir: string
   created_at: string
   updated_at: string
 }
@@ -44,9 +45,9 @@ export interface CasePlaybook {
 export const playbooksApi = {
   list: () => api.get<Playbook[]>('/playbooks').then(r => r.data),
   get: (id: string) => api.get<Playbook>(`/playbooks/${id}`).then(r => r.data),
-  create: (data: { name: string; description?: string; nodes?: PlaybookNode[]; edges?: PlaybookEdge[] }) =>
+  create: (data: { name: string; description?: string; nodes?: PlaybookNode[]; edges?: PlaybookEdge[]; layout_dir?: string }) =>
     api.post<Playbook>('/playbooks', data).then(r => r.data),
-  update: (id: string, data: Partial<Pick<Playbook, 'name' | 'description' | 'nodes' | 'edges'>>) =>
+  update: (id: string, data: Partial<Pick<Playbook, 'name' | 'description' | 'nodes' | 'edges' | 'layout_dir'>>) =>
     api.put<Playbook>(`/playbooks/${id}`, data).then(r => r.data),
   delete: (id: string) => api.delete(`/playbooks/${id}`),
 

@@ -94,6 +94,19 @@ def _setup_browser() -> None:
 _setup_browser()
 
 
+def _setup_playbooks() -> None:
+    """Add layout_dir column to playbooks table if it doesn't already exist."""
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE playbooks ADD COLUMN layout_dir VARCHAR(10) DEFAULT 'DOWN' NOT NULL"))
+            conn.commit()
+        except Exception:
+            pass  # Column already exists
+
+
+_setup_playbooks()
+
+
 def _setup_binary() -> None:
     """Ensure binary_files storage directory is locked down."""
     from .routers.binary import BINARY_DIR

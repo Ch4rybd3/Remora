@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus, GitBranch, Edit2, Trash2 } from 'lucide-react'
+import { Plus, GitBranch, Edit2, Trash2, Copy, Download, Upload } from 'lucide-react'
 import { playbooksApi } from '../api/playbooks'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { fmtDate } from '../utils/dateUtils'
@@ -9,6 +9,8 @@ import { fmtDate } from '../utils/dateUtils'
 export default function Playbooks() {
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const importRef = useRef<HTMLInputElement>(null)
+
   const { data: playbooks = [], isLoading } = useQuery({
     queryKey: ['playbooks'],
     queryFn: playbooksApi.list,
@@ -21,6 +23,56 @@ export default function Playbooks() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['playbooks'] }); setDeleteTarget(null) },
   })
 
+  const duplicate = useMutation({
+    mutationFn: async (id: string) => {
+      const pb = await playbooksApi.get(id)
+      return playbooksApi.create({
+        name:        `${pb.name} (copie)`,
+        description: pb.description,
+        layout_dir:  pb.layout_dir,
+        nodes:       pb.nodes,
+        edges:       pb.edges,
+      })
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['playbooks'] }),
+  })
+
+  const exportJson = async (id: string, name: string) => {
+    const pb = await playbooksApi.get(id)
+    // Strip ReactFlow runtime properties so the exported JSON is clean and portable
+    const cleanNodes = pb.nodes.map(({ measured, positionAbsolute, selected, dragging, initialized, ...rest }: any) => rest)
+    const json = JSON.stringify(
+      { name: pb.name, description: pb.description, layout_dir: pb.layout_dir, nodes: cleanNodes, edges: pb.edges },
+      null, 2,
+    )
+    const blob = new Blob([json], { type: 'application/json' })
+    const url  = URL.createObjectURL(blob)
+    Object.assign(document.createElement('a'), {
+      href: url, download: `${name || 'playbook'}.json`,
+    }).click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+      await playbooksApi.create({
+        name:        data.name        ?? file.name.replace('.json', ''),
+        description: data.description ?? '',
+        layout_dir:  data.layout_dir  ?? 'DOWN',
+        nodes:       data.nodes       ?? [],
+        edges:       data.edges       ?? [],
+      })
+      qc.invalidateQueries({ queryKey: ['playbooks'] })
+    } catch {
+      alert('Invalid playbook JSON file.')
+    }
+  }
+
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-8">
@@ -30,12 +82,28 @@ export default function Playbooks() {
           </h1>
           <p className="text-accent-muted text-sm mt-1">{playbooks.length} playbook(s)</p>
         </div>
-        <button
-          className="btn-primary flex items-center gap-2"
-          onClick={() => navigate('/playbooks/new/edit')}
-        >
-          <Plus size={15} /> New Playbook
-        </button>
+        <div className="flex items-center gap-2">
+          <input
+            ref={importRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleImportFile}
+          />
+          <button
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-white/15 text-xs text-accent-muted hover:text-white hover:border-white/30 transition-colors"
+            onClick={() => importRef.current?.click()}
+            title="Import a playbook from a JSON file"
+          >
+            <Upload size={13} /> Import JSON
+          </button>
+          <button
+            className="btn-primary flex items-center gap-2"
+            onClick={() => navigate('/playbooks/new/edit')}
+          >
+            <Plus size={15} /> New Playbook
+          </button>
+        </div>
       </div>
 
       {isLoading && <p className="text-accent-muted text-sm">Loading…</p>}
@@ -76,6 +144,21 @@ export default function Playbooks() {
                 title="Edit"
               >
                 <Edit2 size={14} />
+              </button>
+              <button
+                onClick={() => duplicate.mutate(pb.id)}
+                disabled={duplicate.isPending}
+                className="text-accent-muted hover:text-blue-400 transition-colors"
+                title="Duplicate"
+              >
+                <Copy size={14} />
+              </button>
+              <button
+                onClick={() => exportJson(pb.id, pb.name)}
+                className="text-accent-muted hover:text-severity-medium transition-colors"
+                title="Export as JSON"
+              >
+                <Download size={14} />
               </button>
               <button
                 onClick={() => setDeleteTarget(pb.id)}

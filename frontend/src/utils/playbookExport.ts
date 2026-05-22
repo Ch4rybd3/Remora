@@ -21,6 +21,11 @@ const C = {
   yellow:       '#FFAF00',
   yellowBg:     'rgba(255,175,0,0.07)',
   yellowBorder: 'rgba(255,175,0,0.40)',
+  blue:         '#60a5fa',
+  blueBg:       'rgba(96,165,250,0.10)',
+  blueBorder:   'rgba(96,165,250,0.40)',
+  blueDone:     'rgba(96,165,250,0.60)',
+  textBlue:     '#93c5fd',
   edge:         'rgba(255,255,255,0.40)',
   edgeYes:      '#9FEF00',
   edgeNo:       '#ef4444',
@@ -209,6 +214,65 @@ function drawStep(
   }
 }
 
+function drawRemediation(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number, w: number, h: number,
+  label: string,
+  description: string | undefined,
+  done: boolean,
+) {
+  roundRect(ctx, x, y, w, h, RADIUS * SCALE)
+  ctx.fillStyle   = done ? C.blueBg : C.bgCard
+  ctx.fill()
+  ctx.strokeStyle = done ? C.blueDone : C.blueBorder
+  ctx.lineWidth   = 1.5 * SCALE
+  ctx.stroke()
+
+  const pad  = 10 * SCALE
+  const iconW = 14 * SCALE
+  const maxW = w - pad - iconW - pad
+
+  // Shield icon hint (small "R" tag in top-left)
+  ctx.fillStyle    = done ? C.blue : 'rgba(96,165,250,0.50)'
+  ctx.font         = `bold ${8 * SCALE}px ui-monospace, monospace`
+  ctx.textAlign    = 'left'
+  ctx.textBaseline = 'top'
+  ctx.fillText('REM', x + pad, y + 5 * SCALE)
+
+  ctx.fillStyle    = done ? 'rgba(96,165,250,0.80)' : C.textBlue
+  ctx.font         = `600 ${11 * SCALE}px ui-sans-serif, sans-serif`
+  ctx.textAlign    = 'left'
+  ctx.textBaseline = 'top'
+
+  const lines    = wrapText(ctx, label, maxW)
+  const lineH    = 14 * SCALE
+  const totalH   = lines.length * lineH + (description && !done ? 4 * SCALE + 10 * SCALE : 0)
+  let   curY     = y + (h - totalH) / 2
+
+  lines.forEach(line => {
+    ctx.fillText(line, x + pad, curY)
+    curY += lineH
+  })
+
+  if (description && !done) {
+    ctx.fillStyle = C.textMuted
+    ctx.font      = `${10 * SCALE}px ui-sans-serif, sans-serif`
+    curY += 4 * SCALE
+    const descLines = wrapText(ctx, description, maxW)
+    descLines.slice(0, 2).forEach(line => {
+      ctx.fillText(line, x + pad, curY)
+      curY += 13 * SCALE
+    })
+  }
+
+  if (done) {
+    ctx.fillStyle = C.blue
+    ctx.font      = `bold ${10 * SCALE}px ui-sans-serif, sans-serif`
+    ctx.textAlign = 'right'
+    ctx.fillText('✓', x + w - 6 * SCALE, y + 6 * SCALE)
+  }
+}
+
 function drawDecision(
   ctx: CanvasRenderingContext2D,
   x: number, y: number, w: number, h: number,
@@ -244,6 +308,32 @@ function drawDecision(
   if (done) {
     ctx.fillText('✓', cx + w * 0.3, y + h * 0.2)
   }
+}
+
+function drawFrame(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number, w: number, h: number,
+  label: string,
+  color: string | undefined,
+) {
+  const c = color ?? '#3b82f6'
+  // Parse hex → rgba fill
+  const r = parseInt(c.slice(1, 3), 16)
+  const g = parseInt(c.slice(3, 5), 16)
+  const b = parseInt(c.slice(5, 7), 16)
+
+  roundRect(ctx, x, y, w, h, 12 * SCALE)
+  ctx.fillStyle   = `rgba(${r},${g},${b},0.09)`
+  ctx.fill()
+  ctx.strokeStyle = `rgba(${r},${g},${b},0.28)`
+  ctx.lineWidth   = 1.5 * SCALE
+  ctx.stroke()
+
+  ctx.fillStyle    = `rgba(${r},${g},${b},0.80)`
+  ctx.font         = `bold ${11 * SCALE}px ui-sans-serif, sans-serif`
+  ctx.textAlign    = 'left'
+  ctx.textBaseline = 'top'
+  ctx.fillText(label, x + 14 * SCALE, y + 10 * SCALE)
 }
 
 // ── Handle position helpers ───────────────────────────────────────────────────
@@ -358,10 +448,22 @@ export function renderPlaybookToCanvas(
     drawEdge(ctx, sx, sy, tx, ty, color, dir)
   })
 
-  // ── Nodes ────────────────────────────────────────────────────────────────
-  nodes.forEach(n => {
-    const w    = (n.measured?.width  ?? 200) * SCALE
-    const h    = (n.measured?.height ?? 60)  * SCALE
+  // ── Nodes (frames first so they render behind other nodes) ───────────────
+  const sortedNodes = [
+    ...nodes.filter(n => n.type === 'frame'),
+    ...nodes.filter(n => n.type !== 'frame'),
+  ]
+
+  sortedNodes.forEach(n => {
+    // Frame nodes use explicit style dimensions; others use measured dimensions
+    const isFrame = n.type === 'frame'
+    const s = (n.style ?? {}) as Record<string, unknown>
+    const w = (isFrame
+      ? (typeof s.width  === 'number' ? s.width  : n.measured?.width  ?? 200)
+      : (n.measured?.width  ?? 200)) * SCALE
+    const h = (isFrame
+      ? (typeof s.height === 'number' ? s.height : n.measured?.height ?? 60)
+      : (n.measured?.height ?? 60)) * SCALE
     const x    = ox + n.position.x * SCALE
     const y    = oy + n.position.y * SCALE
     const d    = n.data as Record<string, unknown>
@@ -370,10 +472,12 @@ export function renderPlaybookToCanvas(
     const done = !!d.done
 
     switch (n.type) {
-      case 'start':    drawStart(ctx, x, y, w, h, lbl); break
-      case 'end':      drawEnd(ctx, x, y, w, h, lbl); break
-      case 'step':     drawStep(ctx, x, y, w, h, lbl, desc, done); break
-      case 'decision': drawDecision(ctx, x, y, w, h, lbl, done); break
+      case 'frame':       drawFrame(ctx, x, y, w, h, lbl, d.color as string | undefined); break
+      case 'start':       drawStart(ctx, x, y, w, h, lbl); break
+      case 'end':         drawEnd(ctx, x, y, w, h, lbl); break
+      case 'step':        drawStep(ctx, x, y, w, h, lbl, desc, done); break
+      case 'decision':    drawDecision(ctx, x, y, w, h, lbl, done); break
+      case 'remediation': drawRemediation(ctx, x, y, w, h, lbl, desc, done); break
     }
   })
 
