@@ -58,6 +58,8 @@ from .models import registry as _registry_models           # ensure tables are r
 from .models import report_doc_template as _rdt_models    # ensure tables are registered
 from .models import prefetch as _prefetch_models          # ensure tables are registered
 from .models import connector as _connector_models        # ensure tables are registered
+from .models import email_file as _email_file_models      # ensure tables are registered
+from .routers import case_emails as case_emails_router
 
 Base.metadata.create_all(bind=engine)
 settings.evidence_store_path.mkdir(parents=True, exist_ok=True)
@@ -229,6 +231,7 @@ app.include_router(reports.router, prefix="/api/v1", **_auth)
 app.include_router(users_router.router, prefix="/api/v1")  # users router has its own deps
 app.include_router(playbooks_router.router, prefix="/api/v1", **_auth)
 app.include_router(email_analysis_router.router, prefix="/api/v1", **_auth)
+app.include_router(case_emails_router.router,    prefix="/api/v1", **_auth)
 app.include_router(knowledge_router.router, prefix="/api/v1", **_auth)
 app.include_router(evtx_router.router, prefix="/api/v1", **_auth)
 app.include_router(audit_router.router, prefix="/api/v1", **_auth)

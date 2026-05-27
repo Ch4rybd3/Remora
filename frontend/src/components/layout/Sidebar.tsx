@@ -192,7 +192,6 @@ export default function Sidebar() {
             src="/logo.png"
             alt="Remora"
             className="h-8 w-auto object-contain"
-            style={{ filter: 'drop-shadow(0 0 6px rgba(159,239,0,0.25))' }}
             onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
           />
           <span className="text-accent-green font-bold text-lg tracking-tight font-mono">

@@ -238,42 +238,30 @@ def _get_body_text(msg) -> str:
     return plain + "\n" + html
 
 
-@router.post("/analyze", response_model=EmailAnalysisResult)
-async def analyze_email(file: UploadFile = File(...)):
-    raw = await file.read()
+def parse_email_bytes(raw: bytes) -> EmailAnalysisResult:
+    """Core parsing logic — used by both the stateless endpoint and case-scoped storage."""
     msg = BytesParser(policy=policy.compat32).parsebytes(raw)
 
-    # ── Headers ──────────────────────────────────────────────────────────────
     all_headers: list[HeaderItem] = []
     key_headers: list[HeaderItem] = []
-    seen_key: set[str] = set()
 
     for name, value in msg.items():
         desc = KEY_HEADERS.get(name)
         is_key = name in KEY_HEADERS
         decoded_value = _decode_header_value(str(value)).strip()
-        item = HeaderItem(
-            name=name,
-            value=decoded_value,
-            description=desc,
-            is_key=is_key,
-        )
+        item = HeaderItem(name=name, value=decoded_value, description=desc, is_key=is_key)
         all_headers.append(item)
-        # Keep ALL occurrences of key headers (e.g. multiple Received)
         if is_key:
             key_headers.append(item)
 
-    # ── Body text for URL extraction and display ──────────────────────────────
     body_plain, body_html = _get_bodies(msg)
     body_text = body_plain + "\n" + body_html
     urls = _extract_urls(body_text)
 
-    # ── Attachments ──────────────────────────────────────────────────────────
     attachments: list[AttachmentItem] = []
     for part in msg.walk():
         disp = part.get_content_disposition() or ""
         ct = part.get_content_type()
-        # Treat explicit attachments AND inline non-text parts as attachments
         if disp.lower() == "attachment" or (
             disp.lower() == "inline" and not ct.startswith("text/") and ct != "multipart/mixed"
         ):
@@ -281,17 +269,14 @@ async def analyze_email(file: UploadFile = File(...)):
             payload = part.get_payload(decode=True) or b""
             sha256 = hashlib.sha256(payload).hexdigest()
             attachments.append(AttachmentItem(
-                filename=filename,
-                content_type=ct,
-                size=len(payload),
-                sha256=sha256,
+                filename=filename, content_type=ct,
+                size=len(payload), sha256=sha256,
             ))
 
-    from_addr    = _decode_header_value(str(msg.get("From",        "") or "")).strip()
-    reply_to     = _decode_header_value(str(msg.get("Reply-To",   "") or "")).strip()
-    return_path  = _decode_header_value(str(msg.get("Return-Path","") or "")).strip()
-
-    warnings = _compute_warnings(from_addr, reply_to, return_path, all_headers)
+    from_addr   = _decode_header_value(str(msg.get("From",        "") or "")).strip()
+    reply_to    = _decode_header_value(str(msg.get("Reply-To",   "") or "")).strip()
+    return_path = _decode_header_value(str(msg.get("Return-Path","") or "")).strip()
+    warnings    = _compute_warnings(from_addr, reply_to, return_path, all_headers)
 
     return EmailAnalysisResult(
         subject=_decode_header_value(str(msg.get("Subject", "") or "")).strip(),
@@ -308,3 +293,9 @@ async def analyze_email(file: UploadFile = File(...)):
         body_plain=body_plain or None,
         body_html=body_html or None,
     )
+
+
+@router.post("/analyze", response_model=EmailAnalysisResult)
+async def analyze_email(file: UploadFile = File(...)):
+    raw = await file.read()
+    return parse_email_bytes(raw)
