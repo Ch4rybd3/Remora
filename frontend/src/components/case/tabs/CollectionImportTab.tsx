@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { collectionImportApi, type ImportedCollection, type ImportedFile } from '../../../api/collectionImport'
 import { useNavigate } from 'react-router-dom'
@@ -40,10 +40,7 @@ function Progress({ val, total }: { val: number; total: number }) {
   return (
     <div className="flex items-center gap-2 text-xs">
       <div className="flex-1 h-1.5 bg-[#1a2332] rounded-full overflow-hidden">
-        <div
-          className="h-full bg-accent-green transition-all"
-          style={{ width: `${pct}%` }}
-        />
+        <div className="h-full bg-accent-green transition-all" style={{ width: `${pct}%` }} />
       </div>
       <span className="text-gray-400 w-10 text-right">{pct}%</span>
     </div>
@@ -85,6 +82,7 @@ function CollectionCard({ col, caseId }: { col: ImportedCollection; caseId: stri
   })
 
   const groups = col.groups ?? []
+  const isCsv = !col.filename.toLowerCase().endsWith('.zip')
 
   return (
     <div className="border border-white/10 rounded-lg bg-[#0d1927] overflow-hidden">
@@ -97,9 +95,14 @@ function CollectionCard({ col, caseId }: { col: ImportedCollection; caseId: stri
           {expanded ? '▾' : '▸'}
         </button>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-white truncate">{col.filename}</p>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-white/10 text-gray-500 uppercase">
+              {isCsv ? 'csv' : 'zip'}
+            </span>
+            <p className="text-sm font-medium text-white truncate">{col.filename}</p>
+          </div>
           <p className="text-xs text-gray-500 mt-0.5">
-            {new Date(col.uploaded_at).toLocaleString()} · {fmt(col.file_size)} · {col.total_files} files
+            {new Date(col.uploaded_at).toLocaleString()} · {fmt(col.file_size)} · {col.total_files} {col.total_files === 1 ? 'file' : 'files'}
           </p>
         </div>
         <span className={`text-xs font-semibold ${STATUS_COLOR[col.status]}`}>
@@ -168,8 +171,56 @@ function CollectionCard({ col, caseId }: { col: ImportedCollection; caseId: stri
   )
 }
 
+// ── Drop zone ─────────────────────────────────────────────────────────────────
+
+function DropZone({ onFiles }: { onFiles: (files: File[]) => void }) {
+  const [dragging, setDragging] = useState(false)
+
+  const validate = (files: File[]): string | null => {
+    const exts = new Set(files.map(f => f.name.split('.').pop()?.toLowerCase()))
+    if (exts.has('zip') && exts.has('csv')) return 'Cannot mix ZIP and CSV in the same upload'
+    if (exts.has('zip') && files.length > 1) return 'Only one ZIP file per upload'
+    for (const f of files) {
+      const ext = f.name.split('.').pop()?.toLowerCase()
+      if (ext !== 'zip' && ext !== 'csv') return `Unsupported file type: ${f.name}`
+    }
+    return null
+  }
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setDragging(false)
+    const files = Array.from(e.dataTransfer.files)
+    const err = validate(files)
+    if (err) { alert(err); return }
+    onFiles(files)
+  }, [onFiles])
+
+  return (
+    <div
+      className={`border-2 border-dashed rounded-lg p-10 text-center transition-colors ${
+        dragging
+          ? 'border-accent-green/60 bg-accent-green/5'
+          : 'border-white/10 hover:border-white/20'
+      }`}
+      onDragOver={e => { e.preventDefault(); setDragging(true) }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={handleDrop}
+    >
+      <p className="text-2xl mb-2">📂</p>
+      <p className="text-gray-400 text-sm">Drop files here</p>
+      <p className="text-gray-600 text-xs mt-1">
+        ZIP archive <span className="text-gray-700 mx-1">or</span> one or more CSV files
+      </p>
+    </div>
+  )
+}
+
+// ── Main tab ──────────────────────────────────────────────────────────────────
+
 export default function CollectionImportTab({ caseId }: Props) {
-  const fileRef = useRef<HTMLInputElement>(null)
+  const zipRef = useRef<HTMLInputElement>(null)
+  const csvRef = useRef<HTMLInputElement>(null)
   const qc = useQueryClient()
 
   const { data: collections = [], isLoading } = useQuery({
@@ -178,40 +229,54 @@ export default function CollectionImportTab({ caseId }: Props) {
     refetchInterval: (q) => {
       const data = q.state.data as ImportedCollection[] | undefined
       if (!data) return 3000
-      const hasProcessing = data.some(c => c.status === 'processing')
-      return hasProcessing ? 2000 : false
+      return data.some(c => c.status === 'processing') ? 2000 : false
     },
   })
 
   const upload = useMutation({
-    mutationFn: (file: File) => collectionImportApi.upload(caseId, file),
+    mutationFn: (files: File[]) => collectionImportApi.upload(caseId, files),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['collection-imports', caseId] }),
+    onError: (e: Error) => alert(e.message),
   })
 
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (file) upload.mutate(file)
+  function handleZipChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
+    if (files.length) upload.mutate(files)
+    e.target.value = ''
+  }
+
+  function handleCsvChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
+    if (files.length) upload.mutate(files)
     e.target.value = ''
   }
 
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="text-accent-green font-semibold text-sm uppercase tracking-wide">
             Artifact Collections
           </h3>
           <p className="text-xs text-gray-500 mt-0.5">
-            Import EZ Tools / KAPE parsed output ZIPs — files are auto-detected and routed to the correct analysis page
+            Import EZ Tools / KAPE output — ZIP archive or individual CSV files, auto-detected and routed
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500 italic">ZIP only</span>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            className="btn-secondary text-xs flex items-center gap-1.5"
+            onClick={() => csvRef.current?.click()}
+            disabled={upload.isPending}
+            title="Import one or more EZ Tools CSV files directly"
+          >
+            📄 Import CSV(s)
+          </button>
           <button
             className="btn-primary text-xs flex items-center gap-1.5"
-            onClick={() => fileRef.current?.click()}
+            onClick={() => zipRef.current?.click()}
             disabled={upload.isPending}
+            title="Import a ZIP archive (KAPE triage, EZ Tools batch output)"
           >
             {upload.isPending ? (
               <>
@@ -219,22 +284,17 @@ export default function CollectionImportTab({ caseId }: Props) {
                 Uploading…
               </>
             ) : (
-              <>⬆ Import ZIP</>
+              <>🗜 Import ZIP</>
             )}
           </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".zip"
-            className="hidden"
-            onChange={handleFile}
-          />
+          <input ref={zipRef} type="file" accept=".zip" className="hidden" onChange={handleZipChange} />
+          <input ref={csvRef} type="file" accept=".csv" className="hidden" multiple onChange={handleCsvChange} />
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-3 text-xs text-gray-500">
-        <span>Supported sources:</span>
+      {/* Supported tools legend */}
+      <div className="flex flex-wrap gap-2 text-xs text-gray-500 items-center">
+        <span className="text-gray-600">EZ Tools:</span>
         {[
           'EvtxECmd', 'LECmd', 'JLECmd', 'SBECmd', 'RBCmd',
           'MFTECmd', 'AppCompatCacheParser', 'AmcacheParser',
@@ -246,28 +306,27 @@ export default function CollectionImportTab({ caseId }: Props) {
         ))}
       </div>
 
-      {/* Collections list */}
+      {/* Collections list or empty drop zone */}
       {isLoading ? (
         <p className="text-gray-500 text-sm">Loading…</p>
       ) : collections.length === 0 ? (
-        <div className="border border-dashed border-white/10 rounded-lg p-10 text-center">
-          <p className="text-gray-400 text-sm">No collections imported yet</p>
-          <p className="text-gray-600 text-xs mt-1">
-            Import a ZIP containing EZ Tools parsed CSVs to get started
-          </p>
-        </div>
+        <DropZone onFiles={files => upload.mutate(files)} />
       ) : (
-        <div className="space-y-3">
-          {collections.map(col => (
-            <CollectionCard key={col.id} col={col} caseId={caseId} />
-          ))}
-        </div>
+        <>
+          <div className="space-y-3">
+            {collections.map(col => (
+              <CollectionCard key={col.id} col={col} caseId={caseId} />
+            ))}
+          </div>
+          {/* Drop zone below existing collections */}
+          <DropZone onFiles={files => upload.mutate(files)} />
+        </>
       )}
 
       {/* Retention notice */}
       <p className="text-xs text-gray-600 italic border-t border-white/5 pt-3">
-        Files not added to the chain of custody are automatically purged after 90 days.
-        Files linked to an evidence entry are kept indefinitely.
+        Files not linked to an evidence entry are automatically purged after 90 days.
+        Files added to the chain of custody are kept indefinitely.
       </p>
     </div>
   )

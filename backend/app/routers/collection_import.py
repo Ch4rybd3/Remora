@@ -12,6 +12,7 @@ import zipfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from typing import List
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 
@@ -37,127 +38,237 @@ def _collection_dir(case_id: str, collection_id: str) -> Path:
 async def upload_collection(
     case_id: str,
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
+    files: List[UploadFile] = File(...),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    if not file.filename.lower().endswith(".zip"):
-        raise HTTPException(400, "Only ZIP files are accepted")
+    """
+    Accepts:
+      - A single ZIP file (KAPE / EZ Tools archive) — entries extracted automatically.
+      - One or more CSV files — saved directly, no extraction needed.
+    All uploads grouped into one ImportedCollection record.
+    """
+    if not files:
+        raise HTTPException(400, "No files provided")
+
+    # Validate extensions
+    for f in files:
+        ext = Path(f.filename).suffix.lower()
+        if ext not in (".zip", ".csv"):
+            raise HTTPException(400, f"Unsupported file type '{f.filename}' — only .zip and .csv are accepted")
+
+    # Mixed uploads not allowed — either one ZIP or N CSVs
+    exts = {Path(f.filename).suffix.lower() for f in files}
+    if ".zip" in exts and ".csv" in exts:
+        raise HTTPException(400, "Cannot mix ZIP and CSV files in the same upload")
+    if ".zip" in exts and len(files) > 1:
+        raise HTTPException(400, "Only one ZIP file per upload")
 
     collection_id = str(uuid.uuid4())
     dest_dir = _collection_dir(case_id, collection_id)
-    zip_path = dest_dir / "upload.zip"
+    extracted_dir = dest_dir / "extracted"
+    extracted_dir.mkdir(parents=True, exist_ok=True)
 
-    # Save the ZIP
-    content = await file.read()
-    zip_path.write_bytes(content)
+    expires = datetime.utcnow() + timedelta(days=90)
+    imported_files: list[ImportedFile] = []
+    total_size = 0
 
-    # Inspect ZIP to detect files
-    try:
-        with zipfile.ZipFile(zip_path) as zf:
-            all_entries = [e for e in zf.namelist() if not e.endswith("/")]
-    except zipfile.BadZipFile:
-        raise HTTPException(400, "Invalid ZIP file")
+    # ── Case A: single ZIP ────────────────────────────────────────────────────
+    if ".zip" in exts:
+        upload = files[0]
+        content = await upload.read()
+        total_size = len(content)
+        zip_path = dest_dir / "upload.zip"
+        zip_path.write_bytes(content)
 
-    # Create DB record
+        try:
+            with zipfile.ZipFile(zip_path) as zf:
+                all_entries = [e for e in zf.namelist() if not e.endswith("/")]
+        except zipfile.BadZipFile:
+            raise HTTPException(400, "Invalid ZIP file")
+
+        col_filename = upload.filename
+        for entry_name in all_entries:
+            result = detect(entry_name)
+            imported_files.append(ImportedFile(
+                id=str(uuid.uuid4()),
+                collection_id=collection_id,
+                case_id=case_id,
+                filename=entry_name,
+                status="pending" if result else "unsupported",
+                category=result.category if result else None,
+                category_label=result.category_label if result else None,
+                destination_page=result.destination_page.replace("{case_id}", case_id) if result else None,
+                destination_label=result.destination_label if result else None,
+                expires_at=expires,
+            ))
+
+        ingest_mode = "zip"
+        zip_path_for_bg = zip_path
+
+    # ── Case B: one or more CSV files ─────────────────────────────────────────
+    else:
+        zip_path_for_bg = None
+        for upload in files:
+            content = await upload.read()
+            total_size += len(content)
+            # Write directly into extracted/ — no unzipping needed
+            csv_dest = extracted_dir / upload.filename
+            csv_dest.write_bytes(content)
+
+            result = detect(upload.filename)
+            imported_files.append(ImportedFile(
+                id=str(uuid.uuid4()),
+                collection_id=collection_id,
+                case_id=case_id,
+                filename=upload.filename,
+                file_size=len(content),
+                status="pending" if result else "unsupported",
+                category=result.category if result else None,
+                category_label=result.category_label if result else None,
+                destination_page=result.destination_page.replace("{case_id}", case_id) if result else None,
+                destination_label=result.destination_label if result else None,
+                expires_at=expires,
+            ))
+
+        col_filename = (
+            files[0].filename if len(files) == 1
+            else f"{len(files)} CSV files"
+        )
+        ingest_mode = "csv"
+
+    # ── Persist ───────────────────────────────────────────────────────────────
     col = ImportedCollection(
         id=collection_id,
         case_id=case_id,
-        filename=file.filename,
-        file_size=len(content),
+        filename=col_filename,
+        file_size=total_size,
         uploaded_at=datetime.utcnow(),
         status="processing",
-        total_files=len(all_entries),
+        total_files=len(imported_files),
         processed_files=0,
     )
     db.add(col)
-
-    # Detect each file and create ImportedFile records
-    imported_files: list[ImportedFile] = []
-    expires = datetime.utcnow() + timedelta(days=90)
-
-    for entry_name in all_entries:
-        result = detect(entry_name)
-        f = ImportedFile(
-            id=str(uuid.uuid4()),
-            collection_id=collection_id,
-            case_id=case_id,
-            filename=entry_name,
-            status="pending" if result else "unsupported",
-            category=result.category if result else None,
-            category_label=result.category_label if result else None,
-            destination_page=result.destination_page.replace("{case_id}", case_id) if result else None,
-            destination_label=result.destination_label if result else None,
-            expires_at=expires,
-        )
+    for f in imported_files:
         db.add(f)
-        imported_files.append(f)
-
     db.commit()
-    db.refresh(col)
 
-    # Extract and ingest in background
-    background_tasks.add_task(
-        _extract_and_ingest, zip_path, dest_dir, collection_id, case_id,
-        [(f.id, f.filename, f.category) for f in imported_files if f.status == "pending"]
-    )
+    # ── Background ingest ─────────────────────────────────────────────────────
+    pending = [(f.id, f.filename, f.category) for f in imported_files if f.status == "pending"]
+
+    if ingest_mode == "zip":
+        background_tasks.add_task(
+            _extract_and_ingest, zip_path_for_bg, dest_dir, collection_id, case_id, pending
+        )
+    else:
+        # CSV files already in extracted/ — call ingest directly (no ZIP extraction)
+        background_tasks.add_task(
+            _ingest_pending, extracted_dir, collection_id, case_id, pending
+        )
 
     return {
         "id": collection_id,
         "status": "processing",
-        "total_files": len(all_entries),
+        "total_files": len(imported_files),
         "files": [_file_dto(f) for f in imported_files],
     }
 
 
 # ─── Background ingest ───────────────────────────────────────────────────────
 
+def _run_pending(
+    extracted_dir: Path,
+    collection_id: str,
+    case_id: str,
+    pending: list[tuple[str, str, str]],
+    db: Session,
+) -> int:
+    """
+    Shared ingest loop — resolves each CSV from extracted_dir and ingests it.
+    Returns the number of files processed.
+    """
+    processed = 0
+    for file_id, filename, category in pending:
+        csv_path = extracted_dir / filename
+        if not csv_path.exists():
+            # Some ZIPs use subdirectories; fall back to basename search
+            candidates = list(extracted_dir.rglob(Path(filename).name))
+            csv_path = candidates[0] if candidates else None
+
+        f = db.get(ImportedFile, file_id)
+        if not f:
+            continue
+
+        try:
+            count = _ingest_file(csv_path, case_id, file_id, category, db)
+            f.status = "imported"
+            f.row_count = count
+            f.imported_at = datetime.utcnow()
+        except Exception as e:
+            print(f"[collection_import] ERROR ingesting {filename}: {e}", flush=True)
+            f.status = "error"
+            f.error_message = str(e)[:500]
+
+        processed += 1
+        col = db.get(ImportedCollection, collection_id)
+        if col:
+            col.processed_files = processed
+        db.commit()
+
+    return processed
+
+
 def _extract_and_ingest(
     zip_path: Path,
     dest_dir: Path,
     collection_id: str,
     case_id: str,
-    pending: list[tuple[str, str, str]],   # (file_id, filename, category)
+    pending: list[tuple[str, str, str]],
 ):
+    """Background task for ZIP uploads — extracts first, then ingests."""
     db: Session = SessionLocal()
     try:
+        extracted_dir = dest_dir / "extracted"
         with zipfile.ZipFile(zip_path) as zf:
-            zf.extractall(dest_dir / "extracted")
+            zf.extractall(extracted_dir)
 
-        processed = 0
-        for file_id, filename, category in pending:
-            csv_path = dest_dir / "extracted" / filename
-            if not csv_path.exists():
-                # Some ZIPs flatten structure — search by basename
-                candidates = list((dest_dir / "extracted").rglob(Path(filename).name))
-                csv_path = candidates[0] if candidates else None
-
-            f = db.get(ImportedFile, file_id)
-            if not f:
-                continue
-
-            try:
-                count = _ingest_file(csv_path, case_id, file_id, category, db)
-                f.status = "imported"
-                f.row_count = count
-                f.imported_at = datetime.utcnow()
-            except Exception as e:
-                print(f"[collection_import] ERROR ingesting {filename}: {e}", flush=True)
-                f.status = "error"
-                f.error_message = str(e)[:500]
-
-            processed += 1
-            col = db.get(ImportedCollection, collection_id)
-            if col:
-                col.processed_files = processed
-            db.commit()
+        processed = _run_pending(extracted_dir, collection_id, case_id, pending, db)
 
         col = db.get(ImportedCollection, collection_id)
         if col:
             col.status = "done"
             col.processed_files = processed
         db.commit()
-        print(f"[collection_import] collection {collection_id} done — {processed} files", flush=True)
+        print(f"[collection_import] ZIP collection {collection_id} done — {processed} files", flush=True)
+
+    except Exception as e:
+        print(f"[collection_import] FATAL {collection_id}: {e}", flush=True)
+        col = db.get(ImportedCollection, collection_id)
+        if col:
+            col.status = "error"
+            col.error_message = str(e)[:500]
+        db.commit()
+    finally:
+        db.close()
+
+
+def _ingest_pending(
+    extracted_dir: Path,
+    collection_id: str,
+    case_id: str,
+    pending: list[tuple[str, str, str]],
+):
+    """Background task for direct CSV uploads — files already in extracted_dir."""
+    db: Session = SessionLocal()
+    try:
+        processed = _run_pending(extracted_dir, collection_id, case_id, pending, db)
+
+        col = db.get(ImportedCollection, collection_id)
+        if col:
+            col.status = "done"
+            col.processed_files = processed
+        db.commit()
+        print(f"[collection_import] CSV collection {collection_id} done — {processed} files", flush=True)
 
     except Exception as e:
         print(f"[collection_import] FATAL {collection_id}: {e}", flush=True)

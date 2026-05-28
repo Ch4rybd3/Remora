@@ -46,10 +46,14 @@ async function authHeaders(): Promise<Record<string, string>> {
 }
 
 export const collectionImportApi = {
-  async upload(caseId: string, file: File): Promise<ImportedCollection> {
+  async upload(caseId: string, files: File | File[]): Promise<ImportedCollection> {
     const headers = await authHeaders()
     const form = new FormData()
-    form.append('file', file)
+    const fileList = Array.isArray(files) ? files : [files]
+    // FastAPI receives List[UploadFile] when the same field name is repeated
+    for (const f of fileList) {
+      form.append('files', f)
+    }
     const res = await fetch(`${BASE}/cases/${caseId}/collection-imports`, {
       method: 'POST',
       headers,
