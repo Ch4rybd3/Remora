@@ -1,9 +1,32 @@
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { collectionImportApi, type ImportedCollection, type ImportedFile } from '../../../api/collectionImport'
 import { useNavigate } from 'react-router-dom'
 
 interface Props { caseId: string }
+
+// Files larger than this are skipped with a warning (they have dedicated pages)
+const MAX_FILE_BYTES = 300 * 1024 * 1024          // 300 MB
+// Each upload batch stays under this to avoid nginx / memory issues
+const MAX_BATCH_BYTES = 200 * 1024 * 1024          // 200 MB
+
+/** Split a file list into batches where each batch total ≤ MAX_BATCH_BYTES */
+function makeBatches(files: File[]): File[][] {
+  const batches: File[][] = []
+  let current: File[] = []
+  let currentSize = 0
+  for (const f of files) {
+    if (currentSize + f.size > MAX_BATCH_BYTES && current.length > 0) {
+      batches.push(current)
+      current = []
+      currentSize = 0
+    }
+    current.push(f)
+    currentSize += f.size
+  }
+  if (current.length > 0) batches.push(current)
+  return batches
+}
 
 const STATUS_COLOR: Record<string, string> = {
   pending: 'text-yellow-400',
@@ -222,7 +245,9 @@ export default function CollectionImportTab({ caseId }: Props) {
   const zipRef = useRef<HTMLInputElement>(null)
   const csvRef = useRef<HTMLInputElement>(null)
   const folderRef = useRef<HTMLInputElement>(null)
-  const [pendingCount, setPendingCount] = useState<number | null>(null)
+  const [uploadState, setUploadState] = useState<{
+    total: number; done: number; skipped: string[]
+  } | null>(null)
   const qc = useQueryClient()
 
   const { data: collections = [], isLoading } = useQuery({
@@ -237,12 +262,36 @@ export default function CollectionImportTab({ caseId }: Props) {
 
   const upload = useMutation({
     mutationFn: (files: File[]) => collectionImportApi.upload(caseId, files),
-    onSuccess: () => {
-      setPendingCount(null)
-      qc.invalidateQueries({ queryKey: ['collection-imports', caseId] })
-    },
-    onError: (e: Error) => { setPendingCount(null); alert(e.message) },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['collection-imports', caseId] }),
   })
+
+  /** Upload a list of files, automatically split into ≤200 MB batches */
+  async function uploadBatched(files: File[]) {
+    const batches = makeBatches(files)
+    setUploadState(s => ({ total: batches.length, done: 0, skipped: s?.skipped ?? [] }))
+    for (const batch of batches) {
+      await collectionImportApi.upload(caseId, batch)
+      setUploadState(s => s ? { ...s, done: s.done + 1 } : null)
+    }
+    qc.invalidateQueries({ queryKey: ['collection-imports', caseId] })
+    // Keep skipped notice visible briefly, then clear
+    setTimeout(() => setUploadState(null), 4000)
+  }
+
+  function filterAndUpload(all: File[]) {
+    const csvFiles = all.filter(f => f.name.toLowerCase().endsWith('.csv'))
+    const skipped = all
+      .filter(f => f.size > MAX_FILE_BYTES)
+      .map(f => `${f.name} (${(f.size / 1024 / 1024).toFixed(0)} MB)`)
+    const toUpload = csvFiles.filter(f => f.size <= MAX_FILE_BYTES)
+
+    if (toUpload.length === 0 && csvFiles.length === 0) {
+      alert('No CSV files found in the selection.')
+      return
+    }
+    setUploadState({ total: 0, done: 0, skipped })
+    uploadBatched(toUpload)
+  }
 
   function handleZipChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? [])
@@ -252,24 +301,17 @@ export default function CollectionImportTab({ caseId }: Props) {
 
   function handleCsvChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? [])
-    if (files.length) upload.mutate(files)
     e.target.value = ''
+    filterAndUpload(files)
   }
 
   function handleFolderChange(e: React.ChangeEvent<HTMLInputElement>) {
-    // Recursively selected folder — filter to CSV only, skip non-artifact files
     const all = Array.from(e.target.files ?? [])
-    const csvFiles = all.filter(f => f.name.toLowerCase().endsWith('.csv'))
     e.target.value = ''
-    if (csvFiles.length === 0) {
-      alert('No CSV files found in the selected folder.')
-      return
-    }
-    setPendingCount(csvFiles.length)
-    upload.mutate(csvFiles)
+    filterAndUpload(all)
   }
 
-  const busy = upload.isPending
+  const busy = upload.isPending || (uploadState !== null && uploadState.done < uploadState.total)
 
   return (
     <div className="space-y-4">
@@ -289,12 +331,17 @@ export default function CollectionImportTab({ caseId }: Props) {
             className="btn-secondary text-xs flex items-center gap-1.5"
             onClick={() => folderRef.current?.click()}
             disabled={busy}
-            title="Select a KAPE output folder — all CSV files imported recursively"
+            title="Select a KAPE output folder — all CSV files imported recursively. Files >300 MB are skipped (use their dedicated page)."
           >
-            {busy && pendingCount !== null ? (
+            {busy && uploadState && uploadState.total > 0 ? (
               <>
                 <span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                {pendingCount} CSV…
+                Batch {uploadState.done + 1}/{uploadState.total}…
+              </>
+            ) : busy ? (
+              <>
+                <span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Scanning…
               </>
             ) : '📁 Import Folder'}
           </button>
@@ -314,7 +361,7 @@ export default function CollectionImportTab({ caseId }: Props) {
             disabled={busy}
             title="Import a ZIP archive (KAPE triage, EZ Tools batch output)"
           >
-            {busy && pendingCount === null ? (
+            {upload.isPending ? (
               <>
                 <span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 Uploading…
@@ -336,6 +383,18 @@ export default function CollectionImportTab({ caseId }: Props) {
           />
         </div>
       </div>
+
+      {/* Skipped files notice */}
+      {uploadState && uploadState.skipped.length > 0 && (
+        <div className="rounded border border-yellow-500/30 bg-yellow-500/5 px-3 py-2 text-xs text-yellow-400">
+          <p className="font-semibold mb-1">
+            {uploadState.skipped.length} file{uploadState.skipped.length > 1 ? 's' : ''} skipped (exceed 300 MB — use their dedicated analysis page):
+          </p>
+          <ul className="space-y-0.5 text-yellow-500/80 font-mono">
+            {uploadState.skipped.map(s => <li key={s}>· {s}</li>)}
+          </ul>
+        </div>
+      )}
 
       {/* Supported tools legend */}
       <div className="flex flex-wrap gap-2 text-xs text-gray-500 items-center">
