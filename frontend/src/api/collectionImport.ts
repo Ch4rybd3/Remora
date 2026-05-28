@@ -50,9 +50,12 @@ export const collectionImportApi = {
     const headers = await authHeaders()
     const form = new FormData()
     const fileList = Array.isArray(files) ? files : [files]
-    // FastAPI receives List[UploadFile] when the same field name is repeated
     for (const f of fileList) {
-      form.append('files', f)
+      // Use webkitRelativePath when available (folder uploads) so the backend
+      // can detect the artifact type from the full relative path context.
+      const relativePath = (f as any).webkitRelativePath as string | undefined
+      const nameToSend = relativePath && relativePath.length > 0 ? relativePath : f.name
+      form.append('files', f, nameToSend)
     }
     const res = await fetch(`${BASE}/cases/${caseId}/collection-imports`, {
       method: 'POST',

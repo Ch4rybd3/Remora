@@ -221,6 +221,8 @@ function DropZone({ onFiles }: { onFiles: (files: File[]) => void }) {
 export default function CollectionImportTab({ caseId }: Props) {
   const zipRef = useRef<HTMLInputElement>(null)
   const csvRef = useRef<HTMLInputElement>(null)
+  const folderRef = useRef<HTMLInputElement>(null)
+  const [pendingCount, setPendingCount] = useState<number | null>(null)
   const qc = useQueryClient()
 
   const { data: collections = [], isLoading } = useQuery({
@@ -235,8 +237,11 @@ export default function CollectionImportTab({ caseId }: Props) {
 
   const upload = useMutation({
     mutationFn: (files: File[]) => collectionImportApi.upload(caseId, files),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['collection-imports', caseId] }),
-    onError: (e: Error) => alert(e.message),
+    onSuccess: () => {
+      setPendingCount(null)
+      qc.invalidateQueries({ queryKey: ['collection-imports', caseId] })
+    },
+    onError: (e: Error) => { setPendingCount(null); alert(e.message) },
   })
 
   function handleZipChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -251,6 +256,21 @@ export default function CollectionImportTab({ caseId }: Props) {
     e.target.value = ''
   }
 
+  function handleFolderChange(e: React.ChangeEvent<HTMLInputElement>) {
+    // Recursively selected folder — filter to CSV only, skip non-artifact files
+    const all = Array.from(e.target.files ?? [])
+    const csvFiles = all.filter(f => f.name.toLowerCase().endsWith('.csv'))
+    e.target.value = ''
+    if (csvFiles.length === 0) {
+      alert('No CSV files found in the selected folder.')
+      return
+    }
+    setPendingCount(csvFiles.length)
+    upload.mutate(csvFiles)
+  }
+
+  const busy = upload.isPending
+
   return (
     <div className="space-y-4">
       {/* Toolbar */}
@@ -260,35 +280,60 @@ export default function CollectionImportTab({ caseId }: Props) {
             Artifact Collections
           </h3>
           <p className="text-xs text-gray-500 mt-0.5">
-            Import EZ Tools / KAPE output — ZIP archive or individual CSV files, auto-detected and routed
+            Import EZ Tools / KAPE output — ZIP, individual CSVs, or an entire folder (recursive)
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {/* Folder */}
+          <button
+            className="btn-secondary text-xs flex items-center gap-1.5"
+            onClick={() => folderRef.current?.click()}
+            disabled={busy}
+            title="Select a KAPE output folder — all CSV files imported recursively"
+          >
+            {busy && pendingCount !== null ? (
+              <>
+                <span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                {pendingCount} CSV…
+              </>
+            ) : '📁 Import Folder'}
+          </button>
+          {/* CSV(s) */}
           <button
             className="btn-secondary text-xs flex items-center gap-1.5"
             onClick={() => csvRef.current?.click()}
-            disabled={upload.isPending}
-            title="Import one or more EZ Tools CSV files directly"
+            disabled={busy}
+            title="Pick one or more CSV files individually"
           >
-            📄 Import CSV(s)
+            📄 CSV(s)
           </button>
+          {/* ZIP */}
           <button
             className="btn-primary text-xs flex items-center gap-1.5"
             onClick={() => zipRef.current?.click()}
-            disabled={upload.isPending}
+            disabled={busy}
             title="Import a ZIP archive (KAPE triage, EZ Tools batch output)"
           >
-            {upload.isPending ? (
+            {busy && pendingCount === null ? (
               <>
                 <span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 Uploading…
               </>
-            ) : (
-              <>🗜 Import ZIP</>
-            )}
+            ) : '🗜 ZIP'}
           </button>
-          <input ref={zipRef} type="file" accept=".zip" className="hidden" onChange={handleZipChange} />
-          <input ref={csvRef} type="file" accept=".csv" className="hidden" multiple onChange={handleCsvChange} />
+
+          <input ref={zipRef}    type="file" accept=".zip" className="hidden" onChange={handleZipChange} />
+          <input ref={csvRef}    type="file" accept=".csv" className="hidden" multiple onChange={handleCsvChange} />
+          {/* webkitdirectory allows recursive folder selection */}
+          <input
+            ref={folderRef}
+            type="file"
+            className="hidden"
+            // @ts-expect-error — webkitdirectory is non-standard but supported in all modern browsers
+            webkitdirectory=""
+            multiple
+            onChange={handleFolderChange}
+          />
         </div>
       </div>
 

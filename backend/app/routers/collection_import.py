@@ -109,19 +109,42 @@ async def upload_collection(
     # ── Case B: one or more CSV files ─────────────────────────────────────────
     else:
         zip_path_for_bg = None
+        seen_names: dict[str, int] = {}   # deduplicate basenames if needed
+
         for upload in files:
             content = await upload.read()
             total_size += len(content)
-            # Write directly into extracted/ — no unzipping needed
-            csv_dest = extracted_dir / upload.filename
+
+            # The filename sent from the frontend may be a relative path
+            # (webkitRelativePath) like "KAPE/ProgramExecution/file.csv".
+            # We detect using the full relative path (basename extraction in
+            # detect()) but store the file using only the basename to avoid
+            # path-traversal issues.
+            rel_path = upload.filename   # e.g. "KAPE/ProgramExecution/file.csv"
+            basename = Path(rel_path).name
+
+            # Deduplicate identical basenames (rare but possible across folders)
+            if basename in seen_names:
+                seen_names[basename] += 1
+                stem, suffix = basename.rsplit(".", 1) if "." in basename else (basename, "")
+                safe_name = f"{stem}_{seen_names[basename]}.{suffix}" if suffix else f"{stem}_{seen_names[basename]}"
+            else:
+                seen_names[basename] = 0
+                safe_name = basename
+
+            # Save flat in extracted/
+            csv_dest = extracted_dir / safe_name
             csv_dest.write_bytes(content)
 
-            result = detect(upload.filename)
+            # Detect using the relative path (detect() takes the basename internally)
+            result = detect(rel_path)
+            print(f"[collection_import] detected {rel_path} → {result.category if result else 'unsupported'}", flush=True)
+
             imported_files.append(ImportedFile(
                 id=str(uuid.uuid4()),
                 collection_id=collection_id,
                 case_id=case_id,
-                filename=upload.filename,
+                filename=safe_name,      # stored name on disk (used by _run_pending)
                 file_size=len(content),
                 status="pending" if result else "unsupported",
                 category=result.category if result else None,
@@ -189,11 +212,13 @@ def _run_pending(
     """
     processed = 0
     for file_id, filename, category in pending:
+        # Try exact path first, then basename search (handles ZIP subdirs and flat CSVs)
         csv_path = extracted_dir / filename
         if not csv_path.exists():
-            # Some ZIPs use subdirectories; fall back to basename search
             candidates = list(extracted_dir.rglob(Path(filename).name))
             csv_path = candidates[0] if candidates else None
+
+        print(f"[collection_import] ingesting {filename} → category={category} path={csv_path}", flush=True)
 
         f = db.get(ImportedFile, file_id)
         if not f:
@@ -374,6 +399,7 @@ def list_collections(
         result.append({
             **_collection_dto(col),
             "files": [_file_dto(f) for f in files],
+            "groups": _group_summary(files),   # ← needed for category cards in UI
         })
     return result
 
