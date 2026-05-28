@@ -17,10 +17,11 @@ import EvidencesTab from '../components/case/tabs/EvidencesTab'
 import TimelineTab from '../components/case/tabs/TimelineTab'
 import AttackGraphTab from '../components/case/tabs/AttackGraphTab'
 import MitreTab from '../components/case/tabs/MitreTab'
+import CollectionImportTab from '../components/case/tabs/CollectionImportTab'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import { fmtDateTimeShort } from '../utils/dateUtils'
 
-type Tab = 'summary' | 'playbook' | 'report' | 'iocs' | 'assets' | 'evidences' | 'timeline' | 'attack_graph' | 'mitre'
+type Tab = 'summary' | 'playbook' | 'report' | 'iocs' | 'assets' | 'evidences' | 'timeline' | 'attack_graph' | 'mitre' | 'collection'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'summary',      label: 'Executive Summary' },
@@ -28,6 +29,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'iocs',         label: 'IOCs' },
   { id: 'assets',       label: 'Assets' },
   { id: 'evidences',    label: 'Evidence' },
+  { id: 'collection',   label: '⬆ Collections' },
   { id: 'timeline',     label: 'Timeline' },
   { id: 'mitre',        label: 'MITRE ATT&CK' },
   { id: 'attack_graph', label: 'Attack Graph' },
@@ -215,10 +217,11 @@ export default function CaseDetail() {
               </div>
             )}
             {/* Data tabs: full width */}
-            {activeTab === 'iocs'      && <IOCsTab caseId={case_.id} />}
-            {activeTab === 'assets'    && <AssetsTab caseId={case_.id} />}
-            {activeTab === 'evidences' && <EvidencesTab caseId={case_.id} />}
-            {activeTab === 'timeline'  && <TimelineTab caseId={case_.id} />}
+            {activeTab === 'iocs'       && <IOCsTab caseId={case_.id} />}
+            {activeTab === 'assets'     && <AssetsTab caseId={case_.id} />}
+            {activeTab === 'evidences'  && <EvidencesTab caseId={case_.id} />}
+            {activeTab === 'timeline'   && <TimelineTab caseId={case_.id} />}
+            {activeTab === 'collection' && <CollectionImportTab caseId={case_.id} />}
           </div>
         )}
       </div>

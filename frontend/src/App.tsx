@@ -25,6 +25,7 @@ import VaultManagement from './pages/VaultManagement'
 import PrefetchAnalysis from './pages/PrefetchAnalysis'
 import CTILookup from './pages/CTILookup'
 import Connectors from './pages/Connectors'
+import ExecutionArtifacts from './pages/ExecutionArtifacts'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth()
@@ -68,6 +69,8 @@ export default function App() {
         <Route path="/artifacts/prefetch"  element={<PrefetchAnalysis />} />
         <Route path="/artifacts/cti"       element={<CTILookup />} />
         <Route path="/config/connectors"   element={<Connectors />} />
+        {/* Case-scoped artifact analysis pages (navigated to from Collection Import tab) */}
+        <Route path="/cases/:caseId/execution"    element={<ExecutionArtifacts />} />
         <Route path="/knowledge" element={<KnowledgeBase />} />
         <Route path="/knowledge/editor" element={<KnowledgeEditor />} />
         <Route path="/config/chainsaw-rules" element={<ChainsawRules />} />
