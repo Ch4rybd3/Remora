@@ -16,7 +16,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFi
 from sqlalchemy.orm import Session
 
 from ..database import get_db, SessionLocal
-from ..auth import get_current_user
+from ..core.deps import get_current_user
 from ..models.ez_artifacts import ImportedCollection, ImportedFile
 from ..services.ez_detection import detect, CATEGORY_GROUPS
 from ..services.ez_ingest import shimcache, amcache, user_activity, srum, registry_batch
