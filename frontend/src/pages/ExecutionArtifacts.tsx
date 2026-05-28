@@ -1,23 +1,23 @@
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { BookmarkPlus } from 'lucide-react'
 import { shimcacheApi, amcacheApi } from '../api/ezExecution'
 import type { ShimcacheEntry, AmcacheFileEntry, AmcacheProgramEntry } from '../api/ezExecution'
 import { timelineApi } from '../api/timeline'
-import { useQueryClient } from '@tanstack/react-query'
+import { useCurrentCase } from '../context/CurrentCaseContext'
 
 type Tab = 'shimcache' | 'amcache-files' | 'amcache-programs'
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'shimcache', label: 'Shimcache' },
-  { id: 'amcache-files', label: 'Amcache — Files' },
+  { id: 'shimcache',         label: 'Shimcache' },
+  { id: 'amcache-files',    label: 'Amcache — Files' },
   { id: 'amcache-programs', label: 'Amcache — Programs' },
 ]
 
 const EXEC_COLOR: Record<string, string> = {
   Yes: 'text-red-400 font-semibold',
-  No: 'text-gray-500',
-  NA: 'text-gray-600',
+  No:  'text-gray-500',
+  NA:  'text-gray-600',
 }
 
 function dt(s: string | null) {
@@ -25,12 +25,60 @@ function dt(s: string | null) {
   return new Date(s).toLocaleString()
 }
 
+// ── Shared pin-button ─────────────────────────────────────────────────────────
+
+function PinBtn({ active, onClick }: { active: boolean; onClick: (e: React.MouseEvent) => void }) {
+  return (
+    <button
+      className={`flex items-center justify-center w-5 h-5 rounded transition-colors ${
+        active ? 'text-accent-green' : 'text-gray-600 hover:text-gray-300'
+      }`}
+      onClick={onClick}
+      title="Pin to timeline"
+    >
+      <BookmarkPlus size={12} />
+    </button>
+  )
+}
+
+// ── Shared right panel ────────────────────────────────────────────────────────
+
+function PinPanel({
+  count,
+  onSend,
+  children,
+}: {
+  count: number
+  onSend: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <div className="w-60 shrink-0 border-l border-white/10 flex flex-col">
+      <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between shrink-0">
+        <span className="text-xs text-gray-400 font-semibold uppercase tracking-wide">
+          Pinned {count > 0 && <span className="ml-1 text-accent-green">{count}</span>}
+        </span>
+        {count > 0 && (
+          <button className="text-xs text-accent-green hover:underline" onClick={onSend}>
+            Send to Timeline
+          </button>
+        )}
+      </div>
+      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        {count === 0
+          ? <p className="text-xs text-gray-600 italic px-1 pt-2">Pin rows to add to Timeline</p>
+          : children}
+      </div>
+    </div>
+  )
+}
+
 // ── Shimcache tab ─────────────────────────────────────────────────────────────
 
 function ShimcacheTab({ caseId }: { caseId: string }) {
-  const [search, setSearch] = useState('')
+  const [search, setSearch]   = useState('')
   const [executed, setExecuted] = useState('')
-  const [pinned, setPinned] = useState<Set<number>>(new Set())
+  const [pinned, setPinned]   = useState<Set<number>>(new Set())
   const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({
@@ -41,17 +89,16 @@ function ShimcacheTab({ caseId }: { caseId: string }) {
 
   const items = data?.items ?? []
 
-  function togglePin(row: ShimcacheEntry) {
+  function togglePin(r: ShimcacheEntry) {
     setPinned(prev => {
       const next = new Set(prev)
-      next.has(row.id) ? next.delete(row.id) : next.add(row.id)
+      next.has(r.id) ? next.delete(r.id) : next.add(r.id)
       return next
     })
   }
 
   async function sendToTimeline() {
-    const toSend = items.filter(r => pinned.has(r.id))
-    for (const r of toSend) {
+    for (const r of items.filter(x => pinned.has(x.id))) {
       if (!r.last_modified) continue
       await timelineApi.create(caseId, {
         case_id: caseId,
@@ -69,38 +116,26 @@ function ShimcacheTab({ caseId }: { caseId: string }) {
 
   return (
     <div className="flex h-full">
-      {/* Main table */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Toolbar */}
         <div className="flex items-center gap-3 px-4 py-2 border-b border-white/10 shrink-0">
           <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search path…"
-            className="input text-xs flex-1 max-w-sm"
+            value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search path…" className="input text-xs flex-1 max-w-sm"
           />
-          <select
-            value={executed}
-            onChange={e => setExecuted(e.target.value)}
-            className="input text-xs w-36"
-          >
+          <select value={executed} onChange={e => setExecuted(e.target.value)} className="input text-xs w-36">
             <option value="">All executed</option>
             <option value="Yes">Yes</option>
             <option value="No">No</option>
             <option value="NA">NA</option>
           </select>
-          <span className="text-xs text-gray-500 ml-auto">
-            {data?.total?.toLocaleString() ?? 0} entries
-          </span>
+          <span className="text-xs text-gray-500 ml-auto">{data?.total?.toLocaleString() ?? 0} entries</span>
         </div>
-
-        {/* Table */}
         <div className="overflow-auto flex-1">
           <table className="w-full text-xs min-w-[700px]">
             <thead className="sticky top-0 bg-[#0b121f] z-10">
               <tr className="border-b border-white/10 text-gray-500 uppercase tracking-wide text-[10px]">
                 <th className="py-2 px-3 w-8" />
-                <th className="py-2 px-3 text-right w-16">Position</th>
+                <th className="py-2 px-3 text-right w-16">Pos.</th>
                 <th className="py-2 px-3 text-left">Path</th>
                 <th className="py-2 px-3 text-left w-40">Last Modified (UTC)</th>
                 <th className="py-2 px-3 text-center w-20">Executed</th>
@@ -108,23 +143,14 @@ function ShimcacheTab({ caseId }: { caseId: string }) {
               </tr>
             </thead>
             <tbody>
-              {isLoading && (
-                <tr><td colSpan={6} className="py-10 text-center text-gray-500">Loading…</td></tr>
-              )}
+              {isLoading && <tr><td colSpan={6} className="py-10 text-center text-gray-500">Loading…</td></tr>}
               {!isLoading && items.length === 0 && (
                 <tr><td colSpan={6} className="py-10 text-center text-gray-600">No Shimcache data — import an AppCompatCache CSV</td></tr>
               )}
               {items.map(r => (
-                <tr
-                  key={r.id}
-                  className={`border-b border-white/5 hover:bg-white/[0.02] ${pinned.has(r.id) ? 'bg-accent-green/5' : ''}`}
-                >
+                <tr key={r.id} className={`border-b border-white/5 hover:bg-white/[0.02] ${pinned.has(r.id) ? 'bg-accent-green/5' : ''}`}>
                   <td className="py-1.5 px-3">
-                    <button
-                      className={`text-base leading-none ${pinned.has(r.id) ? 'text-accent-green' : 'text-gray-700 hover:text-gray-400'}`}
-                      onClick={e => { e.stopPropagation(); togglePin(r) }}
-                      title="Pin to timeline"
-                    >📌</button>
+                    <PinBtn active={pinned.has(r.id)} onClick={e => { e.stopPropagation(); togglePin(r) }} />
                   </td>
                   <td className="py-1.5 px-3 text-right text-gray-400 font-mono">{r.cache_position ?? '—'}</td>
                   <td className="py-1.5 px-3 text-gray-200 font-mono max-w-[400px] truncate">{r.path ?? '—'}</td>
@@ -139,35 +165,16 @@ function ShimcacheTab({ caseId }: { caseId: string }) {
           </table>
         </div>
       </div>
-
-      {/* Pin panel */}
-      <div className="w-60 shrink-0 border-l border-white/10 flex flex-col">
-        <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between">
-          <span className="text-xs text-gray-400 font-semibold uppercase tracking-wide">
-            Pinned {pinned.size > 0 && <span className="ml-1 text-accent-green">{pinned.size}</span>}
-          </span>
-          {pinned.size > 0 && (
-            <button
-              className="text-xs text-accent-green hover:underline"
-              onClick={sendToTimeline}
-            >Send to Timeline</button>
-          )}
-        </div>
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {[...pinned].map(id => {
-            const r = items.find(x => x.id === id)
-            if (!r) return null
-            return (
-              <div key={id} className="text-xs text-gray-400 bg-white/5 rounded px-2 py-1.5 font-mono truncate">
-                {r.path?.split('\\').pop() ?? r.path}
-              </div>
-            )
-          })}
-          {pinned.size === 0 && (
-            <p className="text-xs text-gray-600 italic px-1 pt-2">Pin rows to add to Timeline</p>
-          )}
-        </div>
-      </div>
+      <PinPanel count={pinned.size} onSend={sendToTimeline}>
+        {[...pinned].map(id => {
+          const r = items.find(x => x.id === id)
+          return r ? (
+            <div key={id} className="text-xs text-gray-400 bg-white/5 rounded px-2 py-1.5 font-mono truncate">
+              {r.path?.split('\\').pop() ?? r.path}
+            </div>
+          ) : null
+        })}
+      </PinPanel>
     </div>
   )
 }
@@ -175,9 +182,9 @@ function ShimcacheTab({ caseId }: { caseId: string }) {
 // ── Amcache Files tab ─────────────────────────────────────────────────────────
 
 function AmcacheFilesTab({ caseId }: { caseId: string }) {
-  const [search, setSearch] = useState('')
+  const [search, setSearch]       = useState('')
   const [entryType, setEntryType] = useState('')
-  const [pinned, setPinned] = useState<Set<number>>(new Set())
+  const [pinned, setPinned]       = useState<Set<number>>(new Set())
   const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({
@@ -189,9 +196,7 @@ function AmcacheFilesTab({ caseId }: { caseId: string }) {
   const items = data?.items ?? []
 
   function togglePin(r: AmcacheFileEntry) {
-    setPinned(prev => {
-      const next = new Set(prev); next.has(r.id) ? next.delete(r.id) : next.add(r.id); return next
-    })
+    setPinned(prev => { const next = new Set(prev); next.has(r.id) ? next.delete(r.id) : next.add(r.id); return next })
   }
 
   async function sendToTimeline() {
@@ -199,16 +204,14 @@ function AmcacheFilesTab({ caseId }: { caseId: string }) {
       const ts = r.file_key_last_write || r.link_date
       if (!ts) continue
       await timelineApi.create(caseId, {
-        case_id: caseId,
-        event_ts: ts,
+        case_id: caseId, event_ts: ts,
         title: r.full_path ?? r.name ?? 'Unknown',
         description: `Amcache — SHA1: ${r.sha1 ?? 'N/A'} · ${r.product_name ?? ''}`,
-        source: 'amcache',
-        actor: '',
-        tags: 'amcache',
+        source: 'amcache', actor: '', tags: 'amcache',
       })
     }
-    qc.invalidateQueries({ queryKey: ['timeline', caseId] }); setPinned(new Set())
+    qc.invalidateQueries({ queryKey: ['timeline', caseId] })
+    setPinned(new Set())
   }
 
   return (
@@ -243,8 +246,7 @@ function AmcacheFilesTab({ caseId }: { caseId: string }) {
               {items.map(r => (
                 <tr key={r.id} className={`border-b border-white/5 hover:bg-white/[0.02] ${pinned.has(r.id) ? 'bg-accent-green/5' : ''}`}>
                   <td className="py-1.5 px-3">
-                    <button className={`text-base leading-none ${pinned.has(r.id) ? 'text-accent-green' : 'text-gray-700 hover:text-gray-400'}`}
-                      onClick={e => { e.stopPropagation(); togglePin(r) }}>📌</button>
+                    <PinBtn active={pinned.has(r.id)} onClick={e => { e.stopPropagation(); togglePin(r) }} />
                   </td>
                   <td className="py-1.5 px-3 text-gray-200 font-mono max-w-[280px] truncate">{r.full_path ?? r.name ?? '—'}</td>
                   <td className="py-1.5 px-3 text-purple-400 font-mono text-[10px] truncate">{r.sha1 ?? '—'}</td>
@@ -258,21 +260,16 @@ function AmcacheFilesTab({ caseId }: { caseId: string }) {
           </table>
         </div>
       </div>
-      <div className="w-60 shrink-0 border-l border-white/10 flex flex-col">
-        <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between">
-          <span className="text-xs text-gray-400 font-semibold uppercase tracking-wide">
-            Pinned {pinned.size > 0 && <span className="ml-1 text-accent-green">{pinned.size}</span>}
-          </span>
-          {pinned.size > 0 && <button className="text-xs text-accent-green hover:underline" onClick={sendToTimeline}>Send to Timeline</button>}
-        </div>
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {[...pinned].map(id => {
-            const r = items.find(x => x.id === id)
-            return r ? <div key={id} className="text-xs text-gray-400 bg-white/5 rounded px-2 py-1.5 font-mono truncate">{r.name ?? r.full_path}</div> : null
-          })}
-          {pinned.size === 0 && <p className="text-xs text-gray-600 italic px-1 pt-2">Pin rows to add to Timeline</p>}
-        </div>
-      </div>
+      <PinPanel count={pinned.size} onSend={sendToTimeline}>
+        {[...pinned].map(id => {
+          const r = items.find(x => x.id === id)
+          return r ? (
+            <div key={id} className="text-xs text-gray-400 bg-white/5 rounded px-2 py-1.5 font-mono truncate">
+              {r.name ?? r.full_path}
+            </div>
+          ) : null
+        })}
+      </PinPanel>
     </div>
   )
 }
@@ -332,20 +329,34 @@ function AmcacheProgramsTab({ caseId }: { caseId: string }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ExecutionArtifacts() {
-  const { caseId } = useParams<{ caseId: string }>()
+  const { currentCase } = useCurrentCase()
   const [activeTab, setActiveTab] = useState<Tab>('shimcache')
 
-  if (!caseId) return null
+  if (!currentCase) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-center space-y-2">
+          <div className="text-5xl opacity-10">⚡</div>
+          <p className="text-sm text-accent-muted/50">No current case selected</p>
+          <p className="text-xs text-accent-muted/30">
+            Set a current case from the Cases page to analyse execution artifacts
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const caseId = currentCase.id
 
   return (
     <div className="h-full flex flex-col">
-      {/* Page header */}
       <div className="border-b border-white/10 px-6 py-3 shrink-0">
-        <h2 className="text-white font-semibold text-base">⚡ Execution Artifacts</h2>
-        <p className="text-xs text-gray-500 mt-0.5">Shimcache (AppCompatCacheParser) · Amcache (AmcacheParser)</p>
+        <h2 className="text-white font-semibold text-base">Execution Artifacts</h2>
+        <p className="text-xs text-gray-500 mt-0.5">
+          Shimcache (AppCompatCacheParser) · Amcache (AmcacheParser) — case: <span className="font-mono text-accent-green/70">{currentCase.title}</span>
+        </p>
       </div>
 
-      {/* Sub-tab bar */}
       <div className="flex border-b border-white/10 px-4 shrink-0 bg-[#0b121f]">
         {TABS.map(t => (
           <button
@@ -362,10 +373,9 @@ export default function ExecutionArtifacts() {
         ))}
       </div>
 
-      {/* Tab content */}
       <div className="flex-1 overflow-hidden">
-        {activeTab === 'shimcache' && <ShimcacheTab caseId={caseId} />}
-        {activeTab === 'amcache-files' && <AmcacheFilesTab caseId={caseId} />}
+        {activeTab === 'shimcache'         && <ShimcacheTab caseId={caseId} />}
+        {activeTab === 'amcache-files'    && <AmcacheFilesTab caseId={caseId} />}
         {activeTab === 'amcache-programs' && <AmcacheProgramsTab caseId={caseId} />}
       </div>
     </div>

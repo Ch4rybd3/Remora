@@ -32,123 +32,123 @@ _PATTERNS: list[tuple[str, str, str, str, str, str]] = [
     # ── Event Logs ─────────────────────────────────────────────────────────
     (r"(?i)evtxecmd.*output\.csv$",
      "evtx_ez", "Event Logs (EvtxECmd)",
-     "/cases/{case_id}/event-logs", "Event Logs", "evtx"),
+     "/artifacts/filesystem", "Event Logs", "evtx"),
 
     # ── Recycle Bin ────────────────────────────────────────────────────────
     (r"(?i)rbcmd.*output\.csv$",
      "recycle_bin", "Recycle Bin (RBCmd)",
-     "/cases/{case_id}/user-activity", "User Activity", "recycle-bin"),
+     "/artifacts/user-activity", "User Activity", "recycle-bin"),
 
     # ── Jump Lists (automatic / custom) ────────────────────────────────────
     (r"(?i)automaticdestinations\.csv$",
      "jump_lists_auto", "Jump Lists — Automatic (JLECmd)",
-     "/cases/{case_id}/user-activity", "User Activity", "jump-lists"),
+     "/artifacts/user-activity", "User Activity", "jump-lists"),
 
     (r"(?i)customdestinations\.csv$",
      "jump_lists_custom", "Jump Lists — Custom (JLECmd)",
-     "/cases/{case_id}/user-activity", "User Activity", "jump-lists"),
+     "/artifacts/user-activity", "User Activity", "jump-lists"),
 
     # ── LNK files ──────────────────────────────────────────────────────────
     (r"(?i)lecmd.*output\.csv$",
      "lnk_files", "LNK Files (LECmd)",
-     "/cases/{case_id}/user-activity", "User Activity", "lnk"),
+     "/artifacts/user-activity", "User Activity", "lnk"),
 
     # ── Windows Timeline (WxTCmd) ───────────────────────────────────────────
     # *_Activity.csv (but NOT *_PackageIDs.csv)
     (r"(?i)_activity\.csv$",
      "windows_timeline", "Windows Timeline (WxTCmd)",
-     "/cases/{case_id}/user-activity", "User Activity", "windows-timeline"),
+     "/artifacts/user-activity", "User Activity", "windows-timeline"),
 
     (r"(?i)_activity_packageids\.csv$",
      "windows_timeline_pkg", "Windows Timeline Package IDs (WxTCmd)",
-     "/cases/{case_id}/user-activity", "User Activity", "windows-timeline"),
+     "/artifacts/user-activity", "User Activity", "windows-timeline"),
 
     # ── Shellbags (SBECmd) ─────────────────────────────────────────────────
     # *_NTUSER.csv or *_UsrClass.csv produced by SBECmd
     (r"(?i)_(ntuser|usrclass)\.csv$",
      "shellbags", "Shellbags (SBECmd)",
-     "/cases/{case_id}/user-activity", "User Activity", "shellbags"),
+     "/artifacts/user-activity", "User Activity", "shellbags"),
 
     # ── Filesystem — MFT ───────────────────────────────────────────────────
     (r"(?i)mftecmd.*\$mft.*output\.csv$",
      "mft_ez", "MFT (MFTECmd)",
-     "/cases/{case_id}/filesystem", "Filesystem", "mft"),
+     "/artifacts/mft", "MFT / USN", "mft"),
 
     # ── Filesystem — USN / $J ──────────────────────────────────────────────
     (r"(?i)mftecmd.*\$j.*output\.csv$",
      "usn_ez", "USN Journal / $J (MFTECmd)",
-     "/cases/{case_id}/filesystem", "Filesystem", "usn"),
+     "/artifacts/mft", "MFT / USN", "usn"),
 
     # ── Filesystem — $Boot ─────────────────────────────────────────────────
     (r"(?i)mftecmd.*\$boot.*output\.csv$",
      "mft_boot", "MFT $Boot (MFTECmd)",
-     "/cases/{case_id}/filesystem", "Filesystem", "boot"),
+     "/artifacts/mft", "MFT / USN", "boot"),
 
     # ── Shimcache ──────────────────────────────────────────────────────────
     (r"(?i)appcompatcache\.csv$",
      "shimcache", "Shimcache / AppCompatCache (AppCompatCacheParser)",
-     "/cases/{case_id}/execution", "Execution Artifacts", "shimcache"),
+     "/artifacts/execution", "Execution Artifacts", "shimcache"),
 
     # ── Amcache ────────────────────────────────────────────────────────────
     (r"(?i)amcache_unassociatedfileentries\.csv$",
      "amcache_unassociated", "Amcache — Unassociated Files (AmcacheParser)",
-     "/cases/{case_id}/execution", "Execution Artifacts", "amcache"),
+     "/artifacts/execution", "Execution Artifacts", "amcache"),
 
     (r"(?i)amcache_associatedfileentries\.csv$",
      "amcache_associated", "Amcache — Associated Files (AmcacheParser)",
-     "/cases/{case_id}/execution", "Execution Artifacts", "amcache"),
+     "/artifacts/execution", "Execution Artifacts", "amcache"),
 
     (r"(?i)amcache_programentries\.csv$",
      "amcache_programs", "Amcache — Programs (AmcacheParser)",
-     "/cases/{case_id}/execution", "Execution Artifacts", "amcache"),
+     "/artifacts/execution", "Execution Artifacts", "amcache"),
 
     (r"(?i)amcache_devicecontainers\.csv$",
      "amcache_devices", "Amcache — Device Containers (AmcacheParser)",
-     "/cases/{case_id}/execution", "Execution Artifacts", "amcache"),
+     "/artifacts/execution", "Execution Artifacts", "amcache"),
 
     (r"(?i)amcache_devicepnps\.csv$",
      "amcache_pnp", "Amcache — Device PnPs (AmcacheParser)",
-     "/cases/{case_id}/execution", "Execution Artifacts", "amcache"),
+     "/artifacts/execution", "Execution Artifacts", "amcache"),
 
     (r"(?i)amcache_drivebinaries\.csv$",
      "amcache_drivers", "Amcache — Driver Binaries (AmcacheParser)",
-     "/cases/{case_id}/execution", "Execution Artifacts", "amcache"),
+     "/artifacts/execution", "Execution Artifacts", "amcache"),
 
     (r"(?i)amcache_shortcuts\.csv$",
      "amcache_shortcuts", "Amcache — Shortcuts (AmcacheParser)",
-     "/cases/{case_id}/execution", "Execution Artifacts", "amcache"),
+     "/artifacts/execution", "Execution Artifacts", "amcache"),
 
     # ── SRUM ───────────────────────────────────────────────────────────────
     (r"(?i)srumecmd_appresourceuseinfo.*output\.csv$",
      "srum_app_usage", "SRUM — App Resource Usage (SrumECmd)",
-     "/cases/{case_id}/srum", "SRUM", "app-usage"),
+     "/artifacts/srum", "SRUM", "app-usage"),
 
     (r"(?i)srumecmd_networkusages.*output\.csv$",
      "srum_network", "SRUM — Network Usage (SrumECmd)",
-     "/cases/{case_id}/srum", "SRUM", "network"),
+     "/artifacts/srum", "SRUM", "network"),
 
     (r"(?i)srumecmd_networkconnections.*output\.csv$",
      "srum_net_conn", "SRUM — Network Connections (SrumECmd)",
-     "/cases/{case_id}/srum", "SRUM", "network"),
+     "/artifacts/srum", "SRUM", "network"),
 
     (r"(?i)srumecmd_apptimelineprovider.*output\.csv$",
      "srum_timeline", "SRUM — App Timeline (SrumECmd)",
-     "/cases/{case_id}/srum", "SRUM", "app-usage"),
+     "/artifacts/srum", "SRUM", "app-usage"),
 
     (r"(?i)srumecmd_energyusage.*output\.csv$",
      "srum_energy", "SRUM — Energy Usage (SrumECmd)",
-     "/cases/{case_id}/srum", "SRUM", "app-usage"),
+     "/artifacts/srum", "SRUM", "app-usage"),
 
     # ── Registry — RECmd batch output ──────────────────────────────────────
     (r"(?i)recmd_batch.*output\.csv$",
      "registry_batch", "Registry Batch (RECmd)",
-     "/cases/{case_id}/registry", "Registry Analysis", "batch"),
+     "/artifacts/registry", "Registry", "batch"),
 
     # ── Registry — RECmd individual plugin outputs ─────────────────────────
     # Pattern: *_<PluginName>__<HivePath>.csv  (double underscore)
     (r"(?i)_[a-z][a-z0-9]+__.*\.csv$",
      "registry_plugin", "Registry Plugin (RECmd)",
-     "/cases/{case_id}/registry", "Registry Analysis", "plugins"),
+     "/artifacts/registry", "Registry", "plugins"),
 ]
 
 _COMPILED: list[tuple[re.Pattern, str, str, str, str, str]] = [
@@ -211,7 +211,7 @@ CATEGORY_GROUPS: dict[str, dict] = {
         "icon": "📋",
     },
     "filesystem": {
-        "label": "Filesystem",
+        "label": "MFT / USN",
         "categories": ["mft_ez", "usn_ez", "mft_boot"],
         "icon": "💾",
     },
@@ -224,6 +224,6 @@ CATEGORY_GROUPS: dict[str, dict] = {
     "registry": {
         "label": "Registry",
         "categories": ["registry_batch", "registry_plugin"],
-        "icon": "🗂️",
+        "icon": "🗂",
     },
 }

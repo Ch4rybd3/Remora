@@ -1,5 +1,6 @@
-import { useRef, useState, useCallback, useMemo } from 'react'
+import { useRef, useState, useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ChevronRight } from 'lucide-react'
 import { collectionImportApi, type ImportedCollection, type ImportedFile } from '../../../api/collectionImport'
 import { useNavigate } from 'react-router-dom'
 
@@ -41,9 +42,21 @@ const CATEGORY_ICON: Record<string, string> = {
   'Execution Artifacts': '⚡',
   'User Activity': '👤',
   'Event Logs': '📋',
-  'Filesystem': '💾',
+  'MFT / USN': '💾',
   'SRUM': '📊',
-  'Registry Analysis': '🗂️',
+  'Registry': '🗂',
+}
+
+/**
+ * Old imports stored case-scoped paths like /cases/{uuid}/execution.
+ * New imports store global paths like /artifacts/execution.
+ * This normalises both so navigation always works.
+ */
+function resolveDestination(page: string | null): string | null {
+  if (!page) return null
+  const m = page.match(/^\/cases\/[^/]+\/(execution|user-activity|srum|registry|mft|filesystem)/)
+  if (m) return `/artifacts/${m[1]}`
+  return page
 }
 
 function fmt(bytes: number | null) {
@@ -146,27 +159,68 @@ function CollectionCard({ col, caseId }: { col: ImportedCollection; caseId: stri
         </div>
       )}
 
-      {/* Group summary cards */}
+      {/* Artifact group detail — one section per detected category */}
       {col.status === 'done' && groups.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3">
-          {groups.map(g => (
-            <button
-              key={g.label}
-              className="text-left p-3 rounded border border-white/10 bg-[#111e2e] hover:border-accent-green/40 transition-colors"
-              onClick={() => g.destination_page && navigate(g.destination_page)}
-            >
-              <div className="flex items-center gap-1.5 mb-1">
-                <span>{CATEGORY_ICON[g.label] ?? '📁'}</span>
-                <span className="text-xs font-semibold text-white truncate">{g.label}</span>
+        <div className="divide-y divide-white/5">
+          {groups.map(g => {
+            const dest = resolveDestination(g.destination_page)
+            // Files in this group (join by filename)
+            const groupFiles = col.files.filter(f => g.files.includes(f.filename))
+            const isUnknown = g.label === 'Unknown' || g.label === 'Unsupported'
+            return (
+              <div key={g.label} className="px-4 py-3">
+                {/* Group header */}
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-base leading-none">{isUnknown ? '🔲' : (CATEGORY_ICON[g.label] ?? '📁')}</span>
+                  <span className="text-xs font-semibold text-white">
+                    {isUnknown ? 'Unsupported / Unknown' : g.label}
+                  </span>
+                  {g.total_rows > 0 && (
+                    <span className="text-xs text-accent-green font-mono">
+                      {fmtNum(g.total_rows)} rows
+                    </span>
+                  )}
+                  {g.error > 0 && (
+                    <span className="text-xs text-red-400">{g.error} error{g.error > 1 ? 's' : ''}</span>
+                  )}
+                  <div className="flex-1" />
+                  {dest && !isUnknown && (
+                    <button
+                      onClick={() => navigate(dest)}
+                      className="flex items-center gap-0.5 text-xs text-accent-green hover:underline shrink-0"
+                    >
+                      View <ChevronRight size={11} />
+                    </button>
+                  )}
+                </div>
+                {/* Per-file rows */}
+                <div className="space-y-0.5 ml-6">
+                  {groupFiles.map(f => (
+                    <div key={f.id} className="flex items-center gap-2 text-xs">
+                      <span className={
+                        f.status === 'imported' ? 'text-accent-green' :
+                        f.status === 'error'    ? 'text-red-400' :
+                        f.status === 'pending'  ? 'text-yellow-400' : 'text-gray-600'
+                      }>
+                        {f.status === 'imported' ? '✓' : f.status === 'error' ? '✗' : f.status === 'pending' ? '◌' : '—'}
+                      </span>
+                      <span className="font-mono text-gray-400 truncate flex-1 min-w-0">
+                        {f.filename.split('/').pop()}
+                      </span>
+                      {f.row_count != null && f.row_count > 0 && (
+                        <span className="shrink-0 text-gray-600 tabular-nums">{fmtNum(f.row_count)} rows</span>
+                      )}
+                      {f.status === 'error' && f.error_message && (
+                        <span className="shrink-0 text-red-400/70 truncate max-w-[140px]" title={f.error_message}>
+                          {f.error_message.slice(0, 40)}…
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
-              <p className="text-xs text-accent-green">{fmtNum(g.total_rows)} rows</p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {g.imported} imported
-                {g.error > 0 && <span className="text-red-400 ml-1">{g.error} err</span>}
-                {g.unsupported > 0 && <span className="text-gray-600 ml-1">{g.unsupported} unsupported</span>}
-              </p>
-            </button>
-          ))}
+            )
+          })}
         </div>
       )}
 

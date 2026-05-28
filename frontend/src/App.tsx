@@ -26,6 +26,8 @@ import PrefetchAnalysis from './pages/PrefetchAnalysis'
 import CTILookup from './pages/CTILookup'
 import Connectors from './pages/Connectors'
 import ExecutionArtifacts from './pages/ExecutionArtifacts'
+import UserActivity from './pages/UserActivity'
+import SRUMAnalysis from './pages/SRUMAnalysis'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth()
@@ -69,8 +71,10 @@ export default function App() {
         <Route path="/artifacts/prefetch"  element={<PrefetchAnalysis />} />
         <Route path="/artifacts/cti"       element={<CTILookup />} />
         <Route path="/config/connectors"   element={<Connectors />} />
-        {/* Case-scoped artifact analysis pages (navigated to from Collection Import tab) */}
-        <Route path="/cases/:caseId/execution"    element={<ExecutionArtifacts />} />
+        {/* EZ Tools artifact analysis pages — sidebar-accessible, case via currentCase context */}
+        <Route path="/artifacts/execution"      element={<ExecutionArtifacts />} />
+        <Route path="/artifacts/user-activity"  element={<UserActivity />} />
+        <Route path="/artifacts/srum"           element={<SRUMAnalysis />} />
         <Route path="/knowledge" element={<KnowledgeBase />} />
         <Route path="/knowledge/editor" element={<KnowledgeEditor />} />
         <Route path="/config/chainsaw-rules" element={<ChainsawRules />} />
