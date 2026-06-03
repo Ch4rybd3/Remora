@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from typing import List
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session
 
 from ..database import get_db, SessionLocal
@@ -39,6 +39,7 @@ async def upload_collection(
     case_id: str,
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
+    session_id: str | None = Query(None),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -89,13 +90,16 @@ async def upload_collection(
 
         col_filename = upload.filename
         for entry_name in all_entries:
-            result = detect(entry_name)
+            result  = detect(entry_name)
+            is_csv  = entry_name.lower().endswith(".csv")
+            # Unknown CSVs are still valid artifacts — import them as-is.
+            # Non-CSV files with no recognised category are left as unsupported.
             imported_files.append(ImportedFile(
                 id=str(uuid.uuid4()),
                 collection_id=collection_id,
                 case_id=case_id,
                 filename=entry_name,
-                status="pending" if result else "unsupported",
+                status="pending" if (result or is_csv) else "unsupported",
                 category=result.category if result else None,
                 category_label=result.category_label if result else None,
                 destination_page=result.destination_page.replace("{case_id}", case_id) if result else None,
@@ -140,13 +144,15 @@ async def upload_collection(
             result = detect(rel_path)
             print(f"[collection_import] detected {rel_path} → {result.category if result else 'unsupported'}", flush=True)
 
+            # All CSVs are valid artifacts — unknown ones get category=None
+            # and are registered in Artifact Explorer with an "Unknown" label.
             imported_files.append(ImportedFile(
                 id=str(uuid.uuid4()),
                 collection_id=collection_id,
                 case_id=case_id,
-                filename=safe_name,      # stored name on disk (used by _run_pending)
+                filename=safe_name,
                 file_size=len(content),
-                status="pending" if result else "unsupported",
+                status="pending",       # always attempt ingest for CSV files
                 category=result.category if result else None,
                 category_label=result.category_label if result else None,
                 destination_page=result.destination_page.replace("{case_id}", case_id) if result else None,
@@ -164,6 +170,7 @@ async def upload_collection(
     col = ImportedCollection(
         id=collection_id,
         case_id=case_id,
+        session_id=session_id,
         filename=col_filename,
         file_size=total_size,
         uploaded_at=datetime.utcnow(),
@@ -233,6 +240,15 @@ def _run_pending(
             print(f"[collection_import] ERROR ingesting {filename}: {e}", flush=True)
             f.status = "error"
             f.error_message = str(e)[:500]
+        finally:
+            # Always register in Artifact Explorer so the file is visible regardless
+            # of whether the specialized ingest succeeded.
+            if csv_path and csv_path.exists():
+                try:
+                    from .csv_artifacts import register_csv_artifact
+                    register_csv_artifact(csv_path, case_id, db)
+                except Exception as reg_err:
+                    print(f"[collection_import] artifact registration skipped for {filename}: {reg_err}", flush=True)
 
         processed += 1
         col = db.get(ImportedCollection, collection_id)
@@ -374,6 +390,12 @@ def _ingest_file(
         return 0
 
     elif category == "evtx_ez":
+        # EvtxECmd CSV output — already registered in Artifact Explorer via register_csv_artifact.
+        # To also populate the EVTX Logs page, implement an EvtxECmd CSV → EvtxEvent adapter here.
+        return 0
+
+    elif category in ("mft_ez", "usn_ez"):
+        # MFTECmd / USN CSV — already in Artifact Explorer. Dedicated page ingest: future work.
         return 0
 
     return 0
@@ -480,6 +502,7 @@ def _collection_dto(col: ImportedCollection) -> dict:
     return {
         "id": col.id,
         "case_id": col.case_id,
+        "session_id": col.session_id,
         "filename": col.filename,
         "file_size": col.file_size,
         "uploaded_at": col.uploaded_at.isoformat() if col.uploaded_at else None,

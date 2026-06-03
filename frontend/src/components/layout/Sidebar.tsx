@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, FolderOpen, FileText, Users, LogOut, GitBranch, Mail, HardDrive, Shield, Cpu, Database, Globe, Binary, KeyRound, FileOutput, Swords, Archive, Clock, AlertTriangle, ChevronDown, Zap, Plug, Terminal, History, TrendingUp } from 'lucide-react'
+import { LayoutDashboard, FolderOpen, FileText, Users, LogOut, GitBranch, Mail, HardDrive, Shield, Cpu, Database, Globe, Binary, KeyRound, FileOutput, Swords, Archive, Clock, AlertTriangle, ChevronDown, Zap, Plug, Terminal, History, TrendingUp, Table2 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useTimezone, TIMEZONE_OPTIONS, type TzOption } from '../../context/TimezoneContext'
 
@@ -146,6 +146,7 @@ export default function Sidebar() {
     {
       heading: 'Artifact Processing',
       items: [
+        { to: '/artifacts/explorer',    icon: Table2,    label: 'Artifact Explorer' },
         { to: '/artifacts/email',       icon: Mail,      label: 'Email Analysis' },
         { to: '/artifacts/filesystem',  icon: HardDrive, label: 'Logs' },
         { to: '/artifacts/browser',      icon: Globe,     label: 'Browser' },

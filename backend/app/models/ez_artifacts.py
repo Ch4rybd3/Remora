@@ -33,6 +33,7 @@ class ImportedCollection(Base):
 
     id          = Column(String, primary_key=True, default=_uuid)
     case_id     = Column(String, ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True)
+    session_id  = Column(String, index=True)   # groups batched CSV uploads into one logical session
     filename    = Column(String, nullable=False)
     file_size   = Column(BigInteger, default=0)
     uploaded_at = Column(DateTime, default=datetime.utcnow)

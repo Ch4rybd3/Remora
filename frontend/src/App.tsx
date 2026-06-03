@@ -28,6 +28,7 @@ import Connectors from './pages/Connectors'
 import ExecutionArtifacts from './pages/ExecutionArtifacts'
 import UserActivity from './pages/UserActivity'
 import SRUMAnalysis from './pages/SRUMAnalysis'
+import ArtifactExplorer from './pages/ArtifactExplorer'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth()
@@ -72,6 +73,7 @@ export default function App() {
         <Route path="/artifacts/cti"       element={<CTILookup />} />
         <Route path="/config/connectors"   element={<Connectors />} />
         {/* EZ Tools artifact analysis pages — sidebar-accessible, case via currentCase context */}
+        <Route path="/artifacts/explorer"        element={<ArtifactExplorer />} />
         <Route path="/artifacts/execution"      element={<ExecutionArtifacts />} />
         <Route path="/artifacts/user-activity"  element={<UserActivity />} />
         <Route path="/artifacts/srum"           element={<SRUMAnalysis />} />

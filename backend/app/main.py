@@ -64,7 +64,9 @@ from .models import report_doc_template as _rdt_models    # ensure tables are re
 from .models import prefetch as _prefetch_models          # ensure tables are registered
 from .models import connector as _connector_models        # ensure tables are registered
 from .models import email_file as _email_file_models      # ensure tables are registered
+from .models import csv_artifact as _csv_artifact_models  # ensure tables are registered
 from .routers import case_emails as case_emails_router
+from .routers import csv_artifacts as csv_artifacts_router
 
 Base.metadata.create_all(bind=engine)
 settings.evidence_store_path.mkdir(parents=True, exist_ok=True)
@@ -86,6 +88,19 @@ def _setup_mft() -> None:
 
 
 _setup_mft()
+
+
+def _setup_collection_imports() -> None:
+    """Add session_id to imported_collections if it doesn't already exist."""
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE imported_collections ADD COLUMN session_id TEXT"))
+            conn.commit()
+        except Exception:
+            pass  # Column already exists
+
+
+_setup_collection_imports()
 
 
 def _setup_browser() -> None:
@@ -237,6 +252,7 @@ app.include_router(users_router.router, prefix="/api/v1")  # users router has it
 app.include_router(playbooks_router.router, prefix="/api/v1", **_auth)
 app.include_router(email_analysis_router.router, prefix="/api/v1", **_auth)
 app.include_router(case_emails_router.router,    prefix="/api/v1", **_auth)
+app.include_router(csv_artifacts_router.router,  prefix="/api/v1", **_auth)
 app.include_router(knowledge_router.router, prefix="/api/v1", **_auth)
 app.include_router(evtx_router.router, prefix="/api/v1", **_auth)
 app.include_router(audit_router.router, prefix="/api/v1", **_auth)

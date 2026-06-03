@@ -5,5 +5,20 @@
       "Bash(Select-Object -First 50)",
       "Bash(Format-Table FullName)"
     ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "Set-Location 'c:\\Users\\fsali\\Documents\\Claude Projects\\remora'; docker compose down; docker compose build",
+            "shell": "powershell",
+            "timeout": 600,
+            "statusMessage": "Building Docker images..."
+          }
+        ]
+      }
+    ]
   }
 }

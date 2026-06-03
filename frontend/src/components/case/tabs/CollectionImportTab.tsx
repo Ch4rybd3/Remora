@@ -1,15 +1,15 @@
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronRight } from 'lucide-react'
-import { collectionImportApi, type ImportedCollection, type ImportedFile } from '../../../api/collectionImport'
+import { collectionImportApi, type ImportedCollection, type ImportedFile, type GroupSummary } from '../../../api/collectionImport'
 import { useNavigate } from 'react-router-dom'
 
 interface Props { caseId: string }
 
-// Files larger than this are skipped with a warning (they have dedicated pages)
-const MAX_FILE_BYTES = 300 * 1024 * 1024          // 300 MB
 // Each upload batch stays under this to avoid nginx / memory issues
 const MAX_BATCH_BYTES = 200 * 1024 * 1024          // 200 MB
+// Files above this threshold get a notice about browsing performance
+const LARGE_FILE_BYTES = 500 * 1024 * 1024         // 500 MB
 
 /** Split a file list into batches where each batch total ≤ MAX_BATCH_BYTES */
 function makeBatches(files: File[]): File[][] {
@@ -48,15 +48,14 @@ const CATEGORY_ICON: Record<string, string> = {
 }
 
 /**
- * Old imports stored case-scoped paths like /cases/{uuid}/execution.
- * New imports store global paths like /artifacts/execution.
- * This normalises both so navigation always works.
+ * All CSV artifact destinations now go to the generic Artifact Explorer.
+ * The ?open=<filename> param lets the Explorer auto-open the correct file.
+ * Legacy case-scoped and global artifact routes are both handled here.
  */
-function resolveDestination(page: string | null): string | null {
-  if (!page) return null
-  const m = page.match(/^\/cases\/[^/]+\/(execution|user-activity|srum|registry|mft|filesystem)/)
-  if (m) return `/artifacts/${m[1]}`
-  return page
+function resolveDestination(page: string | null, firstFilename?: string): string {
+  const base = '/artifacts/explorer'
+  if (!firstFilename) return base
+  return `${base}?open=${encodeURIComponent(firstFilename)}`
 }
 
 function fmt(bytes: number | null) {
@@ -69,6 +68,50 @@ function fmt(bytes: number | null) {
 function fmtNum(n: number | null | undefined) {
   if (!n) return '0'
   return n.toLocaleString()
+}
+
+function mergeGroups(groups: GroupSummary[]): GroupSummary[] {
+  const map = new Map<string, GroupSummary>()
+  for (const g of groups) {
+    const existing = map.get(g.label)
+    if (existing) {
+      existing.files.push(...g.files)
+      existing.imported += g.imported
+      existing.error += g.error
+      existing.unsupported += g.unsupported
+      existing.total_rows += g.total_rows
+    } else {
+      map.set(g.label, { ...g, files: [...g.files] })
+    }
+  }
+  return Array.from(map.values())
+}
+
+function mergeSession(cols: ImportedCollection[]): ImportedCollection & { _sourceIds: string[] } {
+  if (cols.length === 1) return { ...cols[0], _sourceIds: [cols[0].id] }
+  const allFiles = cols.flatMap(c => c.files)
+  const allGroups = mergeGroups(cols.flatMap(c => c.groups ?? []))
+  const totalFiles = cols.reduce((s, c) => s + c.total_files, 0)
+  const status = cols.some(c => c.status === 'processing') ? 'processing'
+    : cols.some(c => c.status === 'error') ? 'error'
+    : cols.every(c => c.status === 'done') ? 'done'
+    : 'pending'
+  const earliest = cols.reduce((min, c) => c.uploaded_at < min ? c.uploaded_at : min, cols[0].uploaded_at)
+  return {
+    id: cols[0].session_id ?? cols[0].id,
+    case_id: cols[0].case_id,
+    session_id: cols[0].session_id,
+    filename: `${totalFiles} CSV files`,
+    file_size: cols.reduce((s, c) => s + c.file_size, 0),
+    uploaded_at: earliest,
+    status,
+    total_files: totalFiles,
+    processed_files: cols.reduce((s, c) => s + c.processed_files, 0),
+    error_message: cols.map(c => c.error_message).filter(Boolean).join('; ') || null,
+    files: allFiles,
+    groups: allGroups,
+    _sourceIds: cols.map(c => c.id),
+  }
 }
 
 function Progress({ val, total }: { val: number; total: number }) {
@@ -93,7 +136,7 @@ function FileBadge({ f }: { f: ImportedFile }) {
       <td className="py-2 px-2">
         {f.category_label
           ? <span className="text-gray-300">{f.category_label}</span>
-          : <span className="text-gray-600 italic">unsupported</span>}
+          : <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-gray-500/10 text-gray-500 border-gray-500/20">unknown</span>}
       </td>
       <td className={`py-2 px-2 font-semibold ${color}`}>{f.status}</td>
       <td className="py-2 px-2 text-gray-400 text-right">{fmtNum(f.row_count)}</td>
@@ -107,49 +150,99 @@ function FileBadge({ f }: { f: ImportedFile }) {
   )
 }
 
-function CollectionCard({ col, caseId }: { col: ImportedCollection; caseId: string }) {
-  const [expanded, setExpanded] = useState(false)
+/** Extract a short display name from a potentially long path or "N CSV files". */
+function displayName(filename: string): string {
+  if (!filename.includes('/')) return filename
+  return filename.split('/').pop() ?? filename
+}
+
+const STATUS_BADGE: Record<string, string> = {
+  done:       'text-accent-green border-accent-green/30 bg-accent-green/8',
+  processing: 'text-blue-400 border-blue-400/30 bg-blue-400/8',
+  error:      'text-red-400 border-red-400/30 bg-red-400/8',
+  pending:    'text-yellow-400 border-yellow-400/30 bg-yellow-400/8',
+}
+
+function CollectionCard({ cols, caseId }: { cols: ImportedCollection[]; caseId: string }) {
+  const [expanded, setExpanded] = useState(true)
   const navigate = useNavigate()
   const qc = useQueryClient()
 
+  const col = useMemo(() => mergeSession(cols), [cols])
+
   const del = useMutation({
-    mutationFn: () => collectionImportApi.delete(caseId, col.id),
+    mutationFn: () => Promise.all(col._sourceIds.map(id => collectionImportApi.delete(caseId, id))),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['collection-imports', caseId] }),
   })
 
   const groups = col.groups ?? []
-  const isCsv = !col.filename.toLowerCase().endsWith('.zip')
+  const isCsv  = !col.filename.toLowerCase().endsWith('.zip')
+
+  // Summary counters
+  const importedCount = col.files.filter(f => f.status === 'imported').length
+  const errorCount    = col.files.filter(f => f.status === 'error').length
+  const knownGroups   = groups.filter(g => g.label !== 'Unknown' && g.label !== 'Unsupported' && g.imported > 0)
+  const unknownCount  = col.files.filter(f => !f.category_label && f.status === 'imported').length
 
   return (
     <div className="border border-white/10 rounded-lg bg-[#0d1927] overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10">
-        <button
-          className="text-gray-400 hover:text-white text-xs w-4"
-          onClick={() => setExpanded(v => !v)}
-        >
-          {expanded ? '▾' : '▸'}
-        </button>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-white/10 text-gray-500 uppercase">
-              {isCsv ? 'csv' : 'zip'}
-            </span>
-            <p className="text-sm font-medium text-white truncate">{col.filename}</p>
-          </div>
-          <p className="text-xs text-gray-500 mt-0.5">
-            {new Date(col.uploaded_at).toLocaleString()} · {fmt(col.file_size)} · {col.total_files} {col.total_files === 1 ? 'file' : 'files'}
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <div className="px-4 py-3 border-b border-white/10">
+        {/* Row 1: toggle + name + status + delete */}
+        <div className="flex items-center gap-2">
+          <button className="text-gray-400 hover:text-white shrink-0" onClick={() => setExpanded(v => !v)}>
+            {expanded ? '▾' : '▸'}
+          </button>
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-white/10 text-gray-500 uppercase shrink-0">
+            {isCsv ? 'csv' : 'zip'}
+          </span>
+          <p className="text-sm font-medium text-white truncate flex-1 min-w-0" title={col.filename}>
+            {displayName(col.filename)}
           </p>
+          <span className={`text-[10px] font-bold shrink-0 px-2 py-0.5 rounded border ${STATUS_BADGE[col.status] ?? STATUS_BADGE.pending}`}>
+            {col.status.toUpperCase()}
+          </span>
+          <button
+            className="text-gray-600 hover:text-red-400 text-xs ml-1 shrink-0"
+            onClick={() => { if (confirm(col._sourceIds.length > 1 ? `Delete this session (${col._sourceIds.length} batches)?` : 'Delete this collection import?')) del.mutate() }}
+          >✕</button>
         </div>
-        <span className={`text-xs font-semibold ${STATUS_COLOR[col.status]}`}>
-          {col.status.toUpperCase()}
-        </span>
-        <button
-          className="text-gray-600 hover:text-red-400 text-xs ml-2"
-          onClick={() => { if (confirm('Delete this collection import?')) del.mutate() }}
-        >
-          ✕
-        </button>
+
+        {/* Row 2: meta */}
+        <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-600">
+          <span>{new Date(col.uploaded_at).toLocaleString()}</span>
+          <span>·</span>
+          <span>{fmt(col.file_size)}</span>
+          <span>·</span>
+          <span className={importedCount === col.total_files ? 'text-accent-green/60' : ''}>
+            {importedCount}/{col.total_files} imported
+          </span>
+          {errorCount > 0 && (
+            <span className="text-red-400/70">{errorCount} error{errorCount > 1 ? 's' : ''}</span>
+          )}
+        </div>
+
+        {/* Row 3: category chips (visible when done) */}
+        {col.status === 'done' && (knownGroups.length > 0 || unknownCount > 0) && (
+          <div className="flex items-center gap-1 mt-2 flex-wrap">
+            {knownGroups.map(g => (
+              <span key={g.label}
+                className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-white/[0.03] border border-white/8 text-gray-400">
+                <span className="leading-none">{CATEGORY_ICON[g.label] ?? '📁'}</span>
+                <span className="text-accent-green/80 font-mono font-semibold">{g.imported}</span>
+                <span className="text-gray-500 max-w-[90px] truncate">{g.label}</span>
+                {g.total_rows > 0 && (
+                  <span className="text-gray-600 font-mono">{fmtNum(g.total_rows)}</span>
+                )}
+              </span>
+            ))}
+            {unknownCount > 0 && (
+              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-gray-500/5 border border-gray-500/20 text-gray-600">
+                ?&nbsp;<span className="font-mono">{unknownCount}</span>&nbsp;unknown
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Progress bar when processing */}
@@ -159,14 +252,16 @@ function CollectionCard({ col, caseId }: { col: ImportedCollection; caseId: stri
         </div>
       )}
 
-      {/* Artifact group detail — one section per detected category */}
-      {col.status === 'done' && groups.length > 0 && (
+      {/* Artifact group detail — collapsible, shown when expanded */}
+      {expanded && col.status === 'done' && groups.length > 0 && (
         <div className="divide-y divide-white/5">
           {groups.map(g => {
-            const dest = resolveDestination(g.destination_page)
             // Files in this group (join by filename)
             const groupFiles = col.files.filter(f => g.files.includes(f.filename))
             const isUnknown = g.label === 'Unknown' || g.label === 'Unsupported'
+            // Point to Artifact Explorer, pre-selecting the first file of the group
+            const firstFile = groupFiles.find(f => f.status === 'imported')?.filename ?? g.files[0]
+            const dest = resolveDestination(g.destination_page, firstFile)
             return (
               <div key={g.label} className="px-4 py-3">
                 {/* Group header */}
@@ -184,39 +279,55 @@ function CollectionCard({ col, caseId }: { col: ImportedCollection; caseId: stri
                     <span className="text-xs text-red-400">{g.error} error{g.error > 1 ? 's' : ''}</span>
                   )}
                   <div className="flex-1" />
-                  {dest && !isUnknown && (
-                    <button
-                      onClick={() => navigate(dest)}
-                      className="flex items-center gap-0.5 text-xs text-accent-green hover:underline shrink-0"
-                    >
-                      View <ChevronRight size={11} />
-                    </button>
-                  )}
                 </div>
                 {/* Per-file rows */}
                 <div className="space-y-0.5 ml-6">
-                  {groupFiles.map(f => (
-                    <div key={f.id} className="flex items-center gap-2 text-xs">
-                      <span className={
-                        f.status === 'imported' ? 'text-accent-green' :
-                        f.status === 'error'    ? 'text-red-400' :
-                        f.status === 'pending'  ? 'text-yellow-400' : 'text-gray-600'
-                      }>
-                        {f.status === 'imported' ? '✓' : f.status === 'error' ? '✗' : f.status === 'pending' ? '◌' : '—'}
-                      </span>
-                      <span className="font-mono text-gray-400 truncate flex-1 min-w-0">
-                        {f.filename.split('/').pop()}
-                      </span>
-                      {f.row_count != null && f.row_count > 0 && (
-                        <span className="shrink-0 text-gray-600 tabular-nums">{fmtNum(f.row_count)} rows</span>
-                      )}
-                      {f.status === 'error' && f.error_message && (
-                        <span className="shrink-0 text-red-400/70 truncate max-w-[140px]" title={f.error_message}>
-                          {f.error_message.slice(0, 40)}…
+                  {groupFiles.map(f => {
+                    const basename = f.filename.split('/').pop() ?? f.filename
+                    const dest = resolveDestination(g.destination_page, basename)
+                    return (
+                      <div key={f.id} className="flex items-center gap-1.5 text-xs group/row">
+                        {/* View button — left, primary action */}
+                        <button
+                          onClick={() => navigate(dest)}
+                          disabled={f.status !== 'imported'}
+                          title={f.status === 'imported' ? 'Ouvrir dans Artifact Explorer' : 'Pas encore importé'}
+                          className="flex items-center gap-0.5 text-accent-green/60 hover:text-accent-green disabled:text-gray-700 disabled:cursor-default transition-colors shrink-0"
+                        >
+                          <ChevronRight size={12} />
+                        </button>
+
+                        {/* Status dot */}
+                        <span className={
+                          f.status === 'imported' ? 'text-accent-green' :
+                          f.status === 'error'    ? 'text-red-400' :
+                          f.status === 'pending'  ? 'text-yellow-400' : 'text-gray-600'
+                        }>
+                          {f.status === 'imported' ? '✓' : f.status === 'error' ? '✗' : f.status === 'pending' ? '◌' : '—'}
                         </span>
-                      )}
-                    </div>
-                  ))}
+
+                        {/* Filename + Unknown badge */}
+                        <span className="font-mono text-gray-400 truncate flex-1 min-w-0">{basename}</span>
+                        {!f.category_label && (
+                          <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-gray-500/10 text-gray-500 border-gray-500/20">
+                            unknown
+                          </span>
+                        )}
+
+                        {/* Error */}
+                        {f.status === 'error' && f.error_message && (
+                          <span className="shrink-0 text-red-400/70 truncate max-w-[120px]" title={f.error_message}>
+                            {f.error_message.slice(0, 35)}…
+                          </span>
+                        )}
+
+                        {/* Row count — right */}
+                        {f.row_count != null && f.row_count > 0 && (
+                          <span className="shrink-0 text-gray-600 tabular-nums ml-auto pl-2">{fmtNum(f.row_count)} rows</span>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )
@@ -224,7 +335,7 @@ function CollectionCard({ col, caseId }: { col: ImportedCollection; caseId: stri
         </div>
       )}
 
-      {/* File detail table */}
+      {/* File detail table — raw view inside expanded card */}
       {expanded && (
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -314,37 +425,51 @@ export default function CollectionImportTab({ caseId }: Props) {
     },
   })
 
+  // Group collections by session_id — each null session_id is its own group (legacy)
+  const sessions = useMemo(() => {
+    const map = new Map<string, ImportedCollection[]>()
+    for (const col of collections) {
+      const key = col.session_id ?? col.id
+      const list = map.get(key) ?? []
+      list.push(col)
+      map.set(key, list)
+    }
+    return Array.from(map.values()).sort((a, b) =>
+      new Date(b[0].uploaded_at).getTime() - new Date(a[0].uploaded_at).getTime()
+    )
+  }, [collections])
+
   const upload = useMutation({
     mutationFn: (files: File[]) => collectionImportApi.upload(caseId, files),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['collection-imports', caseId] }),
   })
 
-  /** Upload a list of files, automatically split into ≤200 MB batches */
+  /** Upload a list of files, automatically split into ≤200 MB batches, all under one session */
   async function uploadBatched(files: File[]) {
+    const sessionId = crypto.randomUUID()
     const batches = makeBatches(files)
     setUploadState(s => ({ total: batches.length, done: 0, skipped: s?.skipped ?? [] }))
     for (const batch of batches) {
-      await collectionImportApi.upload(caseId, batch)
+      await collectionImportApi.upload(caseId, batch, sessionId)
       setUploadState(s => s ? { ...s, done: s.done + 1 } : null)
     }
     qc.invalidateQueries({ queryKey: ['collection-imports', caseId] })
-    // Keep skipped notice visible briefly, then clear
     setTimeout(() => setUploadState(null), 4000)
   }
 
   function filterAndUpload(all: File[]) {
     const csvFiles = all.filter(f => f.name.toLowerCase().endsWith('.csv'))
-    const skipped = all
-      .filter(f => f.size > MAX_FILE_BYTES)
+    const large = csvFiles
+      .filter(f => f.size > LARGE_FILE_BYTES)
       .map(f => `${f.name} (${(f.size / 1024 / 1024).toFixed(0)} MB)`)
-    const toUpload = csvFiles.filter(f => f.size <= MAX_FILE_BYTES)
 
-    if (toUpload.length === 0 && csvFiles.length === 0) {
+    if (csvFiles.length === 0) {
       alert('No CSV files found in the selection.')
       return
     }
-    setUploadState({ total: 0, done: 0, skipped })
-    uploadBatched(toUpload)
+    // Upload ALL CSV files — large ones will be importable via Artifact Explorer
+    setUploadState({ total: 0, done: 0, skipped: large })
+    uploadBatched(csvFiles)
   }
 
   function handleZipChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -442,7 +567,9 @@ export default function CollectionImportTab({ caseId }: Props) {
       {uploadState && uploadState.skipped.length > 0 && (
         <div className="rounded border border-yellow-500/30 bg-yellow-500/5 px-3 py-2 text-xs text-yellow-400">
           <p className="font-semibold mb-1">
-            {uploadState.skipped.length} file{uploadState.skipped.length > 1 ? 's' : ''} skipped (exceed 300 MB — use their dedicated analysis page):
+            {uploadState.skipped.length} fichier{uploadState.skipped.length > 1 ? 's' : ''} volumineux (
+            &gt;500 MB) — importé{uploadState.skipped.length > 1 ? 's' : ''} dans l'Artifact Explorer,
+            navigation peut être lente. Pour des performances optimales, utilisez leurs pages dédiées (Logs, MFT/USN…).
           </p>
           <ul className="space-y-0.5 text-yellow-500/80 font-mono">
             {uploadState.skipped.map(s => <li key={s}>· {s}</li>)}
@@ -467,13 +594,17 @@ export default function CollectionImportTab({ caseId }: Props) {
       {/* Collections list or empty drop zone */}
       {isLoading ? (
         <p className="text-gray-500 text-sm">Loading…</p>
-      ) : collections.length === 0 ? (
+      ) : sessions.length === 0 ? (
         <DropZone onFiles={files => upload.mutate(files)} />
       ) : (
         <>
           <div className="space-y-3">
-            {collections.map(col => (
-              <CollectionCard key={col.id} col={col} caseId={caseId} />
+            {sessions.map(sessionCols => (
+              <CollectionCard
+                key={sessionCols[0].session_id ?? sessionCols[0].id}
+                cols={sessionCols}
+                caseId={caseId}
+              />
             ))}
           </div>
           {/* Drop zone below existing collections */}
