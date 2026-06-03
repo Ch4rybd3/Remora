@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Clock } from 'lucide-react'
+import { Plus, Trash2, Clock, Pencil } from 'lucide-react'
 import { timelineApi } from '../../../api/timeline'
 import { iocsApi } from '../../../api/iocs'
 import { assetsApi } from '../../../api/assets'
@@ -104,30 +104,66 @@ export default function TimelineTab({ caseId }: Props) {
 
   const suggestions = useMemo(() => buildSuggestions(iocs, assets), [iocs, assets])
 
-  const [modalOpen, setModalOpen] = useState(false)
-  const [form, setForm] = useState<Partial<TimelineEvent>>(empty())
-  const [actorTags, setActorTags] = useState<InputTag[]>([])
+  const [modalOpen,   setModalOpen]   = useState(false)
+  const [editingId,   setEditingId]   = useState<string | null>(null)
+  const [form,        setForm]        = useState<Partial<TimelineEvent>>(empty())
+  const [actorTags,   setActorTags]   = useState<InputTag[]>([])
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
-  const openModal = () => {
+  const isEditing = editingId !== null
+
+  const openCreate = () => {
+    setEditingId(null)
     setForm(empty())
     setActorTags([])
     setModalOpen(true)
+  }
+
+  const openEdit = (ev: TimelineEvent) => {
+    setEditingId(ev.id)
+    setForm({
+      event_ts:    ev.event_ts?.slice(0, 16),
+      title:       ev.title,
+      description: ev.description,
+      source:      ev.source,
+      actor:       ev.actor,
+      tags:        ev.tags,
+    })
+    setActorTags(stringToTags(ev.actor, iocs, assets))
+    setModalOpen(true)
+  }
+
+  const closeModal = () => {
+    setModalOpen(false)
+    setEditingId(null)
   }
 
   const create = useMutation({
     mutationFn: () =>
       timelineApi.create(caseId, {
         ...form,
-        actor: tagsToString(actorTags),
+        actor:    tagsToString(actorTags),
         event_ts: new Date(form.event_ts!).toISOString(),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['timeline', caseId] })
       qc.invalidateQueries({ queryKey: ['cases'] })
-      setModalOpen(false)
+      closeModal()
       setForm(empty())
       setActorTags([])
+    },
+  })
+
+  const update = useMutation({
+    mutationFn: () =>
+      timelineApi.update(caseId, editingId!, {
+        ...form,
+        actor:    tagsToString(actorTags),
+        event_ts: new Date(form.event_ts!).toISOString(),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['timeline', caseId] })
+      closeModal()
     },
   })
 
@@ -146,7 +182,7 @@ export default function TimelineTab({ caseId }: Props) {
           Timeline
           <span className="ml-2 text-accent-muted font-normal normal-case">({events.length})</span>
         </h3>
-        <button className="btn-primary text-xs flex items-center gap-1.5" onClick={openModal}>
+        <button className="btn-primary text-xs flex items-center gap-1.5" onClick={openCreate}>
           <Plus size={13} /> Add Event
         </button>
       </div>
@@ -155,7 +191,7 @@ export default function TimelineTab({ caseId }: Props) {
         <EmptyState
           icon={Clock}
           message="No timeline events recorded"
-          action={{ label: '+ Add Event', onClick: openModal }}
+          action={{ label: '+ Add Event', onClick: openCreate }}
         />
       ) : (
         <div className="relative">
@@ -197,12 +233,22 @@ export default function TimelineTab({ caseId }: Props) {
                           <p className="text-xs text-accent-muted mt-1 leading-relaxed">{ev.description}</p>
                         )}
                       </div>
-                      <button
-                        onClick={() => setDeleteTarget(ev.id)}
-                        className="text-accent-muted/30 hover:text-severity-critical transition-colors opacity-0 group-hover:opacity-100 shrink-0"
-                      >
-                        <Trash2 size={13} />
-                      </button>
+                      <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <button
+                          onClick={() => openEdit(ev)}
+                          className="text-accent-muted/30 hover:text-accent-green transition-colors"
+                          title="Edit event"
+                        >
+                          <Pencil size={12} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget(ev.id)}
+                          className="text-accent-muted/30 hover:text-severity-critical transition-colors"
+                          title="Delete event"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -212,7 +258,7 @@ export default function TimelineTab({ caseId }: Props) {
         </div>
       )}
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Add Timeline Event" size="md">
+      <Modal open={modalOpen} onClose={closeModal} title={isEditing ? 'Edit Timeline Event' : 'Add Timeline Event'} size="md">
         <div className="space-y-4">
           <div>
             <label className="label">Timestamp</label>
@@ -265,13 +311,16 @@ export default function TimelineTab({ caseId }: Props) {
           </div>
 
           <div className="flex justify-end gap-3 pt-2">
-            <button className="btn-secondary" onClick={() => setModalOpen(false)}>Cancel</button>
+            <button className="btn-secondary" onClick={closeModal}>Cancel</button>
             <button
               className="btn-primary"
-              onClick={() => create.mutate()}
-              disabled={!form.title || !form.event_ts || create.isPending}
+              onClick={() => isEditing ? update.mutate() : create.mutate()}
+              disabled={!form.title || !form.event_ts || create.isPending || update.isPending}
             >
-              {create.isPending ? 'Adding…' : 'Add Event'}
+              {create.isPending || update.isPending
+                ? (isEditing ? 'Saving…' : 'Adding…')
+                : (isEditing ? 'Save Changes' : 'Add Event')
+              }
             </button>
           </div>
         </div>

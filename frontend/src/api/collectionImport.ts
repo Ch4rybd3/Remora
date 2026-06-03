@@ -29,6 +29,7 @@ export interface GroupSummary {
 export interface ImportedCollection {
   id: string
   case_id: string
+  session_id: string | null
   filename: string
   file_size: number
   uploaded_at: string
@@ -46,7 +47,7 @@ async function authHeaders(): Promise<Record<string, string>> {
 }
 
 export const collectionImportApi = {
-  async upload(caseId: string, files: File | File[]): Promise<ImportedCollection> {
+  async upload(caseId: string, files: File | File[], sessionId?: string): Promise<ImportedCollection> {
     const headers = await authHeaders()
     const form = new FormData()
     const fileList = Array.isArray(files) ? files : [files]
@@ -57,7 +58,10 @@ export const collectionImportApi = {
       const nameToSend = relativePath && relativePath.length > 0 ? relativePath : f.name
       form.append('files', f, nameToSend)
     }
-    const res = await fetch(`${BASE}/cases/${caseId}/collection-imports`, {
+    const url = sessionId
+      ? `${BASE}/cases/${caseId}/collection-imports?session_id=${encodeURIComponent(sessionId)}`
+      : `${BASE}/cases/${caseId}/collection-imports`
+    const res = await fetch(url, {
       method: 'POST',
       headers,
       body: form,
