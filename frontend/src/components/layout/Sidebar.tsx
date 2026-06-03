@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, FolderOpen, FileText, Users, LogOut, GitBranch, Mail, HardDrive, Shield, Cpu, Database, Globe, Binary, KeyRound, FileOutput, Swords, Archive, Clock, AlertTriangle, ChevronDown, Zap, Plug } from 'lucide-react'
+import { LayoutDashboard, FolderOpen, FileText, Users, LogOut, GitBranch, Mail, HardDrive, Shield, Cpu, Database, Globe, Binary, KeyRound, FileOutput, Swords, Archive, Clock, AlertTriangle, ChevronDown, Zap, Plug, Terminal, History, TrendingUp } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useTimezone, TIMEZONE_OPTIONS, type TzOption } from '../../context/TimezoneContext'
 
@@ -153,8 +153,11 @@ export default function Sidebar() {
         { to: '/artifacts/memory',      icon: Cpu,       label: 'Memory Analysis' },
         { to: '/artifacts/binary',      icon: Binary,    label: 'Binary Analysis' },
         { to: '/artifacts/registry',    icon: KeyRound,  label: 'Registry' },
-        { to: '/artifacts/prefetch',   icon: Zap,       label: 'Prefetch' },
-        { to: '/artifacts/cti',        icon: Shield,    label: 'CTI Lookup' },
+        { to: '/artifacts/prefetch',      icon: Zap,       label: 'Prefetch' },
+        { to: '/artifacts/cti',          icon: Shield,    label: 'CTI Lookup' },
+        { to: '/artifacts/execution',    icon: Terminal,  label: 'Execution' },
+        { to: '/artifacts/user-activity',icon: History,   label: 'User Activity' },
+        { to: '/artifacts/srum',         icon: TrendingUp,label: 'SRUM' },
       ],
     },
     {
