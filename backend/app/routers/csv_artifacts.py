@@ -115,11 +115,35 @@ def _build_where(
             val  = str(flt.get("value", ""))
             if not val:
                 continue
+            # Support multi-value: "4624, 4625" → ["4624", "4625"]
+            values = [v.strip() for v in val.split(",") if v.strip()]
+            if not values:
+                continue
             qcol = f'CAST("{col}" AS VARCHAR)'
-            if   mode == "contains":  parts.append(f"{qcol} ILIKE ?");      params.append(f"%{val}%")
-            elif mode == "=":         parts.append(f"{qcol} = ?");           params.append(val)
-            elif mode == "!contains": parts.append(f"{qcol} NOT ILIKE ?");   params.append(f"%{val}%")
-            elif mode == "!=":        parts.append(f"{qcol} != ?");          params.append(val)
+            if len(values) == 1:
+                v = values[0]
+                if   mode == "contains":  parts.append(f"{qcol} ILIKE ?");     params.append(f"%{v}%")
+                elif mode == "=":         parts.append(f"{qcol} = ?");          params.append(v)
+                elif mode == "!contains": parts.append(f"{qcol} NOT ILIKE ?");  params.append(f"%{v}%")
+                elif mode == "!=":        parts.append(f"{qcol} != ?");         params.append(v)
+            else:
+                # Multiple values → OR for positive modes, AND NOT for negative modes
+                if mode == "contains":
+                    sub = " OR ".join(f"{qcol} ILIKE ?" for _ in values)
+                    parts.append(f"({sub})")
+                    params.extend(f"%{v}%" for v in values)
+                elif mode == "=":
+                    placeholders = ", ".join("?" for _ in values)
+                    parts.append(f"{qcol} IN ({placeholders})")
+                    params.extend(values)
+                elif mode == "!contains":
+                    sub = " AND ".join(f"{qcol} NOT ILIKE ?" for _ in values)
+                    parts.append(f"({sub})")
+                    params.extend(f"%{v}%" for v in values)
+                elif mode == "!=":
+                    placeholders = ", ".join("?" for _ in values)
+                    parts.append(f"{qcol} NOT IN ({placeholders})")
+                    params.extend(values)
 
     where = "WHERE " + " AND ".join(parts) if parts else ""
     return where, params
