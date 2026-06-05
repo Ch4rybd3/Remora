@@ -7,7 +7,7 @@ import {
   BookmarkPlus, BookmarkCheck, Download, Columns3, Trash2, FileText,
   Loader2, Info, Table2, Globe, Layers, GripVertical, ChevronRight as ChevronRightIcon,
 } from 'lucide-react'
-import { csvArtifactsApi, type CsvArtifactMeta, type ArtifactRowFilters, type OmniSearchFile } from '../api/csvArtifacts'
+import { csvArtifactsApi, type CsvArtifactMeta, type ArtifactRowFilters, type OmniSearchFile, type GroupResult } from '../api/csvArtifacts'
 import { timelineApi } from '../api/timeline'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import { fmtRelative } from '../utils/dateUtils'
@@ -47,39 +47,71 @@ interface PinnedRow {
 }
 
 type FlatItem =
-  | { type: 'group'; depth: number; key: string; groupCol: string; groupVal: string; count: number; isExpanded: boolean }
-  | { type: 'row';   row: Record<string, string>; rowIdx: number }
+  | {
+      type:       'group'
+      depth:      number
+      key:        string
+      groupCol:   string
+      groupVal:   string
+      count:      number
+      isExpanded: boolean
+      isLeaf:     boolean
+      filters:    Record<string, string>  // accumulated col=val for this group path
+    }
+  | {
+      type:         'group-rows'
+      groupKey:     string
+      groupFilters: Record<string, string>
+      depth:        number
+    }
 
 /** Stable unique key using all row values. */
 function makeRowKey(artifactId: string, row: Record<string, string>): string {
   return `${artifactId}\x1f${Object.values(row).join('\x1e')}`
 }
 
-function buildFlatList(
-  rows: Record<string, string>[],
-  groupCols: string[],
-  expanded: Set<string>,
+/**
+ * Build a flat list for rendering from backend group results.
+ * Groups are only the aggregation layer — rows are fetched lazily on expand.
+ */
+function buildGroupTree(
+  groups:     GroupResult[],
+  groupCols:  string[],
+  expanded:   Set<string>,
   depth = 0,
   prefix = '',
+  parentFilters: Record<string, string> = {},
 ): FlatItem[] {
-  if (depth >= groupCols.length) {
-    return rows.map((row, i) => ({ type: 'row', row, rowIdx: i }))
+  if (!groupCols.length) return []
+  const col  = groupCols[depth]
+  const isLeaf = depth === groupCols.length - 1
+
+  // Collect unique values at this depth and their summed counts
+  const byVal = new Map<string, { count: number; sub: GroupResult[] }>()
+  for (const g of groups) {
+    const val = g.values[col] ?? ''
+    if (!byVal.has(val)) byVal.set(val, { count: 0, sub: [] })
+    const entry = byVal.get(val)!
+    entry.count += g.count
+    entry.sub.push(g)
   }
-  const col = groupCols[depth]
-  const grouped = new Map<string, Record<string, string>[]>()
-  for (const row of rows) {
-    const val = row[col] ?? ''
-    if (!grouped.has(val)) grouped.set(val, [])
-    grouped.get(val)!.push(row)
-  }
-  const sorted = [...grouped.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+
+  const sorted = [...byVal.entries()].sort((a, b) => a[0].localeCompare(b[0]))
   const result: FlatItem[] = []
-  for (const [val, groupRows] of sorted) {
-    const key = `${prefix}\x1f${val}`
+
+  for (const [val, { count, sub }] of sorted) {
+    const key        = `${prefix}\x1f${val}`
     const isExpanded = expanded.has(key)
-    result.push({ type: 'group', depth, key, groupCol: col, groupVal: val, count: groupRows.length, isExpanded })
+    const filters    = { ...parentFilters, [col]: val }
+
+    result.push({ type: 'group', depth, key, groupCol: col, groupVal: val, count, isExpanded, isLeaf, filters })
+
     if (isExpanded) {
-      result.push(...buildFlatList(groupRows, groupCols, expanded, depth + 1, key))
+      if (isLeaf) {
+        result.push({ type: 'group-rows', groupKey: key, groupFilters: filters, depth: depth + 1 })
+      } else {
+        result.push(...buildGroupTree(sub, groupCols, expanded, depth + 1, key, filters))
+      }
     }
   }
   return result
@@ -325,6 +357,113 @@ function GroupByBar({ groupByCols, onChange, isDragging }: {
   )
 }
 
+// ── GroupRowsFetcher ──────────────────────────────────────────────────────────
+// Fetches and renders rows for a single expanded leaf group inside a <tbody>.
+
+function GroupRowsFetcher({ caseId, meta, baseFilters, groupFilters, orderedCols, colW, depth, pinnedKeys, onPinToggle }: {
+  caseId:       string
+  meta:         CsvArtifactMeta
+  baseFilters:  ArtifactRowFilters
+  groupFilters: Record<string, string>
+  orderedCols:  string[]
+  colW:         (col: string) => number
+  depth:        number
+  pinnedKeys:   Set<string>
+  onPinToggle:  (key: string, row: Record<string, string>) => void
+}) {
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 100
+
+  // Merge group equality filters into existing col_filters
+  const mergedFilters = useMemo((): ArtifactRowFilters => {
+    const existing: Record<string, { mode: string; value: string }> = baseFilters.col_filters
+      ? (() => { try { return JSON.parse(baseFilters.col_filters!) } catch { return {} } })()
+      : {}
+    const groupCF = Object.fromEntries(
+      Object.entries(groupFilters).map(([k, v]) => [k, { mode: '=', value: v }])
+    )
+    return {
+      q:           baseFilters.q,
+      sort_col:    baseFilters.sort_col,
+      sort_dir:    baseFilters.sort_dir ?? 'asc',
+      col_filters: JSON.stringify({ ...existing, ...groupCF }),
+      page,
+      page_size:   PAGE_SIZE,
+    }
+  }, [baseFilters, groupFilters, page])
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['csv-group-rows', caseId, meta.id, mergedFilters],
+    queryFn:  () => csvArtifactsApi.getRows(caseId, meta.id, mergedFilters),
+    placeholderData: prev => prev,
+  })
+
+  const indent = depth * 20
+  const colSpanAll = orderedCols.length + 1
+
+  if (isLoading) return (
+    <tr>
+      <td colSpan={colSpanAll} className="px-3 py-2">
+        <div className="flex items-center gap-1.5" style={{ paddingLeft: indent }}>
+          <Loader2 size={10} className="animate-spin text-accent-muted/30" />
+          <span className="text-[10px] text-accent-muted/30">Chargement…</span>
+        </div>
+      </td>
+    </tr>
+  )
+
+  const rows  = data?.items  ?? []
+  const total = data?.total  ?? 0
+  const pages = data?.pages  ?? 1
+
+  return (
+    <>
+      {rows.map((row, idx) => {
+        const key      = makeRowKey(meta.id, row)
+        const isPinned = pinnedKeys.has(key)
+        return (
+          <tr key={`${key}-${idx}`}
+            className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors group">
+            <td className="w-8 shrink-0 px-1 py-1 text-center"
+              onClick={e => { e.stopPropagation(); onPinToggle(key, row) }}>
+              {isPinned
+                ? <BookmarkCheck size={12} className="mx-auto text-accent-green/60" />
+                : <BookmarkPlus size={12} className="mx-auto text-accent-muted/15 group-hover:text-accent-muted/40 hover:!text-accent-green transition-colors cursor-pointer" />
+              }
+            </td>
+            {orderedCols.map((col, ci) => (
+              <td key={col}
+                className={`py-1 truncate text-[10px] ${col === meta.date_column ? 'font-mono text-white/40 whitespace-nowrap' : Object.keys(groupFilters).includes(col) ? 'text-white/30' : 'text-white/60'}`}
+                style={{ paddingLeft: ci === 0 ? indent + 12 : 12, paddingRight: 12, width: colW(col), minWidth: 60, maxWidth: colW(col) }}
+                title={row[col] ?? ''}>
+                {row[col] ?? ''}
+              </td>
+            ))}
+          </tr>
+        )
+      })}
+
+      {/* Mini-pagination for this group */}
+      {pages > 1 && (
+        <tr>
+          <td colSpan={colSpanAll} className="py-1 border-b border-white/[0.03]">
+            <div className="flex items-center gap-1.5 text-[9px] text-accent-muted/40" style={{ paddingLeft: indent + 12 }}>
+              <span>{total.toLocaleString()} lignes</span>
+              <div className="flex items-center gap-0.5 ml-2">
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                  className="p-0.5 rounded hover:text-white disabled:opacity-20"><ChevronLeft size={10} /></button>
+                <span className="text-accent-green/60">{page}/{pages}</span>
+                <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page === pages}
+                  className="p-0.5 rounded hover:text-white disabled:opacity-20"><ChevronRight size={10} /></button>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
 // ── ArtifactTableView ─────────────────────────────────────────────────────────
 
 function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onPinToggle }: {
@@ -400,13 +539,12 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
     enabled: !groupActive,
   })
 
-  // ── All-rows fetch for grouping (backend max = 5000) ─────────────────────
+  // ── GROUP BY fetch — server-side aggregation, no row limit ───────────────
   const { data: groupData, isLoading: groupLoading, isFetching: groupFetching } = useQuery({
-    queryKey: ['csv-rows-grouped', caseId, meta.id, state.filters],
-    queryFn:  () => csvArtifactsApi.getRows(caseId, meta.id, {
-      ...state.filters,
-      page: 1,
-      page_size: 5000,
+    queryKey: ['csv-groups', caseId, meta.id, groupByCols, state.filters.q, state.filters.col_filters],
+    queryFn:  () => csvArtifactsApi.getGroups(caseId, meta.id, groupByCols, {
+      q:           state.filters.q,
+      col_filters: state.filters.col_filters,
     }),
     placeholderData: prev => prev,
     enabled: groupActive,
@@ -415,9 +553,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
   const rows    = data?.items   ?? []
   const total   = data?.total   ?? 0
   const pages   = data?.pages   ?? 1
-  const allCols = (groupActive ? groupData?.columns : data?.columns) ?? meta.columns
-
-  const isCapped = groupActive && (groupData?.total ?? 0) > 5000
+  const allCols = data?.columns ?? meta.columns
 
   // ── Column ordering ───────────────────────────────────────────────────────
   const hiddenSet   = useMemo(() => new Set(state.hiddenCols), [state.hiddenCols])
@@ -436,13 +572,13 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
     [groupByCols, allCols]
   )
 
-  const allGroupRows = groupData?.items ?? []
+  const backendGroups = groupData?.groups ?? []
 
   const flatItems = useMemo(() =>
     groupActive && !groupLoading
-      ? buildFlatList(allGroupRows, validGroupCols, expandedGroups)
+      ? buildGroupTree(backendGroups, validGroupCols, expandedGroups)
       : null,
-    [allGroupRows, validGroupCols, expandedGroups, groupActive, groupLoading]
+    [backendGroups, validGroupCols, expandedGroups, groupActive, groupLoading]
   )
 
   const toggleGroup = useCallback((key: string) => {
@@ -468,28 +604,27 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
     if (allExpanded) {
       setExpandedGroups(new Set())
     } else {
-      // Expand all group keys reachable from current flat list, then rebuild
-      // We need all keys including nested ones — build the fully-expanded list
+      // Collect all group keys recursively from backend groups
       const allKeys = new Set<string>()
-      function collectKeys(rows: Record<string, string>[], cols: string[], depth: number, prefix: string) {
+      function collectKeys(groups: GroupResult[], cols: string[], depth: number, prefix: string) {
         if (depth >= cols.length) return
         const col = cols[depth]
-        const grouped = new Map<string, Record<string, string>[]>()
-        for (const row of rows) {
-          const val = row[col] ?? ''
-          if (!grouped.has(val)) grouped.set(val, [])
-          grouped.get(val)!.push(row)
+        const byVal = new Map<string, GroupResult[]>()
+        for (const g of groups) {
+          const val = g.values[col] ?? ''
+          if (!byVal.has(val)) byVal.set(val, [])
+          byVal.get(val)!.push(g)
         }
-        for (const [val, groupRows] of grouped) {
+        for (const [val, sub] of byVal) {
           const key = `${prefix}\x1f${val}`
           allKeys.add(key)
-          collectKeys(groupRows, cols, depth + 1, key)
+          collectKeys(sub, cols, depth + 1, key)
         }
       }
-      collectKeys(allGroupRows, validGroupCols, 0, '')
+      collectKeys(backendGroups, validGroupCols, 0, '')
       setExpandedGroups(allKeys)
     }
-  }, [allExpanded, allGroupRows, validGroupCols])
+  }, [allExpanded, backendGroups, validGroupCols])
 
   // Reset expanded groups when group columns change
   const groupColsKey = groupByCols.join(',')
@@ -598,10 +733,6 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
   const isAnythingLoading  = groupActive ? groupLoading  : isLoading
   const isAnythingFetching = groupActive ? groupFetching : isFetching
 
-  // ── Grouped stats ─────────────────────────────────────────────────────────
-  const groupTotal    = groupData?.total ?? 0
-  const groupRowCount = flatItems?.filter(i => i.type === 'row').length ?? 0
-
   return (
     <div className="flex flex-col h-full">
 
@@ -671,9 +802,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
 
         <div className="ml-auto text-[10px] text-accent-muted/40 whitespace-nowrap">
           {groupActive
-            ? isCapped
-              ? <><span className="text-yellow-400/70">5 000</span>/{meta.row_count.toLocaleString()} rows (capped)</>
-              : <><span className="text-white/60">{groupTotal.toLocaleString()}</span> rows grouped</>
+            ? <><span className="text-white/60">{(groupData?.total_groups ?? 0).toLocaleString()}</span> groupes · {meta.row_count.toLocaleString()} lignes</>
             : total < meta.row_count
             ? <><span className="text-white/60">{total.toLocaleString()}</span> / {meta.row_count.toLocaleString()} rows</>
             : <><span className="text-white/60">{total.toLocaleString()}</span> rows</>
@@ -687,12 +816,6 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
           style={{ background: 'linear-gradient(90deg, transparent 0%, #9FEF00 40%, #9FEF00 60%, transparent 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite' }} />
       </div>
 
-      {/* Capped warning */}
-      {isCapped && (
-        <div className="px-3 py-1.5 bg-yellow-400/5 border-b border-yellow-400/20 text-[10px] text-yellow-400/70 shrink-0">
-          Les résultats sont limités à 5 000 lignes pour le groupement. Affinez vos filtres pour voir toutes les données.
-        </div>
-      )}
 
       {/* Table area */}
       <div className={`flex-1 overflow-auto relative transition-opacity duration-150 ${isAnythingFetching && !isAnythingLoading ? 'opacity-50' : 'opacity-100'}`}>
@@ -769,7 +892,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
             )}
 
             {/* ── Grouped rendering ──────────────────────────────────────── */}
-            {!isAnythingLoading && groupActive && flatItems && flatItems.map((item, idx) => {
+            {!isAnythingLoading && groupActive && flatItems && flatItems.map(item => {
               if (item.type === 'group') {
                 const indent = item.depth * 20
                 return (
@@ -797,40 +920,20 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
                 )
               }
 
-              // type === 'row'
-              const row    = item.row
-              const key    = makeRowKey(meta.id, row)
-              const isPinned = pinnedKeys.has(key)
-              const rowKey = `${key}-${idx}`
+              // type === 'group-rows' — lazy-loaded rows for this leaf group
               return (
-                <>
-                  <tr key={rowKey}
-                    onClick={() => setExpandedRow(r => r === rowKey ? null : rowKey)}
-                    className={`border-b border-white/[0.04] cursor-pointer transition-colors group ${expandedRow === rowKey ? 'bg-accent-green/5' : 'hover:bg-white/[0.025]'}`}>
-                    <td className="w-8 shrink-0 px-1 py-1.5 text-center"
-                      onClick={e => { e.stopPropagation(); handlePin(row) }}>
-                      {isPinned
-                        ? <BookmarkCheck size={13} className="mx-auto text-accent-green/60" />
-                        : <BookmarkPlus size={13} className="mx-auto text-accent-muted/20 group-hover:text-accent-muted/50 hover:!text-accent-green transition-colors" />
-                      }
-                    </td>
-                    {orderedCols.map(col => (
-                      <td key={col}
-                        className={`px-3 py-1.5 truncate ${col === meta.date_column ? 'font-mono text-[10px] text-white/45 whitespace-nowrap' : validGroupCols.includes(col) ? 'text-white/35' : 'text-white/65'}`}
-                        style={{ width: colW(col), minWidth: 60, maxWidth: colW(col) }}
-                        title={row[col] ?? ''}>
-                        {row[col] ?? ''}
-                      </td>
-                    ))}
-                  </tr>
-                  {expandedRow === rowKey && (
-                    <tr key={`${rowKey}-detail`}>
-                      <td colSpan={orderedCols.length + 1} className="p-0">
-                        <RowDetail row={row} columns={allCols} onClose={() => setExpandedRow(null)} />
-                      </td>
-                    </tr>
-                  )}
-                </>
+                <GroupRowsFetcher
+                  key={item.groupKey}
+                  caseId={caseId}
+                  meta={meta}
+                  baseFilters={state.filters}
+                  groupFilters={item.groupFilters}
+                  orderedCols={orderedCols}
+                  colW={colW}
+                  depth={item.depth}
+                  pinnedKeys={pinnedKeys}
+                  onPinToggle={onPinToggle}
+                />
               )
             })}
 
@@ -880,14 +983,6 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
               </tr>
             )}
 
-            {/* Grouped row count footer */}
-            {!isAnythingLoading && groupActive && flatItems && flatItems.length > 0 && groupRowCount > 0 && (
-              <tr className="border-t border-white/5">
-                <td colSpan={orderedCols.length + 1} className="px-3 py-1.5 text-[9px] text-accent-muted/25 text-right">
-                  {groupRowCount.toLocaleString()} lignes affichées
-                </td>
-              </tr>
-            )}
           </tbody>
         </table>
       </div>

@@ -168,6 +168,51 @@ def _query_rows(
         conn.close()
 
 
+def _query_groups(
+    file_path:   str,
+    columns:     list[str],
+    group_by:    list[str],
+    q:           Optional[str],
+    col_filters: Optional[dict],
+) -> list[dict]:
+    """
+    Return GROUP BY aggregation using DuckDB — no row limit, runs natively in-engine.
+    Returns list of { "values": { col: val, ... }, "count": int }.
+    """
+    valid      = set(columns)
+    group_cols = [c for c in group_by if c in valid]
+    if not group_cols:
+        return []
+
+    conn = duckdb.connect()
+    try:
+        conn.execute(
+            "CREATE TEMP TABLE _src AS SELECT * FROM read_csv_auto(?, ignore_errors=true)",
+            [file_path],
+        )
+
+        where, params = _build_where(columns, q, col_filters)
+
+        group_select = ", ".join(f'CAST("{c}" AS VARCHAR) AS "{c}"' for c in group_cols)
+        group_clause = ", ".join(f'CAST("{c}" AS VARCHAR)' for c in group_cols)
+        order_clause = ", ".join(f'CAST("{c}" AS VARCHAR) ASC' for c in group_cols)
+
+        rows_raw = conn.execute(
+            f'SELECT {group_select}, COUNT(*) AS _count '
+            f'FROM _src {where} '
+            f'GROUP BY {group_clause} '
+            f'ORDER BY {order_clause}',
+            params,
+        ).fetchall()
+
+        return [
+            {"values": dict(zip(group_cols, row[: len(group_cols)])), "count": row[len(group_cols)]}
+            for row in rows_raw
+        ]
+    finally:
+        conn.close()
+
+
 def _omni_query(file_path: str, columns: list[str], q: str, limit: int) -> tuple[int, list[dict]]:
     """Search a single CSV file via DuckDB. Returns (hit_count, first_N_rows)."""
     if not columns:
@@ -355,6 +400,41 @@ def get_rows(
         "page_size": page_size,
         "columns":   cols,
         "items":     rows,
+    }
+
+
+@router.get("/cases/{case_id}/artifacts/{artifact_id}/groups")
+def get_groups(
+    case_id:     str,
+    artifact_id: str,
+    group_by:    str           = Query(..., description="Comma-separated column names"),
+    q:           Optional[str] = Query(None),
+    col_filters: Optional[str] = Query(None),
+    db:          Session       = Depends(get_db),
+) -> dict:
+    """
+    Return GROUP BY aggregation via DuckDB — no row limit.
+    group_by: comma-separated list of column names to group by (in order).
+    """
+    a    = _get_artifact_or_404(artifact_id, case_id, db)
+    cols = json.loads(a.columns)
+
+    group_cols = [c.strip() for c in group_by.split(",") if c.strip()]
+
+    parsed_cf = None
+    if col_filters:
+        try:
+            parsed_cf = json.loads(col_filters)
+        except Exception:
+            pass
+
+    groups = _query_groups(a.file_path, cols, group_cols, q, parsed_cf)
+
+    print(f"[groups] {artifact_id} group_by={group_cols} → {len(groups)} groups", flush=True)
+    return {
+        "groups":       groups,
+        "total_groups": len(groups),
+        "group_by":     group_cols,
     }
 
 

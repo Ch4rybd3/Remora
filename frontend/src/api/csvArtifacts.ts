@@ -37,6 +37,17 @@ export interface OmniSearchResponse {
   files: OmniSearchFile[]
 }
 
+export interface GroupResult {
+  values: Record<string, string>
+  count:  number
+}
+
+export interface ArtifactGroupsResponse {
+  groups:       GroupResult[]
+  total_groups: number
+  group_by:     string[]
+}
+
 export interface ArtifactRowFilters {
   page?: number
   page_size?: number
@@ -74,6 +85,22 @@ export const csvArtifactsApi = {
   /** Fetch ALL filtered rows (no pagination) — used for CSV export. */
   getAllRows: (caseId: string, artifactId: string, filters: Omit<ArtifactRowFilters, 'page' | 'page_size'> = {}) =>
     csvArtifactsApi.getRows(caseId, artifactId, { ...filters, page: 1, page_size: 5000 }),
+
+  /** GROUP BY aggregation via DuckDB — no row limit. */
+  getGroups: (
+    caseId:     string,
+    artifactId: string,
+    groupBy:    string[],
+    filters:    Omit<ArtifactRowFilters, 'page' | 'page_size' | 'sort_col' | 'sort_dir'> = {},
+  ): Promise<ArtifactGroupsResponse> => {
+    const params = new URLSearchParams()
+    params.set('group_by', groupBy.join(','))
+    if (filters.q)           params.set('q',           filters.q)
+    if (filters.col_filters) params.set('col_filters', filters.col_filters)
+    return api
+      .get<ArtifactGroupsResponse>(`/cases/${caseId}/artifacts/${artifactId}/groups?${params}`)
+      .then(r => r.data)
+  },
 
   delete: (caseId: string, artifactId: string) =>
     api.delete(`/cases/${caseId}/artifacts/${artifactId}`),
