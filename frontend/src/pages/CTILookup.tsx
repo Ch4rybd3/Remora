@@ -5,9 +5,10 @@ import {
   Shield, Search, ExternalLink, Globe as GlobeIcon,
   Hash, Link2, Cpu, AlertTriangle, CheckCircle2, Info,
   Loader2, ChevronDown, ChevronUp, Zap, Radio,
-  Activity, Server, Eye, AlertOctagon,
+  Activity, Server, Eye, AlertOctagon, Terminal, Play,
+  MapPin, Wifi, X as XIcon,
 } from 'lucide-react'
-import { ctiApi, type LookupResult, type GeoPoint, type IOCType } from '../api/cti'
+import { ctiApi, type LookupResult, type GeoPoint, type IOCType, type CommandResult } from '../api/cti'
 import { iocsApi } from '../api/iocs'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 
@@ -370,6 +371,204 @@ function OpenCTIWidget() {
   )
 }
 
+// ── Commands available per type ───────────────────────────────────────────────
+
+const COMMANDS_BY_TYPE: Record<string, Array<{ id: string; label: string }>> = {
+  ip:     [
+    { id: 'whois_ip',    label: 'whois' },
+    { id: 'rdns',        label: 'dig PTR' },
+    { id: 'nslookup_ip', label: 'nslookup' },
+  ],
+  domain: [
+    { id: 'whois_dom',   label: 'whois' },
+    { id: 'dig_a',       label: 'dig A' },
+    { id: 'dig_aaaa',    label: 'dig AAAA' },
+    { id: 'dig_mx',      label: 'dig MX' },
+    { id: 'dig_txt',     label: 'dig TXT' },
+    { id: 'dig_ns',      label: 'dig NS' },
+    { id: 'nslookup_d',  label: 'nslookup' },
+  ],
+  url:    [
+    { id: 'whois_url',   label: 'whois' },
+    { id: 'dig_url_a',   label: 'dig A' },
+    { id: 'nslookup_u',  label: 'nslookup' },
+  ],
+  hash:   [],
+}
+
+// ── GlobeInfoPanel ────────────────────────────────────────────────────────────
+
+interface CommandOutput { id: string; label: string; result: CommandResult | null; loading: boolean }
+
+function GlobeInfoPanel({ ioc, geoPoint, result }: {
+  ioc:      { value: string; type: string }
+  geoPoint: GeoPoint | null
+  result:   LookupResult | null
+}) {
+  const iocType   = ioc.type.startsWith('hash') ? 'hash' : ioc.type
+  const commands  = COMMANDS_BY_TYPE[iocType] ?? []
+  const [outputs, setOutputs] = useState<Record<string, CommandOutput>>({})
+  const [activeCmd, setActiveCmd] = useState<string | null>(null)
+
+  // Reset when IOC changes
+  useEffect(() => { setOutputs({}); setActiveCmd(null) }, [ioc.value])
+
+  const runCommand = async (cmdId: string, label: string) => {
+    setActiveCmd(cmdId)
+    setOutputs(prev => ({ ...prev, [cmdId]: { id: cmdId, label, result: null, loading: true } }))
+    try {
+      const res = await ctiApi.runCommand(cmdId, ioc.value)
+      setOutputs(prev => ({ ...prev, [cmdId]: { id: cmdId, label, result: res, loading: false } }))
+    } catch (e: any) {
+      const errResult: CommandResult = { command: cmdId, label, output: '', error: String(e?.message ?? e), runtime_ms: 0 }
+      setOutputs(prev => ({ ...prev, [cmdId]: { id: cmdId, label, result: errResult, loading: false } }))
+    }
+  }
+
+  const active = activeCmd ? outputs[activeCmd] : null
+
+  // Enrich geo with result data
+  const asn     = result?.otx?.asn ?? null
+  const country = geoPoint?.country ?? result?.virustotal?.country ?? result?.abuseipdb?.country_code ?? null
+  const city    = geoPoint?.city ?? null
+  const isp     = geoPoint?.isp ?? result?.abuseipdb?.isp ?? null
+  const lat     = geoPoint?.lat
+  const lng     = geoPoint?.lng
+  const flagUrl = country ? `https://flagcdn.com/16x12/${country.toLowerCase()}.png` : null
+
+  return (
+    <div className="w-72 shrink-0 border-l border-white/8 bg-bg-card flex flex-col overflow-hidden">
+      {/* IOC header */}
+      <div className="px-3 py-2.5 border-b border-white/5 shrink-0">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <TypeBadge type={iocType} />
+          <span className="font-mono text-[11px] text-white/90 truncate flex-1">{ioc.value}</span>
+        </div>
+        {result && <div className="mt-1.5"><VerdictBadge result={result} /></div>}
+      </div>
+
+      {/* Geo info */}
+      <div className="px-3 py-2.5 border-b border-white/5 shrink-0 space-y-1.5">
+        <p className="text-[9px] uppercase tracking-widest text-accent-muted/30 flex items-center gap-1">
+          <MapPin size={8} /> Géolocalisation
+        </p>
+        {geoPoint ? (
+          <div className="space-y-1 text-[10px]">
+            {country && (
+              <div className="flex items-center gap-1.5">
+                {flagUrl && <img src={flagUrl} alt={country} className="w-4 h-3 rounded-sm object-cover" onError={e => (e.target as HTMLElement).style.display = 'none'} />}
+                <span className="text-white/70">{geoPoint.country ?? country}</span>
+              </div>
+            )}
+            {city    && <p><span className="text-accent-muted/40">Ville    </span><span className="text-white/60">{city}</span></p>}
+            {isp     && <p className="truncate"><span className="text-accent-muted/40">ISP      </span><span className="text-white/60">{isp}</span></p>}
+            {asn     && <p><span className="text-accent-muted/40">ASN      </span><span className="text-white/60 font-mono">{asn}</span></p>}
+            {lat !== undefined && lng !== undefined && (
+              <p className="font-mono text-[9px] text-accent-muted/30">{lat.toFixed(4)}, {lng.toFixed(4)}</p>
+            )}
+          </div>
+        ) : (
+          <p className="text-[10px] text-accent-muted/25 italic">
+            {iocType === 'ip' ? 'Localisation non disponible' : 'Non applicable'}
+          </p>
+        )}
+      </div>
+
+      {/* Network details from lookup */}
+      {(result?.virustotal?.as_owner || result?.virustotal?.network) && (
+        <div className="px-3 py-2.5 border-b border-white/5 shrink-0 space-y-1.5">
+          <p className="text-[9px] uppercase tracking-widest text-accent-muted/30 flex items-center gap-1">
+            <Wifi size={8} /> Réseau
+          </p>
+          <div className="space-y-1 text-[10px]">
+            {result.virustotal.as_owner && <p className="truncate"><span className="text-accent-muted/40">Owner   </span><span className="text-white/60">{result.virustotal.as_owner}</span></p>}
+            {result.virustotal.network  && <p><span className="text-accent-muted/40">Network </span><span className="text-white/60 font-mono">{result.virustotal.network}</span></p>}
+            {result.virustotal.reputation !== null && (
+              <p><span className="text-accent-muted/40">Rep VT  </span>
+                <span className={result.virustotal.reputation! < 0 ? 'text-red-400' : 'text-green-400'}>
+                  {result.virustotal.reputation}
+                </span>
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Commands */}
+      {commands.length > 0 && (
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <div className="px-3 py-2 border-b border-white/5 shrink-0">
+            <p className="text-[9px] uppercase tracking-widest text-accent-muted/30 flex items-center gap-1 mb-2">
+              <Terminal size={8} /> Commandes
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {commands.map(cmd => {
+                const out = outputs[cmd.id]
+                const isLoading = out?.loading
+                const isDone    = out && !out.loading
+                const isActive  = activeCmd === cmd.id
+                return (
+                  <button key={cmd.id}
+                    onClick={() => { runCommand(cmd.id, cmd.label); setActiveCmd(cmd.id) }}
+                    disabled={isLoading}
+                    className={`flex items-center gap-1 text-[9px] px-2 py-0.5 rounded border transition-colors ${
+                      isActive && isDone   ? 'bg-accent-green/10 text-accent-green border-accent-green/30' :
+                      isActive && isLoading? 'bg-accent-green/5 text-accent-green/60 border-accent-green/20' :
+                      isDone               ? 'bg-white/5 text-white/50 border-white/10' :
+                      'border-white/10 text-accent-muted/50 hover:text-white hover:border-white/20'
+                    }`}>
+                    {isLoading && isActive ? <Loader2 size={8} className="animate-spin" /> : <Play size={8} />}
+                    {cmd.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Terminal output */}
+          <div className="flex-1 overflow-hidden flex flex-col">
+            {active && (
+              <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-1 bg-black/30 border-b border-white/5 shrink-0">
+                  <span className="text-[9px] font-mono text-accent-green/60">$ {active.label} {ioc.value}</span>
+                  {active.result && (
+                    <span className="text-[8px] text-accent-muted/25">{active.result.runtime_ms}ms</span>
+                  )}
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  {active.loading ? (
+                    <div className="flex items-center gap-1.5 px-3 py-3 text-[10px] text-accent-muted/40">
+                      <Loader2 size={10} className="animate-spin" /> Exécution…
+                    </div>
+                  ) : active.result ? (
+                    <pre className="px-3 py-2 text-[9px] font-mono text-white/60 whitespace-pre-wrap break-all leading-relaxed">
+                      {active.result.output}
+                      {active.result.error && (
+                        <span className="text-red-400/70">{'\n'}{active.result.error}</span>
+                      )}
+                    </pre>
+                  ) : null}
+                </div>
+              </div>
+            )}
+            {!active && (
+              <div className="flex-1 flex items-center justify-center">
+                <p className="text-[10px] text-accent-muted/20 italic">Lance une commande ci-dessus</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {commands.length === 0 && (
+        <div className="flex-1 flex items-center justify-center px-3">
+          <p className="text-[10px] text-accent-muted/20 italic text-center">Aucune commande réseau disponible pour ce type d'IOC</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Globe ─────────────────────────────────────────────────────────────────────
 
 function ThreatGlobe({ points, selectedIp, onSelectIp }: {
@@ -639,35 +838,42 @@ export default function CTILookup() {
       {/* ── Main area ──────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
 
-        {/* Globe */}
-        <div className="relative h-64 shrink-0 border-b border-white/5 bg-[#0B121F] overflow-hidden">
-          {geoLoading && (
-            <div className="absolute top-2 right-2 z-10 flex items-center gap-1 text-[9px] text-accent-muted/40 bg-black/30 px-2 py-1 rounded">
-              <Loader2 size={9} className="animate-spin" /> Géolocalisation…
-            </div>
-          )}
-          <ThreatGlobe points={enrichedPoints}
-            selectedIp={selectedIoc?.type === 'ip' ? selectedIoc.value : null}
-            onSelectIp={ip => { const ioc = iocs.find(i => i.value === ip); if (ioc) handleSelect(ioc.id) }} />
-          {/* Legend */}
-          <div className="absolute bottom-2 left-2 flex items-center gap-2.5 text-[8px] text-accent-muted/50 bg-black/50 px-2.5 py-1 rounded-lg backdrop-blur-sm">
-            {[['#ef4444','Malicious'],['#f97316','Suspicious'],['#22c55e','Clean'],['#6b7280','Unknown']].map(([c,l]) => (
-              <span key={l} className="flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c }} />{l}
-              </span>
-            ))}
-            <span className="ml-1 text-accent-muted/25">{enrichedPoints.length} IP{enrichedPoints.length !== 1 ? 's' : ''}</span>
-          </div>
-          {/* Selected overlay */}
-          {selectedIoc && (
-            <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm border border-white/10 rounded-lg px-2.5 py-1.5 max-w-[260px]">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <TypeBadge type={selectedIoc.type} />
-                <span className="font-mono text-[10px] text-white/80 truncate">{selectedIoc.value}</span>
-                {isAnalyzing && <Loader2 size={9} className="animate-spin text-accent-green shrink-0" />}
+        {/* Globe + info panel */}
+        <div className="flex h-80 shrink-0 border-b border-white/5 overflow-hidden">
+          {/* Globe */}
+          <div className="relative flex-1 bg-[#0B121F] overflow-hidden">
+            {geoLoading && (
+              <div className="absolute top-2 right-2 z-10 flex items-center gap-1 text-[9px] text-accent-muted/40 bg-black/30 px-2 py-1 rounded">
+                <Loader2 size={9} className="animate-spin" /> Géolocalisation…
               </div>
-              {selectedIoc.result && <div className="mt-1"><VerdictBadge result={selectedIoc.result} /></div>}
+            )}
+            <ThreatGlobe points={enrichedPoints}
+              selectedIp={selectedIoc?.type === 'ip' ? selectedIoc.value : null}
+              onSelectIp={ip => { const ioc = iocs.find(i => i.value === ip); if (ioc) handleSelect(ioc.id) }} />
+            {/* Legend */}
+            <div className="absolute bottom-2 left-2 flex items-center gap-2 text-[8px] text-accent-muted/40 bg-black/50 px-2 py-1 rounded-lg backdrop-blur-sm pointer-events-none">
+              {[['#ef4444','Malicious'],['#f97316','Suspicious'],['#22c55e','Clean'],['#6b7280','Unknown']].map(([c,l]) => (
+                <span key={l} className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c }} />{l}
+                </span>
+              ))}
+              <span className="ml-0.5 text-accent-muted/20">{enrichedPoints.length} IPs</span>
             </div>
+            {/* Analyzing spinner */}
+            {isAnalyzing && (
+              <div className="absolute top-2 left-2 flex items-center gap-1 text-[9px] text-accent-green/60 bg-black/40 px-2 py-1 rounded">
+                <Loader2 size={9} className="animate-spin" /> Analyse…
+              </div>
+            )}
+          </div>
+
+          {/* Right info panel — only when an IOC is selected */}
+          {selectedIoc && (
+            <GlobeInfoPanel
+              ioc={selectedIoc}
+              geoPoint={enrichedPoints.find(p => p.ip === selectedIoc.value) ?? null}
+              result={selectedIoc.result ?? null}
+            />
           )}
         </div>
 

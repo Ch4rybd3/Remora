@@ -116,6 +116,20 @@ export interface LookupResult {
   errors:        Record<string, string>
 }
 
+export interface CommandResult {
+  command:    string
+  label:      string
+  output:     string
+  error:      string | null
+  runtime_ms: number
+}
+
+export interface CommandDef {
+  id:    string
+  label: string
+  types: string[]
+}
+
 export const ctiApi = {
   lookup: (body: LookupRequest) =>
     api.post<LookupResult>('/cti/lookup', body).then(r => r.data),
@@ -125,4 +139,10 @@ export const ctiApi = {
 
   geolocate: (ips: string[]) =>
     api.post<GeoPoint[]>('/cti/geo', { ips }).then(r => r.data),
+
+  runCommand: (command: string, value: string) =>
+    api.post<CommandResult>('/cti/command', { command, value }).then(r => r.data),
+
+  listCommands: () =>
+    api.get<CommandDef[]>('/cti/commands').then(r => r.data),
 }

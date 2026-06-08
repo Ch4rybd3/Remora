@@ -530,6 +530,119 @@ def geolocate(
     return _geolocate_ips(unique[:200])   # hard cap
 
 
+# ── Command runner ────────────────────────────────────────────────────────────
+
+import re as _re
+import subprocess
+import urllib.parse
+
+_SAFE_VALUE = _re.compile(r'^[a-zA-Z0-9.\-:/_@]+$')
+
+_COMMANDS: dict[str, dict] = {
+    # IP commands
+    "whois_ip":   {"label": "whois",         "types": ["ip"],             "cmd": ["whois",      "{value}"]},
+    "rdns":       {"label": "dig PTR",        "types": ["ip"],             "cmd": ["dig", "-x",  "{value}", "+short"]},
+    "nslookup_ip":{"label": "nslookup",       "types": ["ip"],             "cmd": ["nslookup",   "{value}"]},
+    # Domain commands
+    "whois_dom":  {"label": "whois",          "types": ["domain"],         "cmd": ["whois",      "{value}"]},
+    "dig_a":      {"label": "dig A",          "types": ["domain"],         "cmd": ["dig", "A",   "{value}", "+short"]},
+    "dig_aaaa":   {"label": "dig AAAA",       "types": ["domain"],         "cmd": ["dig", "AAAA","{value}", "+short"]},
+    "dig_mx":     {"label": "dig MX",         "types": ["domain"],         "cmd": ["dig", "MX",  "{value}", "+short"]},
+    "dig_txt":    {"label": "dig TXT",        "types": ["domain"],         "cmd": ["dig", "TXT", "{value}", "+short"]},
+    "dig_ns":     {"label": "dig NS",         "types": ["domain"],         "cmd": ["dig", "NS",  "{value}", "+short"]},
+    "nslookup_d": {"label": "nslookup",       "types": ["domain"],         "cmd": ["nslookup",   "{value}"]},
+    # URL commands (domain extracted automatically)
+    "dig_url_a":  {"label": "dig A",          "types": ["url"],            "cmd": ["dig", "A",   "{value}", "+short"]},
+    "whois_url":  {"label": "whois",          "types": ["url"],            "cmd": ["whois",      "{value}"]},
+    "nslookup_u": {"label": "nslookup",       "types": ["url"],            "cmd": ["nslookup",   "{value}"]},
+}
+
+
+class CommandRequest(BaseModel):
+    command: str
+    value:   str
+
+
+class CommandResult(BaseModel):
+    command: str
+    label:   str
+    output:  str
+    error:   Optional[str] = None
+    runtime_ms: int = 0
+
+
+def _extract_host(value: str) -> str:
+    """Extract hostname from URL; return value as-is for IP/domain."""
+    if value.startswith(("http://", "https://")):
+        parsed = urllib.parse.urlparse(value)
+        return parsed.hostname or value
+    return value
+
+
+@router.post("/command", response_model=CommandResult)
+def run_command(
+    body:         CommandRequest,
+    db:           Session = Depends(get_db),
+    current_user: User    = Depends(get_current_user),
+) -> CommandResult:
+    """Run a network recon command (whois, dig, nslookup) on an IOC value."""
+    cmd_def = _COMMANDS.get(body.command)
+    if not cmd_def:
+        raise HTTPException(400, f"Unknown command: {body.command}")
+
+    # Extract host for URLs
+    host = _extract_host(body.value.strip())
+
+    # Strict input validation — prevent any shell injection
+    if not host or not _SAFE_VALUE.match(host):
+        raise HTTPException(400, "Invalid value — only alphanumeric, dots, hyphens, colons allowed")
+
+    # Build command list (substitute {value})
+    argv = [a.replace("{value}", host) for a in cmd_def["cmd"]]
+
+    import time
+    t0 = time.monotonic()
+    try:
+        proc = subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        elapsed = int((time.monotonic() - t0) * 1000)
+        output  = proc.stdout.strip() or "(no output)"
+        error   = proc.stderr.strip() or None
+        # If command not found, give a friendly message
+        if proc.returncode == 127 or "not found" in (error or "").lower():
+            output = f"Command '{argv[0]}' not available on this server."
+            error  = None
+        return CommandResult(
+            command    = body.command,
+            label      = cmd_def["label"],
+            output     = output,
+            error      = error if error else None,
+            runtime_ms = elapsed,
+        )
+    except subprocess.TimeoutExpired:
+        return CommandResult(command=body.command, label=cmd_def["label"],
+                             output="", error="Timeout (10s)", runtime_ms=10000)
+    except FileNotFoundError:
+        return CommandResult(command=body.command, label=cmd_def["label"],
+                             output=f"Command '{argv[0]}' not installed on this server.",
+                             runtime_ms=0)
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@router.get("/commands")
+def list_commands(current_user: User = Depends(get_current_user)) -> list[dict]:
+    """Return available commands per IOC type."""
+    return [
+        {"id": k, "label": v["label"], "types": v["types"]}
+        for k, v in _COMMANDS.items()
+    ]
+
+
 @router.post("/batch", response_model=list[LookupResult])
 def batch_lookup(
     body:         BatchLookupRequest,
