@@ -19,8 +19,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db, SessionLocal
 from ..core.deps import get_current_user
 from ..models.ez_artifacts import ImportedCollection, ImportedFile
-from ..services.ez_detection import detect, CATEGORY_GROUPS
-from ..services.ez_ingest import shimcache, amcache, user_activity, srum, registry_batch
+from ..services.ez_detection import detect
 
 router = APIRouter()
 
@@ -217,6 +216,8 @@ def _run_pending(
     Shared ingest loop — resolves each CSV from extracted_dir and ingests it.
     Returns the number of files processed.
     """
+    from .csv_artifacts import register_csv_artifact
+
     processed = 0
     for file_id, filename, category in pending:
         # Try exact path first, then basename search (handles ZIP subdirs and flat CSVs)
@@ -225,30 +226,24 @@ def _run_pending(
             candidates = list(extracted_dir.rglob(Path(filename).name))
             csv_path = candidates[0] if candidates else None
 
-        print(f"[collection_import] ingesting {filename} → category={category} path={csv_path}", flush=True)
+        print(f"[collection_import] registering {filename} → category={category} path={csv_path}", flush=True)
 
         f = db.get(ImportedFile, file_id)
         if not f:
             continue
 
         try:
-            count = _ingest_file(csv_path, case_id, file_id, category, db)
+            if csv_path is None or not csv_path.exists():
+                raise FileNotFoundError(f"CSV not found: {filename}")
+
+            artifact = register_csv_artifact(csv_path, case_id, db)
             f.status = "imported"
-            f.row_count = count
+            f.row_count = artifact.row_count if artifact else 0
             f.imported_at = datetime.utcnow()
         except Exception as e:
-            print(f"[collection_import] ERROR ingesting {filename}: {e}", flush=True)
+            print(f"[collection_import] ERROR registering {filename}: {e}", flush=True)
             f.status = "error"
             f.error_message = str(e)[:500]
-        finally:
-            # Always register in Artifact Explorer so the file is visible regardless
-            # of whether the specialized ingest succeeded.
-            if csv_path and csv_path.exists():
-                try:
-                    from .csv_artifacts import register_csv_artifact
-                    register_csv_artifact(csv_path, case_id, db)
-                except Exception as reg_err:
-                    print(f"[collection_import] artifact registration skipped for {filename}: {reg_err}", flush=True)
 
         processed += 1
         col = db.get(ImportedCollection, collection_id)
@@ -320,85 +315,6 @@ def _ingest_pending(
         db.commit()
     finally:
         db.close()
-
-
-def _ingest_file(
-    csv_path: Path | None,
-    case_id: str,
-    file_id: str,
-    category: str,
-    db: Session,
-) -> int:
-    if csv_path is None or not csv_path.exists():
-        raise FileNotFoundError(f"CSV not found for file_id={file_id}")
-
-    # Route to the right ingest service
-    if category == "shimcache":
-        return shimcache.ingest(csv_path, case_id, file_id, db)
-
-    elif category == "amcache_unassociated":
-        return amcache.ingest_file_entries(csv_path, case_id, file_id, "unassociated", db)
-
-    elif category == "amcache_associated":
-        return amcache.ingest_file_entries(csv_path, case_id, file_id, "associated", db)
-
-    elif category == "amcache_programs":
-        return amcache.ingest_program_entries(csv_path, case_id, file_id, db)
-
-    elif category in ("amcache_devices", "amcache_pnp", "amcache_drivers", "amcache_shortcuts"):
-        # Store raw for now — these are less commonly queried
-        return 0
-
-    elif category == "lnk_files":
-        return user_activity.ingest_lnk(csv_path, case_id, file_id, db)
-
-    elif category == "jump_lists_auto":
-        return user_activity.ingest_jumplists(csv_path, case_id, file_id, "automatic", db)
-
-    elif category == "jump_lists_custom":
-        return user_activity.ingest_jumplists(csv_path, case_id, file_id, "custom", db)
-
-    elif category == "shellbags":
-        return user_activity.ingest_shellbags(csv_path, case_id, file_id, db)
-
-    elif category == "recycle_bin":
-        return user_activity.ingest_recycle_bin(csv_path, case_id, file_id, db)
-
-    elif category in ("windows_timeline",):
-        return user_activity.ingest_windows_timeline(csv_path, case_id, file_id, db)
-
-    elif category == "windows_timeline_pkg":
-        return 0   # PackageIDs companion — informational only
-
-    elif category in ("srum_app_usage", "srum_timeline", "srum_energy"):
-        return srum.ingest_app_usage(csv_path, case_id, file_id, db)
-
-    elif category in ("srum_network", "srum_net_conn"):
-        return srum.ingest_network_usage(csv_path, case_id, file_id, db)
-
-    elif category == "registry_batch":
-        return registry_batch.ingest(csv_path, case_id, file_id, db)
-
-    elif category == "registry_plugin":
-        return 0   # individual plugin CSVs — future work
-
-    elif category in ("mft_ez",):
-        # Delegate to existing MFT ingest (to be adapted)
-        return 0
-
-    elif category in ("usn_ez",):
-        return 0
-
-    elif category == "evtx_ez":
-        # EvtxECmd CSV output — already registered in Artifact Explorer via register_csv_artifact.
-        # To also populate the EVTX Logs page, implement an EvtxECmd CSV → EvtxEvent adapter here.
-        return 0
-
-    elif category in ("mft_ez", "usn_ez"):
-        # MFTECmd / USN CSV — already in Artifact Explorer. Dedicated page ingest: future work.
-        return 0
-
-    return 0
 
 
 # ─── Read endpoints ───────────────────────────────────────────────────────────
