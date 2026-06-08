@@ -43,6 +43,7 @@ from .models import evtx as _evtx_models          # ensure tables are registered
 from .models import chainsaw as _chainsaw_models   # ensure tables are registered
 from .models import mitre as _mitre_models         # ensure tables are registered
 from .services.chainsaw_setup import setup_chainsaw
+from .services.cti_tools_setup import setup_cti_tools
 from .models import audit as _audit_models         # ensure tables are registered
 from .models import attack_graph as _ag_models     # ensure tables are registered
 from .models import memory as _memory_models       # ensure tables are registered
@@ -118,6 +119,14 @@ def _setup_chainsaw() -> None:
 
 
 _setup_chainsaw()
+
+
+def _setup_cti_tools() -> None:
+    """Check CTI network tools (whois, dig, nslookup) are available."""
+    setup_cti_tools()
+
+
+_setup_cti_tools()
 
 NOTE_IMAGES_DIR = settings.evidence_store_path.parent / "note_images"
 NOTE_IMAGES_DIR.mkdir(parents=True, exist_ok=True)

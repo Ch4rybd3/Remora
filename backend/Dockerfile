@@ -15,6 +15,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxslt1-dev \
     libmagic1 \
     file \
+    # ── CTI network tools (used by /api/v1/cti/command) ──────────────────
+    whois \
+    dnsutils \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Dependency layer (cached unless requirements.txt changes) ─────────────────

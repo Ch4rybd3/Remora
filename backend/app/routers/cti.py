@@ -572,11 +572,23 @@ class CommandResult(BaseModel):
 
 
 def _extract_host(value: str) -> str:
-    """Extract hostname from URL; return value as-is for IP/domain."""
-    if value.startswith(("http://", "https://")):
-        parsed = urllib.parse.urlparse(value)
-        return parsed.hostname or value
-    return value
+    """
+    Extract bare hostname/IP from any value.
+    - URLs (http/https): parse hostname, strip port
+    - Values with path/fragment: take only the host part
+    - IPs and plain domains: return as-is
+    """
+    v = value.strip()
+    if v.startswith(("http://", "https://")):
+        parsed = urllib.parse.urlparse(v)
+        host = parsed.hostname or v   # hostname already strips port + auth
+        return host
+    # Handle cases like "example.com/path" or "example.com#fragment" without scheme
+    # Split on the first / or # and take the host part
+    for sep in ('/', '#', '?'):
+        if sep in v:
+            v = v.split(sep)[0]
+    return v
 
 
 @router.post("/command", response_model=CommandResult)
