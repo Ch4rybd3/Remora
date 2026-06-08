@@ -6,7 +6,8 @@
       "Bash(Format-Table FullName)",
       "Bash(npx tsc *)",
       "Bash(git commit -m ' *)",
-      "Bash(xargs grep -l \"Registry\\\\|Prefetch\\\\|Execution\\\\|UserActivity\\\\|Srum\\\\|MftUsn\\\\|Browser\")"
+      "Bash(xargs grep -l \"Registry\\\\|Prefetch\\\\|Execution\\\\|UserActivity\\\\|Srum\\\\|MftUsn\\\\|Browser\")",
+      "Bash(python -c ' *)"
     ]
   },
   "hooks": {

@@ -39,12 +39,8 @@ const STATUS_COLOR: Record<string, string> = {
 }
 
 const CATEGORY_ICON: Record<string, string> = {
-  'Execution Artifacts': '⚡',
-  'User Activity': '👤',
-  'Event Logs': '📋',
-  'MFT / USN': '💾',
-  'SRUM': '📊',
-  'Registry': '🗂',
+  'Event Logs':        '📋',
+  'Artifact Explorer': '🗂',
 }
 
 /**
