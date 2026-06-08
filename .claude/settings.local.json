@@ -7,7 +7,12 @@
       "Bash(npx tsc *)",
       "Bash(git commit -m ' *)",
       "Bash(xargs grep -l \"Registry\\\\|Prefetch\\\\|Execution\\\\|UserActivity\\\\|Srum\\\\|MftUsn\\\\|Browser\")",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(git merge --no-ff feature/ez-tools-artifact-processing -m ' *)",
+      "Bash(git stash *)",
+      "Bash(git push *)",
+      "Bash(git branch *)",
+      "Bash(node -e \"require\\('./node_modules/react-globe.gl/package.json'\\); console.log\\('react-globe.gl OK', require\\('./node_modules/react-globe.gl/package.json'\\).version\\)\")"
     ]
   },
   "hooks": {
