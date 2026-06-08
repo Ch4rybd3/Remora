@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, FolderOpen, FileText, Users, LogOut, GitBranch, Mail, HardDrive, Shield, Cpu, Database, Globe, Binary, KeyRound, FileOutput, Swords, Archive, Clock, AlertTriangle, ChevronDown, Zap, Plug, Terminal, History, TrendingUp, Table2 } from 'lucide-react'
+import { LayoutDashboard, FolderOpen, FileText, Users, LogOut, GitBranch, Mail, HardDrive, Shield, Cpu, Binary, FileOutput, Swords, Archive, Clock, AlertTriangle, ChevronDown, Plug, Table2 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useTimezone, TIMEZONE_OPTIONS, type TzOption } from '../../context/TimezoneContext'
 
@@ -146,19 +146,12 @@ export default function Sidebar() {
     {
       heading: 'Artifact Processing',
       items: [
-        { to: '/artifacts/explorer',    icon: Table2,    label: 'Artifact Explorer' },
-        { to: '/artifacts/email',       icon: Mail,      label: 'Email Analysis' },
-        { to: '/artifacts/filesystem',  icon: HardDrive, label: 'Logs' },
-        { to: '/artifacts/browser',      icon: Globe,     label: 'Browser' },
-        { to: '/artifacts/mft',         icon: Database,  label: 'MFT / USN' },
-        { to: '/artifacts/memory',      icon: Cpu,       label: 'Memory Analysis' },
-        { to: '/artifacts/binary',      icon: Binary,    label: 'Binary Analysis' },
-        { to: '/artifacts/registry',    icon: KeyRound,  label: 'Registry' },
-        { to: '/artifacts/prefetch',      icon: Zap,       label: 'Prefetch' },
-        { to: '/artifacts/cti',          icon: Shield,    label: 'CTI Lookup' },
-        { to: '/artifacts/execution',    icon: Terminal,  label: 'Execution' },
-        { to: '/artifacts/user-activity',icon: History,   label: 'User Activity' },
-        { to: '/artifacts/srum',         icon: TrendingUp,label: 'SRUM' },
+        { to: '/artifacts/explorer',   icon: Table2,    label: 'Artifact Explorer' },
+        { to: '/artifacts/email',      icon: Mail,      label: 'Email Analysis' },
+        { to: '/artifacts/filesystem', icon: HardDrive, label: 'Logs' },
+        { to: '/artifacts/memory',     icon: Cpu,       label: 'Memory Analysis' },
+        { to: '/artifacts/binary',     icon: Binary,    label: 'Binary Analysis' },
+        { to: '/artifacts/cti',        icon: Shield,    label: 'CTI Lookup' },
       ],
     },
     {

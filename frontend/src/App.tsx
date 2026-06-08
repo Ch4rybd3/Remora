@@ -15,19 +15,12 @@ import KnowledgeEditor from './pages/KnowledgeEditor'
 import FilesystemLogs from './pages/FilesystemLogs'
 import AuditLog from './pages/AuditLog'
 import Memory from './pages/Memory'
-import MftAnalysis from './pages/MftAnalysis'
-import BrowserAnalysis from './pages/BrowserAnalysis'
 import BinaryAnalysis from './pages/BinaryAnalysis'
-import RegistryAnalysis from './pages/RegistryAnalysis'
 import ReportTemplates from './pages/ReportTemplates'
 import ChainsawRules from './pages/ChainsawRules'
 import VaultManagement from './pages/VaultManagement'
-import PrefetchAnalysis from './pages/PrefetchAnalysis'
 import CTILookup from './pages/CTILookup'
 import Connectors from './pages/Connectors'
-import ExecutionArtifacts from './pages/ExecutionArtifacts'
-import UserActivity from './pages/UserActivity'
-import SRUMAnalysis from './pages/SRUMAnalysis'
 import ArtifactExplorer from './pages/ArtifactExplorer'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -65,18 +58,10 @@ export default function App() {
         <Route path="/artifacts/email" element={<EmailAnalysis />} />
         <Route path="/artifacts/filesystem" element={<FilesystemLogs />} />
         <Route path="/artifacts/memory" element={<Memory />} />
-        <Route path="/artifacts/mft"     element={<MftAnalysis />} />
-        <Route path="/artifacts/browser" element={<BrowserAnalysis />} />
-        <Route path="/artifacts/binary"    element={<BinaryAnalysis />} />
-        <Route path="/artifacts/registry"   element={<RegistryAnalysis />} />
-        <Route path="/artifacts/prefetch"  element={<PrefetchAnalysis />} />
-        <Route path="/artifacts/cti"       element={<CTILookup />} />
-        <Route path="/config/connectors"   element={<Connectors />} />
-        {/* EZ Tools artifact analysis pages — sidebar-accessible, case via currentCase context */}
-        <Route path="/artifacts/explorer"        element={<ArtifactExplorer />} />
-        <Route path="/artifacts/execution"      element={<ExecutionArtifacts />} />
-        <Route path="/artifacts/user-activity"  element={<UserActivity />} />
-        <Route path="/artifacts/srum"           element={<SRUMAnalysis />} />
+        <Route path="/artifacts/binary"   element={<BinaryAnalysis />} />
+        <Route path="/artifacts/cti"      element={<CTILookup />} />
+        <Route path="/artifacts/explorer" element={<ArtifactExplorer />} />
+        <Route path="/config/connectors"  element={<Connectors />} />
         <Route path="/knowledge" element={<KnowledgeBase />} />
         <Route path="/knowledge/editor" element={<KnowledgeEditor />} />
         <Route path="/config/chainsaw-rules" element={<ChainsawRules />} />

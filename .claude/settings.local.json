@@ -3,7 +3,10 @@
     "allow": [
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\fsali\\\\Documents\\\\Claude Projects\\\\remora\" -Recurse -Directory)",
       "Bash(Select-Object -First 50)",
-      "Bash(Format-Table FullName)"
+      "Bash(Format-Table FullName)",
+      "Bash(npx tsc *)",
+      "Bash(git commit -m ' *)",
+      "Bash(xargs grep -l \"Registry\\\\|Prefetch\\\\|Execution\\\\|UserActivity\\\\|Srum\\\\|MftUsn\\\\|Browser\")"
     ]
   },
   "hooks": {
