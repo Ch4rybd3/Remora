@@ -96,10 +96,10 @@ def _build_where(
     columns:    list[str],
     q:          Optional[str],
     col_filters: Optional[dict],
-    aql:        Optional[str] = None,
+    rql:        Optional[str] = None,
 ) -> tuple[str, list]:
     """Build a SQL WHERE clause and parameter list from filter inputs."""
-    from ..services.aql_parser import parse_aql, AQLSyntaxError
+    from ..services.rql_parser import parse_rql, RQLSyntaxError
     parts:  list[str] = []
     params: list      = []
 
@@ -147,17 +147,17 @@ def _build_where(
                     parts.append(f"{qcol} NOT IN ({placeholders})")
                     params.extend(values)
 
-    # AQL query (combined AND with other filters)
-    if aql and aql.strip():
+    # RQL query (combined AND with other filters)
+    if rql and rql.strip():
         try:
-            aql_sql, aql_params = parse_aql(aql.strip(), columns)
-            if aql_sql:
-                parts.append(f"({aql_sql})")
-                params.extend(aql_params)
-        except AQLSyntaxError:
+            rql_sql, rql_params = parse_rql(rql.strip(), columns)
+            if rql_sql:
+                parts.append(f"({rql_sql})")
+                params.extend(rql_params)
+        except RQLSyntaxError:
             raise   # let the caller handle it
         except Exception as exc:
-            raise AQLSyntaxError(f"AQL error: {exc}") from exc
+            raise RQLSyntaxError(f"RQL error: {exc}") from exc
 
     where = "WHERE " + " AND ".join(parts) if parts else ""
     return where, params
@@ -173,7 +173,7 @@ def _query_rows(
     date_column: Optional[str],
     page:        int,
     page_size:   int,
-    aql:         Optional[str] = None,
+    rql:         Optional[str] = None,
 ) -> tuple[int, int, list[dict]]:
     """
     Query a CSV file via DuckDB.
@@ -186,7 +186,7 @@ def _query_rows(
             [file_path],
         )
 
-        where, params = _build_where(columns, q, col_filters, aql)
+        where, params = _build_where(columns, q, col_filters, rql)
 
         sc = sort_col if sort_col and sort_col in columns else date_column
         order = f'ORDER BY CAST("{sc}" AS VARCHAR) {sort_dir.upper()}' if sc else ""
@@ -213,7 +213,7 @@ def _query_groups(
     group_by:    list[str],
     q:           Optional[str],
     col_filters: Optional[dict],
-    aql:         Optional[str] = None,
+    rql:         Optional[str] = None,
 ) -> list[dict]:
     """
     Return GROUP BY aggregation using DuckDB — no row limit, runs natively in-engine.
@@ -231,7 +231,7 @@ def _query_groups(
             [file_path],
         )
 
-        where, params = _build_where(columns, q, col_filters, aql)
+        where, params = _build_where(columns, q, col_filters, rql)
 
         group_select = ", ".join(f'CAST("{c}" AS VARCHAR) AS "{c}"' for c in group_cols)
         group_clause = ", ".join(f'CAST("{c}" AS VARCHAR)' for c in group_cols)
@@ -415,10 +415,10 @@ def get_rows(
     sort_dir:    str           = Query("asc"),
     q:           Optional[str] = Query(None),
     col_filters: Optional[str] = Query(None),
-    aql:         Optional[str] = Query(None, description="AQL query string"),
+    rql:         Optional[str] = Query(None, description="RQL query string"),
     db:          Session       = Depends(get_db),
 ) -> dict:
-    from ..services.aql_parser import AQLSyntaxError
+    from ..services.rql_parser import RQLSyntaxError
 
     a    = _get_artifact_or_404(artifact_id, case_id, db)
     cols = json.loads(a.columns)
@@ -434,10 +434,10 @@ def get_rows(
         total, pages, rows = _query_rows(
             a.file_path, cols, q, parsed_cf,
             sort_col, sort_dir, a.date_column,
-            page, page_size, aql,
+            page, page_size, rql,
         )
-    except AQLSyntaxError as exc:
-        raise HTTPException(status_code=422, detail={"aql_error": str(exc)})
+    except RQLSyntaxError as exc:
+        raise HTTPException(status_code=422, detail={"rql_error": str(exc)})
 
     return {
         "total":     total,
@@ -456,14 +456,14 @@ def get_groups(
     group_by:    str           = Query(..., description="Comma-separated column names"),
     q:           Optional[str] = Query(None),
     col_filters: Optional[str] = Query(None),
-    aql:         Optional[str] = Query(None, description="AQL query string"),
+    rql:         Optional[str] = Query(None, description="RQL query string"),
     db:          Session       = Depends(get_db),
 ) -> dict:
     """
     Return GROUP BY aggregation via DuckDB — no row limit.
     group_by: comma-separated list of column names to group by (in order).
     """
-    from ..services.aql_parser import AQLSyntaxError
+    from ..services.rql_parser import RQLSyntaxError
 
     a    = _get_artifact_or_404(artifact_id, case_id, db)
     cols = json.loads(a.columns)
@@ -478,9 +478,9 @@ def get_groups(
             pass
 
     try:
-        groups = _query_groups(a.file_path, cols, group_cols, q, parsed_cf, aql)
-    except AQLSyntaxError as exc:
-        raise HTTPException(status_code=422, detail={"aql_error": str(exc)})
+        groups = _query_groups(a.file_path, cols, group_cols, q, parsed_cf, rql)
+    except RQLSyntaxError as exc:
+        raise HTTPException(status_code=422, detail={"rql_error": str(exc)})
 
     print(f"[groups] {artifact_id} group_by={group_cols} → {len(groups)} groups", flush=True)
     return {

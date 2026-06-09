@@ -55,7 +55,7 @@ export interface ArtifactRowFilters {
   sort_dir?: 'asc' | 'desc'
   q?: string
   col_filters?: string   // JSON-encoded { colName: { mode, value } }
-  aql?: string           // AQL query string
+  rql?: string           // RQL (Remora Query Language) query string
 }
 
 export const csvArtifactsApi = {
@@ -78,7 +78,7 @@ export const csvArtifactsApi = {
     if (filters.sort_dir)    params.set('sort_dir',    filters.sort_dir)
     if (filters.q)           params.set('q',           filters.q)
     if (filters.col_filters) params.set('col_filters', filters.col_filters)
-    if (filters.aql)         params.set('aql',         filters.aql)
+    if (filters.rql)         params.set('rql',         filters.rql)
     return api
       .get<CsvArtifactRows>(`/cases/${caseId}/artifacts/${artifactId}/rows?${params}`)
       .then(r => r.data)
@@ -99,7 +99,7 @@ export const csvArtifactsApi = {
     params.set('group_by', groupBy.join(','))
     if (filters.q)           params.set('q',           filters.q)
     if (filters.col_filters) params.set('col_filters', filters.col_filters)
-    if (filters.aql)         params.set('aql',         filters.aql)
+    if (filters.rql)         params.set('rql',         filters.rql)
     return api
       .get<ArtifactGroupsResponse>(`/cases/${caseId}/artifacts/${artifactId}/groups?${params}`)
       .then(r => r.data)

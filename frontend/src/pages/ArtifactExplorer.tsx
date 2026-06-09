@@ -26,7 +26,7 @@ interface TabState {
   colWidths:   Record<string, number>
   groupByCols: string[]
   colOrder:    string[]
-  aql:         string
+  rql:         string
 }
 
 const defaultTabState = (): TabState => ({
@@ -36,7 +36,7 @@ const defaultTabState = (): TabState => ({
   colWidths:   {},
   groupByCols: [],
   colOrder:    [],
-  aql:         '',
+  rql:         '',
 })
 
 interface PinnedRow {
@@ -427,7 +427,7 @@ function GroupRowsFetcher({ caseId, meta, baseFilters, groupFilters, orderedCols
         return (
           <tr key={`${key}-${idx}`}
             className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors group">
-            <td className="w-8 shrink-0 px-1 py-1 text-center"
+            <td className="w-8 shrink-0 px-1 py-1 text-center sticky left-0 z-[4] bg-bg-primary shadow-[1px_0_0_rgba(255,255,255,0.04)]"
               onClick={e => { e.stopPropagation(); onPinToggle(key, row) }}>
               {isPinned
                 ? <BookmarkCheck size={12} className="mx-auto text-accent-green/60" />
@@ -467,23 +467,23 @@ function GroupRowsFetcher({ caseId, meta, baseFilters, groupFilters, orderedCols
   )
 }
 
-// ── AQL syntax highlighter (client-side, lightweight) ─────────────────────────
+// ── RQL syntax highlighter (client-side, lightweight) ─────────────────────────
 
-const AQL_KW_BOOL    = new Set(['AND','OR','NOT'])
-const AQL_KW_OP      = new Set(['IN','BETWEEN','CONTAINS','STARTSWITH','ENDSWITH','REGEX','CIDR','LAST'])
-const AQL_TOK_RE     = /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\b(?:AND|OR|NOT|IN|BETWEEN|CONTAINS|STARTSWITH|ENDSWITH|REGEX|CIDR|LAST|NULL|TRUE|FALSE)\b|>=|<=|!=|[><=~(),.]+|\d+\.?\d*|[\w@][\w.\-@]*|\s+)/gi
+const RQL_KW_BOOL    = new Set(['AND','OR','NOT'])
+const RQL_KW_OP      = new Set(['IN','BETWEEN','CONTAINS','STARTSWITH','ENDSWITH','REGEX','CIDR','LAST'])
+const RQL_TOK_RE     = /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\b(?:AND|OR|NOT|IN|BETWEEN|CONTAINS|STARTSWITH|ENDSWITH|REGEX|CIDR|LAST|NULL|TRUE|FALSE)\b|>=|<=|!=|[><=~(),.]+|\d+\.?\d*|[\w@][\w.\-@]*|\s+)/gi
 
-function highlightAQL(q: string): React.ReactNode[] {
+function highlightRQL(q: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = []
   let last = 0
-  for (const m of q.matchAll(AQL_TOK_RE)) {
+  for (const m of q.matchAll(RQL_TOK_RE)) {
     if (m.index! > last) nodes.push(<span key={last} className="text-red-400">{q.slice(last, m.index)}</span>)
     const tok = m[0]; const up = tok.trim().toUpperCase()
     let cls = 'text-white/80'
     if (/^["']/.test(tok))           cls = 'text-yellow-300'
     else if (/^\d/.test(tok))        cls = 'text-green-400'
-    else if (AQL_KW_BOOL.has(up))    cls = 'text-purple-400 font-semibold'
-    else if (AQL_KW_OP.has(up))      cls = 'text-orange-400'
+    else if (RQL_KW_BOOL.has(up))    cls = 'text-purple-400 font-semibold'
+    else if (RQL_KW_OP.has(up))      cls = 'text-orange-400'
     else if (up === '~')             cls = 'text-accent-green'
     else if (/^[><=!]+$/.test(tok))  cls = 'text-blue-400'
     else if (/^[(),.]+$/.test(tok))  cls = 'text-white/40'
@@ -495,7 +495,7 @@ function highlightAQL(q: string): React.ReactNode[] {
   return nodes
 }
 
-const AQL_EXAMPLES = [
+const RQL_EXAMPLES = [
   { label: 'Égalité',        q: 'EventID = "4624"' },
   { label: 'ET / OU',        q: 'EventID = "4624" AND Channel = "Security"' },
   { label: 'Contient',       q: 'Computer contains "DC" AND CommandLine contains "powershell"' },
@@ -511,9 +511,9 @@ const AQL_EXAMPLES = [
   { label: 'Groupé',         q: '(EventID = "4624" OR EventID = "4625") AND NOT Computer = "WORKSTATION01"' },
 ]
 
-// ── AQLBar ────────────────────────────────────────────────────────────────────
+// ── RQLBar ────────────────────────────────────────────────────────────────────
 
-function AQLBar({ value, onChange, onRun, error, columns }: {
+function RQLBar({ value, onChange, onRun, error, columns }: {
   value:    string
   onChange: (v: string) => void
   onRun:    (v: string) => void
@@ -577,14 +577,14 @@ function AQLBar({ value, onChange, onRun, error, columns }: {
     }
   }
 
-  const highlighted = useMemo(() => highlightAQL(value), [value])
+  const highlighted = useMemo(() => highlightRQL(value), [value])
 
   return (
     <div className="border-b border-white/5 bg-bg-secondary/20 shrink-0">
       {/* Bar header */}
       <div className="flex items-center gap-2 px-3 pt-2 pb-1">
         <Terminal size={10} className="text-accent-green/60 shrink-0" />
-        <span className="text-[9px] font-semibold uppercase tracking-widest text-accent-green/60">AQL Query</span>
+        <span className="text-[9px] font-semibold uppercase tracking-widest text-accent-green/60">RQL Query</span>
         <span className="text-[8px] text-accent-muted/25 ml-1">↵ Entrée pour exécuter · Tab pour compléter</span>
         <div className="ml-auto flex items-center gap-1">
           {value && (
@@ -653,7 +653,7 @@ function AQLBar({ value, onChange, onRun, error, columns }: {
             <p className="text-[9px] uppercase tracking-widest text-accent-muted/40">Exemples de requêtes — cliquer pour insérer</p>
           </div>
           <div className="grid grid-cols-2 gap-0 max-h-52 overflow-y-auto">
-            {AQL_EXAMPLES.map(ex => (
+            {RQL_EXAMPLES.map(ex => (
               <button key={ex.q} onClick={() => { onChange(ex.q); onRun(ex.q); setShowHelp(false) }}
                 className="flex flex-col items-start px-3 py-2 hover:bg-white/[0.04] transition-colors border-b border-r border-white/[0.04] text-left">
                 <span className="text-[8px] text-accent-muted/40 uppercase tracking-wider">{ex.label}</span>
@@ -683,9 +683,9 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
   const [draggingCol,    setDraggingCol]    = useState<string | null>(null)
   const [dragOverCol,    setDragOverCol]    = useState<string | null>(null)
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
-  const [localAql,       setLocalAql]       = useState(state.aql ?? '')
-  const [aqlError,       setAqlError]       = useState<string | null>(null)
-  const aqlTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [localRql,       setLocalRql]       = useState(state.rql ?? '')
+  const [rqlError,       setRqlError]       = useState<string | null>(null)
+  const rqlTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const colDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -740,8 +740,8 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
 
   const activeFilters = useMemo(() => ({
     ...state.filters,
-    aql: state.aql || undefined,
-  }), [state.filters, state.aql])
+    rql: state.rql || undefined,
+  }), [state.filters, state.rql])
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['csv-rows', caseId, meta.id, activeFilters],
@@ -752,11 +752,11 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
 
   // ── GROUP BY fetch — server-side aggregation, no row limit ───────────────
   const { data: groupData, isLoading: groupLoading, isFetching: groupFetching } = useQuery({
-    queryKey: ['csv-groups', caseId, meta.id, groupByCols, state.filters.q, state.filters.col_filters, state.aql],
+    queryKey: ['csv-groups', caseId, meta.id, groupByCols, state.filters.q, state.filters.col_filters, state.rql],
     queryFn:  () => csvArtifactsApi.getGroups(caseId, meta.id, groupByCols, {
       q:           state.filters.q,
       col_filters: state.filters.col_filters,
-      aql:         state.aql || undefined,
+      rql:         state.rql || undefined,
     }),
     placeholderData: prev => prev,
     enabled: groupActive,
@@ -844,32 +844,32 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
     setExpandedGroups(new Set())
   }, [groupColsKey])
 
-  // ── AQL handlers ──────────────────────────────────────────────────────────
-  const handleAqlChange = useCallback((val: string) => {
-    setLocalAql(val)
-    setAqlError(null)
-    if (aqlTimer.current) clearTimeout(aqlTimer.current)
+  // ── RQL handlers ──────────────────────────────────────────────────────────
+  const handleRqlChange = useCallback((val: string) => {
+    setLocalRql(val)
+    setRqlError(null)
+    if (rqlTimer.current) clearTimeout(rqlTimer.current)
     if (!val.trim()) {
-      onStateChange({ aql: '' })
+      onStateChange({ rql: '' })
       return
     }
     // Debounce 600ms
-    aqlTimer.current = setTimeout(() => {
-      onStateChange({ aql: val, filters: { ...state.filters, page: 1 } })
+    rqlTimer.current = setTimeout(() => {
+      onStateChange({ rql: val, filters: { ...state.filters, page: 1 } })
     }, 600)
   }, [onStateChange, state.filters])
 
-  const handleAqlRun = useCallback((val: string) => {
-    if (aqlTimer.current) clearTimeout(aqlTimer.current)
-    setLocalAql(val)
-    setAqlError(null)
-    onStateChange({ aql: val, filters: { ...state.filters, page: 1 } })
+  const handleRqlRun = useCallback((val: string) => {
+    if (rqlTimer.current) clearTimeout(rqlTimer.current)
+    setLocalRql(val)
+    setRqlError(null)
+    onStateChange({ rql: val, filters: { ...state.filters, page: 1 } })
   }, [onStateChange, state.filters])
 
-  // Propagate backend AQL errors to the bar
+  // Propagate backend RQL errors to the bar
   useEffect(() => {
-    const err = (data as any)?.detail?.aql_error ?? (groupData as any)?.detail?.aql_error
-    if (err) setAqlError(err)
+    const err = (data as any)?.detail?.rql_error ?? (groupData as any)?.detail?.rql_error
+    if (err) setRqlError(err)
   }, [data, groupData])
 
   // ── Column drag handlers ──────────────────────────────────────────────────
@@ -954,7 +954,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
   // ── Export filtered CSV ────────────────────────────────────────────────────
   const handleExport = async () => {
     const { q, col_filters, sort_col, sort_dir } = state.filters
-    const all = await csvArtifactsApi.getAllRows(caseId, meta.id, { q, col_filters, sort_col, sort_dir })
+    const all = await csvArtifactsApi.getAllRows(caseId, meta.id, { q, col_filters, sort_col, sort_dir, rql: state.rql || undefined })
     const header = allCols.join(',')
     const csvRows = all.items.map(r => allCols.map(c => `"${(r[c] ?? '').replace(/"/g, '""')}"`).join(','))
     const blob = new Blob([[header, ...csvRows].join('\n')], { type: 'text/csv' })
@@ -976,12 +976,12 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
   return (
     <div className="flex flex-col h-full">
 
-      {/* ── AQL Query Bar ───────────────────────────────────────────────── */}
-      <AQLBar
-        value={localAql}
-        onChange={handleAqlChange}
-        onRun={handleAqlRun}
-        error={aqlError}
+      {/* ── RQL Query Bar ───────────────────────────────────────────────── */}
+      <RQLBar
+        value={localRql}
+        onChange={handleRqlChange}
+        onRun={handleRqlRun}
+        error={rqlError}
         columns={allCols}
       />
 
@@ -1073,7 +1073,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
           <thead className="sticky top-0 z-10 bg-bg-secondary">
             {/* Column name row */}
             <tr className="border-b border-white/8">
-              <th className="w-8 shrink-0 px-1 pt-2 pb-1" />
+              <th className="w-8 shrink-0 px-1 pt-2 pb-1 sticky left-0 z-[12] bg-bg-secondary after:content-[''] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-white/8" />
               {orderedCols.map(col => {
                 const isSort    = sortCol === col && !groupActive
                 const w         = colW(col)
@@ -1106,7 +1106,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
             {/* Per-column filter row */}
             {showFilters && (
               <tr className="border-b border-white/5 bg-bg-secondary/80">
-                <th className="w-8 shrink-0 px-1 py-1.5" />
+                <th className="w-8 shrink-0 px-1 py-1.5 sticky left-0 z-[12] bg-bg-secondary/80" />
                 {orderedCols.map(col => (
                   <th key={`${col}-f`} className="px-2 py-1.5" style={{ width: colW(col), minWidth: 60 }}>
                     <ColFilterInput colKey={col}
@@ -1122,7 +1122,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
             {/* Loading skeleton */}
             {isAnythingLoading && Array.from({ length: 8 }).map((_, i) => (
               <tr key={i} className="border-b border-white/[0.04]">
-                <td className="w-8 px-1 py-2" />
+                <td className="w-8 px-1 py-2 sticky left-0 z-[4] bg-bg-primary" />
                 {orderedCols.map(col => (
                   <td key={col} className="px-3 py-2">
                     <div className="h-3 rounded bg-white/5 animate-pulse" style={{ width: `${45 + (i * 11) % 40}%` }} />
@@ -1149,7 +1149,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
                     onClick={() => toggleGroup(item.key)}
                     className="border-b border-white/[0.06] cursor-pointer select-none hover:bg-white/[0.03] transition-colors"
                     style={{ background: item.depth === 0 ? 'rgba(255,255,255,0.025)' : item.depth === 1 ? 'rgba(255,255,255,0.015)' : undefined }}>
-                    <td className="w-8 px-1 py-1.5 text-center">
+                    <td className="w-8 px-1 py-1.5 text-center sticky left-0 z-[4] bg-inherit">
                       <div className={`transition-transform duration-150 text-accent-muted/40 mx-auto w-fit ${item.isExpanded ? 'rotate-90' : ''}`}>
                         <ChevronRightIcon size={12} />
                       </div>
@@ -1196,7 +1196,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
                   <tr key={idx}
                     onClick={() => setExpandedRow(r => r === rowKey ? null : rowKey)}
                     className={`border-b border-white/[0.04] cursor-pointer transition-colors group ${expandedRow === rowKey ? 'bg-accent-green/5' : 'hover:bg-white/[0.025]'}`}>
-                    <td className="w-8 shrink-0 px-1 py-1.5 text-center"
+                    <td className="w-8 shrink-0 px-1 py-1.5 text-center sticky left-0 z-[4] bg-bg-primary group-[.expanded]:bg-accent-green/5 shadow-[1px_0_0_rgba(255,255,255,0.04)]"
                       onClick={e => { e.stopPropagation(); handlePin(row) }}>
                       {isPinned
                         ? <BookmarkCheck size={13} className="mx-auto text-accent-green/60" />

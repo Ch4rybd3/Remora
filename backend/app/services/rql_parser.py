@@ -1,5 +1,5 @@
 """
-AQL — Artifact Query Language
+RQL — Artifact Query Language
 ==============================
 A SIEM-like query language compiled to DuckDB SQL WHERE clauses.
 
@@ -78,7 +78,7 @@ _KEYWORDS: dict[str, str] = {
 _UNITS = {'h', 'd', 'm', 's', 'hours', 'days', 'minutes', 'seconds'}
 
 
-class AQLSyntaxError(ValueError):
+class RQLSyntaxError(ValueError):
     def __init__(self, message: str, pos: int = -1):
         super().__init__(message)
         self.pos = pos
@@ -125,7 +125,7 @@ def tokenize(text: str) -> list[Token]:
                     break
                 parts.append(ch); j += 1
             if j >= n:
-                raise AQLSyntaxError(f"Unterminated string at position {i}", i)
+                raise RQLSyntaxError(f"Unterminated string at position {i}", i)
             tokens.append(Token('STRING', ''.join(parts), i))
             i = j + 1
             continue
@@ -155,7 +155,7 @@ def tokenize(text: str) -> list[Token]:
             i = j
             continue
 
-        raise AQLSyntaxError(f"Unexpected character '{c}' at position {i}", i)
+        raise RQLSyntaxError(f"Unexpected character '{c}' at position {i}", i)
 
     tokens.append(Token('EOF', None, n))
     return tokens
@@ -240,7 +240,7 @@ class _Parser:
     def _eat(self, expected: str | None = None) -> Token:
         tok = self._t[self._i]
         if expected and tok.type != expected:
-            raise AQLSyntaxError(
+            raise RQLSyntaxError(
                 f"Expected {expected} but got {tok.type!r} ({tok.value!r})",
                 tok.pos,
             )
@@ -300,7 +300,7 @@ class _Parser:
             col = self._eat('IDENT').value
             return self._field_expr(col)
 
-        raise AQLSyntaxError(
+        raise RQLSyntaxError(
             f"Unexpected token {tok.type!r} ('{tok.value}')", tok.pos
         )
 
@@ -360,7 +360,7 @@ class _Parser:
             wc = isinstance(value, str) and ('*' in value or '?' in value)
             return CompareNode(col, op, value, wildcard=wc)
 
-        raise AQLSyntaxError(
+        raise RQLSyntaxError(
             f"Expected operator after '{col}' but got {tok.type!r} ('{tok.value}')",
             tok.pos,
         )
@@ -379,7 +379,7 @@ class _Parser:
         if tok.type == 'NUMBER': return self._eat('NUMBER').value
         if tok.type == 'BOOL':   return self._eat('BOOL').value   # True/False
         if tok.type == 'NULL':   self._eat('NULL'); return None
-        raise AQLSyntaxError(
+        raise RQLSyntaxError(
             f"Expected a value but got {tok.type!r} ('{tok.value}')", tok.pos
         )
 
@@ -392,10 +392,10 @@ _IDENT_RE = re.compile(r'^[\w\s.\-@]+$')
 def _safe_col(col: str, columns: list[str]) -> None:
     """Raise if col is not a valid/known column name."""
     if not _IDENT_RE.match(col):
-        raise AQLSyntaxError(f"Invalid column name: '{col}'")
+        raise RQLSyntaxError(f"Invalid column name: '{col}'")
     if columns and col not in columns:
         hint = ', '.join(f'"{c}"' for c in columns[:8])
-        raise AQLSyntaxError(f"Unknown column '{col}'. Known columns include: {hint}")
+        raise RQLSyntaxError(f"Unknown column '{col}'. Known columns include: {hint}")
 
 
 def _cast_varchar(col: str) -> str:
@@ -512,7 +512,7 @@ def _to_sql(node: Any, columns: list[str], params: list) -> str:
             lo  = int(net.network_address)
             hi  = int(net.broadcast_address)
         except ValueError as exc:
-            raise AQLSyntaxError(f"Invalid CIDR: '{node.cidr}'") from exc
+            raise RQLSyntaxError(f"Invalid CIDR: '{node.cidr}'") from exc
         params.extend([lo, hi])
         ip_int = _ip_to_int_sql(node.col)
         return f'({ip_int}) BETWEEN ? AND ?'
@@ -535,16 +535,16 @@ def _to_sql(node: Any, columns: list[str], params: list) -> str:
             parts.append(f'CAST("{col}" AS VARCHAR) ILIKE ?')
         return '(' + ' OR '.join(parts) + ')'
 
-    raise AQLSyntaxError(f"Unknown AST node: {type(node).__name__}")
+    raise RQLSyntaxError(f"Unknown AST node: {type(node).__name__}")
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def parse_aql(query: str, columns: list[str]) -> tuple[str, list]:
+def parse_rql(query: str, columns: list[str]) -> tuple[str, list]:
     """
-    Parse an AQL query string and return ``(sql_where_fragment, params)``.
+    Parse an RQL query string and return ``(sql_where_fragment, params)``.
     The fragment can be embedded directly in a DuckDB WHERE clause.
-    Raises ``AQLSyntaxError`` (subclass of ``ValueError``) on invalid input.
+    Raises ``RQLSyntaxError`` (subclass of ``ValueError``) on invalid input.
     """
     query = query.strip()
     if not query:
@@ -558,15 +558,15 @@ def parse_aql(query: str, columns: list[str]) -> tuple[str, list]:
     return sql, params
 
 
-def validate_aql(query: str) -> Optional[str]:
+def validate_rql(query: str) -> Optional[str]:
     """
     Return an error message string if the query has a syntax error, else ``None``.
     Column validation is skipped (columns=[]).
     """
     try:
-        parse_aql(query.strip(), [])
+        parse_rql(query.strip(), [])
         return None
-    except AQLSyntaxError as exc:
+    except RQLSyntaxError as exc:
         return str(exc)
     except Exception as exc:
         return f"Parse error: {exc}"
