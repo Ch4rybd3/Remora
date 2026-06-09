@@ -128,30 +128,72 @@ function ScoreGauge({ score, label }: { score: number; label: string }) {
 
 // ── Widget card ───────────────────────────────────────────────────────────────
 
-function WidgetCard({ title, icon, color, link, linkLabel, children, loading, error, notFound, noKey, registerUrl }: {
+// ── Toggle switch ─────────────────────────────────────────────────────────────
+
+function AutoToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  return (
+    <button onClick={e => { e.stopPropagation(); onToggle() }}
+      title={on ? 'Auto-query activé — cliquer pour désactiver' : 'Auto-query désactivé — cliquer pour activer'}
+      className="flex items-center gap-1 group shrink-0">
+      <span className={`text-[8px] transition-colors ${on ? 'text-accent-green/40' : 'text-accent-muted/25'}`}>auto</span>
+      <div className={`relative w-7 h-3.5 rounded-full transition-colors ${on ? 'bg-accent-green/40' : 'bg-white/10'}`}>
+        <div className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white shadow transition-all duration-200 ${on ? 'left-[14px]' : 'left-0.5'}`} />
+      </div>
+    </button>
+  )
+}
+
+// ── WidgetCard ────────────────────────────────────────────────────────────────
+
+function WidgetCard({ title, icon, color, link, linkLabel, extraLinks, children,
+  loading, error, notFound, noKey, registerUrl,
+  autoOn, onToggleAuto, pendingManual, onRunManual, running }: {
   title: string; icon: React.ReactNode; color: string
   link?: string; linkLabel?: string
+  extraLinks?: Array<{ href: string; label: string }>
   children?: React.ReactNode
   loading?: boolean; error?: string; notFound?: boolean
-  noKey?: boolean       // true when API key is not configured
-  registerUrl?: string  // signup URL shown alongside the "no key" message
+  noKey?: boolean; registerUrl?: string
+  autoOn?: boolean; onToggleAuto?: () => void
+  pendingManual?: boolean; onRunManual?: () => void; running?: boolean
 }) {
   return (
     <div className="bg-bg-card border border-white/8 rounded-xl overflow-hidden flex flex-col min-h-[160px]">
-      <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-white/5 bg-white/[0.02] shrink-0">
+      {/* Header */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-white/5 bg-white/[0.02] shrink-0">
         <div className={`w-6 h-6 rounded-lg ${color} flex items-center justify-center shrink-0`}>{icon}</div>
-        <span className="text-[12px] font-semibold text-white">{title}</span>
-        {link && (
-          <a href={link} target="_blank" rel="noopener noreferrer"
-            className="ml-auto flex items-center gap-1 text-[10px] text-accent-green/50 hover:text-accent-green transition-colors">
-            <ExternalLink size={9} /> {linkLabel ?? 'Open'}
-          </a>
-        )}
+        <span className="text-[11px] font-semibold text-white">{title}</span>
+        <div className="ml-auto flex items-center gap-2 shrink-0">
+          {extraLinks?.map(l => (
+            <a key={l.href} href={l.href} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1 text-[9px] text-accent-muted/40 hover:text-white transition-colors">
+              <ExternalLink size={8} />{l.label}
+            </a>
+          ))}
+          {link && (
+            <a href={link} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1 text-[9px] text-accent-green/50 hover:text-accent-green transition-colors">
+              <ExternalLink size={8} /> {linkLabel ?? 'Open'}
+            </a>
+          )}
+          {onToggleAuto !== undefined && autoOn !== undefined && (
+            <AutoToggle on={autoOn} onToggle={onToggleAuto} />
+          )}
+        </div>
       </div>
+      {/* Body */}
       <div className="flex-1 px-4 py-3 flex flex-col">
-        {loading ? (
+        {loading || running ? (
           <div className="flex-1 flex items-center justify-center gap-2 text-accent-muted/30">
             <Loader2 size={13} className="animate-spin" /><span className="text-[11px]">Querying…</span>
+          </div>
+        ) : pendingManual ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-2">
+            <p className="text-[10px] text-accent-muted/30">Requête manuelle</p>
+            <button onClick={onRunManual}
+              className="flex items-center gap-1.5 text-[10px] px-3 py-1.5 rounded border border-accent-green/25 text-accent-green/70 hover:text-accent-green hover:border-accent-green/50 hover:bg-accent-green/5 transition-colors">
+              <Play size={10} /> Lancer la requête
+            </button>
           </div>
         ) : error ? (
           <div className="flex-1 flex items-center gap-2 text-red-400/60 text-[11px]">
@@ -159,9 +201,9 @@ function WidgetCard({ title, icon, color, link, linkLabel, children, loading, er
           </div>
         ) : noKey ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center py-1">
-            <Info size={14} className="text-accent-muted/20" />
+            <Info size={13} className="text-accent-muted/20" />
             <p className="text-[10px] text-accent-muted/40">Clé API non configurée</p>
-            <div className="flex items-center gap-2 flex-wrap justify-center">
+            <div className="flex items-center gap-1.5 flex-wrap justify-center">
               <a href="/config/connectors"
                 className="text-[9px] px-2 py-0.5 rounded border border-accent-green/20 text-accent-green/60 hover:text-accent-green hover:border-accent-green/40 transition-colors">
                 Config → Connectors
@@ -169,7 +211,7 @@ function WidgetCard({ title, icon, color, link, linkLabel, children, loading, er
               {registerUrl && (
                 <a href={registerUrl} target="_blank" rel="noopener noreferrer"
                   className="text-[9px] px-2 py-0.5 rounded border border-white/10 text-accent-muted/40 hover:text-white hover:border-white/20 transition-colors flex items-center gap-1">
-                  <ExternalLink size={8} /> Créer un compte (gratuit)
+                  <ExternalLink size={7} /> Créer un compte
                 </a>
               )}
             </div>
@@ -184,13 +226,29 @@ function WidgetCard({ title, icon, color, link, linkLabel, children, loading, er
   )
 }
 
+// ── Widget props helper type ──────────────────────────────────────────────────
+
+interface WidgetProps {
+  result:        LookupResult | null
+  loading?:      boolean
+  running?:      boolean
+  error?:        string
+  autoOn:        boolean
+  onToggleAuto:  () => void
+  pendingManual: boolean
+  onRunManual:   () => void
+}
+
 // ── Widgets ───────────────────────────────────────────────────────────────────
 
-function VTWidget({ result, loading, error }: { result: LookupResult | null; loading?: boolean; error?: string }) {
+function VTWidget({ result, loading, running, error, autoOn, onToggleAuto, pendingManual, onRunManual }: WidgetProps) {
   const vt = result?.virustotal
   return (
     <WidgetCard title="VirusTotal" icon={<Shield size={13} className="text-blue-400" />}
-      color="bg-blue-500/10" link={vt?.link} linkLabel="VT" loading={loading} error={error} notFound={vt?.not_found}>
+      color="bg-blue-500/10" link={vt?.link} linkLabel="VT"
+      loading={loading} running={running} error={error} notFound={vt?.not_found}
+      autoOn={autoOn} onToggleAuto={onToggleAuto}
+      pendingManual={pendingManual} onRunManual={onRunManual}>
       {vt && !vt.not_found && (
         <div className="space-y-2.5">
           <div className="flex items-center gap-3">
@@ -221,16 +279,17 @@ function VTWidget({ result, loading, error }: { result: LookupResult | null; loa
   )
 }
 
-function AbuseWidget({ result, loading, error }: { result: LookupResult | null; loading?: boolean; error?: string }) {
-  const ab      = result?.abuseipdb
-  // result exists (lookup ran) but abuseipdb is null and no error → no API key
-  const noKey   = !!result && !ab && !error && !loading
+function AbuseWidget({ result, loading, running, error, autoOn, onToggleAuto, pendingManual, onRunManual }: WidgetProps) {
+  const ab    = result?.abuseipdb
+  const noKey = !!result && !ab && !error && !loading && !running && !pendingManual
   if (result?.detected_type !== 'ip') return null
   return (
     <WidgetCard title="AbuseIPDB" icon={<AlertOctagon size={13} className="text-red-400" />}
       color="bg-red-500/10" link={ab ? `https://www.abuseipdb.com/check/${result.value}` : undefined}
-      loading={loading} error={error} notFound={false}
-      noKey={noKey} registerUrl="https://www.abuseipdb.com/register">
+      loading={loading} running={running} error={error} notFound={false}
+      noKey={noKey} registerUrl="https://www.abuseipdb.com/register"
+      autoOn={autoOn} onToggleAuto={onToggleAuto}
+      pendingManual={pendingManual} onRunManual={onRunManual}>
       {ab && (
         <div className="space-y-2.5">
           <div className="flex items-center gap-3">
@@ -253,17 +312,21 @@ function AbuseWidget({ result, loading, error }: { result: LookupResult | null; 
   )
 }
 
-function OTXWidget({ result, loading, error }: { result: LookupResult | null; loading?: boolean; error?: string }) {
-  const otx = result?.otx
+function OTXWidget({ result, loading, running, error, autoOn, onToggleAuto, pendingManual, onRunManual }: WidgetProps) {
+  const otx  = result?.otx
   const [expanded, setExpanded] = useState(false)
-  const iocVal = result?.value ?? ''
-  const t = result?.detected_type
+  const val  = result?.value ?? ''
+  const t    = result?.detected_type
   const otxType = t === 'ip' ? 'ip' : t === 'hash' ? 'file' : t ?? 'domain'
-  const otxLink = `https://otx.alienvault.com/indicator/${otxType}/${iocVal}`
+  const otxLink = `https://otx.alienvault.com/indicator/${otxType}/${val}`
   return (
     <WidgetCard title="AlienVault OTX" icon={<Radio size={13} className="text-yellow-400" />}
-      color="bg-yellow-500/10" link={otxLink} linkLabel="OTX"
-      loading={loading} error={error} notFound={otx?.not_found}>
+      color="bg-yellow-500/10"
+      link={otxLink} linkLabel="OTX"
+      extraLinks={[{ href: otxLink, label: '↗ otx.alienvault.com' }]}
+      loading={loading} running={running} error={error} notFound={otx?.not_found}
+      autoOn={autoOn} onToggleAuto={onToggleAuto}
+      pendingManual={pendingManual} onRunManual={onRunManual}>
       {otx && !otx.not_found && (
         <div className="space-y-2">
           <div className="flex items-center gap-3">
@@ -308,18 +371,19 @@ function OTXWidget({ result, loading, error }: { result: LookupResult | null; lo
   )
 }
 
-function ShodanWidget({ result, loading, error }: { result: LookupResult | null; loading?: boolean; error?: string }) {
+function ShodanWidget({ result, loading, running, error, autoOn, onToggleAuto, pendingManual, onRunManual }: WidgetProps) {
   const sh    = result?.shodan
-  // result exists (lookup ran) but shodan is null and no error → no API key
-  const noKey = !!result && !sh && !error && !loading
+  const noKey = !!result && !sh && !error && !loading && !running && !pendingManual
   if (result?.detected_type !== 'ip') return null
   return (
     <WidgetCard title="Shodan" icon={<Server size={13} className="text-cyan-400" />}
       color="bg-cyan-500/10" link={sh ? `https://www.shodan.io/host/${result.value}` : undefined}
-      loading={loading}
+      loading={loading} running={running}
       error={error ? (error.toLowerCase().includes('key') ? undefined : error) : undefined}
       notFound={sh?.not_found ?? false}
-      noKey={noKey} registerUrl="https://account.shodan.io/register">
+      noKey={noKey} registerUrl="https://account.shodan.io/register"
+      autoOn={autoOn} onToggleAuto={onToggleAuto}
+      pendingManual={pendingManual} onRunManual={onRunManual}>
       {sh && !sh.not_found && (
         <div className="space-y-2">
           <div className="text-[10px] space-y-0.5">
@@ -353,14 +417,16 @@ function ShodanWidget({ result, loading, error }: { result: LookupResult | null;
   )
 }
 
-function URLScanWidget({ result, loading, error }: { result: LookupResult | null; loading?: boolean; error?: string }) {
+function URLScanWidget({ result, loading, running, error, autoOn, onToggleAuto, pendingManual, onRunManual }: WidgetProps) {
   const us = result?.urlscan
-  const t = result?.detected_type
+  const t  = result?.detected_type
   if (t !== 'url' && t !== 'domain') return null
   return (
     <WidgetCard title="URLScan.io" icon={<Eye size={13} className="text-indigo-400" />}
       color="bg-indigo-500/10" link={us?.scan_id ? `https://urlscan.io/result/${us.scan_id}/` : undefined}
-      loading={loading} error={error} notFound={us?.not_found}>
+      loading={loading} running={running} error={error} notFound={us?.not_found}
+      autoOn={autoOn} onToggleAuto={onToggleAuto}
+      pendingManual={pendingManual} onRunManual={onRunManual}>
       {us && !us.not_found && (
         <div className="space-y-2">
           {us.screenshot && (
@@ -387,9 +453,11 @@ function URLScanWidget({ result, loading, error }: { result: LookupResult | null
   )
 }
 
-function OpenCTIWidget() {
+function OpenCTIWidget({ autoOn, onToggleAuto }: { autoOn: boolean; onToggleAuto: () => void }) {
   return (
-    <WidgetCard title="OpenCTI" icon={<Activity size={13} className="text-accent-muted/30" />} color="bg-white/5">
+    <WidgetCard title="OpenCTI" icon={<Activity size={13} className="text-accent-muted/30" />} color="bg-white/5"
+      autoOn={autoOn} onToggleAuto={onToggleAuto}
+      pendingManual={false} onRunManual={() => {}}>
       <div className="flex flex-col items-center justify-center flex-1 gap-2 text-center py-2">
         <div className="w-9 h-9 rounded-xl bg-white/[0.03] border border-white/8 flex items-center justify-center">
           <Activity size={16} className="text-accent-muted/15" />
@@ -676,10 +744,14 @@ function ThreatGlobe({ points, selectedIp, onSelectIp }: {
 
 // ── IOC panel ─────────────────────────────────────────────────────────────────
 
+const ALL_PLATFORMS = ['virustotal', 'abuseipdb', 'otx', 'shodan', 'urlscan'] as const
+type Platform = typeof ALL_PLATFORMS[number]
+
 interface IOCEntry {
   id: string; value: string; type: string
   description: string | null
   result?: LookupResult; analyzed: boolean
+  queriedPlatforms: Set<string>
 }
 
 function IOCPanel({ iocs, selected, onSelect, onAnalyze, analyzing }: {
@@ -762,12 +834,27 @@ export default function CTILookup() {
     enabled:  !!caseId,
   })
 
-  const [iocs, setIocs]           = useState<IOCEntry[]>([])
+  const [iocs, setIocs]             = useState<IOCEntry[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [analyzing, setAnalyzing] = useState<Set<string>>(new Set())
+  const [analyzing, setAnalyzing]   = useState<Set<string>>(new Set())
+  const [runningPlatforms, setRunningPlatforms] = useState<Set<string>>(new Set())  // "iocId:platform"
   const [manualInput, setManualInput] = useState('')
-  const [geoPoints, setGeoPoints] = useState<GeoPoint[]>([])
+  const [geoPoints, setGeoPoints]   = useState<GeoPoint[]>([])
   const [geoLoading, setGeoLoading] = useState(false)
+
+  // Per-widget auto-query preference (persisted to localStorage)
+  const [autoQuery, setAutoQuery] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem('cti-auto-query') ?? '{}') }
+    catch { return {} }
+  })
+  const isAutoQuery = (p: string) => autoQuery[p] !== false  // default true
+  const toggleAutoQuery = (p: string) => {
+    setAutoQuery(prev => {
+      const next = { ...prev, [p]: !isAutoQuery(p) }
+      localStorage.setItem('cti-auto-query', JSON.stringify(next))
+      return next
+    })
+  }
 
   // Build IOC entries
   useEffect(() => {
@@ -775,6 +862,7 @@ export default function CTILookup() {
     setIocs(rawIocs.map((ioc: any) => ({
       id: ioc.id, value: ioc.value, type: ioc.type,
       description: ioc.description ?? null, analyzed: false,
+      queriedPlatforms: new Set<string>(),
     })))
   }, [rawIocs])
 
@@ -794,16 +882,50 @@ export default function CTILookup() {
 
   const selectedIoc = useMemo(() => iocs.find(i => i.id === selectedId) ?? null, [iocs, selectedId])
 
-  const analyze = useCallback(async (id: string) => {
+  // Analyze an IOC — only queries auto-enabled platforms (or specific ones)
+  const analyze = useCallback(async (id: string, platforms?: string[]) => {
     const ioc = iocs.find(i => i.id === id)
     if (!ioc) return
+    const toQuery = platforms ?? ALL_PLATFORMS.filter(p => isAutoQuery(p))
+    if (!toQuery.length) return   // all auto disabled — nothing to do
     setAnalyzing(prev => new Set(prev).add(id))
     try {
-      const result = await ctiApi.lookup({ value: ioc.value, type_hint: detectType(ioc.value) })
-      setIocs(prev => prev.map(i => i.id === id ? { ...i, result, analyzed: true } : i))
+      const result = await ctiApi.lookup({
+        value: ioc.value,
+        type_hint: detectType(ioc.value),
+        platforms: toQuery,
+      })
+      setIocs(prev => prev.map(i => {
+        if (i.id !== id) return i
+        // Merge new result into existing (preserves platforms queried earlier)
+        const merged = i.result
+          ? { ...i.result, ...result,
+              virustotal: result.virustotal ?? i.result.virustotal,
+              abuseipdb:  result.abuseipdb  ?? i.result.abuseipdb,
+              otx:        result.otx        ?? i.result.otx,
+              shodan:     result.shodan     ?? i.result.shodan,
+              urlscan:    result.urlscan    ?? i.result.urlscan,
+              errors:     { ...i.result.errors, ...result.errors },
+            }
+          : result
+        const qp = new Set(i.queriedPlatforms)
+        toQuery.forEach(p => qp.add(p))
+        return { ...i, result: merged, analyzed: true, queriedPlatforms: qp }
+      }))
     } catch (e) { console.error(e) }
     finally { setAnalyzing(prev => { const s = new Set(prev); s.delete(id); return s }) }
-  }, [iocs])
+  }, [iocs, isAutoQuery])
+
+  // Run a single platform on demand (from widget "Run" button)
+  const runWidget = useCallback(async (id: string, platform: string) => {
+    const key = `${id}:${platform}`
+    setRunningPlatforms(prev => new Set(prev).add(key))
+    try {
+      await analyze(id, [platform])
+    } finally {
+      setRunningPlatforms(prev => { const s = new Set(prev); s.delete(key); return s })
+    }
+  }, [analyze])
 
   const handleSelect = useCallback((id: string) => {
     setSelectedId(id)
@@ -816,7 +938,7 @@ export default function CTILookup() {
     if (!val) return
     const type = detectType(val)
     const tempId = `manual-${Date.now()}`
-    const entry: IOCEntry = { id: tempId, value: val, type: type === 'unknown' ? 'other' : type, description: 'Manual', analyzed: false }
+    const entry: IOCEntry = { id: tempId, value: val, type: type === 'unknown' ? 'other' : type, description: 'Manual', analyzed: false, queriedPlatforms: new Set() }
     setIocs(prev => [entry, ...prev])
     setSelectedId(tempId)
     setManualInput('')
@@ -940,16 +1062,39 @@ export default function CTILookup() {
               <p className="text-white/25 text-sm">Sélectionnez un IOC dans la liste pour lancer l'analyse</p>
               <p className="text-accent-muted/15 text-xs">ou saisissez une valeur dans le champ de recherche</p>
             </div>
-          ) : (
-            <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
-              <VTWidget     result={selectedIoc.result ?? null} loading={isAnalyzing && !selectedIoc.result?.virustotal} error={selectedIoc.result?.errors?.virustotal} />
-              <AbuseWidget  result={selectedIoc.result ?? null} loading={isAnalyzing && !selectedIoc.result?.abuseipdb}  error={selectedIoc.result?.errors?.abuseipdb} />
-              <OTXWidget    result={selectedIoc.result ?? null} loading={isAnalyzing && !selectedIoc.result?.otx}        error={selectedIoc.result?.errors?.otx} />
-              <ShodanWidget result={selectedIoc.result ?? null} loading={isAnalyzing && !selectedIoc.result?.shodan}     error={selectedIoc.result?.errors?.shodan} />
-              <URLScanWidget result={selectedIoc.result ?? null} loading={isAnalyzing && !selectedIoc.result?.urlscan}  error={selectedIoc.result?.errors?.urlscan} />
-              <OpenCTIWidget />
-            </div>
-          )}
+          ) : (() => {
+            const r   = selectedIoc.result ?? null
+            const qp  = selectedIoc.queriedPlatforms
+
+            // Helper: is this platform currently running (via runWidget)?
+            const isRunning  = (p: string) => runningPlatforms.has(`${selectedIoc.id}:${p}`)
+            // Helper: platform result is absent because auto was off & it's never been queried
+            const isPending  = (p: string) => !isAutoQuery(p) && !qp.has(p) && !isAnalyzing && !isRunning(p)
+            // Helper: was queried but returned null (no key)
+            const hasNoKey   = (p: string) => qp.has(p) && !(r as any)?.[p === 'otx' ? 'otx' : p] && !r?.errors?.[p]
+
+            const wProps = (p: Platform) => ({
+              result:        r,
+              loading:       isAnalyzing && !qp.has(p) && isAutoQuery(p),
+              running:       isRunning(p),
+              error:         r?.errors?.[p],
+              autoOn:        isAutoQuery(p),
+              onToggleAuto:  () => toggleAutoQuery(p),
+              pendingManual: isPending(p),
+              onRunManual:   () => runWidget(selectedIoc.id, p),
+            })
+
+            return (
+              <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
+                <VTWidget      {...wProps('virustotal')} />
+                <AbuseWidget   {...wProps('abuseipdb')} />
+                <OTXWidget     {...wProps('otx')} />
+                <ShodanWidget  {...wProps('shodan')} />
+                <URLScanWidget {...wProps('urlscan')} />
+                <OpenCTIWidget autoOn={isAutoQuery('opencti')} onToggleAuto={() => toggleAutoQuery('opencti')} />
+              </div>
+            )
+          })()}
         </div>
       </div>
     </div>

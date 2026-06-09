@@ -5,6 +5,7 @@ export type IOCType = 'ip' | 'domain' | 'hash' | 'url' | 'unknown'
 export interface LookupRequest {
   value:      string
   type_hint?: IOCType
+  platforms?: string[]   // if omitted → query all available
 }
 
 export interface VTStats {

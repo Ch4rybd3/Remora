@@ -58,6 +58,7 @@ def _detect_type(value: str) -> str:
 class LookupRequest(BaseModel):
     value:     str
     type_hint: Optional[str] = None
+    platforms: Optional[list[str]] = None   # if None → query all available
 
 
 class BatchLookupRequest(BaseModel):
@@ -465,51 +466,52 @@ def lookup(
     if ioc_type == "unknown":
         raise HTTPException(400, "Cannot determine indicator type — provide type_hint")
 
-    result    = LookupResult(value=value, detected_type=ioc_type)
-    vt_key    = _get_key("virustotal", db)
-    abuse_key = _get_key("abuseipdb",  db)
-    otx_key   = _get_key("alienvault_otx", db)   # optional — OTX works without key for public data
-    shodan_key= _get_key("shodan", db)
-    urlscan_key = _get_key("urlscan", db)         # optional
+    result      = LookupResult(value=value, detected_type=ioc_type)
+    want        = set(body.platforms) if body.platforms else None   # None = all
+
+    def _want(platform: str) -> bool:
+        return want is None or platform in want
+
+    vt_key      = _get_key("virustotal",    db)
+    abuse_key   = _get_key("abuseipdb",     db)
+    otx_key     = _get_key("alienvault_otx", db)
+    shodan_key  = _get_key("shodan",        db)
+    urlscan_key = _get_key("urlscan",       db)
 
     # VirusTotal
-    if vt_key and ioc_type in ("ip", "domain", "hash", "url"):
+    if _want("virustotal") and vt_key and ioc_type in ("ip", "domain", "hash", "url"):
         try:
             result.virustotal = _lookup_vt(value, ioc_type, vt_key)
         except Exception as e:
             result.errors["virustotal"] = str(e)
 
     # AbuseIPDB
-    if abuse_key and ioc_type == "ip":
+    if _want("abuseipdb") and abuse_key and ioc_type == "ip":
         try:
             result.abuseipdb = _lookup_abuseipdb(value, abuse_key)
         except Exception as e:
             result.errors["abuseipdb"] = str(e)
 
     # AlienVault OTX (works without key for public data)
-    if ioc_type in ("ip", "domain", "hash", "url"):
+    if _want("otx") and ioc_type in ("ip", "domain", "hash", "url"):
         try:
             result.otx = _lookup_otx(value, ioc_type, otx_key)
         except Exception as e:
             result.errors["otx"] = str(e)
 
     # Shodan (IPs only)
-    if shodan_key and ioc_type == "ip":
+    if _want("shodan") and shodan_key and ioc_type == "ip":
         try:
             result.shodan = _lookup_shodan(value, shodan_key)
         except Exception as e:
             result.errors["shodan"] = str(e)
 
     # URLScan.io (URLs and domains)
-    if ioc_type in ("url", "domain"):
+    if _want("urlscan") and ioc_type in ("url", "domain"):
         try:
             result.urlscan = _lookup_urlscan(value, ioc_type, urlscan_key)
         except Exception as e:
             result.errors["urlscan"] = str(e)
-
-    if not vt_key and not abuse_key and not otx_key and not shodan_key:
-        # OTX works without key, so at least that ran — don't 503
-        pass
 
     return result
 
