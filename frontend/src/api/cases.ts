@@ -9,8 +9,7 @@ export const casesApi = {
     api.patch<Case>(`/cases/${id}`, data).then(r => r.data),
   delete: (id: string) => api.delete(`/cases/${id}`),
   generateReport: (id: string) =>
-    api.get<string>(`/cases/${id}/report/generate`, {
-      headers: { Accept: 'text/plain' },
-      responseType: 'text',
-    }).then(r => r.data),
+    api.get<{ analysis: string; remediation: string; conclusion: string }>(
+      `/cases/${id}/report/generate`
+    ).then(r => r.data),
 }

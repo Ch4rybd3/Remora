@@ -1,11 +1,19 @@
 """
 Report generation service.
 
-generate_analysis()  — builds the analyst-facing sections only
-  (Technical Analysis / Remediations / Recommendations)
-  from the case template's `report_sections`.  The annexe data
-  (IOC table, assets, MITRE matrix, timeline …) are handled by
-  the Report Template via {{ }} tags in report_doc_templates.py.
+generate_analysis()  — builds the 3 analyst-facing sections from the case
+  template's `report_sections` (each section carries a `category` field:
+  analyse | remediation | conclusion).
+
+Returns a dict:
+    {
+        "analysis":    str,   # → case.report_analysis    / {{report_analysis}}
+        "remediation": str,   # → case.report_remediation / {{report_remediation}}
+        "conclusion":  str,   # → case.report_conclusion  / {{report_conclusion}}
+    }
+
+The annexe data (IOC table, assets, MITRE matrix, timeline …) are handled
+by the Report Template via {{ }} tags in report_doc_templates.py.
 """
 
 from ..models.case import Case
@@ -15,7 +23,8 @@ from ..models.case import Case
 
 DEFAULT_SECTIONS = [
     {
-        "name": "Analyse Technique",
+        "name":     "Analyse Technique",
+        "category": "analyse",
         "template": (
             "### Cause Racine\n\n"
             "*Décrire l'origine de l'incident (vecteur initial, vulnérabilité exploitée…)*\n\n"
@@ -26,7 +35,8 @@ DEFAULT_SECTIONS = [
         ),
     },
     {
-        "name": "Remédiations",
+        "name":     "Remédiations",
+        "category": "remediation",
         "template": (
             "*Lister les actions de remédiation réalisées ou en cours, avec statut et responsable.*\n\n"
             "- [ ] Action 1\n"
@@ -34,9 +44,10 @@ DEFAULT_SECTIONS = [
         ),
     },
     {
-        "name": "Recommandations",
+        "name":     "Conclusion & Recommandations",
+        "category": "conclusion",
         "template": (
-            "*Lister les recommandations long terme pour réduire la surface d'attaque "
+            "*Synthèse de l'incident et recommandations long terme pour réduire la surface d'attaque "
             "et prévenir la récidive.*\n\n"
             "- [ ] Recommandation 1\n"
             "- [ ] Recommandation 2"
@@ -44,46 +55,58 @@ DEFAULT_SECTIONS = [
     },
 ]
 
+# Category → bucket key
+_CAT_MAP = {
+    "analyse":    "analysis",
+    "analysis":   "analysis",
+    "remediation":"remediation",
+    "conclusion": "conclusion",
+}
+
 
 class ReportService:
     # ── Public API ─────────────────────────────────────────────────────────────
 
-    def generate_analysis(self, case: Case, template: dict | None = None) -> str:
+    def generate_analysis(self, case: Case, template: dict | None = None) -> dict:
         """
-        Return a markdown skeleton of the analyst-authored sections only.
+        Return a dict with three markdown strings — one per report box.
 
-        Sections come from the case template's `report_sections` list.
-        If no template (or no `report_sections`), fall back to DEFAULT_SECTIONS.
+        Sections in the case template's `report_sections` are routed to the
+        correct bucket via their `category` field:
+            analyse / analysis   → "analysis"
+            remediation          → "remediation"
+            conclusion           → "conclusion"
 
-        Prefixes the skeleton with a short context header (compromised assets,
-        key TTPs) so the analyst has the most relevant facts right at hand.
+        Sections without a recognised category default to "analysis".
+        If no template or no `report_sections`, DEFAULT_SECTIONS are used.
         """
-        sections_def = (
-            template.get("report_sections") or []
-            if template else []
+        sections_def: list[dict] = (
+            (template.get("report_sections") or []) if template else []
         ) or DEFAULT_SECTIONS
 
-        lines: list[str] = []
+        buckets: dict[str, list[str]] = {"analysis": [], "remediation": [], "conclusion": []}
 
-        # ── One H2 section per report_sections entry ───────────────────────────
         for section in sections_def:
-            name     = section.get("name", "Section")
+            name          = section.get("name", "Section")
             template_text = (section.get("template") or "").strip()
+            raw_cat       = (section.get("category") or "analyse").lower().strip()
+            bucket        = _CAT_MAP.get(raw_cat, "analysis")
 
-            lines.append(f"## {name}\n")
-            if template_text:
-                lines.append(template_text + "\n")
-            else:
-                lines.append("*…*\n")
+            lines: list[str] = [f"## {name}\n"]
+            lines.append(template_text + "\n" if template_text else "*…*\n")
+            buckets[bucket].append("\n".join(lines))
 
-        return "\n".join(lines)
+        return {
+            "analysis":    "\n".join(buckets["analysis"]).strip(),
+            "remediation": "\n".join(buckets["remediation"]).strip(),
+            "conclusion":  "\n".join(buckets["conclusion"]).strip(),
+        }
 
     # ── Private helpers ────────────────────────────────────────────────────────
 
     def _context_header(self, case: Case) -> str:
         """
-        Small reference block (collapsed under a details/summary-style heading)
-        with the most useful case facts for the analyst:
+        Small reference block with the most useful case facts for the analyst:
         compromised assets + initial-access / execution TTPs.
         """
         parts: list[str] = []

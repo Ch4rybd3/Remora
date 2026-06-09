@@ -1,18 +1,16 @@
 /**
- * ReportTab — two-panel layout.
+ * ReportTab — split into 3 analyst-authored boxes + playbook reference.
  *
- * LEFT (60%)  — Report editor
- *   • Report Template selector (for DOCX export)
- *   • Auto-generate button → fills Technical Analysis / Remediations / Recommendations
- *     from the case template's report_sections
- *   • Export MD  /  Export DOCX
+ * LEFT (60%)  — 3 report boxes
+ *   ① Analyse Technique   → {{report_analysis}}
+ *   ② Remédiations        → {{report_remediation}}
+ *   ③ Conclusion          → {{report_conclusion}}
+ *   • Auto-generate button → fills all 3 from the case template in one click
+ *   • Single Save saves all 3 + creates a version snapshot
+ *   • Export MD / Export DOCX
  *   • Version history (collapsible)
- *   • MarkdownEditor (WYSIWYG live mode)
  *
- * RIGHT (40%) — Playbook reference (read-only)
- *   • Playbook selector if multiple playbooks attached
- *   • Toggle: step notes list  ↔  graph
- *   • Step notes list — analyst can read & copy-paste while writing the report
+ * RIGHT (40%) — Playbook reference (read-only notes, step graph)
  */
 
 import { useState }                                          from 'react'
@@ -26,6 +24,7 @@ import {
   User, Hash, FileOutput, ChevronDown, ChevronRight,
   Network, List, StickyNote, CheckCircle2, Circle,
   Sparkles, BookOpen, AlertCircle, Clipboard, ClipboardCheck,
+  FlaskConical, Wrench, Flag,
 }                                                            from 'lucide-react'
 import { casesApi }                                          from '../../../api/cases'
 import { reportVersionsApi, type ReportVersionMeta }        from '../../../api/reportVersions'
@@ -54,6 +53,47 @@ function buildViewNodes(cp: CasePlaybook): Node[] {
 function doneCount(cp: CasePlaybook) {
   return stepNodes(cp).filter(n => cp.step_states[n.id]?.done).length
 }
+
+// ── Report box header ──────────────────────────────────────────────────────────
+
+interface BoxMeta {
+  icon: React.ReactNode
+  label: string
+  tag: string
+  color: string
+  placeholder: string
+}
+
+const BOX_META: BoxMeta[] = [
+  {
+    icon:  <FlaskConical size={12} />,
+    label: 'Analyse Technique',
+    tag:   '{{report_analysis}}',
+    color: 'text-blue-400 border-blue-500/20 bg-blue-500/5',
+    placeholder:
+      '## Cause Racine\n\n*Décrire l\'origine de l\'incident…*\n\n' +
+      '## Chaîne d\'Attaque\n\n*Décrire la progression de l\'attaque.*\n\n' +
+      '## Impact\n\n*Impact technique et métier.*',
+  },
+  {
+    icon:  <Wrench size={12} />,
+    label: 'Remédiations',
+    tag:   '{{report_remediation}}',
+    color: 'text-orange-400 border-orange-500/20 bg-orange-500/5',
+    placeholder:
+      '*Actions de remédiation réalisées ou en cours.*\n\n' +
+      '- [ ] Action 1\n- [ ] Action 2',
+  },
+  {
+    icon:  <Flag size={12} />,
+    label: 'Conclusion & Recommandations',
+    tag:   '{{report_conclusion}}',
+    color: 'text-purple-300 border-purple-500/20 bg-purple-500/5',
+    placeholder:
+      '*Synthèse et recommandations long terme.*\n\n' +
+      '- [ ] Recommandation 1\n- [ ] Recommandation 2',
+  },
+]
 
 // ── Version card ───────────────────────────────────────────────────────────────
 
@@ -98,7 +138,7 @@ function VersionCard({
   )
 }
 
-// ── Copy-to-clipboard button (with ✓ feedback) ────────────────────────────────
+// ── Copy-to-clipboard button ───────────────────────────────────────────────────
 
 function CopyBtn({ getText }: { getText: () => string }) {
   const [copied, setCopied] = useState(false)
@@ -107,7 +147,7 @@ function CopyBtn({ getText }: { getText: () => string }) {
       await navigator.clipboard.writeText(getText())
       setCopied(true)
       setTimeout(() => setCopied(false), 1800)
-    } catch { /* ignore — browser may block */ }
+    } catch { /* ignore */ }
   }
   return (
     <button
@@ -127,7 +167,7 @@ function CopyBtn({ getText }: { getText: () => string }) {
   )
 }
 
-// ── Playbook reference panel (right — editable) ────────────────────────────────
+// ── Playbook reference panel ───────────────────────────────────────────────────
 
 function PlaybookStepEditor({
   cp, node, idx, caseId,
@@ -154,7 +194,6 @@ function PlaybookStepEditor({
 
   return (
     <div className="border-b border-white/[0.05] last:border-b-0">
-      {/* Step header */}
       <div className="flex items-start gap-2 px-3 pt-2.5 pb-1">
         <span className={`mt-0.5 shrink-0 ${done ? 'text-accent-green' : 'text-accent-muted/25'}`}>
           {done ? <CheckCircle2 size={12} /> : <Circle size={12} />}
@@ -163,7 +202,6 @@ function PlaybookStepEditor({
           <span className="text-accent-muted/20 font-mono mr-1">{String(idx + 1).padStart(2, '0')}.</span>
           {(node.data as any).label}
         </p>
-        {/* Actions */}
         <div className="flex items-center gap-1 shrink-0">
           {dirty && (
             <button
@@ -178,8 +216,6 @@ function PlaybookStepEditor({
           <CopyBtn getText={() => draft} />
         </div>
       </div>
-
-      {/* Editable notes */}
       <div className="px-3 pb-2.5">
         <MarkdownEditor
           value={draft}
@@ -223,8 +259,6 @@ function PlaybookReference({ caseId }: { caseId: string }) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-
-      {/* Header */}
       <div className="px-3 py-2 border-b border-white/5 flex items-center gap-2 shrink-0">
         <div className="flex gap-1 flex-1 flex-wrap">
           {casePlaybooks.map(cp => (
@@ -255,7 +289,6 @@ function PlaybookReference({ caseId }: { caseId: string }) {
         </div>
       </div>
 
-      {/* Graph */}
       {activeCp && panelView === 'graph' && (
         <div className="flex-1 overflow-hidden">
           <ReactFlow
@@ -278,7 +311,6 @@ function PlaybookReference({ caseId }: { caseId: string }) {
         </div>
       )}
 
-      {/* Steps (editable) */}
       {activeCp && panelView === 'steps' && (
         <div className="flex-1 overflow-y-auto">
           {stepNodes(activeCp).length === 0
@@ -303,11 +335,16 @@ function PlaybookReference({ caseId }: { caseId: string }) {
 
 export default function ReportTab({ case_ }: Props) {
   const qc = useQueryClient()
-  const [value,              setValue]             = useState(case_.report ?? '')
+
+  const [analysis,    setAnalysis]    = useState(case_.report_analysis    ?? '')
+  const [remediation, setRemediation] = useState(case_.report_remediation ?? '')
+  const [conclusion,  setConclusion]  = useState(case_.report_conclusion  ?? '')
   const [dirty,              setDirty]             = useState(false)
   const [versionsOpen,       setVersionsOpen]      = useState(false)
   const [selectedTemplateId, setSelectedTemplateId]= useState<number | ''>('')
   const [exporting,          setExporting]         = useState(false)
+
+  const markDirty = () => setDirty(true)
 
   // ── Doc templates ──────────────────────────────────────────────────────────
   const { data: docTemplates = [] } = useQuery({
@@ -323,7 +360,7 @@ export default function ReportTab({ case_ }: Props) {
 
   // ── Save ───────────────────────────────────────────────────────────────────
   const save = useMutation({
-    mutationFn: () => reportVersionsApi.save(case_.id, value),
+    mutationFn: () => reportVersionsApi.save(case_.id, { analysis, remediation, conclusion }),
     onSuccess:  () => {
       qc.invalidateQueries({ queryKey: ['case', case_.id] })
       qc.invalidateQueries({ queryKey: ['report-versions', case_.id] })
@@ -331,18 +368,28 @@ export default function ReportTab({ case_ }: Props) {
     },
   })
 
-  // ── Auto-generate (analysis sections from case template) ───────────────────
+  // ── Auto-generate (fills all 3 boxes from case template) ──────────────────
   const generate = useMutation({
     mutationFn: () => casesApi.generateReport(case_.id),
-    onSuccess:  (md) => {
-      // Append to existing content (don't overwrite manual work)
-      const separator = value.trim() ? '\n\n---\n\n' : ''
-      setValue(prev => prev + separator + md)
+    onSuccess:  (data) => {
+      if (data.analysis)    { setAnalysis(prev    => prev.trim() ? prev + '\n\n---\n\n' + data.analysis    : data.analysis)    }
+      if (data.remediation) { setRemediation(prev => prev.trim() ? prev + '\n\n---\n\n' + data.remediation : data.remediation) }
+      if (data.conclusion)  { setConclusion(prev  => prev.trim() ? prev + '\n\n---\n\n' + data.conclusion  : data.conclusion)  }
       setDirty(true)
     },
   })
 
-  // ── Export DOCX / MD from report template ──────────────────────────────────
+  // ── Restore from version (combined → split back by separator) ─────────────
+  const handleRestore = (combined: string) => {
+    // Try to split on section headers if present, else put all in analysis
+    const parts = combined.split(/\n{1,2}---\n{1,2}/)
+    setAnalysis(parts[0]?.trim()    ?? combined)
+    setRemediation(parts[1]?.trim() ?? '')
+    setConclusion(parts[2]?.trim()  ?? '')
+    setDirty(true)
+  }
+
+  // ── Export DOCX ───────────────────────────────────────────────────────────
   const handleExportDocx = async () => {
     if (!selectedTemplateId) return
     setExporting(true)
@@ -359,8 +406,12 @@ export default function ReportTab({ case_ }: Props) {
     } finally { setExporting(false) }
   }
 
+  // ── Export MD (combined) ──────────────────────────────────────────────────
   const handleExportMd = () => {
-    const blob = new Blob([value], { type: 'text/markdown' })
+    const combined = [analysis, remediation, conclusion]
+      .filter(s => s.trim())
+      .join('\n\n---\n\n')
+    const blob = new Blob([combined], { type: 'text/markdown' })
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')
     a.href     = url
@@ -376,13 +427,13 @@ export default function ReportTab({ case_ }: Props) {
   return (
     <div className="flex h-full overflow-hidden">
 
-      {/* ══ LEFT — Report editor ════════════════════════════════════════════ */}
+      {/* ══ LEFT — 3 report boxes ═══════════════════════════════════════════ */}
       <div className="flex-[3] min-w-0 flex flex-col overflow-hidden border-r border-white/5">
 
         {/* ── Toolbar ──────────────────────────────────────────────────────── */}
         <div className="px-4 py-2.5 border-b border-white/5 bg-bg-secondary/40 shrink-0 space-y-2">
 
-          {/* Row 1 — title + case template badge */}
+          {/* Row 1 — title + badge */}
           <div className="flex items-center gap-2">
             <BookOpen size={13} className="text-accent-green/60" />
             <span className="text-xs font-semibold text-accent-green tracking-wide">Rapport</span>
@@ -401,28 +452,28 @@ export default function ReportTab({ case_ }: Props) {
           {/* Row 2 — actions */}
           <div className="flex items-center gap-2 flex-wrap">
 
-            {/* Auto-generate analysis */}
+            {/* Auto-generate */}
             <button
               className="btn-secondary text-xs flex items-center gap-1.5"
               onClick={() => generate.mutate()}
               disabled={generate.isPending}
-              title="Génère les sections Analyse / Remédiation / Recommandations depuis le case template"
+              title="Génère les 3 sections depuis le case template en un clic"
             >
               <Sparkles size={12} className={generate.isPending ? 'animate-pulse' : ''} />
-              {generate.isPending ? 'Génération…' : 'Auto-générer l\'analyse'}
+              {generate.isPending ? 'Génération…' : 'Auto-générer'}
             </button>
 
             {/* Export MD */}
             <button
               className="btn-secondary text-xs flex items-center gap-1.5"
               onClick={handleExportMd}
-              title="Exporter le contenu actuel en Markdown"
+              title="Exporter le contenu combiné en Markdown"
             >
               <FileDown size={12} />
               .md
             </button>
 
-            {/* Report template selector + export DOCX */}
+            {/* Report template + DOCX export */}
             <div className="flex items-center gap-1">
               <div className="relative">
                 <select
@@ -450,16 +501,13 @@ export default function ReportTab({ case_ }: Props) {
               </button>
             </div>
 
-            {/* Spacer */}
             <div className="flex-1" />
 
             {/* Versions toggle */}
             <button
               onClick={() => setVersionsOpen(o => !o)}
               className={`flex items-center gap-1.5 text-xs transition-colors ${
-                versionsOpen
-                  ? 'text-accent-green'
-                  : 'text-accent-muted/50 hover:text-white'
+                versionsOpen ? 'text-accent-green' : 'text-accent-muted/50 hover:text-white'
               }`}
             >
               {versionsOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
@@ -479,7 +527,7 @@ export default function ReportTab({ case_ }: Props) {
           </div>
         </div>
 
-        {/* ── Version history (collapsible) ─────────────────────────────────── */}
+        {/* ── Version history ────────────────────────────────────────────────── */}
         {versionsOpen && (
           <div className="shrink-0 border-b border-white/5 bg-bg-secondary/20 px-4 py-3">
             {versions.length === 0 ? (
@@ -493,7 +541,7 @@ export default function ReportTab({ case_ }: Props) {
                     key={v.id}
                     v={v}
                     caseId={case_.id}
-                    onRestore={content => { setValue(content); setDirty(true) }}
+                    onRestore={handleRestore}
                   />
                 ))}
               </div>
@@ -506,28 +554,38 @@ export default function ReportTab({ case_ }: Props) {
           </div>
         )}
 
-        {/* ── Editor ────────────────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-auto p-4">
-          <MarkdownEditor
-            value={value}
-            onChange={v => { setValue(v); setDirty(true) }}
-            caseId={case_.id}
-            minHeight={400}
-            autoResize
-            placeholder={
-              "# Rapport d'Incident\n\n" +
-              "Utilise « Auto-générer l'analyse » pour pré-remplir les sections " +
-              "Analyse Technique, Remédiations et Recommandations depuis le case template.\n\n" +
-              "Les données structurées (IOCs, assets, MITRE, timeline) sont injectées " +
-              "automatiquement lors de l'export DOCX via le report template."
-            }
-          />
+        {/* ── 3 report boxes ────────────────────────────────────────────────── */}
+        <div className="flex-1 overflow-y-auto">
+          {[
+            { meta: BOX_META[0], value: analysis,    onChange: (v: string) => { setAnalysis(v);    markDirty() } },
+            { meta: BOX_META[1], value: remediation,  onChange: (v: string) => { setRemediation(v); markDirty() } },
+            { meta: BOX_META[2], value: conclusion,   onChange: (v: string) => { setConclusion(v);  markDirty() } },
+          ].map(({ meta, value, onChange }) => (
+            <div key={meta.tag} className="border-b border-white/5 last:border-b-0">
+              {/* Box header */}
+              <div className={`flex items-center gap-2 px-4 py-2 border-b border-white/5 ${meta.color}`}>
+                <span className="shrink-0">{meta.icon}</span>
+                <span className="text-[11px] font-semibold tracking-wide">{meta.label}</span>
+                <code className="ml-auto text-[9px] font-mono opacity-40">{meta.tag}</code>
+              </div>
+              {/* Editor */}
+              <div className="p-3">
+                <MarkdownEditor
+                  value={value}
+                  onChange={onChange}
+                  caseId={case_.id}
+                  minHeight={160}
+                  autoResize
+                  placeholder={meta.placeholder}
+                />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
       {/* ══ RIGHT — Playbook reference ══════════════════════════════════════ */}
       <div className="flex-[2] min-w-0 flex flex-col overflow-hidden bg-bg-secondary/20">
-        {/* Header */}
         <div className="px-3 py-2.5 border-b border-white/5 shrink-0">
           <div className="flex items-center gap-2">
             <StickyNote size={12} className="text-accent-muted/50" />
@@ -539,8 +597,6 @@ export default function ReportTab({ case_ }: Props) {
             Lecture seule — copie-colle dans l'éditeur de gauche
           </p>
         </div>
-
-        {/* Content */}
         <div className="flex-1 overflow-hidden">
           <PlaybookReference caseId={case_.id} />
         </div>

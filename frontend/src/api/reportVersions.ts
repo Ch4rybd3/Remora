@@ -19,6 +19,9 @@ export const reportVersionsApi = {
   get: (caseId: string, versionId: number): Promise<ReportVersionFull> =>
     api.get<ReportVersionFull>(`/cases/${caseId}/report/versions/${versionId}`).then(r => r.data),
 
-  save: (caseId: string, content: string): Promise<ReportVersionMeta> =>
-    api.post<ReportVersionMeta>(`/cases/${caseId}/report/save`, { content }).then(r => r.data),
+  save: (
+    caseId: string,
+    payload: { analysis: string; remediation: string; conclusion: string },
+  ): Promise<ReportVersionMeta> =>
+    api.post<ReportVersionMeta>(`/cases/${caseId}/report/save`, payload).then(r => r.data),
 }

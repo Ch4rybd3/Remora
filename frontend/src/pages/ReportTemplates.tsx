@@ -265,10 +265,21 @@ const TAG_DOCS: { group: string; color: 'meta' | 'report' | 'annex'; tags: { tag
     color: 'report',
     tags: [
       {
+        tag: 'report_analysis',
+        desc: 'Box 1 — Analyse Technique rédigée dans l\'onglet Report. '
+            + 'En DOCX : converti en paragraphes Word formatés. En MD : inséré tel quel.',
+      },
+      {
+        tag: 'report_remediation',
+        desc: 'Box 2 — Remédiations rédigées dans l\'onglet Report.',
+      },
+      {
+        tag: 'report_conclusion',
+        desc: 'Box 3 — Conclusion & Recommandations rédigées dans l\'onglet Report.',
+      },
+      {
         tag: 'report_content',
-        desc: 'Contenu rédigé dans l\'onglet Report du cas (analyse technique, remédiations, conclusions). '
-            + 'En DOCX : converti en paragraphes Word formatés (titres H1/H2/H3, gras, italique, listes, blocs de code). '
-            + 'En MD : inséré tel quel.',
+        desc: 'Alias combiné (backward compat) — injecte les 3 boxes à la suite, séparées par ---.',
       },
     ],
   },
@@ -317,7 +328,11 @@ function TagReference({ open, onClose }: { open: boolean; onClose: () => void })
         <p className="text-accent-muted/30 italic mb-1">Structure recommandée du template :</p>
         <p><span className="text-blue-400">{'{{case.title}}'}</span>  <span className="text-blue-400">{'{{case.created_at}}'}</span>  …</p>
         <p className="text-accent-muted/30">── partie 1 : métadonnées ──────────────</p>
-        <p className="mt-1"><span className="text-purple-300">{'{{report_content}}'}</span></p>
+        <p className="mt-1">
+          <span className="text-purple-300">{'{{report_analysis}}'}</span>
+        </p>
+        <p><span className="text-purple-300">{'{{report_remediation}}'}</span></p>
+        <p><span className="text-purple-300">{'{{report_conclusion}}'}</span></p>
         <p className="text-accent-muted/30">── partie 2 : analyse & remédiations ───</p>
         <p className="mt-1">
           <span className="text-accent-green">{'{{ioc_table}}'}</span>{'  '}

@@ -37,7 +37,12 @@ class Case(Base):
 
     executive_summary = Column(Text, default="")
     quick_notes = Column(Text, default="")
-    report = Column(Text, default="")
+    report = Column(Text, default="")            # legacy combined field — kept for backward compat
+
+    # ── Report sections (split editor) ─────────────────────────────────────────
+    report_analysis    = Column(Text, default="")   # Analyse Technique  → {{report_analysis}}
+    report_remediation = Column(Text, default="")   # Remédiations       → {{report_remediation}}
+    report_conclusion  = Column(Text, default="")   # Conclusion         → {{report_conclusion}}
 
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),

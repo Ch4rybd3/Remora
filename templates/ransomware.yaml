@@ -1,6 +1,6 @@
 name: "Ransomware Incident"
 description: "Template for ransomware incidents — covers encryption, lateral movement, and recovery"
-version: "1.1"
+version: "1.2"
 tags:
   - ransomware
   - malware
@@ -72,7 +72,7 @@ ttp_definitions:
     technique_name: Exploitation for Privilege Escalation
     tactic: privilege-escalation
     tactic_name: Privilege Escalation
-  # Defense Impairment (ATT&CK v19 — disabling security tools / logs)
+  # Defense Impairment (ATT&CK v19)
   - technique_id: T1562.001
     technique_name: Disable or Modify Tools
     tactic: defense-impairment
@@ -81,7 +81,7 @@ ttp_definitions:
     technique_name: Clear Windows Event Logs
     tactic: defense-impairment
     tactic_name: Defense Impairment
-  # Stealth (ATT&CK v19 — obfuscation / masquerading)
+  # Stealth (ATT&CK v19)
   - technique_id: T1027
     technique_name: Obfuscated Files or Information
     tactic: stealth
@@ -185,41 +185,66 @@ executive_summary_template: |
   Incident response was initiated at [IR_START_TIME]. Ransom demand: [AMOUNT/UNKNOWN].
 
 report_sections:
+  # ── Box 1 : Analyse Technique ──────────────────────────────────────────────
   - name: "Incident Overview"
+    category: analyse
     template: |
       Describe when and how the ransomware was discovered. Include the encryption extension,
       ransom note content, and affected file shares or systems.
 
   - name: "Initial Access"
+    category: analyse
     template: |
+      ### Initial Access Vector
+
       Detail the initial access vector (phishing, exposed RDP, vulnerability exploitation, etc.).
       Include timestamps, source IPs, and any credentials used.
 
   - name: "Lateral Movement & Persistence"
+    category: analyse
     template: |
+      ### Lateral Movement
+
       Describe how the attacker moved through the network. Include tools observed
       (Cobalt Strike, Mimikatz, PsExec, etc.) and persistence mechanisms established.
 
   - name: "Data Exfiltration"
+    category: analyse
     template: |
+      ### Data Exfiltration
+
       If applicable, detail what data was exfiltrated, when, to which destinations,
       and the estimated volume. Note any double-extortion indicators.
 
   - name: "Encryption & Impact"
+    category: analyse
     template: |
+      ### Encryption & Impact
+
       List all affected systems, encrypted shares, and estimated data loss.
       Include business impact (downtime, affected services, financial impact).
 
+  # ── Box 2 : Remédiations ──────────────────────────────────────────────────
   - name: "Containment & Remediation"
+    category: remediation
     template: |
       Describe network isolation steps, account resets, backup restoration process,
       and timeline of recovery operations.
 
+      - [ ] Isolate affected systems from network
+      - [ ] Reset all compromised accounts and credentials
+      - [ ] Restore systems from clean backups
+      - [ ] Patch exploited vulnerabilities
+      - [ ] Re-enable security tools (EDR, logging)
+      - [ ] Validate integrity of restored systems before reconnecting
+
+  # ── Box 3 : Conclusion ────────────────────────────────────────────────────
   - name: "Recommendations"
+    category: conclusion
     template: |
-      - Implement/review MFA on all remote access points
-      - Review and harden backup strategy (3-2-1 rule, offline copies)
-      - Patch management process review
-      - Network segmentation improvements
-      - EDR coverage gaps remediation
-      - User awareness training
+      - [ ] Implement/review MFA on all remote access points
+      - [ ] Review and harden backup strategy (3-2-1 rule, offline copies)
+      - [ ] Patch management process review
+      - [ ] Network segmentation improvements
+      - [ ] EDR coverage gaps remediation
+      - [ ] User awareness training
