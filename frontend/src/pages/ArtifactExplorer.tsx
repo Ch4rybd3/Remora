@@ -5,9 +5,9 @@ import {
   Upload, Search, X, ChevronDown, ChevronLeft, ChevronRight,
   ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, SlidersHorizontal,
   BookmarkPlus, BookmarkCheck, Download, Columns3, Trash2, FileText,
-  Loader2, Info, Table2, Globe,
+  Loader2, Info, Table2, Globe, Layers, GripVertical, ChevronRight as ChevronRightIcon,
 } from 'lucide-react'
-import { csvArtifactsApi, type CsvArtifactMeta, type ArtifactRowFilters, type OmniSearchFile } from '../api/csvArtifacts'
+import { csvArtifactsApi, type CsvArtifactMeta, type ArtifactRowFilters, type OmniSearchFile, type GroupResult } from '../api/csvArtifacts'
 import { timelineApi } from '../api/timeline'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import { fmtRelative } from '../utils/dateUtils'
@@ -19,17 +19,21 @@ interface ColFilter { mode: FilterMode; value: string }
 type ColFilters = Record<string, ColFilter>
 
 interface TabState {
-  filters:    ArtifactRowFilters
-  colFilters: ColFilters
-  hiddenCols: string[]
-  colWidths:  Record<string, number>
+  filters:     ArtifactRowFilters
+  colFilters:  ColFilters
+  hiddenCols:  string[]
+  colWidths:   Record<string, number>
+  groupByCols: string[]
+  colOrder:    string[]
 }
 
 const defaultTabState = (): TabState => ({
-  filters:    { page: 1, page_size: 100, sort_dir: 'asc' },
-  colFilters: {},
-  hiddenCols: [],
-  colWidths:  {},
+  filters:     { page: 1, page_size: 100, sort_dir: 'asc' },
+  colFilters:  {},
+  hiddenCols:  [],
+  colWidths:   {},
+  groupByCols: [],
+  colOrder:    [],
 })
 
 interface PinnedRow {
@@ -42,9 +46,75 @@ interface PinnedRow {
   row:          Record<string, string>
 }
 
-/** Stable unique key using all row values — prevents collision on shared date/first-col. */
+type FlatItem =
+  | {
+      type:       'group'
+      depth:      number
+      key:        string
+      groupCol:   string
+      groupVal:   string
+      count:      number
+      isExpanded: boolean
+      isLeaf:     boolean
+      filters:    Record<string, string>  // accumulated col=val for this group path
+    }
+  | {
+      type:         'group-rows'
+      groupKey:     string
+      groupFilters: Record<string, string>
+      depth:        number
+    }
+
+/** Stable unique key using all row values. */
 function makeRowKey(artifactId: string, row: Record<string, string>): string {
   return `${artifactId}\x1f${Object.values(row).join('\x1e')}`
+}
+
+/**
+ * Build a flat list for rendering from backend group results.
+ * Groups are only the aggregation layer — rows are fetched lazily on expand.
+ */
+function buildGroupTree(
+  groups:     GroupResult[],
+  groupCols:  string[],
+  expanded:   Set<string>,
+  depth = 0,
+  prefix = '',
+  parentFilters: Record<string, string> = {},
+): FlatItem[] {
+  if (!groupCols.length) return []
+  const col  = groupCols[depth]
+  const isLeaf = depth === groupCols.length - 1
+
+  // Collect unique values at this depth and their summed counts
+  const byVal = new Map<string, { count: number; sub: GroupResult[] }>()
+  for (const g of groups) {
+    const val = g.values[col] ?? ''
+    if (!byVal.has(val)) byVal.set(val, { count: 0, sub: [] })
+    const entry = byVal.get(val)!
+    entry.count += g.count
+    entry.sub.push(g)
+  }
+
+  const sorted = [...byVal.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+  const result: FlatItem[] = []
+
+  for (const [val, { count, sub }] of sorted) {
+    const key        = `${prefix}\x1f${val}`
+    const isExpanded = expanded.has(key)
+    const filters    = { ...parentFilters, [col]: val }
+
+    result.push({ type: 'group', depth, key, groupCol: col, groupVal: val, count, isExpanded, isLeaf, filters })
+
+    if (isExpanded) {
+      if (isLeaf) {
+        result.push({ type: 'group-rows', groupKey: key, groupFilters: filters, depth: depth + 1 })
+      } else {
+        result.push(...buildGroupTree(sub, groupCols, expanded, depth + 1, key, filters))
+      }
+    }
+  }
+  return result
 }
 
 const MODES: FilterMode[] = ['contains', '=', '!contains', '!=']
@@ -203,9 +273,7 @@ function RowDetail({ row, columns, onClose }: {
   )
 }
 
-// ── ArtifactTableView ─────────────────────────────────────────────────────────
-
-// ── Column resize handle ──────────────────────────────────────────────────────
+// ── ColResizeHandle ───────────────────────────────────────────────────────────
 
 function ColResizeHandle({ col, onStart }: {
   col:     string
@@ -214,12 +282,189 @@ function ColResizeHandle({ col, onStart }: {
   return (
     <div
       className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize z-10 group/rh flex items-center justify-end"
+      draggable={false}
       onMouseDown={e => { e.stopPropagation(); e.preventDefault(); onStart(e, col) }}
     >
       <div className="w-px h-4 bg-white/10 group-hover/rh:bg-accent-green/50 transition-colors" />
     </div>
   )
 }
+
+// ── GroupByBar ────────────────────────────────────────────────────────────────
+
+function GroupByBar({ groupByCols, onChange, isDragging }: {
+  groupByCols: string[]
+  onChange:    (cols: string[]) => void
+  isDragging:  boolean
+}) {
+  const [isOver, setIsOver] = useState(false)
+  const hasGroups = groupByCols.length > 0
+
+  return (
+    <div
+      className={`flex items-center gap-1.5 px-3 py-1.5 border-b shrink-0 min-h-[34px] transition-all duration-150 ${
+        isOver
+          ? 'border-accent-green/40 bg-accent-green/[0.06]'
+          : isDragging
+          ? 'border-accent-green/20 bg-accent-green/[0.02]'
+          : 'border-white/5'
+      }`}
+      onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setIsOver(true) }}
+      onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsOver(false) }}
+      onDrop={e => {
+        e.preventDefault()
+        setIsOver(false)
+        const col = e.dataTransfer.getData('column')
+        if (col && !groupByCols.includes(col)) onChange([...groupByCols, col])
+      }}
+    >
+      <span className="text-[9px] text-accent-muted/30 uppercase tracking-widest shrink-0 select-none flex items-center gap-1">
+        <Layers size={9} />
+        Group by
+      </span>
+
+      {hasGroups && groupByCols.map((col, i) => (
+        <span key={col}
+          className="flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-accent-green/30 bg-accent-green/[0.08] text-[10px] text-accent-green shrink-0 select-none">
+          {i > 0 && <ChevronRightIcon size={8} className="text-accent-green/30 mx-0.5" />}
+          <span>{col}</span>
+          <button
+            onClick={() => onChange(groupByCols.filter(c => c !== col))}
+            className="text-accent-green/40 hover:text-red-400 transition-colors ml-1">
+            <X size={7} />
+          </button>
+        </span>
+      ))}
+
+      <span className={`text-[9px] italic select-none pointer-events-none ${
+        isOver ? 'text-accent-green/60' : isDragging ? 'text-accent-green/40' : 'text-accent-muted/20'
+      }`}>
+        {isOver
+          ? 'Relâchez pour grouper'
+          : isDragging
+          ? hasGroups ? '+ ajouter au groupe' : '← déposez ici pour grouper'
+          : hasGroups ? '' : 'glissez un en-tête de colonne ici'}
+      </span>
+
+      {hasGroups && (
+        <button
+          onClick={() => onChange([])}
+          className="ml-auto text-[9px] text-accent-muted/30 hover:text-red-400 transition-colors shrink-0 flex items-center gap-0.5">
+          <X size={8} /> Effacer
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ── GroupRowsFetcher ──────────────────────────────────────────────────────────
+// Fetches and renders rows for a single expanded leaf group inside a <tbody>.
+
+function GroupRowsFetcher({ caseId, meta, baseFilters, groupFilters, orderedCols, colW, depth, pinnedKeys, onPinToggle }: {
+  caseId:       string
+  meta:         CsvArtifactMeta
+  baseFilters:  ArtifactRowFilters
+  groupFilters: Record<string, string>
+  orderedCols:  string[]
+  colW:         (col: string) => number
+  depth:        number
+  pinnedKeys:   Set<string>
+  onPinToggle:  (key: string, row: Record<string, string>) => void
+}) {
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 100
+
+  // Merge group equality filters into existing col_filters
+  const mergedFilters = useMemo((): ArtifactRowFilters => {
+    const existing: Record<string, { mode: string; value: string }> = baseFilters.col_filters
+      ? (() => { try { return JSON.parse(baseFilters.col_filters!) } catch { return {} } })()
+      : {}
+    const groupCF = Object.fromEntries(
+      Object.entries(groupFilters).map(([k, v]) => [k, { mode: '=', value: v }])
+    )
+    return {
+      q:           baseFilters.q,
+      sort_col:    baseFilters.sort_col,
+      sort_dir:    baseFilters.sort_dir ?? 'asc',
+      col_filters: JSON.stringify({ ...existing, ...groupCF }),
+      page,
+      page_size:   PAGE_SIZE,
+    }
+  }, [baseFilters, groupFilters, page])
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['csv-group-rows', caseId, meta.id, mergedFilters],
+    queryFn:  () => csvArtifactsApi.getRows(caseId, meta.id, mergedFilters),
+    placeholderData: prev => prev,
+  })
+
+  const indent = depth * 20
+  const colSpanAll = orderedCols.length + 1
+
+  if (isLoading) return (
+    <tr>
+      <td colSpan={colSpanAll} className="px-3 py-2">
+        <div className="flex items-center gap-1.5" style={{ paddingLeft: indent }}>
+          <Loader2 size={10} className="animate-spin text-accent-muted/30" />
+          <span className="text-[10px] text-accent-muted/30">Chargement…</span>
+        </div>
+      </td>
+    </tr>
+  )
+
+  const rows  = data?.items  ?? []
+  const total = data?.total  ?? 0
+  const pages = data?.pages  ?? 1
+
+  return (
+    <>
+      {rows.map((row, idx) => {
+        const key      = makeRowKey(meta.id, row)
+        const isPinned = pinnedKeys.has(key)
+        return (
+          <tr key={`${key}-${idx}`}
+            className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors group">
+            <td className="w-8 shrink-0 px-1 py-1 text-center"
+              onClick={e => { e.stopPropagation(); onPinToggle(key, row) }}>
+              {isPinned
+                ? <BookmarkCheck size={12} className="mx-auto text-accent-green/60" />
+                : <BookmarkPlus size={12} className="mx-auto text-accent-muted/15 group-hover:text-accent-muted/40 hover:!text-accent-green transition-colors cursor-pointer" />
+              }
+            </td>
+            {orderedCols.map((col, ci) => (
+              <td key={col}
+                className={`py-1 truncate text-[10px] ${col === meta.date_column ? 'font-mono text-white/40 whitespace-nowrap' : Object.keys(groupFilters).includes(col) ? 'text-white/30' : 'text-white/60'}`}
+                style={{ paddingLeft: ci === 0 ? indent + 12 : 12, paddingRight: 12, width: colW(col), minWidth: 60, maxWidth: colW(col) }}
+                title={row[col] ?? ''}>
+                {row[col] ?? ''}
+              </td>
+            ))}
+          </tr>
+        )
+      })}
+
+      {/* Mini-pagination for this group */}
+      {pages > 1 && (
+        <tr>
+          <td colSpan={colSpanAll} className="py-1 border-b border-white/[0.03]">
+            <div className="flex items-center gap-1.5 text-[9px] text-accent-muted/40" style={{ paddingLeft: indent + 12 }}>
+              <span>{total.toLocaleString()} lignes</span>
+              <div className="flex items-center gap-0.5 ml-2">
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                  className="p-0.5 rounded hover:text-white disabled:opacity-20"><ChevronLeft size={10} /></button>
+                <span className="text-accent-green/60">{page}/{pages}</span>
+                <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page === pages}
+                  className="p-0.5 rounded hover:text-white disabled:opacity-20"><ChevronRight size={10} /></button>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
+// ── ArtifactTableView ─────────────────────────────────────────────────────────
 
 function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onPinToggle }: {
   caseId:        string
@@ -229,26 +474,29 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
   pinnedKeys:    Set<string>
   onPinToggle:   (key: string, row: Record<string, string>) => void
 }) {
-  const [expandedRow, setExpandedRow] = useState<number | null>(null)
-  const [showFilters, setShowFilters] = useState(false)
-  const [localSearch, setLocalSearch] = useState(state.filters.q ?? '')
+  const [expandedRow,    setExpandedRow]    = useState<string | null>(null)
+  const [showFilters,    setShowFilters]    = useState(false)
+  const [localSearch,    setLocalSearch]    = useState(state.filters.q ?? '')
+  const [draggingCol,    setDraggingCol]    = useState<string | null>(null)
+  const [dragOverCol,    setDragOverCol]    = useState<string | null>(null)
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
 
-  const searchTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const colDebounce  = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pendingCols  = useRef<ColFilters>({})
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const colDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingCols = useRef<ColFilters>({})
 
   // ── Column resize ─────────────────────────────────────────────────────────
-  const colResizing    = useRef<{ col: string; startX: number; startW: number } | null>(null)
-  const colWidthsRef   = useRef<Record<string, number>>(state.colWidths ?? {})
-  const onStateRef     = useRef(onStateChange)
-  useEffect(() => { onStateRef.current     = onStateChange }, [onStateChange])
-  useEffect(() => { colWidthsRef.current   = state.colWidths ?? {} }, [state.colWidths])
+  const colResizing  = useRef<{ col: string; startX: number; startW: number } | null>(null)
+  const colWidthsRef = useRef<Record<string, number>>(state.colWidths ?? {})
+  const onStateRef   = useRef(onStateChange)
+  useEffect(() => { onStateRef.current   = onStateChange }, [onStateChange])
+  useEffect(() => { colWidthsRef.current = state.colWidths ?? {} }, [state.colWidths])
 
   const startColResize = useCallback((e: React.MouseEvent, col: string) => {
     const defaultW = col === meta.date_column ? 168 : 160
     const startW   = (state.colWidths ?? {})[col] ?? defaultW
     colResizing.current = { col, startX: e.clientX, startW }
-    document.body.style.cursor    = 'col-resize'
+    document.body.style.cursor     = 'col-resize'
     document.body.style.userSelect = 'none'
   }, [state.colWidths, meta.date_column])
 
@@ -277,11 +525,29 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
   const colW = (col: string) =>
     (state.colWidths ?? {})[col] ?? (col === meta.date_column ? 168 : 160)
 
-  // ── Data fetch ───────────────────────────────────────────────────────────
+  // ── Regular paginated fetch ───────────────────────────────────────────────
+  const groupByCols = useMemo(() =>
+    (state.groupByCols ?? []),
+    [state.groupByCols]
+  )
+  const groupActive = groupByCols.length > 0
+
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['csv-rows', caseId, meta.id, state.filters],
     queryFn:  () => csvArtifactsApi.getRows(caseId, meta.id, state.filters),
     placeholderData: prev => prev,
+    enabled: !groupActive,
+  })
+
+  // ── GROUP BY fetch — server-side aggregation, no row limit ───────────────
+  const { data: groupData, isLoading: groupLoading, isFetching: groupFetching } = useQuery({
+    queryKey: ['csv-groups', caseId, meta.id, groupByCols, state.filters.q, state.filters.col_filters],
+    queryFn:  () => csvArtifactsApi.getGroups(caseId, meta.id, groupByCols, {
+      q:           state.filters.q,
+      col_filters: state.filters.col_filters,
+    }),
+    placeholderData: prev => prev,
+    enabled: groupActive,
   })
 
   const rows    = data?.items   ?? []
@@ -289,8 +555,117 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
   const pages   = data?.pages   ?? 1
   const allCols = data?.columns ?? meta.columns
 
-  const hiddenSet    = new Set(state.hiddenCols)
-  const visibleCols  = allCols.filter(c => !hiddenSet.has(c))
+  // ── Column ordering ───────────────────────────────────────────────────────
+  const hiddenSet   = useMemo(() => new Set(state.hiddenCols), [state.hiddenCols])
+  const visibleCols = useMemo(() => allCols.filter(c => !hiddenSet.has(c)), [allCols, hiddenSet])
+
+  const orderedCols = useMemo(() => {
+    if (!state.colOrder?.length) return visibleCols
+    const inOrder = state.colOrder.filter(c => visibleCols.includes(c))
+    const rest    = visibleCols.filter(c => !inOrder.includes(c))
+    return [...inOrder, ...rest]
+  }, [visibleCols, state.colOrder])
+
+  // ── Grouped flat list ─────────────────────────────────────────────────────
+  const validGroupCols = useMemo(() =>
+    groupByCols.filter(c => allCols.includes(c)),
+    [groupByCols, allCols]
+  )
+
+  const backendGroups = groupData?.groups ?? []
+
+  const flatItems = useMemo(() =>
+    groupActive && !groupLoading
+      ? buildGroupTree(backendGroups, validGroupCols, expandedGroups)
+      : null,
+    [backendGroups, validGroupCols, expandedGroups, groupActive, groupLoading]
+  )
+
+  const toggleGroup = useCallback((key: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
+
+  // All group keys present in the current flat list (for expand/collapse all)
+  const allGroupKeys = useMemo(() =>
+    flatItems
+      ? new Set(flatItems.filter((i): i is Extract<FlatItem, { type: 'group' }> => i.type === 'group').map(i => i.key))
+      : new Set<string>(),
+    [flatItems]
+  )
+
+  const allExpanded = allGroupKeys.size > 0 && allGroupKeys.size === expandedGroups.size
+
+  const toggleAllGroups = useCallback(() => {
+    if (allExpanded) {
+      setExpandedGroups(new Set())
+    } else {
+      // Collect all group keys recursively from backend groups
+      const allKeys = new Set<string>()
+      function collectKeys(groups: GroupResult[], cols: string[], depth: number, prefix: string) {
+        if (depth >= cols.length) return
+        const col = cols[depth]
+        const byVal = new Map<string, GroupResult[]>()
+        for (const g of groups) {
+          const val = g.values[col] ?? ''
+          if (!byVal.has(val)) byVal.set(val, [])
+          byVal.get(val)!.push(g)
+        }
+        for (const [val, sub] of byVal) {
+          const key = `${prefix}\x1f${val}`
+          allKeys.add(key)
+          collectKeys(sub, cols, depth + 1, key)
+        }
+      }
+      collectKeys(backendGroups, validGroupCols, 0, '')
+      setExpandedGroups(allKeys)
+    }
+  }, [allExpanded, backendGroups, validGroupCols])
+
+  // Reset expanded groups when group columns change
+  const groupColsKey = groupByCols.join(',')
+  useEffect(() => {
+    setExpandedGroups(new Set())
+  }, [groupColsKey])
+
+  // ── Column drag handlers ──────────────────────────────────────────────────
+  const handleColDragStart = useCallback((e: React.DragEvent, col: string) => {
+    if (colResizing.current) { e.preventDefault(); return }
+    setDraggingCol(col)
+    e.dataTransfer.setData('column', col)
+    e.dataTransfer.effectAllowed = 'move'
+  }, [])
+
+  const handleColDragOver = useCallback((e: React.DragEvent, col: string) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverCol(col)
+  }, [])
+
+  const handleColDrop = useCallback((e: React.DragEvent, targetCol: string) => {
+    e.preventDefault()
+    const srcCol = e.dataTransfer.getData('column')
+    if (!srcCol || srcCol === targetCol) { setDragOverCol(null); return }
+    const newOrder = [...orderedCols]
+    const srcIdx   = newOrder.indexOf(srcCol)
+    const tgtIdx   = newOrder.indexOf(targetCol)
+    if (srcIdx !== -1 && tgtIdx !== -1) {
+      newOrder.splice(srcIdx, 1)
+      newOrder.splice(tgtIdx, 0, srcCol)
+    }
+    onStateChange({ colOrder: newOrder })
+    setDragOverCol(null)
+    setDraggingCol(null)
+  }, [orderedCols, onStateChange])
+
+  const handleColDragEnd = useCallback(() => {
+    setDraggingCol(null)
+    setDragOverCol(null)
+  }, [])
 
   // ── Filter helpers ────────────────────────────────────────────────────────
   const updateFilters = useCallback((patch: Partial<ArtifactRowFilters>) => {
@@ -350,18 +725,26 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
     URL.revokeObjectURL(url)
   }
 
-  // ── Active filter counts ───────────────────────────────────────────────────
   const activeColCount = Object.values(state.colFilters).filter(f => f.value.trim()).length
   const activeTotal    = activeColCount + (state.filters.q ? 1 : 0)
   const defaultSort    = meta.date_column
   const sortCol        = state.filters.sort_col ?? defaultSort
 
+  const isAnythingLoading  = groupActive ? groupLoading  : isLoading
+  const isAnythingFetching = groupActive ? groupFetching : isFetching
+
   return (
     <div className="flex flex-col h-full">
 
+      {/* ── Group-by drop zone ──────────────────────────────────────────── */}
+      <GroupByBar
+        groupByCols={validGroupCols}
+        onChange={cols => onStateChange({ groupByCols: cols })}
+        isDragging={draggingCol !== null}
+      />
+
       {/* ── Toolbar ─────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-white/5 bg-bg-secondary/30 shrink-0 flex-wrap">
-        {/* Global search */}
         <div className="relative flex-1 min-w-[160px] max-w-xs">
           <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-accent-muted/30" />
           <input value={localSearch} onChange={e => handleSearch(e.target.value)}
@@ -373,14 +756,14 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
           )}
         </div>
 
-        {/* Sort direction */}
-        <button onClick={() => updateFilters({ sort_dir: state.filters.sort_dir === 'asc' ? 'desc' : 'asc', page: 1 })}
-          className="flex items-center gap-1 px-2 py-1.5 rounded border border-white/8 text-[10px] text-accent-muted hover:text-white hover:border-white/20 transition-colors" title="Toggle sort direction">
-          {state.filters.sort_dir === 'asc' ? <ArrowUp size={10} /> : <ArrowDown size={10} />}
-          <span>{state.filters.sort_dir === 'asc' ? 'Oldest first' : 'Newest first'}</span>
-        </button>
+        {!groupActive && (
+          <button onClick={() => updateFilters({ sort_dir: state.filters.sort_dir === 'asc' ? 'desc' : 'asc', page: 1 })}
+            className="flex items-center gap-1 px-2 py-1.5 rounded border border-white/8 text-[10px] text-accent-muted hover:text-white hover:border-white/20 transition-colors" title="Toggle sort direction">
+            {state.filters.sort_dir === 'asc' ? <ArrowUp size={10} /> : <ArrowDown size={10} />}
+            <span>{state.filters.sort_dir === 'asc' ? 'Oldest first' : 'Newest first'}</span>
+          </button>
+        )}
 
-        {/* Advanced filters toggle */}
         <button onClick={() => setShowFilters(s => !s)}
           className={`flex items-center gap-1 px-2 py-1.5 rounded border text-[10px] transition-colors ${activeTotal > 0 ? 'border-accent-green/30 text-accent-green bg-accent-green/5' : 'border-white/8 text-accent-muted hover:text-white hover:border-white/20'}`}>
           <SlidersHorizontal size={10} />
@@ -392,47 +775,77 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
           <button onClick={handleReset} className="text-[10px] text-accent-muted/50 hover:text-severity-critical transition-colors">Reset</button>
         )}
 
-        {/* Column toggler */}
         <ColumnToggler columns={allCols} hidden={state.hiddenCols}
           onChange={h => onStateChange({ hiddenCols: h })} />
 
-        {/* Export */}
+        {groupActive && !groupLoading && (
+          <button onClick={toggleAllGroups}
+            className="flex items-center gap-1 px-2 py-1.5 rounded border border-white/8 text-[10px] text-accent-muted hover:text-white hover:border-white/20 transition-colors">
+            {allExpanded
+              ? <><ChevronsLeft size={10} className="rotate-90" /> Replier tout</>
+              : <><ChevronsRight size={10} className="rotate-90" /> Développer tout</>
+            }
+          </button>
+        )}
+
+        {state.colOrder?.length > 0 && (
+          <button onClick={() => onStateChange({ colOrder: [] })}
+            className="text-[10px] text-accent-muted/40 hover:text-white border border-white/8 px-2 py-1.5 rounded transition-colors">
+            Reset order
+          </button>
+        )}
+
         <button onClick={handleExport} title="Export filtered CSV"
           className="flex items-center gap-1 px-2 py-1.5 rounded border border-white/8 text-[10px] text-accent-muted hover:text-white hover:border-white/20 transition-colors">
           <Download size={10} /> Export
         </button>
 
-        {/* Stats */}
         <div className="ml-auto text-[10px] text-accent-muted/40 whitespace-nowrap">
-          {total < meta.row_count
+          {groupActive
+            ? <><span className="text-white/60">{(groupData?.total_groups ?? 0).toLocaleString()}</span> groupes · {meta.row_count.toLocaleString()} lignes</>
+            : total < meta.row_count
             ? <><span className="text-white/60">{total.toLocaleString()}</span> / {meta.row_count.toLocaleString()} rows</>
             : <><span className="text-white/60">{total.toLocaleString()}</span> rows</>
           }
         </div>
       </div>
 
-      {/* Refetch progress bar — visible whenever a filter/sort change is loading */}
-      <div className={`h-0.5 shrink-0 overflow-hidden transition-opacity duration-150 ${isFetching && !isLoading ? 'opacity-100' : 'opacity-0'}`}>
+      {/* Refetch progress bar */}
+      <div className={`h-0.5 shrink-0 overflow-hidden transition-opacity duration-150 ${isAnythingFetching && !isAnythingLoading ? 'opacity-100' : 'opacity-0'}`}>
         <div className="h-full bg-accent-green/50 animate-[shimmer_1.4s_ease-in-out_infinite]"
           style={{ background: 'linear-gradient(90deg, transparent 0%, #9FEF00 40%, #9FEF00 60%, transparent 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite' }} />
       </div>
 
+
       {/* Table area */}
-      <div className={`flex-1 overflow-auto relative transition-opacity duration-150 ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
+      <div className={`flex-1 overflow-auto relative transition-opacity duration-150 ${isAnythingFetching && !isAnythingLoading ? 'opacity-50' : 'opacity-100'}`}>
         <table className="w-full border-collapse text-[11px]"
-          style={{ minWidth: Math.max(800, visibleCols.length * 160 + 32) + 'px' }}>
+          style={{ minWidth: Math.max(800, orderedCols.length * 160 + 32) + 'px' }}>
           <thead className="sticky top-0 z-10 bg-bg-secondary">
             {/* Column name row */}
             <tr className="border-b border-white/8">
               <th className="w-8 shrink-0 px-1 pt-2 pb-1" />
-              {visibleCols.map(col => {
-                const isSort = sortCol === col
-                const w      = colW(col)
+              {orderedCols.map(col => {
+                const isSort    = sortCol === col && !groupActive
+                const w         = colW(col)
+                const isDragSrc = draggingCol === col
+                const isDragTgt = dragOverCol === col && draggingCol !== col
                 return (
-                  <th key={col} onClick={() => handleSort(col)}
-                    className="relative px-3 pt-2 pb-1 text-left font-medium text-[9px] text-accent-muted/40 uppercase tracking-widest whitespace-nowrap cursor-pointer hover:text-white/60 transition-colors select-none"
+                  <th key={col}
+                    draggable
+                    onDragStart={e => handleColDragStart(e, col)}
+                    onDragOver={e => handleColDragOver(e, col)}
+                    onDrop={e => handleColDrop(e, col)}
+                    onDragEnd={handleColDragEnd}
+                    onClick={() => { if (!groupActive) handleSort(col) }}
+                    className={`relative px-3 pt-2 pb-1 text-left font-medium text-[9px] uppercase tracking-widest whitespace-nowrap transition-colors select-none
+                      ${groupActive ? 'cursor-grab active:cursor-grabbing text-accent-muted/40' : 'cursor-pointer hover:text-white/60 text-accent-muted/40'}
+                      ${isDragSrc ? 'opacity-40' : ''}
+                      ${isDragTgt ? 'border-l-2 border-l-accent-green/60' : ''}
+                    `}
                     style={{ width: w, minWidth: 60 }}>
                     <span className="flex items-center gap-1 pr-2">
+                      <GripVertical size={8} className="text-accent-muted/20 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
                       {col}
                       {isSort && (state.filters.sort_dir === 'asc' ? <ArrowUp size={9} className="text-accent-green" /> : <ArrowDown size={9} className="text-accent-green" />)}
                     </span>
@@ -442,23 +855,26 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
               })}
             </tr>
             {/* Per-column filter row */}
-            <tr className="border-b border-white/5 bg-bg-secondary/80">
-              <th className="w-8 shrink-0 px-1 py-1.5" />
-              {visibleCols.map(col => (
-                <th key={`${col}-f`} className="px-2 py-1.5" style={{ width: colW(col), minWidth: 60 }}>
-                  <ColFilterInput colKey={col}
-                    filter={state.colFilters[col] ?? { mode: 'contains', value: '' }}
-                    onChange={cf => handleColFilterChange(col, cf)} />
-                </th>
-              ))}
-            </tr>
+            {showFilters && (
+              <tr className="border-b border-white/5 bg-bg-secondary/80">
+                <th className="w-8 shrink-0 px-1 py-1.5" />
+                {orderedCols.map(col => (
+                  <th key={`${col}-f`} className="px-2 py-1.5" style={{ width: colW(col), minWidth: 60 }}>
+                    <ColFilterInput colKey={col}
+                      filter={state.colFilters[col] ?? { mode: 'contains', value: '' }}
+                      onChange={cf => handleColFilterChange(col, cf)} />
+                  </th>
+                ))}
+              </tr>
+            )}
           </thead>
 
           <tbody>
-            {isLoading && Array.from({ length: 8 }).map((_, i) => (
+            {/* Loading skeleton */}
+            {isAnythingLoading && Array.from({ length: 8 }).map((_, i) => (
               <tr key={i} className="border-b border-white/[0.04]">
                 <td className="w-8 px-1 py-2" />
-                {visibleCols.map(col => (
+                {orderedCols.map(col => (
                   <td key={col} className="px-3 py-2">
                     <div className="h-3 rounded bg-white/5 animate-pulse" style={{ width: `${45 + (i * 11) % 40}%` }} />
                   </td>
@@ -466,23 +882,71 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
               </tr>
             ))}
 
-            {!isLoading && rows.length === 0 && (
+            {/* Empty state */}
+            {!isAnythingLoading && !groupActive && rows.length === 0 && (
               <tr>
-                <td colSpan={visibleCols.length + 1} className="px-3 py-12 text-center text-[11px] text-accent-muted/30 italic">
+                <td colSpan={orderedCols.length + 1} className="px-3 py-12 text-center text-[11px] text-accent-muted/30 italic">
                   No rows match the current filters
                 </td>
               </tr>
             )}
 
-            {rows.map((row, idx) => {
-              const key = makeRowKey(meta.id, row)
+            {/* ── Grouped rendering ──────────────────────────────────────── */}
+            {!isAnythingLoading && groupActive && flatItems && flatItems.map(item => {
+              if (item.type === 'group') {
+                const indent = item.depth * 20
+                return (
+                  <tr key={item.key}
+                    onClick={() => toggleGroup(item.key)}
+                    className="border-b border-white/[0.06] cursor-pointer select-none hover:bg-white/[0.03] transition-colors"
+                    style={{ background: item.depth === 0 ? 'rgba(255,255,255,0.025)' : item.depth === 1 ? 'rgba(255,255,255,0.015)' : undefined }}>
+                    <td className="w-8 px-1 py-1.5 text-center">
+                      <div className={`transition-transform duration-150 text-accent-muted/40 mx-auto w-fit ${item.isExpanded ? 'rotate-90' : ''}`}>
+                        <ChevronRightIcon size={12} />
+                      </div>
+                    </td>
+                    <td colSpan={orderedCols.length} className="px-3 py-1.5">
+                      <div className="flex items-center gap-2" style={{ paddingLeft: indent }}>
+                        <span className="text-[9px] text-accent-muted/30 font-mono">{item.groupCol}:</span>
+                        <span className={`text-[11px] font-medium ${item.depth === 0 ? 'text-white/80' : 'text-white/65'}`}>
+                          {item.groupVal === '' ? <span className="italic text-accent-muted/30">(vide)</span> : item.groupVal}
+                        </span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded border border-accent-green/20 bg-accent-green/5 text-accent-green/70 ml-1">
+                          {item.count.toLocaleString()}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              }
+
+              // type === 'group-rows' — lazy-loaded rows for this leaf group
+              return (
+                <GroupRowsFetcher
+                  key={item.groupKey}
+                  caseId={caseId}
+                  meta={meta}
+                  baseFilters={state.filters}
+                  groupFilters={item.groupFilters}
+                  orderedCols={orderedCols}
+                  colW={colW}
+                  depth={item.depth}
+                  pinnedKeys={pinnedKeys}
+                  onPinToggle={onPinToggle}
+                />
+              )
+            })}
+
+            {/* ── Flat rendering ─────────────────────────────────────────── */}
+            {!isAnythingLoading && !groupActive && rows.map((row, idx) => {
+              const key      = makeRowKey(meta.id, row)
               const isPinned = pinnedKeys.has(key)
+              const rowKey   = `${idx}`
               return (
                 <>
                   <tr key={idx}
-                    onClick={() => setExpandedRow(r => r === idx ? null : idx)}
-                    className={`border-b border-white/[0.04] cursor-pointer transition-colors group ${expandedRow === idx ? 'bg-accent-green/5' : 'hover:bg-white/[0.025]'}`}>
-                    {/* Pin button */}
+                    onClick={() => setExpandedRow(r => r === rowKey ? null : rowKey)}
+                    className={`border-b border-white/[0.04] cursor-pointer transition-colors group ${expandedRow === rowKey ? 'bg-accent-green/5' : 'hover:bg-white/[0.025]'}`}>
                     <td className="w-8 shrink-0 px-1 py-1.5 text-center"
                       onClick={e => { e.stopPropagation(); handlePin(row) }}>
                       {isPinned
@@ -490,7 +954,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
                         : <BookmarkPlus size={13} className="mx-auto text-accent-muted/20 group-hover:text-accent-muted/50 hover:!text-accent-green transition-colors" />
                       }
                     </td>
-                    {visibleCols.map(col => (
+                    {orderedCols.map(col => (
                       <td key={col}
                         className={`px-3 py-1.5 truncate ${col === meta.date_column ? 'font-mono text-[10px] text-white/45 whitespace-nowrap' : 'text-white/65'}`}
                         style={{ width: colW(col), minWidth: 60, maxWidth: colW(col) }}
@@ -499,9 +963,9 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
                       </td>
                     ))}
                   </tr>
-                  {expandedRow === idx && (
-                    <tr key={`${idx}-detail`}>
-                      <td colSpan={visibleCols.length + 1} className="p-0">
+                  {expandedRow === rowKey && (
+                    <tr key={`${rowKey}-detail`}>
+                      <td colSpan={orderedCols.length + 1} className="p-0">
                         <RowDetail row={row} columns={allCols} onClose={() => setExpandedRow(null)} />
                       </td>
                     </tr>
@@ -509,12 +973,22 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
                 </>
               )
             })}
+
+            {/* Grouped empty state */}
+            {!isAnythingLoading && groupActive && flatItems?.length === 0 && (
+              <tr>
+                <td colSpan={orderedCols.length + 1} className="px-3 py-12 text-center text-[11px] text-accent-muted/30 italic">
+                  No rows match the current filters
+                </td>
+              </tr>
+            )}
+
           </tbody>
         </table>
       </div>
 
-      {/* Pagination */}
-      {data && (
+      {/* Pagination — hidden when grouping is active */}
+      {!groupActive && data && (
         <PaginationBar page={data.page} pages={pages} total={total} pageSize={data.page_size}
           onPage={p => updateFilters({ page: p })}
           onPageSize={s => updateFilters({ page_size: s, page: 1 })} />
@@ -642,7 +1116,6 @@ function PinnedPanel({ pinned, onUnpin, onClear, onExport, exporting }: {
   onExport:  () => void
   exporting: boolean
 }) {
-  // Sort chronologically by date column value
   const sorted = useMemo(() => [...pinned].sort((a, b) => {
     const ta = a.dateColumn ? a.row[a.dateColumn] ?? '' : ''
     const tb = b.dateColumn ? b.row[b.dateColumn] ?? '' : ''
@@ -651,7 +1124,6 @@ function PinnedPanel({ pinned, onUnpin, onClear, onExport, exporting }: {
 
   return (
     <div className="w-64 shrink-0 border-l border-white/5 bg-bg-card flex flex-col overflow-hidden">
-      {/* Header */}
       <div className="flex items-center justify-between px-3 py-3 border-b border-white/5 shrink-0">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-accent-muted/50 flex items-center gap-1.5">
           <BookmarkCheck size={10} />
@@ -670,7 +1142,6 @@ function PinnedPanel({ pinned, onUnpin, onClear, onExport, exporting }: {
         )}
       </div>
 
-      {/* Empty state */}
       {pinned.length === 0 && (
         <div className="flex-1 flex flex-col items-center justify-center gap-2 px-4 text-center">
           <BookmarkPlus size={22} className="text-accent-muted/15" />
@@ -680,7 +1151,6 @@ function PinnedPanel({ pinned, onUnpin, onClear, onExport, exporting }: {
         </div>
       )}
 
-      {/* Pinned list */}
       {pinned.length > 0 && (
         <div className="flex-1 overflow-y-auto divide-y divide-white/[0.04]">
           {sorted.map(item => {
@@ -721,7 +1191,6 @@ function PinnedPanel({ pinned, onUnpin, onClear, onExport, exporting }: {
         </div>
       )}
 
-      {/* Export button */}
       <div className="px-3 py-3 border-t border-white/5 shrink-0">
         <button
           onClick={onExport}
@@ -781,14 +1250,12 @@ export default function ArtifactExplorer() {
   const qc     = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
 
-  // ── Files list ─────────────────────────────────────────────────────────────
   const { data: files = [], isLoading: filesLoading } = useQuery({
     queryKey: ['csv-artifacts', caseId],
     queryFn:  () => csvArtifactsApi.list(caseId!),
     enabled:  !!caseId,
   })
 
-  // ── Tabs ───────────────────────────────────────────────────────────────────
   const [openTabs,  setOpenTabs]  = useState<string[]>([])
   const [activeTab, setActiveTab] = useState<string | null>(null)
   const [tabStates, setTabStates] = useState<Record<string, TabState>>({})
@@ -799,7 +1266,6 @@ export default function ArtifactExplorer() {
     setOmniQuery('')
   }, [])
 
-  // ── Auto-open via ?open=<filename> URL param (from CollectionImportTab) ───
   useEffect(() => {
     const openParam = searchParams.get('open')
     if (!openParam || files.length === 0) return
@@ -811,7 +1277,6 @@ export default function ArtifactExplorer() {
     }
   }, [files, searchParams, openFile, setSearchParams])
 
-  // ── Sidebar resize ─────────────────────────────────────────────────────────
   const [sidebarWidth, setSidebarWidth] = useState<number>(() =>
     parseInt(localStorage.getItem('ae-sidebar-w') ?? '240', 10)
   )
@@ -822,7 +1287,7 @@ export default function ArtifactExplorer() {
     e.preventDefault()
     isResizing.current  = true
     resizeStart.current = { x: e.clientX, w: sidebarWidth }
-    document.body.style.cursor    = 'col-resize'
+    document.body.style.cursor     = 'col-resize'
     document.body.style.userSelect = 'none'
   }
 
@@ -835,7 +1300,7 @@ export default function ArtifactExplorer() {
     const onUp = () => {
       if (!isResizing.current) return
       isResizing.current = false
-      document.body.style.cursor    = ''
+      document.body.style.cursor     = ''
       document.body.style.userSelect = ''
       setSidebarWidth(w => { localStorage.setItem('ae-sidebar-w', String(w)); return w })
     }
@@ -847,7 +1312,6 @@ export default function ArtifactExplorer() {
     }
   }, [])
 
-  // ── Sidebar file search ────────────────────────────────────────────────────
   const [fileSearch, setFileSearch] = useState('')
   const filteredSidebarFiles = useMemo(() => {
     if (!fileSearch.trim()) return files
@@ -871,7 +1335,6 @@ export default function ArtifactExplorer() {
     setTabStates(prev => ({ ...prev, [id]: { ...(prev[id] ?? defaultTabState()), ...patch } }))
   }, [])
 
-  // ── Upload ─────────────────────────────────────────────────────────────────
   const [uploading, setUploading] = useState(false)
   const [uploadErr, setUploadErr] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -899,7 +1362,6 @@ export default function ArtifactExplorer() {
     setUploading(false)
   }
 
-  // ── Delete ─────────────────────────────────────────────────────────────────
   const deleteMutation = useMutation({
     mutationFn: (id: string) => csvArtifactsApi.delete(caseId!, id),
     onSuccess: (_, id) => {
@@ -912,18 +1374,14 @@ export default function ArtifactExplorer() {
     },
   })
 
-  // ── Pinned rows (global across all tabs) ──────────────────────────────────
-  const [pinnedRows,  setPinnedRows]  = useState<PinnedRow[]>([])
-  const [exporting,   setExporting]   = useState(false)
+  const [pinnedRows, setPinnedRows] = useState<PinnedRow[]>([])
+  const [exporting,  setExporting]  = useState(false)
 
   const pinnedKeySet = useMemo(() => new Set(pinnedRows.map(p => p.key)), [pinnedRows])
 
   const handlePinToggle = useCallback((key: string, row: Record<string, string>, meta: CsvArtifactMeta) => {
     setPinnedRows(prev => {
-      if (prev.some(p => p.key === key)) {
-        // Unpin if already pinned
-        return prev.filter(p => p.key !== key)
-      }
+      if (prev.some(p => p.key === key)) return prev.filter(p => p.key !== key)
       return [...prev, {
         key,
         artifactId:   meta.id,
@@ -940,7 +1398,6 @@ export default function ArtifactExplorer() {
     if (!caseId || pinnedRows.length === 0) return
     setExporting(true)
     try {
-      // Sort chronologically before sending
       const sorted = [...pinnedRows].sort((a, b) => {
         const ta = a.dateColumn ? a.row[a.dateColumn] ?? '' : ''
         const tb = b.dateColumn ? b.row[b.dateColumn] ?? '' : ''
@@ -971,8 +1428,7 @@ export default function ArtifactExplorer() {
     }
   }, [caseId, pinnedRows, qc])
 
-  // ── Omnisearch ─────────────────────────────────────────────────────────────
-  const [omniQuery,   setOmniQuery]   = useState('')
+  const [omniQuery,     setOmniQuery]     = useState('')
   const [omniDebounced, setOmniDebounced] = useState('')
   const omniTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -984,10 +1440,8 @@ export default function ArtifactExplorer() {
 
   const showOmni = omniDebounced.length >= 2
 
-  // ── Drag & drop on main area ───────────────────────────────────────────────
   const [dragging, setDragging] = useState(false)
 
-  // ── No case ───────────────────────────────────────────────────────────────
   if (!caseId) {
     return (
       <div className="p-6 max-w-xl mx-auto mt-20 text-center space-y-4">
@@ -1003,7 +1457,6 @@ export default function ArtifactExplorer() {
 
   const activeMeta = activeTab ? files.find(f => f.id === activeTab) ?? null : null
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="flex h-full overflow-hidden" data-no-select={isResizing.current || undefined}
       onDragOver={e => { e.preventDefault(); setDragging(true) }}
@@ -1015,7 +1468,6 @@ export default function ArtifactExplorer() {
         className="relative shrink-0 border-r border-white/5 bg-bg-card flex flex-col overflow-hidden"
         style={{ width: sidebarWidth }}
       >
-        {/* Header */}
         <div className="px-3 py-3 border-b border-white/5 shrink-0">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-accent-muted/50 flex items-center gap-1.5">
             <Table2 size={10} /> Artifact Explorer
@@ -1023,7 +1475,6 @@ export default function ArtifactExplorer() {
           <p className="text-[9px] text-accent-muted/25 mt-0.5 truncate">{currentCase?.title}</p>
         </div>
 
-        {/* Omnisearch */}
         <div className="px-3 py-2 border-b border-white/5 shrink-0">
           <div className="relative">
             <Globe size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-accent-muted/30" />
@@ -1037,7 +1488,6 @@ export default function ArtifactExplorer() {
           </div>
         </div>
 
-        {/* Upload button */}
         <div className="px-3 py-2 border-b border-white/5 shrink-0">
           <input ref={fileRef} type="file" accept=".csv,text/csv" multiple className="sr-only"
             onChange={e => handleFiles(e.target.files)} />
@@ -1049,7 +1499,6 @@ export default function ArtifactExplorer() {
           {uploadErr && <p className="text-[10px] text-severity-critical mt-1">{uploadErr}</p>}
         </div>
 
-        {/* File search */}
         {files.length > 3 && (
           <div className="px-3 py-2 border-b border-white/5 shrink-0">
             <div className="relative">
@@ -1070,7 +1519,6 @@ export default function ArtifactExplorer() {
           </div>
         )}
 
-        {/* File list */}
         <div className="flex-1 overflow-y-auto">
           {filesLoading && (
             <div className="flex items-center justify-center py-8">
@@ -1095,7 +1543,6 @@ export default function ArtifactExplorer() {
           ))}
         </div>
 
-        {/* ── Resize handle ────────────────────────────────────────────────── */}
         <div
           onMouseDown={onResizeStart}
           className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize z-10 group flex items-center justify-center"
@@ -1108,7 +1555,6 @@ export default function ArtifactExplorer() {
       {/* ── Main area ────────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
 
-        {/* Tab bar */}
         {openTabs.length > 0 && (
           <div className="flex items-center gap-0 border-b border-white/5 bg-bg-secondary/50 shrink-0 overflow-x-auto">
             {openTabs.map(tabId => {
@@ -1131,7 +1577,6 @@ export default function ArtifactExplorer() {
           </div>
         )}
 
-        {/* Content area */}
         {showOmni ? (
           <OmniSearchView caseId={caseId} query={omniDebounced} onOpenFile={openFile} />
         ) : activeTab && activeMeta ? (
@@ -1141,7 +1586,6 @@ export default function ArtifactExplorer() {
             pinnedKeys={pinnedKeySet}
             onPinToggle={(key, row) => handlePinToggle(key, row, activeMeta)} />
         ) : (
-          /* Empty state */
           <div className={`flex-1 flex flex-col items-center justify-center gap-4 transition-colors ${dragging ? 'bg-accent-green/5' : ''}`}>
             <Table2 size={48} className="text-accent-muted/15" />
             <div className="text-center">

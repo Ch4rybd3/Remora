@@ -27,19 +27,11 @@ from .routers import evtx as evtx_router
 from .routers import audit as audit_router
 from .routers import attack_graph as attack_graph_router
 from .routers import memory as memory_router
-from .routers import mft as mft_router
-from .routers import usn as usn_router
-from .routers import browser as browser_router
 from .routers import binary as binary_router
-from .routers import registry as registry_router
 from .routers import report_doc_templates as report_doc_templates_router
-from .routers import prefetch as prefetch_router
 from .routers import connectors as connectors_router
 from .routers import cti as cti_router
 from .routers import collection_import as collection_import_router
-from .routers import ez_execution as ez_execution_router
-from .routers import ez_user_activity as ez_user_activity_router
-from .routers import ez_srum as ez_srum_router
 from .models import ez_artifacts as _ez_artifacts_models   # ensure EZ tables are registered
 from .routers import chainsaw as chainsaw_router
 from .routers import chainsaw_rules as chainsaw_rules_router
@@ -51,17 +43,13 @@ from .models import evtx as _evtx_models          # ensure tables are registered
 from .models import chainsaw as _chainsaw_models   # ensure tables are registered
 from .models import mitre as _mitre_models         # ensure tables are registered
 from .services.chainsaw_setup import setup_chainsaw
+from .services.cti_tools_setup import setup_cti_tools
 from .models import audit as _audit_models         # ensure tables are registered
 from .models import attack_graph as _ag_models     # ensure tables are registered
 from .models import memory as _memory_models       # ensure tables are registered
 from .models import report_version as _rv_models  # ensure tables are registered
-from .models import mft as _mft_models            # ensure tables are registered
-from .models import usn as _usn_models            # ensure tables are registered
-from .models import browser as _browser_models    # ensure tables are registered
 from .models import binary as _binary_models      # ensure tables are registered
-from .models import registry as _registry_models           # ensure tables are registered
 from .models import report_doc_template as _rdt_models    # ensure tables are registered
-from .models import prefetch as _prefetch_models          # ensure tables are registered
 from .models import connector as _connector_models        # ensure tables are registered
 from .models import email_file as _email_file_models      # ensure tables are registered
 from .models import csv_artifact as _csv_artifact_models  # ensure tables are registered
@@ -71,23 +59,6 @@ from .routers import csv_artifacts as csv_artifacts_router
 Base.metadata.create_all(bind=engine)
 settings.evidence_store_path.mkdir(parents=True, exist_ok=True)
 
-
-def _setup_mft() -> None:
-    """Add new columns to mft_files if they don't already exist."""
-    with engine.connect() as conn:
-        for col_ddl in [
-            "ALTER TABLE mft_files ADD COLUMN duckdb_path TEXT",
-            "ALTER TABLE mft_files ADD COLUMN parse_progress INTEGER DEFAULT 0 NOT NULL",
-            "ALTER TABLE mft_files ADD COLUMN parse_duration_seconds INTEGER",
-        ]:
-            try:
-                conn.execute(text(col_ddl))
-                conn.commit()
-            except Exception:
-                pass  # Column already exists
-
-
-_setup_mft()
 
 
 def _setup_collection_imports() -> None:
@@ -102,18 +73,6 @@ def _setup_collection_imports() -> None:
 
 _setup_collection_imports()
 
-
-def _setup_browser() -> None:
-    """Add columns_json to browser_files if it doesn't already exist."""
-    with engine.connect() as conn:
-        try:
-            conn.execute(text("ALTER TABLE browser_files ADD COLUMN columns_json TEXT"))
-            conn.commit()
-        except Exception:
-            pass  # Column already exists
-
-
-_setup_browser()
 
 
 def _setup_playbooks() -> None:
@@ -160,6 +119,14 @@ def _setup_chainsaw() -> None:
 
 
 _setup_chainsaw()
+
+
+def _setup_cti_tools() -> None:
+    """Check CTI network tools (whois, dig, nslookup) are available."""
+    setup_cti_tools()
+
+
+_setup_cti_tools()
 
 NOTE_IMAGES_DIR = settings.evidence_store_path.parent / "note_images"
 NOTE_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
@@ -258,24 +225,16 @@ app.include_router(evtx_router.router, prefix="/api/v1", **_auth)
 app.include_router(audit_router.router, prefix="/api/v1", **_auth)
 app.include_router(attack_graph_router.router, prefix="/api/v1", **_auth)
 app.include_router(memory_router.router, prefix="/api/v1", **_auth)
-app.include_router(mft_router.router,     prefix="/api/v1", **_auth)
-app.include_router(usn_router.router,     prefix="/api/v1", **_auth)
-app.include_router(browser_router.router, prefix="/api/v1", **_auth)
-app.include_router(binary_router.router,   prefix="/api/v1", **_auth)
-app.include_router(registry_router.router,            prefix="/api/v1", **_auth)
+app.include_router(binary_router.router,               prefix="/api/v1", **_auth)
 app.include_router(report_doc_templates_router.router, prefix="/api/v1", **_auth)
 app.include_router(chainsaw_router.router,             prefix="/api/v1", **_auth)
 app.include_router(chainsaw_rules_router.router,       prefix="/api/v1", **_auth)
 app.include_router(mitre_router.router,                prefix="/api/v1", **_auth)
 app.include_router(dashboard_router.router,            prefix="/api/v1", **_auth)
 app.include_router(vault_router.router,                prefix="/api/v1", **_auth)
-app.include_router(prefetch_router.router,             prefix="/api/v1", **_auth)
 app.include_router(connectors_router.router,           prefix="/api/v1", **_auth)
 app.include_router(cti_router.router,                  prefix="/api/v1", **_auth)
 app.include_router(collection_import_router.router,    prefix="/api/v1", **_auth)
-app.include_router(ez_execution_router.router,         prefix="/api/v1", **_auth)
-app.include_router(ez_user_activity_router.router,     prefix="/api/v1", **_auth)
-app.include_router(ez_srum_router.router,              prefix="/api/v1", **_auth)
 
 
 @app.get("/api/v1/health")
