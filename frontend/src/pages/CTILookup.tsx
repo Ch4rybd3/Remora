@@ -147,7 +147,7 @@ function AutoToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 
 function WidgetCard({ title, icon, color, link, linkLabel, extraLinks, children,
   loading, error, notFound, noKey, registerUrl,
-  autoOn, onToggleAuto, pendingManual, onRunManual, running }: {
+  autoOn, onToggleAuto, pendingManual, onRunManual, running, notApplicable }: {
   title: string; icon: React.ReactNode; color: string
   link?: string; linkLabel?: string
   extraLinks?: Array<{ href: string; label: string }>
@@ -156,6 +156,7 @@ function WidgetCard({ title, icon, color, link, linkLabel, extraLinks, children,
   noKey?: boolean; registerUrl?: string
   autoOn?: boolean; onToggleAuto?: () => void
   pendingManual?: boolean; onRunManual?: () => void; running?: boolean
+  notApplicable?: string   // e.g. "IPs uniquement" — shown when type doesn't match
 }) {
   return (
     <div className="bg-bg-card border border-white/8 rounded-xl overflow-hidden flex flex-col min-h-[160px]">
@@ -183,7 +184,11 @@ function WidgetCard({ title, icon, color, link, linkLabel, extraLinks, children,
       </div>
       {/* Body */}
       <div className="flex-1 px-4 py-3 flex flex-col">
-        {loading || running ? (
+        {notApplicable ? (
+          <div className="flex-1 flex items-center gap-2 text-accent-muted/20 text-[11px] italic">
+            <Info size={11} />{notApplicable}
+          </div>
+        ) : loading || running ? (
           <div className="flex-1 flex items-center justify-center gap-2 text-accent-muted/30">
             <Loader2 size={13} className="animate-spin" /><span className="text-[11px]">Querying…</span>
           </div>
@@ -282,14 +287,15 @@ function VTWidget({ result, loading, running, error, autoOn, onToggleAuto, pendi
 function AbuseWidget({ result, loading, running, error, autoOn, onToggleAuto, pendingManual, onRunManual }: WidgetProps) {
   const ab    = result?.abuseipdb
   const noKey = !!result && !ab && !error && !loading && !running && !pendingManual
-  if (result?.detected_type !== 'ip') return null
+  const na    = result?.detected_type !== 'ip' ? 'IPs uniquement' : undefined
   return (
     <WidgetCard title="AbuseIPDB" icon={<AlertOctagon size={13} className="text-red-400" />}
-      color="bg-red-500/10" link={ab ? `https://www.abuseipdb.com/check/${result.value}` : undefined}
+      color="bg-red-500/10" link={ab ? `https://www.abuseipdb.com/check/${result?.value}` : undefined}
       loading={loading} running={running} error={error} notFound={false}
-      noKey={noKey} registerUrl="https://www.abuseipdb.com/register"
+      noKey={!na && noKey} registerUrl="https://www.abuseipdb.com/register"
       autoOn={autoOn} onToggleAuto={onToggleAuto}
-      pendingManual={pendingManual} onRunManual={onRunManual}>
+      pendingManual={!na && pendingManual} onRunManual={onRunManual}
+      notApplicable={na}>
       {ab && (
         <div className="space-y-2.5">
           <div className="flex items-center gap-3">
@@ -374,16 +380,17 @@ function OTXWidget({ result, loading, running, error, autoOn, onToggleAuto, pend
 function ShodanWidget({ result, loading, running, error, autoOn, onToggleAuto, pendingManual, onRunManual }: WidgetProps) {
   const sh    = result?.shodan
   const noKey = !!result && !sh && !error && !loading && !running && !pendingManual
-  if (result?.detected_type !== 'ip') return null
+  const na    = result?.detected_type !== 'ip' ? 'IPs uniquement' : undefined
   return (
     <WidgetCard title="Shodan" icon={<Server size={13} className="text-cyan-400" />}
-      color="bg-cyan-500/10" link={sh ? `https://www.shodan.io/host/${result.value}` : undefined}
+      color="bg-cyan-500/10" link={sh ? `https://www.shodan.io/host/${result?.value}` : undefined}
       loading={loading} running={running}
       error={error ? (error.toLowerCase().includes('key') ? undefined : error) : undefined}
       notFound={sh?.not_found ?? false}
-      noKey={noKey} registerUrl="https://account.shodan.io/register"
+      noKey={!na && noKey} registerUrl="https://account.shodan.io/register"
       autoOn={autoOn} onToggleAuto={onToggleAuto}
-      pendingManual={pendingManual} onRunManual={onRunManual}>
+      pendingManual={!na && pendingManual} onRunManual={onRunManual}
+      notApplicable={na}>
       {sh && !sh.not_found && (
         <div className="space-y-2">
           <div className="text-[10px] space-y-0.5">
@@ -420,13 +427,14 @@ function ShodanWidget({ result, loading, running, error, autoOn, onToggleAuto, p
 function URLScanWidget({ result, loading, running, error, autoOn, onToggleAuto, pendingManual, onRunManual }: WidgetProps) {
   const us = result?.urlscan
   const t  = result?.detected_type
-  if (t !== 'url' && t !== 'domain') return null
+  const na = (t !== 'url' && t !== 'domain') ? 'URLs et domaines uniquement' : undefined
   return (
     <WidgetCard title="URLScan.io" icon={<Eye size={13} className="text-indigo-400" />}
       color="bg-indigo-500/10" link={us?.scan_id ? `https://urlscan.io/result/${us.scan_id}/` : undefined}
       loading={loading} running={running} error={error} notFound={us?.not_found}
       autoOn={autoOn} onToggleAuto={onToggleAuto}
-      pendingManual={pendingManual} onRunManual={onRunManual}>
+      pendingManual={!na && pendingManual} onRunManual={onRunManual}
+      notApplicable={na}>
       {us && !us.not_found && (
         <div className="space-y-2">
           {us.screenshot && (
