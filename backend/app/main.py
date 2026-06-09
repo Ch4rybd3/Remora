@@ -88,6 +88,21 @@ def _setup_playbooks() -> None:
 _setup_playbooks()
 
 
+def _setup_report_sections() -> None:
+    """Add report_analysis / report_remediation / report_conclusion columns to cases."""
+    with engine.connect() as conn:
+        for col in ("report_analysis", "report_remediation", "report_conclusion"):
+            try:
+                conn.execute(text(f"ALTER TABLE cases ADD COLUMN {col} TEXT DEFAULT ''"))
+                conn.commit()
+                print(f"[migration] cases.{col} added", flush=True)
+            except Exception:
+                pass  # Column already exists
+
+
+_setup_report_sections()
+
+
 def _setup_binary() -> None:
     """Ensure binary_files storage directory is locked down."""
     from .routers.binary import BINARY_DIR
