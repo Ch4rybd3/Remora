@@ -96,8 +96,10 @@ def _build_where(
     columns:    list[str],
     q:          Optional[str],
     col_filters: Optional[dict],
+    aql:        Optional[str] = None,
 ) -> tuple[str, list]:
     """Build a SQL WHERE clause and parameter list from filter inputs."""
+    from ..services.aql_parser import parse_aql, AQLSyntaxError
     parts:  list[str] = []
     params: list      = []
 
@@ -145,6 +147,18 @@ def _build_where(
                     parts.append(f"{qcol} NOT IN ({placeholders})")
                     params.extend(values)
 
+    # AQL query (combined AND with other filters)
+    if aql and aql.strip():
+        try:
+            aql_sql, aql_params = parse_aql(aql.strip(), columns)
+            if aql_sql:
+                parts.append(f"({aql_sql})")
+                params.extend(aql_params)
+        except AQLSyntaxError:
+            raise   # let the caller handle it
+        except Exception as exc:
+            raise AQLSyntaxError(f"AQL error: {exc}") from exc
+
     where = "WHERE " + " AND ".join(parts) if parts else ""
     return where, params
 
@@ -159,6 +173,7 @@ def _query_rows(
     date_column: Optional[str],
     page:        int,
     page_size:   int,
+    aql:         Optional[str] = None,
 ) -> tuple[int, int, list[dict]]:
     """
     Query a CSV file via DuckDB.
@@ -171,7 +186,7 @@ def _query_rows(
             [file_path],
         )
 
-        where, params = _build_where(columns, q, col_filters)
+        where, params = _build_where(columns, q, col_filters, aql)
 
         sc = sort_col if sort_col and sort_col in columns else date_column
         order = f'ORDER BY CAST("{sc}" AS VARCHAR) {sort_dir.upper()}' if sc else ""
@@ -198,6 +213,7 @@ def _query_groups(
     group_by:    list[str],
     q:           Optional[str],
     col_filters: Optional[dict],
+    aql:         Optional[str] = None,
 ) -> list[dict]:
     """
     Return GROUP BY aggregation using DuckDB — no row limit, runs natively in-engine.
@@ -215,7 +231,7 @@ def _query_groups(
             [file_path],
         )
 
-        where, params = _build_where(columns, q, col_filters)
+        where, params = _build_where(columns, q, col_filters, aql)
 
         group_select = ", ".join(f'CAST("{c}" AS VARCHAR) AS "{c}"' for c in group_cols)
         group_clause = ", ".join(f'CAST("{c}" AS VARCHAR)' for c in group_cols)
@@ -399,8 +415,11 @@ def get_rows(
     sort_dir:    str           = Query("asc"),
     q:           Optional[str] = Query(None),
     col_filters: Optional[str] = Query(None),
+    aql:         Optional[str] = Query(None, description="AQL query string"),
     db:          Session       = Depends(get_db),
 ) -> dict:
+    from ..services.aql_parser import AQLSyntaxError
+
     a    = _get_artifact_or_404(artifact_id, case_id, db)
     cols = json.loads(a.columns)
 
@@ -411,11 +430,14 @@ def get_rows(
         except Exception:
             pass
 
-    total, pages, rows = _query_rows(
-        a.file_path, cols, q, parsed_cf,
-        sort_col, sort_dir, a.date_column,
-        page, page_size,
-    )
+    try:
+        total, pages, rows = _query_rows(
+            a.file_path, cols, q, parsed_cf,
+            sort_col, sort_dir, a.date_column,
+            page, page_size, aql,
+        )
+    except AQLSyntaxError as exc:
+        raise HTTPException(status_code=422, detail={"aql_error": str(exc)})
 
     return {
         "total":     total,
@@ -434,12 +456,15 @@ def get_groups(
     group_by:    str           = Query(..., description="Comma-separated column names"),
     q:           Optional[str] = Query(None),
     col_filters: Optional[str] = Query(None),
+    aql:         Optional[str] = Query(None, description="AQL query string"),
     db:          Session       = Depends(get_db),
 ) -> dict:
     """
     Return GROUP BY aggregation via DuckDB — no row limit.
     group_by: comma-separated list of column names to group by (in order).
     """
+    from ..services.aql_parser import AQLSyntaxError
+
     a    = _get_artifact_or_404(artifact_id, case_id, db)
     cols = json.loads(a.columns)
 
@@ -452,7 +477,10 @@ def get_groups(
         except Exception:
             pass
 
-    groups = _query_groups(a.file_path, cols, group_cols, q, parsed_cf)
+    try:
+        groups = _query_groups(a.file_path, cols, group_cols, q, parsed_cf, aql)
+    except AQLSyntaxError as exc:
+        raise HTTPException(status_code=422, detail={"aql_error": str(exc)})
 
     print(f"[groups] {artifact_id} group_by={group_cols} → {len(groups)} groups", flush=True)
     return {
