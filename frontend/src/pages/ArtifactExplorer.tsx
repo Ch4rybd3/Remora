@@ -1062,7 +1062,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
       {/* Refetch progress bar */}
       <div className={`h-0.5 shrink-0 overflow-hidden transition-opacity duration-150 ${isAnythingFetching && !isAnythingLoading ? 'opacity-100' : 'opacity-0'}`}>
         <div className="h-full bg-accent-green/50 animate-[shimmer_1.4s_ease-in-out_infinite]"
-          style={{ background: 'linear-gradient(90deg, transparent 0%, #9FEF00 40%, #9FEF00 60%, transparent 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite' }} />
+          style={{ background: 'linear-gradient(90deg, transparent 0%, #2DD4BF 40%, #2DD4BF 60%, transparent 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite' }} />
       </div>
 
 

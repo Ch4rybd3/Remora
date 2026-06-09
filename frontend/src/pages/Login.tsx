@@ -35,7 +35,7 @@ export default function Login() {
       <div
         className="absolute inset-0 opacity-[0.03]"
         style={{
-          backgroundImage: 'linear-gradient(#9FEF00 1px, transparent 1px), linear-gradient(90deg, #9FEF00 1px, transparent 1px)',
+          backgroundImage: 'linear-gradient(#2DD4BF 1px, transparent 1px), linear-gradient(90deg, #2DD4BF 1px, transparent 1px)',
           backgroundSize: '48px 48px',
         }}
       />
@@ -47,7 +47,7 @@ export default function Login() {
             src="/logo.png"
             alt="Remora"
             className="h-16 w-auto object-contain mb-4"
-            style={{ filter: 'drop-shadow(0 0 12px rgba(159,239,0,0.35))' }}
+            style={{ filter: 'drop-shadow(0 0 12px rgba(45,212,191,0.35))' }}
             onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
           />
           <h1 className="text-3xl font-bold text-accent-green font-mono tracking-tight">REMORA</h1>

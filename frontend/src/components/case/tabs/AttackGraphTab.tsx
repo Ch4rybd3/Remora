@@ -153,7 +153,7 @@ export default function AttackGraphTab({ caseId }: Props) {
 
   const onEdgesChange: OnEdgesChange = useCallback(ch => setEdges(es => applyEdgeChanges(ch, es)), [])
   const onConnect: OnConnect = useCallback((p: Connection) =>
-    setEdges(es => addEdge({ ...p, type: 'smoothstep', animated: true, style: { stroke: '#9FEF0080', strokeWidth: 1.5 } }, es)), [])
+    setEdges(es => addEdge({ ...p, type: 'smoothstep', animated: true, style: { stroke: '#2DD4BF80', strokeWidth: 1.5 } }, es)), [])
 
   // ── Viewport center helper ────────────────────────────────────────────────
   /** Convert the canvas center (screen px) to flow-space coordinates. */
@@ -424,7 +424,7 @@ export default function AttackGraphTab({ caseId }: Props) {
             onPaneClick={() => setSelected(null)}
             onNodeDoubleClick={(_, node) => openEdit(node)}
             nodeTypes={AG_NODE_TYPES}
-            defaultEdgeOptions={{ type: 'smoothstep', animated: true, style: { stroke: '#9FEF0060', strokeWidth: 1.5 } }}
+            defaultEdgeOptions={{ type: 'smoothstep', animated: true, style: { stroke: '#2DD4BF60', strokeWidth: 1.5 } }}
             snapToGrid
             snapGrid={[20, 20]}
             fitView
@@ -440,7 +440,7 @@ export default function AttackGraphTab({ caseId }: Props) {
             <MiniMap
               nodeColor={(n) => {
                 const k = (n.data as AGNodeData)?.nodeKind
-                return k === 'timeline' ? '#9FEF00' : k === 'asset' ? '#3b82f6'
+                return k === 'timeline' ? '#2DD4BF' : k === 'asset' ? '#3b82f6'
                   : k === 'ioc' ? '#a855f7' : k === 'attacker' ? '#ef4444' : '#4b5563'
               }}
               maskColor="rgba(11,18,31,0.75)"

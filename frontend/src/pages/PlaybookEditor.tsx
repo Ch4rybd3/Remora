@@ -574,7 +574,7 @@ export default function PlaybookEditor() {
           >
             <Background variant={BackgroundVariant.Dots} gap={GRID} size={1.5} color="#1e2e42" />
             <Controls />
-            <MiniMap nodeColor={() => '#9FEF00'} />
+            <MiniMap nodeColor={() => '#2DD4BF'} />
             <NodeInternalsSync trigger={updateInternalsTrigger} nodeIds={nodes.map(n => n.id)} />
           </ReactFlow>
           </LayoutDirContext.Provider>

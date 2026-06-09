@@ -210,7 +210,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
             >
               <Background variant={BackgroundVariant.Dots} gap={20} size={1.5} color="#1e2e42" />
               <Controls />
-              <MiniMap nodeColor={() => '#9FEF00'} />
+              <MiniMap nodeColor={() => '#2DD4BF'} />
             </ReactFlow>
           </div>
         )}

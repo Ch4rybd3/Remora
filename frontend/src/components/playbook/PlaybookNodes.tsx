@@ -75,7 +75,7 @@ export function StepNode({ data, selected }: NodeProps) {
         minWidth={120}
         minHeight={40}
         lineStyle={{ borderColor: 'rgba(255,255,255,0.15)' }}
-        handleStyle={{ backgroundColor: '#9FEF00', borderColor: '#9FEF00', width: 6, height: 6, borderRadius: 2 }}
+        handleStyle={{ backgroundColor: '#2DD4BF', borderColor: '#2DD4BF', width: 6, height: 6, borderRadius: 2 }}
       />
       <Handle
         type="target"
@@ -118,8 +118,8 @@ export function DecisionNode({ data, selected }: NodeProps) {
   const cy = DIAMOND_H / 2
   const points = `${cx},0 ${DIAMOND_W},${cy} ${cx},${DIAMOND_H} 0,${cy}`
 
-  const strokeColor = done ? '#9FEF00' : selected ? '#FFAF00' : 'rgba(255,175,0,0.40)'
-  const fillColor   = done ? 'rgba(159,239,0,0.10)' : 'rgba(255,175,0,0.07)'
+  const strokeColor = done ? '#2DD4BF' : selected ? '#FFAF00' : 'rgba(255,175,0,0.40)'
+  const fillColor   = done ? 'rgba(45,212,191,0.10)' : 'rgba(255,175,0,0.07)'
   const textColor   = done ? 'text-accent-green' : 'text-severity-medium'
 
   return (
