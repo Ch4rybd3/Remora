@@ -128,11 +128,13 @@ function ScoreGauge({ score, label }: { score: number; label: string }) {
 
 // ── Widget card ───────────────────────────────────────────────────────────────
 
-function WidgetCard({ title, icon, color, link, linkLabel, children, loading, error, notFound }: {
+function WidgetCard({ title, icon, color, link, linkLabel, children, loading, error, notFound, noKey, registerUrl }: {
   title: string; icon: React.ReactNode; color: string
   link?: string; linkLabel?: string
   children?: React.ReactNode
   loading?: boolean; error?: string; notFound?: boolean
+  noKey?: boolean       // true when API key is not configured
+  registerUrl?: string  // signup URL shown alongside the "no key" message
 }) {
   return (
     <div className="bg-bg-card border border-white/8 rounded-xl overflow-hidden flex flex-col min-h-[160px]">
@@ -147,10 +149,36 @@ function WidgetCard({ title, icon, color, link, linkLabel, children, loading, er
         )}
       </div>
       <div className="flex-1 px-4 py-3 flex flex-col">
-        {loading   ? <div className="flex-1 flex items-center justify-center gap-2 text-accent-muted/30"><Loader2 size={13} className="animate-spin" /><span className="text-[11px]">Querying…</span></div>
-         : error   ? <div className="flex-1 flex items-center gap-2 text-red-400/60 text-[11px]"><AlertTriangle size={12} />{error}</div>
-         : notFound? <div className="flex-1 flex items-center gap-2 text-accent-muted/30 text-[11px]"><Info size={12} />Not found in database</div>
-         : children}
+        {loading ? (
+          <div className="flex-1 flex items-center justify-center gap-2 text-accent-muted/30">
+            <Loader2 size={13} className="animate-spin" /><span className="text-[11px]">Querying…</span>
+          </div>
+        ) : error ? (
+          <div className="flex-1 flex items-center gap-2 text-red-400/60 text-[11px]">
+            <AlertTriangle size={12} />{error}
+          </div>
+        ) : noKey ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center py-1">
+            <Info size={14} className="text-accent-muted/20" />
+            <p className="text-[10px] text-accent-muted/40">Clé API non configurée</p>
+            <div className="flex items-center gap-2 flex-wrap justify-center">
+              <a href="/config/connectors"
+                className="text-[9px] px-2 py-0.5 rounded border border-accent-green/20 text-accent-green/60 hover:text-accent-green hover:border-accent-green/40 transition-colors">
+                Config → Connectors
+              </a>
+              {registerUrl && (
+                <a href={registerUrl} target="_blank" rel="noopener noreferrer"
+                  className="text-[9px] px-2 py-0.5 rounded border border-white/10 text-accent-muted/40 hover:text-white hover:border-white/20 transition-colors flex items-center gap-1">
+                  <ExternalLink size={8} /> Créer un compte (gratuit)
+                </a>
+              )}
+            </div>
+          </div>
+        ) : notFound ? (
+          <div className="flex-1 flex items-center gap-2 text-accent-muted/30 text-[11px]">
+            <Info size={12} />Not found in database
+          </div>
+        ) : children}
       </div>
     </div>
   )
@@ -194,12 +222,15 @@ function VTWidget({ result, loading, error }: { result: LookupResult | null; loa
 }
 
 function AbuseWidget({ result, loading, error }: { result: LookupResult | null; loading?: boolean; error?: string }) {
-  const ab = result?.abuseipdb
+  const ab      = result?.abuseipdb
+  // result exists (lookup ran) but abuseipdb is null and no error → no API key
+  const noKey   = !!result && !ab && !error && !loading
   if (result?.detected_type !== 'ip') return null
   return (
     <WidgetCard title="AbuseIPDB" icon={<AlertOctagon size={13} className="text-red-400" />}
       color="bg-red-500/10" link={ab ? `https://www.abuseipdb.com/check/${result.value}` : undefined}
-      loading={loading} error={error} notFound={!ab}>
+      loading={loading} error={error} notFound={false}
+      noKey={noKey} registerUrl="https://www.abuseipdb.com/register">
       {ab && (
         <div className="space-y-2.5">
           <div className="flex items-center gap-3">
@@ -278,15 +309,17 @@ function OTXWidget({ result, loading, error }: { result: LookupResult | null; lo
 }
 
 function ShodanWidget({ result, loading, error }: { result: LookupResult | null; loading?: boolean; error?: string }) {
-  const sh = result?.shodan
+  const sh    = result?.shodan
+  // result exists (lookup ran) but shodan is null and no error → no API key
+  const noKey = !!result && !sh && !error && !loading
   if (result?.detected_type !== 'ip') return null
-  const noKey = !loading && !sh && !error
   return (
     <WidgetCard title="Shodan" icon={<Server size={13} className="text-cyan-400" />}
       color="bg-cyan-500/10" link={sh ? `https://www.shodan.io/host/${result.value}` : undefined}
       loading={loading}
-      error={error ? (error.toLowerCase().includes('key') ? 'Ajoute une clé Shodan dans Config → Connectors' : error) : undefined}
-      notFound={sh?.not_found || noKey}>
+      error={error ? (error.toLowerCase().includes('key') ? undefined : error) : undefined}
+      notFound={sh?.not_found ?? false}
+      noKey={noKey} registerUrl="https://account.shodan.io/register">
       {sh && !sh.not_found && (
         <div className="space-y-2">
           <div className="text-[10px] space-y-0.5">
@@ -593,14 +626,30 @@ function ThreatGlobe({ points, selectedIp, onSelectIp }: {
     if (pt) globeRef.current.pointOfView({ lat: pt.lat, lng: pt.lng, altitude: 1.6 }, 800)
   }, [selectedIp, points])
 
-  const data = useMemo(() => points.map(p => ({
-    ...p,
-    color: p.verdict === 'Malicious'  ? '#ef4444'
-         : p.verdict === 'Suspicious' ? '#f97316'
-         : p.verdict === 'Clean'      ? '#22c55e' : '#6b7280',
-    size: p.ip === selectedIp ? 0.55 : 0.3,
-    label: `<div style="font-size:11px;color:#fff;background:rgba(0,0,0,.7);padding:4px 8px;border-radius:6px">${p.ip}${p.city ? ` · ${p.city}` : ''}${p.country ? `, ${p.country}` : ''}</div>`,
-  })), [points, selectedIp])
+  const data = useMemo(() => points.map(p => {
+    const color = p.verdict === 'Malicious'  ? '#ef4444'
+                : p.verdict === 'Suspicious' ? '#f97316'
+                : p.verdict === 'Clean'      ? '#22c55e' : '#9ca3af'
+    const isSelected = p.ip === selectedIp
+    return {
+      ...p,
+      color,
+      size:     isSelected ? 0.9 : 0.55,
+      altitude: isSelected ? 0.03 : 0.01,
+      label: `<div style="font-size:11px;color:#fff;background:rgba(0,0,0,.75);padding:4px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.1)">${p.ip}${p.city ? ` · ${p.city}` : ''}${p.country ? `, ${p.country}` : ''}</div>`,
+    }
+  }), [points, selectedIp])
+
+  // Pulsing ring on selected point
+  const ringData = useMemo(() => {
+    if (!selectedIp) return []
+    const pt = points.find(p => p.ip === selectedIp)
+    if (!pt) return []
+    const color = pt.verdict === 'Malicious'  ? '#ef4444'
+                : pt.verdict === 'Suspicious' ? '#f97316'
+                : pt.verdict === 'Clean'      ? '#22c55e' : '#9ca3af'
+    return [{ lat: pt.lat, lng: pt.lng, color, maxR: 3, speed: 1.5, repeat: 700 }]
+  }, [selectedIp, points])
 
   return (
     <div ref={containerRef} className="w-full h-full">
@@ -611,9 +660,15 @@ function ThreatGlobe({ points, selectedIp, onSelectIp }: {
         atmosphereAltitude={0.1}
         pointsData={data}
         pointLat="lat" pointLng="lng" pointColor="color"
-        pointAltitude={0.01} pointRadius="size" pointResolution={8}
+        pointAltitude="altitude" pointRadius="size" pointResolution={12}
         pointLabel="label"
         onPointClick={(pt: any) => onSelectIp(pt.ip)}
+        ringsData={ringData}
+        ringLat="lat" ringLng="lng"
+        ringColor={(d: any) => (t: number) => `${d.color}${Math.round((1 - t) * 200).toString(16).padStart(2, '0')}`}
+        ringMaxRadius="maxR"
+        ringPropagationSpeed="speed"
+        ringRepeatPeriod="repeat"
       />
     </div>
   )
