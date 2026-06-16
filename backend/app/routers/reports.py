@@ -4,7 +4,6 @@ from typing import Optional
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -38,7 +37,16 @@ class ReportVersionFull(ReportVersionMeta):
 
 
 class SaveReportPayload(BaseModel):
-    content: str
+    content:    str = ""          # legacy combined field (kept for backward compat)
+    analysis:   Optional[str] = None
+    remediation: Optional[str] = None
+    conclusion: Optional[str] = None
+
+
+class GenerateResponse(BaseModel):
+    analysis:    str
+    remediation: str
+    conclusion:  str
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -52,22 +60,23 @@ def _get_case_or_404(case_id: str, db: Session) -> Case:
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
-@router.get("/generate", response_class=PlainTextResponse)
+@router.get("/generate", response_model=GenerateResponse)
 def generate_report(
     case_id:      str,
     db:           Session = Depends(get_db),
     current_user: User    = Depends(get_current_user),
 ):
     """
-    Generate the analyst-facing analysis skeleton only (Technical Analysis,
-    Remediations, Recommendations).  Annexe data (IOC table, MITRE matrix,
-    timeline …) are rendered by the Report Template via {{ }} tags.
+    Generate the 3 analyst-facing sections (Analyse, Remédiations, Conclusion)
+    from the case template's report_sections.  Returns a JSON object with keys
+    analysis / remediation / conclusion.
     """
     case = _get_case_or_404(case_id, db)
     template = None
     if case.template_id:
         template = TemplateService().get_template(case.template_id)
-    return ReportService().generate_analysis(case, template)
+    result = ReportService().generate_analysis(case, template)
+    return result
 
 
 @router.get("/versions", response_model=list[ReportVersionMeta])
@@ -104,15 +113,28 @@ def save_report(
     current_user: User    = Depends(get_current_user),
 ):
     """
-    Save the report content on the case AND create a new version snapshot.
-    Keeps only the last MAX_VERSIONS versions (older ones are deleted).
+    Save the 3 report sections on the case AND create a new version snapshot.
+    Also keeps case.report in sync (combined) for backward compat with {{report_content}}.
+    Keeps only the last MAX_VERSIONS versions.
     """
     case = _get_case_or_404(case_id, db)
 
-    # Persist content on the case itself
-    case.report = payload.content
+    # Persist individual sections
+    if payload.analysis    is not None: case.report_analysis    = payload.analysis
+    if payload.remediation is not None: case.report_remediation = payload.remediation
+    if payload.conclusion  is not None: case.report_conclusion  = payload.conclusion
 
-    # Next version number = current max + 1
+    # Keep combined `report` in sync for {{report_content}} backward compat
+    parts = []
+    for field in (case.report_analysis, case.report_remediation, case.report_conclusion):
+        if field and field.strip():
+            parts.append(field.strip())
+    case.report = "\n\n---\n\n".join(parts) if parts else (payload.content or "")
+
+    # Snapshot content = combined markdown
+    snapshot_content = case.report
+
+    # Next version number
     max_ver = (
         db.query(ReportVersion)
         .filter(ReportVersion.case_id == case_id)
@@ -121,20 +143,18 @@ def save_report(
     )
     next_version = (max_ver.version + 1) if max_ver else 1
 
-    line_count = len(payload.content.splitlines())
-
     version = ReportVersion(
         case_id    = case_id,
         version    = next_version,
-        content    = payload.content,
-        line_count = line_count,
+        content    = snapshot_content,
+        line_count = len(snapshot_content.splitlines()),
         created_by = current_user.username,
         created_at = datetime.now(timezone.utc),
     )
     db.add(version)
-    db.flush()   # get version.id
+    db.flush()
 
-    # Prune old versions — keep only the latest MAX_VERSIONS
+    # Prune old versions
     old_versions = (
         db.query(ReportVersion)
         .filter(ReportVersion.case_id == case_id)

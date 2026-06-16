@@ -37,19 +37,21 @@ const snapR = (v: number) => Math.round(v / GRID) * GRID
 
 /** Default widths so all nodes have the same handle alignment as Decision (160 px). */
 const NODE_DEFAULT_WIDTH: Partial<Record<string, number>> = {
-  step:        160,
-  remediation: 160,
-  decision:    160,
-  start:       160,
-  end:         160,
+  step:         160,
+  remediation:  160,
+  decision:     160,
+  start:        160,
+  end:          160,
+  playbook_ref: 160,
 }
 
 const NODE_PALETTE = [
-  { type: 'start',       label: 'Start',       color: 'text-accent-green' },
-  { type: 'step',        label: 'Analyse',     color: 'text-white' },
-  { type: 'decision',    label: 'Decision',    color: 'text-severity-medium' },
-  { type: 'remediation', label: 'Remediation', color: 'text-blue-400' },
-  { type: 'end',         label: 'End',         color: 'text-severity-critical' },
+  { type: 'start',        label: 'Start',        color: 'text-accent-green' },
+  { type: 'step',         label: 'Analyse',      color: 'text-white' },
+  { type: 'decision',     label: 'Decision',     color: 'text-severity-medium' },
+  { type: 'remediation',  label: 'Remediation',  color: 'text-blue-400' },
+  { type: 'playbook_ref', label: 'Playbook →',   color: 'text-purple-400' },
+  { type: 'end',          label: 'End',          color: 'text-severity-critical' },
 ] as const
 
 /**
@@ -96,7 +98,13 @@ export default function PlaybookEditor() {
 
   // ── Edit modal ────────────────────────────────────────────────────────────
   const [editNodeOpen, setEditNodeOpen] = useState(false)
-  const [nodeForm, setNodeForm] = useState({ label: '', description: '', color: FRAME_COLORS[0] })
+  const [nodeForm, setNodeForm] = useState({
+    label:                '',
+    description:          '',
+    color:                FRAME_COLORS[0],
+    linked_playbook_id:   '',   // for playbook_ref
+    linked_playbook_name: '',   // for playbook_ref (future name)
+  })
 
   // ── Frame controls (top bar) ──────────────────────────────────────────────
   const [frameColor, setFrameColor] = useState<string>(FRAME_COLORS[0])
@@ -119,6 +127,12 @@ export default function PlaybookEditor() {
     queryKey: ['playbook', id],
     queryFn:  () => playbooksApi.get(id!),
     enabled:  !isNew && !!id,
+  })
+
+  // ── All playbooks (for playbook_ref picker) ────────────────────────────────
+  const { data: allPlaybooks = [] } = useQuery({
+    queryKey: ['playbooks'],
+    queryFn:  playbooksApi.list,
   })
 
   useEffect(() => {
@@ -219,13 +233,14 @@ export default function PlaybookEditor() {
 
   const addNode = useCallback((type: string, extraData?: Record<string, unknown>) => {
     const nodeId = `node-${Date.now()}-${idCounter.current++}`
-    const defaults: Record<string, { label: string; description?: string }> = {
-      start:       { label: 'Start' },
-      end:         { label: 'End' },
-      step:        { label: 'Nouvelle analyse', description: 'Décrivez cette étape…' },
-      decision:    { label: 'Decision?' },
-      remediation: { label: 'New Remediation', description: 'Describe the remediation action…' },
-      frame:       { label: 'Zone' },
+    const defaults: Record<string, { label: string; description?: string; linked_playbook_id?: string; linked_playbook_name?: string }> = {
+      start:        { label: 'Start' },
+      end:          { label: 'End' },
+      step:         { label: 'Nouvelle analyse', description: 'Décrivez cette étape…' },
+      decision:     { label: 'Decision?' },
+      remediation:  { label: 'New Remediation', description: 'Describe the remediation action…' },
+      frame:        { label: 'Zone' },
+      playbook_ref: { label: 'Playbook lié', linked_playbook_id: undefined, linked_playbook_name: '' },
     }
     const center = getViewportCenter()
     const isFrame = type === 'frame'
@@ -255,34 +270,46 @@ export default function PlaybookEditor() {
   // ── Edit / delete ─────────────────────────────────────────────────────────
 
   const openEditNode = (node: Node) => {
+    const d = node.data as Record<string, unknown>
     setNodeForm({
-      label:       (node.data as Record<string, unknown>).label as string       ?? '',
-      description: (node.data as Record<string, unknown>).description as string ?? '',
-      color:       (node.data as Record<string, unknown>).color as string       ?? FRAME_COLORS[0],
+      label:                d.label as string               ?? '',
+      description:          d.description as string         ?? '',
+      color:                d.color as string               ?? FRAME_COLORS[0],
+      linked_playbook_id:   d.linked_playbook_id as string  ?? '',
+      linked_playbook_name: d.linked_playbook_name as string ?? '',
     })
     setEditNodeOpen(true)
-    // Ensure selectedNode reflects this specific node when called via double-click
     setSelNodes(prev => prev.some(n => n.id === node.id) ? prev : [node])
   }
 
   const saveNodeEdit = () => {
     if (!selectedNode) return
-    const isFrame = selectedNode.type === 'frame'
-    setNodes(nds => nds.map(n =>
-      n.id === selectedNode.id
-        ? {
-            ...n,
-            data: {
-              ...n.data,
-              label:       nodeForm.label,
-              description: nodeForm.description,
-              ...(isFrame ? { color: nodeForm.color } : {}),
-            },
-            // Only reset height for non-frame nodes so ReactFlow re-measures.
-            style: isFrame ? (n.style ?? {}) : { ...(n.style ?? {}), height: undefined },
-          }
-        : n,
-    ))
+    const isFrame      = selectedNode.type === 'frame'
+    const isPlaybookRef = selectedNode.type === 'playbook_ref'
+    setNodes(nds => nds.map(n => {
+      if (n.id !== selectedNode.id) return n
+
+      // Resolve display name: if a linked playbook is selected, use its name
+      const linkedPb = allPlaybooks.find(p => p.id === nodeForm.linked_playbook_id)
+      const resolvedName = isPlaybookRef
+        ? (linkedPb?.name ?? nodeForm.linked_playbook_name)
+        : undefined
+
+      return {
+        ...n,
+        data: {
+          ...n.data,
+          label:       nodeForm.label,
+          description: nodeForm.description,
+          ...(isFrame       ? { color: nodeForm.color } : {}),
+          ...(isPlaybookRef ? {
+            linked_playbook_id:   nodeForm.linked_playbook_id || undefined,
+            linked_playbook_name: resolvedName || nodeForm.linked_playbook_name || undefined,
+          } : {}),
+        },
+        style: isFrame ? (n.style ?? {}) : { ...(n.style ?? {}), height: undefined },
+      }
+    }))
     setEditNodeOpen(false)
   }
 
@@ -574,7 +601,7 @@ export default function PlaybookEditor() {
           >
             <Background variant={BackgroundVariant.Dots} gap={GRID} size={1.5} color="#1e2e42" />
             <Controls />
-            <MiniMap nodeColor={() => '#9FEF00'} />
+            <MiniMap nodeColor={() => '#2DD4BF'} />
             <NodeInternalsSync trigger={updateInternalsTrigger} nodeIds={nodes.map(n => n.id)} />
           </ReactFlow>
           </LayoutDirContext.Provider>
@@ -624,6 +651,64 @@ export default function PlaybookEditor() {
                   />
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Playbook link — for playbook_ref nodes */}
+          {selectedNode?.type === 'playbook_ref' && (
+            <div className="space-y-3 border border-purple-400/20 rounded-lg p-3 bg-purple-400/5">
+              <p className="text-[10px] text-purple-300/70 uppercase tracking-widest font-semibold">Lien vers un playbook</p>
+
+              {/* Picker: existing playbooks */}
+              <div>
+                <label className="label">Playbook existant</label>
+                <select
+                  className="input text-xs"
+                  value={nodeForm.linked_playbook_id}
+                  onChange={e => {
+                    const pb = allPlaybooks.find(p => p.id === e.target.value)
+                    setNodeForm(f => ({
+                      ...f,
+                      linked_playbook_id:   e.target.value,
+                      linked_playbook_name: pb?.name ?? f.linked_playbook_name,
+                      label: f.label === 'Playbook lié' || f.label === '' ? (pb?.name ?? f.label) : f.label,
+                    }))
+                  }}
+                >
+                  <option value="">— Sélectionner un playbook —</option>
+                  {allPlaybooks
+                    .filter(pb => !id || pb.id !== id)  // exclude current playbook
+                    .map(pb => (
+                      <option key={pb.id} value={pb.id}>{pb.name}</option>
+                    ))
+                  }
+                </select>
+              </div>
+
+              {/* OR: future playbook name */}
+              {!nodeForm.linked_playbook_id && (
+                <div>
+                  <label className="label">Ou nom d'un futur playbook</label>
+                  <input
+                    className="input text-xs"
+                    placeholder="ex: Compromission de compte"
+                    value={nodeForm.linked_playbook_name}
+                    onChange={e => setNodeForm(f => ({ ...f, linked_playbook_name: e.target.value }))}
+                  />
+                  <p className="text-[9px] text-purple-400/40 mt-1">
+                    Le lien sera activable dès que ce playbook sera créé et sélectionné ici.
+                  </p>
+                </div>
+              )}
+
+              {nodeForm.linked_playbook_id && (
+                <button
+                  className="text-[9px] text-purple-400/50 hover:text-purple-300 transition-colors"
+                  onClick={() => setNodeForm(f => ({ ...f, linked_playbook_id: '', linked_playbook_name: '' }))}
+                >
+                  ✕ Retirer le lien
+                </button>
+              )}
             </div>
           )}
 

@@ -6,6 +6,7 @@ import {
   ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, SlidersHorizontal,
   BookmarkPlus, BookmarkCheck, Download, Columns3, Trash2, FileText,
   Loader2, Info, Table2, Globe, Layers, GripVertical, ChevronRight as ChevronRightIcon,
+  Terminal, HelpCircle, Play, AlertCircle,
 } from 'lucide-react'
 import { csvArtifactsApi, type CsvArtifactMeta, type ArtifactRowFilters, type OmniSearchFile, type GroupResult } from '../api/csvArtifacts'
 import { timelineApi } from '../api/timeline'
@@ -25,6 +26,7 @@ interface TabState {
   colWidths:   Record<string, number>
   groupByCols: string[]
   colOrder:    string[]
+  rql:         string
 }
 
 const defaultTabState = (): TabState => ({
@@ -34,6 +36,7 @@ const defaultTabState = (): TabState => ({
   colWidths:   {},
   groupByCols: [],
   colOrder:    [],
+  rql:         '',
 })
 
 interface PinnedRow {
@@ -424,7 +427,7 @@ function GroupRowsFetcher({ caseId, meta, baseFilters, groupFilters, orderedCols
         return (
           <tr key={`${key}-${idx}`}
             className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors group">
-            <td className="w-8 shrink-0 px-1 py-1 text-center"
+            <td className="w-8 shrink-0 px-1 py-1 text-center sticky left-0 z-[4] bg-bg-primary shadow-[1px_0_0_rgba(255,255,255,0.04)]"
               onClick={e => { e.stopPropagation(); onPinToggle(key, row) }}>
               {isPinned
                 ? <BookmarkCheck size={12} className="mx-auto text-accent-green/60" />
@@ -464,6 +467,206 @@ function GroupRowsFetcher({ caseId, meta, baseFilters, groupFilters, orderedCols
   )
 }
 
+// ── RQL syntax highlighter (client-side, lightweight) ─────────────────────────
+
+const RQL_KW_BOOL    = new Set(['AND','OR','NOT'])
+const RQL_KW_OP      = new Set(['IN','BETWEEN','CONTAINS','STARTSWITH','ENDSWITH','REGEX','CIDR','LAST'])
+const RQL_TOK_RE     = /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\b(?:AND|OR|NOT|IN|BETWEEN|CONTAINS|STARTSWITH|ENDSWITH|REGEX|CIDR|LAST|NULL|TRUE|FALSE)\b|>=|<=|!=|[><=~(),.]+|\d+\.?\d*|[\w@][\w.\-@]*|\s+)/gi
+
+function highlightRQL(q: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = []
+  let last = 0
+  for (const m of q.matchAll(RQL_TOK_RE)) {
+    if (m.index! > last) nodes.push(<span key={last} className="text-red-400">{q.slice(last, m.index)}</span>)
+    const tok = m[0]; const up = tok.trim().toUpperCase()
+    let cls = 'text-white/80'
+    if (/^["']/.test(tok))           cls = 'text-yellow-300'
+    else if (/^\d/.test(tok))        cls = 'text-green-400'
+    else if (RQL_KW_BOOL.has(up))    cls = 'text-purple-400 font-semibold'
+    else if (RQL_KW_OP.has(up))      cls = 'text-orange-400'
+    else if (up === '~')             cls = 'text-accent-green'
+    else if (/^[><=!]+$/.test(tok))  cls = 'text-blue-400'
+    else if (/^[(),.]+$/.test(tok))  cls = 'text-white/40'
+    else if (/^[\w@]/.test(tok) && tok.trim()) cls = 'text-cyan-300'
+    nodes.push(<span key={m.index} className={cls}>{tok}</span>)
+    last = m.index! + tok.length
+  }
+  if (last < q.length) nodes.push(<span key={last} className="text-red-400">{q.slice(last)}</span>)
+  return nodes
+}
+
+const RQL_EXAMPLES = [
+  { label: 'Égalité',        q: 'EventID = "4624"' },
+  { label: 'ET / OU',        q: 'EventID = "4624" AND Channel = "Security"' },
+  { label: 'Contient',       q: 'Computer contains "DC" AND CommandLine contains "powershell"' },
+  { label: 'Liste IN',       q: 'EventID IN ("4624", "4625", "4648", "4768")' },
+  { label: 'NOT IN',         q: 'EventID NOT IN ("4634", "4647")' },
+  { label: 'Wildcard',       q: 'Computer = "DC-*" AND User = "adm?n"' },
+  { label: 'Plage numérique',q: 'EventID BETWEEN 4600 AND 4700' },
+  { label: 'Comparaison',    q: 'ProcessId > 1000 AND ProcessId <= 9999' },
+  { label: 'Regex',          q: 'CommandLine REGEX "powershell.*-enc.*"' },
+  { label: 'CIDR',           q: 'IpAddress CIDR "10.0.0.0/8"' },
+  { label: 'Dernier 2h',     q: '@timestamp LAST 2 h' },
+  { label: 'Full-text',      q: '~ "mimikatz"' },
+  { label: 'Groupé',         q: '(EventID = "4624" OR EventID = "4625") AND NOT Computer = "WORKSTATION01"' },
+]
+
+// ── RQLBar ────────────────────────────────────────────────────────────────────
+
+function RQLBar({ value, onChange, onRun, error, columns }: {
+  value:    string
+  onChange: (v: string) => void
+  onRun:    (v: string) => void
+  error:    string | null
+  columns:  string[]
+}) {
+  const [showHelp, setShowHelp] = useState(false)
+  const [autocomplete, setAutocomplete] = useState<string[]>([])
+  const [acIndex, setAcIndex]   = useState(-1)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const mirrorRef = useRef<HTMLDivElement>(null)
+
+  // Sync scroll between mirror and textarea
+  const syncScroll = () => {
+    if (inputRef.current && mirrorRef.current) {
+      mirrorRef.current.scrollLeft = inputRef.current.scrollLeft
+    }
+  }
+
+  // Auto-height
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+  }, [value])
+
+  // Column autocomplete — show when last word looks like an identifier start
+  useEffect(() => {
+    if (!columns.length) return
+    const before = value.slice(0, inputRef.current?.selectionStart ?? value.length)
+    const lastWord = before.match(/[\w@][\w.\-@]*$/)?.[0] ?? ''
+    if (lastWord.length < 1) { setAutocomplete([]); return }
+    const matches = columns.filter(c => c.toLowerCase().startsWith(lastWord.toLowerCase()) && c !== lastWord)
+    setAutocomplete(matches.slice(0, 8))
+    setAcIndex(-1)
+  }, [value, columns])
+
+  const applyAutocomplete = (col: string) => {
+    const pos = inputRef.current?.selectionStart ?? value.length
+    const lastWord = value.slice(0, pos).match(/[\w@][\w.\-@]*$/)?.[0] ?? ''
+    const newVal = value.slice(0, pos - lastWord.length) + col + value.slice(pos)
+    onChange(newVal)
+    setAutocomplete([])
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (autocomplete.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setAcIndex(i => Math.min(i + 1, autocomplete.length - 1)); return }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setAcIndex(i => Math.max(i - 1, 0)); return }
+      if (e.key === 'Tab' || e.key === 'Enter') {
+        if (acIndex >= 0) { e.preventDefault(); applyAutocomplete(autocomplete[acIndex]); return }
+        if (e.key === 'Tab') { e.preventDefault(); applyAutocomplete(autocomplete[0]); return }
+      }
+      if (e.key === 'Escape') { setAutocomplete([]); return }
+    }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      onRun(value)
+    }
+  }
+
+  const highlighted = useMemo(() => highlightRQL(value), [value])
+
+  return (
+    <div className="border-b border-white/5 bg-bg-secondary/20 shrink-0">
+      {/* Bar header */}
+      <div className="flex items-center gap-2 px-3 pt-2 pb-1">
+        <Terminal size={10} className="text-accent-green/60 shrink-0" />
+        <span className="text-[9px] font-semibold uppercase tracking-widest text-accent-green/60">RQL Query</span>
+        <span className="text-[8px] text-accent-muted/25 ml-1">↵ Entrée pour exécuter · Tab pour compléter</span>
+        <div className="ml-auto flex items-center gap-1">
+          {value && (
+            <button onClick={() => { onChange(''); onRun('') }}
+              className="p-1 text-accent-muted/30 hover:text-white transition-colors" title="Effacer">
+              <X size={10} />
+            </button>
+          )}
+          <button onClick={() => setShowHelp(h => !h)}
+            className={`p-1 transition-colors ${showHelp ? 'text-accent-green' : 'text-accent-muted/40 hover:text-white'}`}
+            title="Exemples">
+            <HelpCircle size={12} />
+          </button>
+        </div>
+      </div>
+
+      {/* Input area with syntax-highlight overlay */}
+      <div className="relative mx-3 mb-2">
+        {/* Mirror div for syntax highlighting */}
+        <div ref={mirrorRef} aria-hidden
+          className="absolute inset-0 px-2.5 py-1.5 font-mono text-[11px] leading-relaxed whitespace-pre overflow-hidden pointer-events-none select-none"
+          style={{ wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
+          {value ? highlighted : null}
+        </div>
+        {/* Actual textarea */}
+        <textarea
+          ref={inputRef}
+          value={value}
+          onChange={e => { onChange(e.target.value); syncScroll() }}
+          onKeyDown={handleKeyDown}
+          onScroll={syncScroll}
+          placeholder='EventID = "4624" AND Computer contains "DC" ...'
+          rows={1}
+          className={`w-full resize-none font-mono text-[11px] leading-relaxed bg-white/[0.04] border rounded px-2.5 py-1.5 outline-none transition-colors placeholder:text-accent-muted/20 overflow-hidden
+            ${error ? 'border-red-500/40 text-transparent caret-red-400' : value ? 'border-accent-green/25 text-transparent caret-white' : 'border-white/8 text-white/80'}`}
+          style={{ minHeight: 32 }}
+          spellCheck={false}
+        />
+
+        {/* Autocomplete dropdown */}
+        {autocomplete.length > 0 && (
+          <div className="absolute left-0 top-full mt-0.5 z-50 bg-bg-card border border-white/12 rounded-lg shadow-xl overflow-hidden min-w-[160px]">
+            {autocomplete.map((col, i) => (
+              <button key={col} onClick={() => applyAutocomplete(col)}
+                className={`flex items-center gap-2 w-full px-3 py-1.5 text-left text-[11px] font-mono transition-colors ${i === acIndex ? 'bg-accent-green/10 text-accent-green' : 'text-white/70 hover:bg-white/5'}`}>
+                <span className="text-[8px] text-accent-muted/30 font-sans">col</span>
+                {col}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="flex items-center gap-1.5 mx-3 mb-2 px-2 py-1 rounded bg-red-500/10 border border-red-500/20 text-[10px] text-red-400">
+          <AlertCircle size={10} className="shrink-0" />
+          {error}
+        </div>
+      )}
+
+      {/* Help / examples panel */}
+      {showHelp && (
+        <div className="mx-3 mb-2 border border-white/8 rounded-lg overflow-hidden">
+          <div className="px-3 py-1.5 bg-white/[0.02] border-b border-white/5">
+            <p className="text-[9px] uppercase tracking-widest text-accent-muted/40">Exemples de requêtes — cliquer pour insérer</p>
+          </div>
+          <div className="grid grid-cols-2 gap-0 max-h-52 overflow-y-auto">
+            {RQL_EXAMPLES.map(ex => (
+              <button key={ex.q} onClick={() => { onChange(ex.q); onRun(ex.q); setShowHelp(false) }}
+                className="flex flex-col items-start px-3 py-2 hover:bg-white/[0.04] transition-colors border-b border-r border-white/[0.04] text-left">
+                <span className="text-[8px] text-accent-muted/40 uppercase tracking-wider">{ex.label}</span>
+                <span className="text-[9px] font-mono text-accent-green/70 mt-0.5 truncate w-full">{ex.q}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── ArtifactTableView ─────────────────────────────────────────────────────────
 
 function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onPinToggle }: {
@@ -480,6 +683,9 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
   const [draggingCol,    setDraggingCol]    = useState<string | null>(null)
   const [dragOverCol,    setDragOverCol]    = useState<string | null>(null)
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const [localRql,       setLocalRql]       = useState(state.rql ?? '')
+  const [rqlError,       setRqlError]       = useState<string | null>(null)
+  const rqlTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const colDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -532,19 +738,25 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
   )
   const groupActive = groupByCols.length > 0
 
+  const activeFilters = useMemo(() => ({
+    ...state.filters,
+    rql: state.rql || undefined,
+  }), [state.filters, state.rql])
+
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['csv-rows', caseId, meta.id, state.filters],
-    queryFn:  () => csvArtifactsApi.getRows(caseId, meta.id, state.filters),
+    queryKey: ['csv-rows', caseId, meta.id, activeFilters],
+    queryFn:  () => csvArtifactsApi.getRows(caseId, meta.id, activeFilters),
     placeholderData: prev => prev,
     enabled: !groupActive,
   })
 
   // ── GROUP BY fetch — server-side aggregation, no row limit ───────────────
   const { data: groupData, isLoading: groupLoading, isFetching: groupFetching } = useQuery({
-    queryKey: ['csv-groups', caseId, meta.id, groupByCols, state.filters.q, state.filters.col_filters],
+    queryKey: ['csv-groups', caseId, meta.id, groupByCols, state.filters.q, state.filters.col_filters, state.rql],
     queryFn:  () => csvArtifactsApi.getGroups(caseId, meta.id, groupByCols, {
       q:           state.filters.q,
       col_filters: state.filters.col_filters,
+      rql:         state.rql || undefined,
     }),
     placeholderData: prev => prev,
     enabled: groupActive,
@@ -632,6 +844,34 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
     setExpandedGroups(new Set())
   }, [groupColsKey])
 
+  // ── RQL handlers ──────────────────────────────────────────────────────────
+  const handleRqlChange = useCallback((val: string) => {
+    setLocalRql(val)
+    setRqlError(null)
+    if (rqlTimer.current) clearTimeout(rqlTimer.current)
+    if (!val.trim()) {
+      onStateChange({ rql: '' })
+      return
+    }
+    // Debounce 600ms
+    rqlTimer.current = setTimeout(() => {
+      onStateChange({ rql: val, filters: { ...state.filters, page: 1 } })
+    }, 600)
+  }, [onStateChange, state.filters])
+
+  const handleRqlRun = useCallback((val: string) => {
+    if (rqlTimer.current) clearTimeout(rqlTimer.current)
+    setLocalRql(val)
+    setRqlError(null)
+    onStateChange({ rql: val, filters: { ...state.filters, page: 1 } })
+  }, [onStateChange, state.filters])
+
+  // Propagate backend RQL errors to the bar
+  useEffect(() => {
+    const err = (data as any)?.detail?.rql_error ?? (groupData as any)?.detail?.rql_error
+    if (err) setRqlError(err)
+  }, [data, groupData])
+
   // ── Column drag handlers ──────────────────────────────────────────────────
   const handleColDragStart = useCallback((e: React.DragEvent, col: string) => {
     if (colResizing.current) { e.preventDefault(); return }
@@ -714,7 +954,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
   // ── Export filtered CSV ────────────────────────────────────────────────────
   const handleExport = async () => {
     const { q, col_filters, sort_col, sort_dir } = state.filters
-    const all = await csvArtifactsApi.getAllRows(caseId, meta.id, { q, col_filters, sort_col, sort_dir })
+    const all = await csvArtifactsApi.getAllRows(caseId, meta.id, { q, col_filters, sort_col, sort_dir, rql: state.rql || undefined })
     const header = allCols.join(',')
     const csvRows = all.items.map(r => allCols.map(c => `"${(r[c] ?? '').replace(/"/g, '""')}"`).join(','))
     const blob = new Blob([[header, ...csvRows].join('\n')], { type: 'text/csv' })
@@ -735,6 +975,15 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
 
   return (
     <div className="flex flex-col h-full">
+
+      {/* ── RQL Query Bar ───────────────────────────────────────────────── */}
+      <RQLBar
+        value={localRql}
+        onChange={handleRqlChange}
+        onRun={handleRqlRun}
+        error={rqlError}
+        columns={allCols}
+      />
 
       {/* ── Group-by drop zone ──────────────────────────────────────────── */}
       <GroupByBar
@@ -813,7 +1062,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
       {/* Refetch progress bar */}
       <div className={`h-0.5 shrink-0 overflow-hidden transition-opacity duration-150 ${isAnythingFetching && !isAnythingLoading ? 'opacity-100' : 'opacity-0'}`}>
         <div className="h-full bg-accent-green/50 animate-[shimmer_1.4s_ease-in-out_infinite]"
-          style={{ background: 'linear-gradient(90deg, transparent 0%, #9FEF00 40%, #9FEF00 60%, transparent 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite' }} />
+          style={{ background: 'linear-gradient(90deg, transparent 0%, #2DD4BF 40%, #2DD4BF 60%, transparent 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite' }} />
       </div>
 
 
@@ -824,7 +1073,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
           <thead className="sticky top-0 z-10 bg-bg-secondary">
             {/* Column name row */}
             <tr className="border-b border-white/8">
-              <th className="w-8 shrink-0 px-1 pt-2 pb-1" />
+              <th className="w-8 shrink-0 px-1 pt-2 pb-1 sticky left-0 z-[12] bg-bg-secondary after:content-[''] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-white/8" />
               {orderedCols.map(col => {
                 const isSort    = sortCol === col && !groupActive
                 const w         = colW(col)
@@ -857,7 +1106,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
             {/* Per-column filter row */}
             {showFilters && (
               <tr className="border-b border-white/5 bg-bg-secondary/80">
-                <th className="w-8 shrink-0 px-1 py-1.5" />
+                <th className="w-8 shrink-0 px-1 py-1.5 sticky left-0 z-[12] bg-bg-secondary/80" />
                 {orderedCols.map(col => (
                   <th key={`${col}-f`} className="px-2 py-1.5" style={{ width: colW(col), minWidth: 60 }}>
                     <ColFilterInput colKey={col}
@@ -873,7 +1122,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
             {/* Loading skeleton */}
             {isAnythingLoading && Array.from({ length: 8 }).map((_, i) => (
               <tr key={i} className="border-b border-white/[0.04]">
-                <td className="w-8 px-1 py-2" />
+                <td className="w-8 px-1 py-2 sticky left-0 z-[4] bg-bg-primary" />
                 {orderedCols.map(col => (
                   <td key={col} className="px-3 py-2">
                     <div className="h-3 rounded bg-white/5 animate-pulse" style={{ width: `${45 + (i * 11) % 40}%` }} />
@@ -900,7 +1149,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
                     onClick={() => toggleGroup(item.key)}
                     className="border-b border-white/[0.06] cursor-pointer select-none hover:bg-white/[0.03] transition-colors"
                     style={{ background: item.depth === 0 ? 'rgba(255,255,255,0.025)' : item.depth === 1 ? 'rgba(255,255,255,0.015)' : undefined }}>
-                    <td className="w-8 px-1 py-1.5 text-center">
+                    <td className="w-8 px-1 py-1.5 text-center sticky left-0 z-[4] bg-inherit">
                       <div className={`transition-transform duration-150 text-accent-muted/40 mx-auto w-fit ${item.isExpanded ? 'rotate-90' : ''}`}>
                         <ChevronRightIcon size={12} />
                       </div>
@@ -947,7 +1196,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
                   <tr key={idx}
                     onClick={() => setExpandedRow(r => r === rowKey ? null : rowKey)}
                     className={`border-b border-white/[0.04] cursor-pointer transition-colors group ${expandedRow === rowKey ? 'bg-accent-green/5' : 'hover:bg-white/[0.025]'}`}>
-                    <td className="w-8 shrink-0 px-1 py-1.5 text-center"
+                    <td className="w-8 shrink-0 px-1 py-1.5 text-center sticky left-0 z-[4] bg-bg-primary group-[.expanded]:bg-accent-green/5 shadow-[1px_0_0_rgba(255,255,255,0.04)]"
                       onClick={e => { e.stopPropagation(); handlePin(row) }}>
                       {isPinned
                         ? <BookmarkCheck size={13} className="mx-auto text-accent-green/60" />

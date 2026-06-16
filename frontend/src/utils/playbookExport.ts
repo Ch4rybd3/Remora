@@ -12,10 +12,10 @@ const C = {
   bg:           '#0B121F',
   bgCard:       '#111827',
   border:       'rgba(255,255,255,0.20)',
-  borderSel:    '#9FEF00',
-  green:        '#9FEF00',
-  greenBg:      'rgba(159,239,0,0.10)',
-  greenBorder:  'rgba(159,239,0,0.60)',
+  borderSel:    '#2DD4BF',
+  green:        '#2DD4BF',
+  greenBg:      'rgba(45,212,191,0.10)',
+  greenBorder:  'rgba(45,212,191,0.60)',
   red:          '#ef4444',
   redBg:        'rgba(239,68,68,0.10)',
   yellow:       '#FFAF00',
@@ -27,11 +27,11 @@ const C = {
   blueDone:     'rgba(96,165,250,0.60)',
   textBlue:     '#93c5fd',
   edge:         'rgba(255,255,255,0.40)',
-  edgeYes:      '#9FEF00',
+  edgeYes:      '#2DD4BF',
   edgeNo:       '#ef4444',
   textPrimary:  'rgba(255,255,255,0.90)',
   textMuted:    'rgba(255,255,255,0.45)',
-  textGreen:    'rgba(159,239,0,0.80)',
+  textGreen:    'rgba(45,212,191,0.80)',
 }
 
 const SCALE  = 2

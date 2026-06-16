@@ -103,8 +103,8 @@
 }
 
 .react-flow__controls-button:hover {
-  background: rgba(159,239,0,0.08) !important;
-  fill: #9FEF00 !important;
+  background: rgba(45,212,191,0.08) !important;
+  fill: #2DD4BF !important;
 }
 
 .react-flow__controls-button svg {
@@ -140,8 +140,8 @@
 }
 
 .live-editor .ProseMirror:focus {
-  border-color: rgba(159,239,0,0.25);
-  box-shadow: 0 0 0 2px rgba(159,239,0,0.05);
+  border-color: rgba(45,212,191,0.25);
+  box-shadow: 0 0 0 2px rgba(45,212,191,0.05);
 }
 
 /* Placeholder */
@@ -196,7 +196,7 @@
 /* Inline code */
 .live-editor .ProseMirror code {
   background: rgba(255,255,255,0.10);
-  color: #9FEF00;
+  color: #2DD4BF;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   font-size: 0.7rem;
   padding: 0.1em 0.35em;
@@ -233,7 +233,7 @@
 
 /* Blockquote */
 .live-editor .ProseMirror blockquote {
-  border-left: 3px solid rgba(159,239,0,0.4);
+  border-left: 3px solid rgba(45,212,191,0.4);
   padding-left: 0.75rem;
   margin: 0.5rem 0;
   color: rgba(255,255,255,0.5);
@@ -257,34 +257,34 @@
   margin: 0.5rem 0;
 }
 .live-editor .ProseMirror img.ProseMirror-selectednode {
-  outline: 2px solid #9FEF00;
+  outline: 2px solid #2DD4BF;
   outline-offset: 2px;
 }
 
 /* Links */
 .live-editor .ProseMirror a {
-  color: #9FEF00;
+  color: #2DD4BF;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
 /* Wikilinks [[Note Name]] — inline decoration */
 .live-editor .ProseMirror .wikilink {
-  color: #9FEF00;
-  background: rgba(159,239,0,0.08);
+  color: #2DD4BF;
+  background: rgba(45,212,191,0.08);
   border-radius: 3px;
   padding: 0 2px;
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 2px;
-  text-decoration-color: rgba(159,239,0,0.4);
+  text-decoration-color: rgba(45,212,191,0.4);
   transition: background 0.1s;
 }
 .live-editor .ProseMirror .wikilink:hover {
-  background: rgba(159,239,0,0.16);
+  background: rgba(45,212,191,0.16);
 }
 
 /* Selection */
 .live-editor .ProseMirror ::selection {
-  background: rgba(159,239,0,0.18);
+  background: rgba(45,212,191,0.18);
 }

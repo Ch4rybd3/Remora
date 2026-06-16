@@ -1,6 +1,6 @@
 name: "Generic Incident"
 description: "Default template for generic security incidents"
-version: "1.1"
+version: "1.2"
 tags:
   - incident
 severity: medium
@@ -46,7 +46,7 @@ ttp_definitions:
     technique_name: Bypass User Account Control
     tactic: privilege-escalation
     tactic_name: Privilege Escalation
-  # Defense Impairment (ATT&CK v19 — disabling security tools / logs)
+  # Defense Impairment (ATT&CK v19)
   - technique_id: T1562.001
     technique_name: Disable or Modify Tools
     tactic: defense-impairment
@@ -92,25 +92,45 @@ executive_summary_template: |
   Containment measures were applied at [CONTAINMENT_TIME].
 
 report_sections:
+  # ── Box 1 : Analyse Technique ──────────────────────────────────────────────
   - name: "Incident Overview"
+    category: analyse
     template: |
       Provide a detailed description of the incident, including how it was discovered,
       the initial indicators observed, and the scope of impact.
 
   - name: "Technical Analysis"
+    category: analyse
     template: |
+      ### Root Cause
+
       Detail the technical findings of the investigation, including attack vectors,
       tools/techniques used (map to MITRE ATT&CK where applicable), and the kill chain.
 
+      ### Impact
+
+      Describe the technical and business impact of the incident.
+
+  # ── Box 2 : Remédiations ──────────────────────────────────────────────────
   - name: "Containment & Remediation"
+    category: remediation
     template: |
       Describe the containment steps taken and remediation actions performed.
       Include any changes to network rules, account resets, or system rebuilds.
 
+      - [ ] Action 1
+      - [ ] Action 2
+
+  # ── Box 3 : Conclusion ────────────────────────────────────────────────────
   - name: "Lessons Learned"
+    category: conclusion
     template: |
       Summarize what could be improved in detection, response, and prevention.
 
   - name: "Recommendations"
+    category: conclusion
     template: |
       List actionable recommendations to prevent recurrence.
+
+      - [ ] Recommendation 1
+      - [ ] Recommendation 2

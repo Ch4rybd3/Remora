@@ -19,6 +19,12 @@ Text tags (inline replacement):
   {{report.date}}             Report generation date (YYYY-MM-DD)
   {{report.author}}           Username of the analyst generating the report
 
+Report content (analyst-authored, rendered as formatted DOCX paragraphs):
+  {{report_analysis}}         Analyse Technique (box 1 of the Report tab)
+  {{report_remediation}}      Remédiations      (box 2 of the Report tab)
+  {{report_conclusion}}       Conclusion        (box 3 of the Report tab)
+  {{report_content}}          All 3 boxes combined (backward compat alias)
+
 Block tags (replaced with a table or image):
   {{ioc_table}}               Full IOC table
   {{asset_table}}             Full asset table
@@ -64,7 +70,9 @@ TAG_RE = re.compile(r'\{\{[\w.]+\}\}')
 BLOCK_TAGS: set[str] = {
     "ioc_table", "asset_table", "evidence_table", "timeline_table",
     "attack_graph", "mitre_matrix", "mitre_matrix_img",
-    "report_content",   # case.report markdown → formatted paragraphs
+    # Report content tags (markdown → formatted DOCX paragraphs)
+    "report_analysis", "report_remediation", "report_conclusion",
+    "report_content",   # combined alias (backward compat)
 }
 
 ALL_TAGS: list[str] = [
@@ -72,9 +80,12 @@ ALL_TAGS: list[str] = [
     "case.created_at", "case.closed_at", "case.description",
     "case.executive_summary", "case.quick_notes", "case.assigned_to", "case.tags",
     "report.date", "report.author",
+    # Report content (split)
+    "report_analysis", "report_remediation", "report_conclusion",
+    "report_content",  # combined backward compat
+    # Annexes
     "ioc_table", "asset_table", "evidence_table", "timeline_table",
     "attack_graph", "mitre_matrix", "mitre_matrix_img",
-    "report_content",
 ]
 
 # ── Pydantic schema ────────────────────────────────────────────────────────────
@@ -543,6 +554,11 @@ def _render_markdown(template_text: str, case: Case, ctx: dict[str, str]) -> str
     text = text.replace("{{attack_graph}}", "_[Attach the attack graph image — export it from the Attack Graph tab]_")
     text = text.replace("{{mitre_matrix}}", _md_mitre_matrix(case))
     text = text.replace("{{mitre_matrix_img}}", "_[MITRE ATT&CK matrix image — available in DOCX export only]_")
+    # Split report content tags
+    text = text.replace("{{report_analysis}}",    (case.report_analysis    or "").strip() or "_[Aucune analyse rédigée.]_")
+    text = text.replace("{{report_remediation}}", (case.report_remediation or "").strip() or "_[Aucune remédiation rédigée.]_")
+    text = text.replace("{{report_conclusion}}",  (case.report_conclusion  or "").strip() or "_[Aucune conclusion rédigée.]_")
+    # Combined backward compat
     text = text.replace("{{report_content}}", case.report or "_[Aucun contenu de rapport rédigé.]_")
     return text
 
@@ -1259,8 +1275,17 @@ def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
     # ── Second pass: replace block-tag paragraphs ──────────────────────────────
     for para, block_tag in block_paras:
 
-        if block_tag == "report_content":
-            # Multi-paragraph markdown block
+        if block_tag == "report_analysis":
+            _md_to_docx_paragraphs(doc, para, (case.report_analysis or "").strip() or "_[Aucune analyse rédigée.]_")
+
+        elif block_tag == "report_remediation":
+            _md_to_docx_paragraphs(doc, para, (case.report_remediation or "").strip() or "_[Aucune remédiation rédigée.]_")
+
+        elif block_tag == "report_conclusion":
+            _md_to_docx_paragraphs(doc, para, (case.report_conclusion or "").strip() or "_[Aucune conclusion rédigée.]_")
+
+        elif block_tag == "report_content":
+            # Combined backward compat alias
             _md_to_docx_paragraphs(doc, para, case.report or "")
 
         elif block_tag in ("attack_graph", "mitre_matrix_img"):

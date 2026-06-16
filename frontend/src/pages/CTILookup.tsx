@@ -732,7 +732,7 @@ function ThreatGlobe({ points, selectedIp, onSelectIp }: {
       <Globe ref={globeRef} width={size.w} height={size.h}
         backgroundColor="#0B121F"
         globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
-        atmosphereColor="#9FEF00"
+        atmosphereColor="#2DD4BF"
         atmosphereAltitude={0.1}
         pointsData={data}
         pointLat="lat" pointLng="lng" pointColor="color"

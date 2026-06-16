@@ -122,7 +122,7 @@ function ActivityChart({ weeks }: { weeks: KVCount[] }) {
               style={{
                 height: barH,
                 backgroundColor: w.count > 0
-                  ? `rgba(159,239,0,${intensity})`
+                  ? `rgba(45,212,191,${intensity})`
                   : 'rgba(255,255,255,0.04)',
               }}
               title={`${w.key}: ${w.count} case${w.count !== 1 ? 's' : ''} opened`}
@@ -156,7 +156,7 @@ function StatusDonut({ items, colors }: { items: KVCount[]; colors: Record<strin
   let offset = 0
 
   const colorMap: Record<string, string> = {
-    open: '#9FEF00', in_progress: '#FFAF00', closed: '#4b5563', archived: '#374151',
+    open: '#2DD4BF', in_progress: '#FFAF00', closed: '#4b5563', archived: '#374151',
     critical: '#ef4444', high: '#f97316', medium: '#FFAF00', low: '#3b82f6', informational: '#4b5563',
   }
 

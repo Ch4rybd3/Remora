@@ -22,7 +22,10 @@ export interface Case extends CaseSummary {
   template_id: string | null
   executive_summary: string
   quick_notes: string
-  report: string
+  report: string             // legacy combined (backward compat)
+  report_analysis:    string
+  report_remediation: string
+  report_conclusion:  string
   closed_at: string | null
 }
 

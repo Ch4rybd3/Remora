@@ -91,7 +91,7 @@ export function TimelineNode({ data, selected }: NodeProps) {
     <NodeShell
       selected={selected}
       border={selected ? 'border-accent-green' : 'border-accent-green/35'}
-      bg={selected ? 'rgba(159,239,0,0.10)' : 'rgba(159,239,0,0.05)'}
+      bg={selected ? 'rgba(45,212,191,0.10)' : 'rgba(45,212,191,0.05)'}
       handles={<Handles color="!border-accent-green" />}
     >
       <NodeBody

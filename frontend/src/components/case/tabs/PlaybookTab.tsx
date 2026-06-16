@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ReactFlow, Background, Controls, type Node, type Edge } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Plus, Trash2, GitBranch, CheckCircle2, Circle, ChevronDown, ChevronUp, X } from 'lucide-react'
+import { Plus, GitBranch, CheckCircle2, Circle, ChevronDown, ChevronUp, X, ExternalLink, AlertCircle } from 'lucide-react'
 import { playbooksApi, type CasePlaybook, type Playbook } from '../../../api/playbooks'
 import { topoSortNodes } from '../../../utils/playbookUtils'
 import { NODE_TYPES, EDGE_TYPES } from '../../playbook/PlaybookNodes'
@@ -25,7 +25,6 @@ export default function PlaybookTab({ caseId }: Props) {
   const { data: allPlaybooks = [] } = useQuery({
     queryKey: ['playbooks'],
     queryFn: playbooksApi.list,
-    enabled: addOpen,
   })
 
   const attach = useMutation({
@@ -65,7 +64,7 @@ export default function PlaybookTab({ caseId }: Props) {
 
   const stepNodes = (cp: CasePlaybook) => {
     const sorted = topoSortNodes(cp.playbook.nodes, cp.playbook.edges)
-    return sorted.filter(n => n.type === 'step' || n.type === 'decision' || n.type === 'remediation')
+    return sorted.filter(n => n.type === 'step' || n.type === 'decision' || n.type === 'remediation' || n.type === 'playbook_ref')
   }
 
   const doneCount = (cp: CasePlaybook) =>
@@ -153,6 +152,47 @@ export default function PlaybookTab({ caseId }: Props) {
                 const comment = state?.comment ?? ''
                 const expanded = expandedStep === node.id
                 const draft = commentDraft[node.id] ?? comment
+                const nodeData = node.data as any
+
+                if (node.type === 'playbook_ref') {
+                  const linkedId: string | undefined = nodeData.linked_playbook_id
+                  const linkedName: string = nodeData.linked_playbook_name || nodeData.label || 'Playbook lié'
+                  const alreadyAttached = linkedId ? !!casePlaybooks.find(cp => cp.playbook_id === linkedId) : false
+                  const pbExists = linkedId ? !!allPlaybooks.find(pb => pb.id === linkedId) : false
+
+                  return (
+                    <div key={node.id} className="rounded-lg border border-purple-400/20 bg-purple-400/5 px-3 py-2.5">
+                      <div className="flex items-start gap-3">
+                        <ExternalLink size={14} className="text-purple-400 shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-purple-300">{nodeData.label}</p>
+                          <p className="text-[10px] text-purple-400/60 mt-0.5">→ {linkedName}</p>
+                          {!linkedId ? (
+                            <p className="text-[10px] text-accent-muted/50 mt-1 flex items-center gap-1">
+                              <AlertCircle size={10} /> Non lié — aucun playbook configuré
+                            </p>
+                          ) : alreadyAttached ? (
+                            <p className="text-[10px] text-accent-green/70 mt-1 flex items-center gap-1">
+                              <CheckCircle2 size={10} /> Playbook déjà attaché au case
+                            </p>
+                          ) : !pbExists ? (
+                            <p className="text-[10px] text-accent-muted/50 mt-1 flex items-center gap-1">
+                              <AlertCircle size={10} /> Playbook introuvable
+                            </p>
+                          ) : (
+                            <button
+                              className="mt-1.5 text-[10px] px-2.5 py-1 rounded border border-purple-400/30 text-purple-300 hover:bg-purple-400/10 transition-colors"
+                              onClick={() => attach.mutate(linkedId)}
+                              disabled={attach.isPending}
+                            >
+                              + Attacher au case
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
 
                 return (
                   <div key={node.id} className={`rounded-lg border transition-colors ${done ? 'border-accent-green/20 bg-accent-green/5' : 'border-white/10 bg-white/[0.02]'}`}>
@@ -165,10 +205,10 @@ export default function PlaybookTab({ caseId }: Props) {
                       </button>
                       <div className="flex-1 min-w-0">
                         <p className={`text-xs font-medium ${done ? 'line-through text-accent-muted' : 'text-white'}`}>
-                          {(node.data as any).label}
+                          {nodeData.label}
                         </p>
-                        {(node.data as any).description && !done && (
-                          <p className="text-[10px] text-accent-muted mt-0.5 leading-snug">{(node.data as any).description}</p>
+                        {nodeData.description && !done && (
+                          <p className="text-[10px] text-accent-muted mt-0.5 leading-snug">{nodeData.description}</p>
                         )}
                       </div>
                       <button
@@ -253,6 +293,8 @@ function buildViewNodes(cp: CasePlaybook): Node[] {
     data: {
       ...n.data,
       done: cp.step_states[n.id]?.done ?? false,
+      linked_playbook_id: (n.data as any).linked_playbook_id,
+      linked_playbook_name: (n.data as any).linked_playbook_name,
     },
   })) as Node[]
 }

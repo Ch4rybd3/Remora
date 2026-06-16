@@ -11,8 +11,8 @@ export default {
           hover: '#162035',
         },
         accent: {
-          green: '#9FEF00',
-          greenDim: '#7DC800',
+          green: '#2DD4BF',
+          greenDim: '#22B5A2',
           muted: '#A3B3BC',
         },
         severity: {
@@ -23,7 +23,7 @@ export default {
           informational: '#A3B3BC',
         },
         status: {
-          open: '#9FEF00',
+          open: '#2DD4BF',
           in_progress: '#FFD700',
           closed: '#A3B3BC',
           archived: '#6b7280',

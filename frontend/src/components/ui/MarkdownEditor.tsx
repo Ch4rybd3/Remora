@@ -140,7 +140,7 @@ function ResizableImageView({ node, updateAttributes, selected }: NodeViewProps)
     position:  'absolute',
     width:     HANDLE,
     height:    HANDLE,
-    background:'#9FEF00',
+    background:'#2DD4BF',
     border:    '2px solid #0a0f1a',
     borderRadius: 2,
     cursor:    cursorMap[c],
@@ -164,7 +164,7 @@ function ResizableImageView({ node, updateAttributes, selected }: NodeViewProps)
             maxWidth:  '100%',
             height:    'auto',
             borderRadius: 6,
-            border:    selected ? '2px solid #9FEF00' : '1px solid rgba(255,255,255,0.10)',
+            border:    selected ? '2px solid #2DD4BF' : '1px solid rgba(255,255,255,0.10)',
             transition:'border-color 0.1s',
           }}
         />
