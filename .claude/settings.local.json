@@ -12,7 +12,22 @@
       "Bash(git stash *)",
       "Bash(git push *)",
       "Bash(git branch *)",
-      "Bash(node -e \"require\\('./node_modules/react-globe.gl/package.json'\\); console.log\\('react-globe.gl OK', require\\('./node_modules/react-globe.gl/package.json'\\).version\\)\")"
+      "Bash(node -e \"require\\('./node_modules/react-globe.gl/package.json'\\); console.log\\('react-globe.gl OK', require\\('./node_modules/react-globe.gl/package.json'\\).version\\)\")",
+      "Bash(git -C C:/Users/Ch4rybd3/Documents/GitHub/Remora status)",
+      "Bash(git -C C:/Users/Ch4rybd3/Documents/GitHub/Remora log --oneline -5)",
+      "Bash(git -C C:/Users/Ch4rybd3/Documents/GitHub/Remora add frontend/src/components/attack_graph/AttackGraphNodes.tsx frontend/src/components/case/tabs/AttackGraphTab.tsx frontend/src/components/case/tabs/PlaybookNotesTab.tsx frontend/src/components/knowledge/NoteGraph.tsx frontend/src/components/playbook/PlaybookNodes.tsx frontend/src/components/ui/MarkdownEditor.tsx frontend/src/index.css frontend/src/pages/ArtifactExplorer.tsx frontend/src/pages/CTILookup.tsx frontend/src/pages/Dashboard.tsx frontend/src/pages/Login.tsx frontend/src/pages/PlaybookEditor.tsx frontend/src/utils/playbookExport.ts frontend/tailwind.config.js)",
+      "Bash(git -C C:/Users/Ch4rybd3/Documents/GitHub/Remora add frontend/src/pages/ReportTemplates.tsx)",
+      "Bash(git -C C:/Users/Ch4rybd3/Documents/GitHub/Remora commit -m ' *)",
+      "Bash(xargs grep -l \"report_section\\\\|report_content\\\\|analysis\\\\|remediation\")",
+      "Bash(Get-ChildItem -Recurse C:/Users/Ch4rybd3/Documents/GitHub/Remora/backend -Include \"*.yaml\",\"*.yml\")",
+      "Bash(Select-Object FullName)",
+      "Bash(Get-ChildItem -Recurse C:/Users/Ch4rybd3/Documents/GitHub/Remora/backend -Include \"*.json\")",
+      "Bash(git -C C:/Users/Ch4rybd3/Documents/GitHub/Remora add backend/app/models/case.py backend/app/services/report_service.py backend/app/routers/reports.py backend/app/routers/report_doc_templates.py frontend/src/types/index.ts frontend/src/api/cases.ts frontend/src/api/reportVersions.ts frontend/src/components/case/tabs/ReportTab.tsx frontend/src/pages/ReportTemplates.tsx templates/default.yaml templates/phishing.yaml templates/ransomware.yaml)",
+      "Bash(git -C C:/Users/Ch4rybd3/Documents/GitHub/Remora add backend/app/main.py)",
+      "Read(//usr/**)",
+      "Read(//usr/local/**)",
+      "PowerShell(wsl docker ps --format \"table {{.Names}}`t{{.Ports}}\")",
+      "PowerShell(wsl -- bash -c \"which docker || ls ~/.docker/cli-plugins/ 2>/dev/null; echo PATH=\\\\$PATH\")"
     ]
   },
   "hooks": {
