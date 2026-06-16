@@ -2,9 +2,14 @@ import api from './client'
 
 export interface PlaybookNode {
   id: string
-  type: 'start' | 'step' | 'decision' | 'end' | 'remediation' | 'frame'
+  type: 'start' | 'step' | 'decision' | 'end' | 'remediation' | 'frame' | 'playbook_ref'
   position: { x: number; y: number }
-  data: { label: string; description?: string }
+  data: {
+    label: string
+    description?: string
+    linked_playbook_id?: string    // UUID of the linked playbook (if it exists)
+    linked_playbook_name?: string  // display name (for future/not-yet-created playbooks)
+  }
 }
 
 export interface PlaybookEdge {

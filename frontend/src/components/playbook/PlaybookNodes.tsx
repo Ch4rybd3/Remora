@@ -3,7 +3,7 @@ import {
   Handle, Position, NodeResizer, BaseEdge, getBezierPath,
   type NodeProps, type EdgeProps,
 } from '@xyflow/react'
-import { CheckCircle2, ShieldCheck } from 'lucide-react'
+import { CheckCircle2, ShieldCheck, GitBranch, ExternalLink } from 'lucide-react'
 
 // ── Layout direction context ──────────────────────────────────────────────────
 // Allows PlaybookEditor to tell node components which direction the graph flows,
@@ -215,6 +215,69 @@ export function RemediationNode({ data, selected }: NodeProps) {
   )
 }
 
+// ── PlaybookRefNode ───────────────────────────────────────────────────────────
+// Represents a link to another playbook that can be attached to the case
+// when this node is reached during investigation.
+
+export function PlaybookRefNode({ data, selected }: NodeProps) {
+  const d   = data as NodeData & { linked_playbook_id?: string; linked_playbook_name?: string }
+  const dir = useContext(LayoutDirContext)
+  const done = !!d.done
+  const hasLink = !!(d.linked_playbook_id || d.linked_playbook_name)
+
+  return (
+    <div className={`relative px-4 py-3 rounded-lg border min-w-[120px] w-full h-full shadow-lg transition-colors ${
+      done
+        ? 'border-purple-400/60 bg-purple-400/10'
+        : selected
+          ? 'border-purple-400 bg-bg-card'
+          : 'border-purple-400/40 bg-bg-card'
+    }`}>
+      <NodeResizer
+        isVisible={selected && !done}
+        minWidth={120}
+        minHeight={40}
+        lineStyle={{ borderColor: 'rgba(192,132,252,0.20)' }}
+        handleStyle={{ backgroundColor: '#c084fc', borderColor: '#c084fc', width: 6, height: 6, borderRadius: 2 }}
+      />
+      <Handle
+        type="target"
+        position={dir === 'RIGHT' ? Position.Left : Position.Top}
+        className="!bg-purple-400/40 !border-purple-400/40"
+      />
+      <span className="absolute top-1.5 left-1.5 text-purple-400/60">
+        <GitBranch size={10} />
+      </span>
+      {done && (
+        <span className="absolute top-1.5 right-1.5 text-purple-400">
+          <CheckCircle2 size={11} />
+        </span>
+      )}
+      {!done && hasLink && (
+        <span className="absolute top-1.5 right-1.5 text-purple-400/50">
+          <ExternalLink size={10} />
+        </span>
+      )}
+      <p className={`text-xs font-semibold leading-snug pl-4 pr-4 ${done ? 'text-purple-400/80' : 'text-purple-300'}`}>
+        {d.label || 'Playbook'}
+      </p>
+      {d.linked_playbook_name && !done && (
+        <p className="text-[9px] text-purple-400/50 mt-0.5 pl-4 truncate italic">
+          → {d.linked_playbook_name}
+        </p>
+      )}
+      {!hasLink && !done && (
+        <p className="text-[9px] text-purple-400/30 mt-0.5 pl-4 italic">non lié</p>
+      )}
+      <Handle
+        type="source"
+        position={dir === 'RIGHT' ? Position.Right : Position.Bottom}
+        className="!bg-purple-400/40 !border-purple-400/40"
+      />
+    </div>
+  )
+}
+
 // ── FrameNode ─────────────────────────────────────────────────────────────────
 // Decorative zone node: transparent colored background + title, no handles.
 // Rendered behind other nodes via zIndex: -1 set at creation.
@@ -253,12 +316,13 @@ export function FrameNode({ data, selected }: NodeProps) {
 // ── Node type map ─────────────────────────────────────────────────────────────
 
 export const NODE_TYPES = {
-  start:       StartNode,
-  step:        StepNode,
-  decision:    DecisionNode,
-  end:         EndNode,
-  remediation: RemediationNode,
-  frame:       FrameNode,
+  start:        StartNode,
+  step:         StepNode,
+  decision:     DecisionNode,
+  end:          EndNode,
+  remediation:  RemediationNode,
+  frame:        FrameNode,
+  playbook_ref: PlaybookRefNode,
 }
 
 // ── SmartEdge — anti-loop bezier ──────────────────────────────────────────────

@@ -33,7 +33,7 @@ services:
     container_name: remora-frontend
     restart: unless-stopped
     ports:
-      - "${PORT:-80}:80"
+      - "${BIND_HOST:-0.0.0.0}:${PORT:-80}:80"
     depends_on:
       backend:
         condition: service_healthy
