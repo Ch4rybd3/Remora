@@ -369,15 +369,32 @@ export default function EvidencesTab({ caseId }: Props) {
                   </span>
                   <p className="font-semibold text-sm text-white truncate flex-1">{e.name}</p>
                   <div className="flex items-center gap-2 shrink-0">
-                    <a
-                      href={evidencesApi.downloadUrl(caseId, e.id)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-accent-muted hover:text-accent-green transition-colors"
-                      title="Download"
-                    >
-                      <Download size={14} />
-                    </a>
+                    {e.original_filename ? (
+                      <button
+                        className="text-accent-muted hover:text-accent-green transition-colors"
+                        title={`Download ${e.original_filename}`}
+                        onClick={() => {
+                          const token = localStorage.getItem('remora_token')
+                          fetch(evidencesApi.downloadUrl(caseId, e.id), {
+                            headers: token ? { Authorization: `Bearer ${token}` } : {},
+                          }).then(r => {
+                            if (!r.ok) throw new Error(`HTTP ${r.status}`)
+                            return r.blob()
+                          }).then(blob => {
+                            const url = URL.createObjectURL(blob)
+                            const a = document.createElement('a')
+                            a.href = url; a.download = e.original_filename || e.name
+                            a.click(); URL.revokeObjectURL(url)
+                          }).catch(err => alert(`Download failed: ${err.message}`))
+                        }}
+                      >
+                        <Download size={14} />
+                      </button>
+                    ) : (
+                      <span className="text-white/15 cursor-not-allowed" title="No file attached">
+                        <Download size={14} />
+                      </span>
+                    )}
                     <button
                       onClick={() => editTarget === e.id ? setEditTarget(null) : openEdit(e)}
                       className={`transition-colors ${editTarget === e.id ? 'text-accent-green' : 'text-accent-muted hover:text-white'}`}

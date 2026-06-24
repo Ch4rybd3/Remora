@@ -75,6 +75,20 @@ def _setup_collection_imports() -> None:
 _setup_collection_imports()
 
 
+def _setup_case_text_fields() -> None:
+    """Add quick_notes and executive_summary to cases if they don't exist."""
+    with engine.connect() as conn:
+        for col in ("quick_notes", "executive_summary"):
+            try:
+                conn.execute(text(f"ALTER TABLE cases ADD COLUMN {col} TEXT DEFAULT ''"))
+                conn.commit()
+                print(f"[migration] cases.{col} added", flush=True)
+            except Exception:
+                pass  # Column already exists
+
+
+_setup_case_text_fields()
+
 
 def _setup_playbooks() -> None:
     """Add layout_dir column to playbooks table if it doesn't already exist."""
@@ -92,9 +106,10 @@ _setup_playbooks()
 def _setup_report_sections() -> None:
     """Add report_analysis / report_remediation / report_conclusion columns to cases."""
     with engine.connect() as conn:
-        for col in ("report_analysis", "report_remediation", "report_conclusion"):
+        for col in ("report_analysis", "report_remediation", "report_conclusion", "report_sections_data"):
             try:
-                conn.execute(text(f"ALTER TABLE cases ADD COLUMN {col} TEXT DEFAULT ''"))
+                default = "'{}'" if col == "report_sections_data" else "''"
+                conn.execute(text(f"ALTER TABLE cases ADD COLUMN {col} TEXT DEFAULT {default}"))
                 conn.commit()
                 print(f"[migration] cases.{col} added", flush=True)
             except Exception:

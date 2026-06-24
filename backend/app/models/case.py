@@ -53,6 +53,10 @@ class Case(Base):
     report_remediation = Column(Text, default="")   # Remédiations       → {{report_remediation}}
     report_conclusion  = Column(Text, default="")   # Conclusion         → {{report_conclusion}}
 
+    # Dynamic per-section content — JSON dict {slug: markdown_text}
+    # Used when the case template defines report_sections with explicit tags/slugs.
+    report_sections_data = Column(Text, default="{}")
+
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from pathlib import Path
 from sqlalchemy.orm import Session
 from typing import Any
 import json
@@ -107,3 +108,25 @@ def delete_case_email(
         raise HTTPException(status_code=404, detail="Email introuvable")
     db.delete(ef)
     db.commit()
+
+
+# ── Public helper used by collection_import ───────────────────────────────────
+
+def register_email_file(
+    file_path: Path,
+    case_id:   str,
+    filename:  str,
+    db:        Session,
+) -> EmailFile:
+    """Register an EML file from a collection import into Email Analysis."""
+    raw = Path(str(file_path)).read_bytes()
+    result = parse_email_bytes(raw)
+    result_dict = result.model_dump()
+    ef = EmailFile(
+        case_id=case_id,
+        filename=filename,
+        analysis=json.dumps(result_dict),
+        warning_count=len(result_dict.get("warnings", [])),
+    )
+    db.add(ef)
+    return ef

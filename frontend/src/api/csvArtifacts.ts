@@ -132,4 +132,7 @@ export const csvArtifactsApi = {
         `/cases/${caseId}/artifacts/search?q=${encodeURIComponent(q)}&limit=${limit}${regex ? '&regex=true' : ''}`,
       )
       .then(r => r.data),
+
+  getRaw: (caseId: string, artifactId: string): Promise<{ content: string; encoding: 'text' | 'json' }> =>
+    api.get(`/cases/${caseId}/artifacts/${artifactId}/raw`).then(r => r.data),
 }

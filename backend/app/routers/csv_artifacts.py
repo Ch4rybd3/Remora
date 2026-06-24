@@ -149,14 +149,17 @@ def _convert_to_flat_csv(raw: bytes, filename: str) -> bytes:
 
 # ── DuckDB helpers ────────────────────────────────────────────────────────────
 
+def _normalize_col(name: str) -> str:
+    """Replace whitespace in a column name with underscores so it works in RQL."""
+    import re as _re
+    return _re.sub(r'\s+', '_', name)
+
+
 def _duck_inspect(file_path: str) -> tuple[list[str], int]:
-    """Return (column_names, row_count) using DuckDB's CSV scanner."""
+    """Return (normalized_column_names, row_count) using DuckDB's CSV scanner."""
     conn = duckdb.connect()
     try:
-        conn.execute(
-            "CREATE TEMP TABLE _src AS SELECT * FROM read_csv_auto(?, ignore_errors=true)",
-            [file_path],
-        )
+        _load_normalized(conn, file_path)
         cols  = [row[0] for row in conn.execute("DESCRIBE _src").fetchall()]
         count = conn.execute("SELECT COUNT(*) FROM _src").fetchone()[0]
         return cols, count
@@ -164,6 +167,22 @@ def _duck_inspect(file_path: str) -> tuple[list[str], int]:
         return [], 0
     finally:
         conn.close()
+
+
+def _load_normalized(conn, file_path: str) -> None:
+    """
+    Create temp table _src from the CSV and rename any column that contains spaces
+    to its underscore-normalized form so RQL identifiers always match.
+    """
+    conn.execute(
+        "CREATE TEMP TABLE _src AS SELECT * FROM read_csv_auto(?, ignore_errors=true)",
+        [file_path],
+    )
+    raw_cols = [row[0] for row in conn.execute("DESCRIBE _src").fetchall()]
+    for raw in raw_cols:
+        norm = _normalize_col(raw)
+        if norm != raw:
+            conn.execute(f'ALTER TABLE _src RENAME COLUMN "{raw}" TO "{norm}"')
 
 
 def _build_where(
@@ -255,10 +274,7 @@ def _query_rows(
     """
     conn = duckdb.connect()
     try:
-        conn.execute(
-            "CREATE TEMP TABLE _src AS SELECT * FROM read_csv_auto(?, ignore_errors=true)",
-            [file_path],
-        )
+        _load_normalized(conn, file_path)
 
         where, params = _build_where(columns, q, col_filters, rql)
 
@@ -300,10 +316,7 @@ def _query_groups(
 
     conn = duckdb.connect()
     try:
-        conn.execute(
-            "CREATE TEMP TABLE _src AS SELECT * FROM read_csv_auto(?, ignore_errors=true)",
-            [file_path],
-        )
+        _load_normalized(conn, file_path)
 
         where, params = _build_where(columns, q, col_filters, rql)
 
@@ -333,6 +346,7 @@ def _omni_query(file_path: str, columns: list[str], q: str, limit: int, regex: b
         return 0, []
     conn = duckdb.connect()
     try:
+        _load_normalized(conn, file_path)
         if regex:
             col_conds = " OR ".join(f'regexp_matches(CAST("{c}" AS VARCHAR), ?)' for c in columns)
             params_fp = [q] * len(columns)
@@ -340,18 +354,15 @@ def _omni_query(file_path: str, columns: list[str], q: str, limit: int, regex: b
             col_conds = " OR ".join(f'CAST("{c}" AS VARCHAR) ILIKE ?' for c in columns)
             params_fp = [f"%{q}%"] * len(columns)
 
-        count = conn.execute(
-            f"SELECT COUNT(*) FROM read_csv_auto(?, ignore_errors=true) WHERE {col_conds}",
-            [file_path] + params_fp,
-        ).fetchone()[0]
+        count = conn.execute(f"SELECT COUNT(*) FROM _src WHERE {col_conds}", params_fp).fetchone()[0]
 
         if count == 0:
             return 0, []
 
         col_select = ", ".join(f'CAST("{c}" AS VARCHAR) AS "{c}"' for c in columns)
         rows_raw = conn.execute(
-            f"SELECT {col_select} FROM read_csv_auto(?, ignore_errors=true) WHERE {col_conds} LIMIT {limit}",
-            [file_path] + params_fp,
+            f"SELECT {col_select} FROM _src WHERE {col_conds} LIMIT {limit}",
+            params_fp,
         ).fetchall()
 
         return count, [dict(zip(columns, row)) for row in rows_raw]
@@ -696,6 +707,27 @@ def delete_artifact(
         pass
     db.delete(a)
     db.commit()
+
+
+@router.get("/cases/{case_id}/artifacts/{artifact_id}/raw")
+def get_raw(
+    case_id:     str,
+    artifact_id: str,
+    db:          Session = Depends(get_db),
+):
+    """Return the raw file content for non-CSV artifacts (TXT, LOG, JSON).
+    Returns { content: str, encoding: 'text' | 'json' }.
+    """
+    a = _get_artifact_or_404(artifact_id, case_id, db)
+    try:
+        raw = Path(a.file_path).read_bytes()
+    except OSError as exc:
+        raise HTTPException(status_code=404, detail=f"File not found on disk: {exc}")
+
+    text = raw.decode('utf-8', errors='replace')
+    ext  = Path(a.original_name).suffix.lower()
+    enc  = 'json' if ext == '.json' else 'text'
+    return {"content": text, "encoding": enc}
 
 
 # ── Public helper used by collection_import ───────────────────────────────────

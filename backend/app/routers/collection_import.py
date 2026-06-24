@@ -52,11 +52,11 @@ async def upload_collection(
         raise HTTPException(400, "No files provided")
 
     # Validate extensions
-    _FLAT_EXTS = {".csv", ".json", ".txt", ".log", ".evtx"}
+    _FLAT_EXTS = {".csv", ".json", ".txt", ".log", ".evtx", ".eml"}
     for f in files:
         ext = Path(f.filename).suffix.lower()
         if ext not in (".zip", *_FLAT_EXTS):
-            raise HTTPException(400, f"Type non supporté '{f.filename}'. Acceptés: .zip, .csv, .json, .txt, .log, .evtx")
+            raise HTTPException(400, f"Type non supporté '{f.filename}'. Acceptés: .zip, .csv, .json, .txt, .log, .evtx, .eml")
 
     # Mixed uploads not allowed — either one ZIP or flat files
     exts = {Path(f.filename).suffix.lower() for f in files}
@@ -92,18 +92,31 @@ async def upload_collection(
         for entry_name in all_entries:
             result  = detect(entry_name)
             is_csv  = entry_name.lower().endswith(".csv")
-            # Unknown CSVs are still valid artifacts — import them as-is.
-            # Non-CSV files with no recognised category are left as unsupported.
+            entry_ext = Path(entry_name).suffix.lower()
+            is_routable = entry_ext in (".evtx", ".eml", ".json", ".txt", ".log")
+            # Determine destination for known extensions
+            if entry_ext == ".evtx":
+                dest_page  = f"/cases/{case_id}/evtx"
+                dest_label = "EVTX Module"
+            elif entry_ext == ".eml":
+                dest_page  = f"/cases/{case_id}/emails"
+                dest_label = "Email Analysis"
+            elif result:
+                dest_page  = result.destination_page.replace("{case_id}", case_id)
+                dest_label = result.destination_label
+            else:
+                dest_page  = None
+                dest_label = None
             imported_files.append(ImportedFile(
                 id=str(uuid.uuid4()),
                 collection_id=collection_id,
                 case_id=case_id,
                 filename=entry_name,
-                status="pending" if (result or is_csv) else "unsupported",
-                category=result.category if result else None,
-                category_label=result.category_label if result else None,
-                destination_page=result.destination_page.replace("{case_id}", case_id) if result else None,
-                destination_label=result.destination_label if result else None,
+                status="pending" if (result or is_csv or is_routable) else "unsupported",
+                category=result.category if result else (entry_ext.lstrip(".") if is_routable else None),
+                category_label=result.category_label if result else (entry_ext.lstrip(".").upper() if is_routable else None),
+                destination_page=dest_page,
+                destination_label=dest_label,
                 expires_at=expires,
             ))
 
@@ -140,10 +153,13 @@ async def upload_collection(
             result = detect(rel_path)
             print(f"[collection_import] detected {rel_path} ({file_ext}) → {result.category if result else 'auto-route'}", flush=True)
 
-            # EVTX files route to the EVTX module; all others to Artifact Explorer
+            # EVTX/EML files route to dedicated modules; all others to Artifact Explorer
             if file_ext == ".evtx":
                 dest_label = "EVTX Module"
                 dest_page  = f"/cases/{case_id}/evtx"
+            elif file_ext == ".eml":
+                dest_label = "Email Analysis"
+                dest_page  = f"/cases/{case_id}/emails"
             else:
                 dest_label = result.destination_label if result else "Artifact Explorer"
                 dest_page  = result.destination_page.replace("{case_id}", case_id) if result else None
@@ -155,8 +171,8 @@ async def upload_collection(
                 filename=safe_name,
                 file_size=len(content),
                 status="pending",
-                category=result.category if result else ("evtx" if file_ext == ".evtx" else None),
-                category_label=result.category_label if result else ("EVTX" if file_ext == ".evtx" else None),
+                category=result.category if result else ("evtx" if file_ext == ".evtx" else "eml" if file_ext == ".eml" else None),
+                category_label=result.category_label if result else ("EVTX" if file_ext == ".evtx" else "EML" if file_ext == ".eml" else None),
                 destination_page=dest_page,
                 destination_label=dest_label,
                 expires_at=expires,
@@ -221,6 +237,7 @@ def _run_pending(
     """
     from .csv_artifacts import register_csv_artifact
     from .evtx import register_evtx_file
+    from .case_emails import register_email_file
 
     processed = 0
     for file_id, filename, category in pending:
@@ -246,6 +263,12 @@ def _run_pending(
                 evtx_rec = register_evtx_file(file_path, case_id, filename, db)
                 f.status    = "imported"
                 f.row_count = 0        # events counted after async parse
+                f.imported_at = datetime.utcnow()
+            elif ext == ".eml":
+                # Route to Email Analysis
+                register_email_file(file_path, case_id, Path(filename).name, db)
+                f.status    = "imported"
+                f.row_count = 1
                 f.imported_at = datetime.utcnow()
             else:
                 # All other supported types (.csv, .json, .txt, .log) go to Artifact Explorer

@@ -18,6 +18,10 @@ class CaseBase(BaseModel):
     executive_summary: str = ""
     quick_notes: str = ""
     report: str = ""
+    report_analysis: str = ""
+    report_remediation: str = ""
+    report_conclusion: str = ""
+    report_sections_data: str = "{}"
 
 
 class CaseCreate(CaseBase):
@@ -37,6 +41,10 @@ class CaseUpdate(BaseModel):
     executive_summary: Optional[str] = None
     quick_notes: Optional[str] = None
     report: Optional[str] = None
+    report_analysis: Optional[str] = None
+    report_remediation: Optional[str] = None
+    report_conclusion: Optional[str] = None
+    report_sections_data: Optional[str] = None
 
 
 class CaseRead(CaseBase):

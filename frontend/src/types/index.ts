@@ -29,6 +29,7 @@ export interface Case extends CaseSummary {
   report_analysis:    string
   report_remediation: string
   report_conclusion:  string
+  report_sections_data: string   // JSON: { slug: markdown_text }
   closed_at: string | null
 }
 
@@ -141,7 +142,7 @@ export interface Template {
   severity: CaseSeverity
   tlp: string
   executive_summary_template?: string
-  report_sections?: { name: string; template: string }[]
+  report_sections?: { name: string; tag?: string; category?: string; template?: string }[]
   metadata?: Record<string, unknown>
   ttp_definitions?: TTPDefinition[]
 }

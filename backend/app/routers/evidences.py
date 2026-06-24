@@ -124,10 +124,12 @@ def download_evidence(case_id: str, evidence_id: str, db: Session = Depends(get_
         Evidence.id == evidence_id, Evidence.case_id == case_id).first()
     if not evidence:
         raise HTTPException(status_code=404, detail="Evidence not found")
+    if not evidence.file_path:
+        raise HTTPException(status_code=404, detail="No file attached to this evidence")
     file_path = settings.evidence_store_path / evidence.file_path
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found on disk")
-    return FileResponse(path=file_path, filename=evidence.original_filename,
+    return FileResponse(path=file_path, filename=evidence.original_filename or evidence.name,
                         media_type=evidence.mime_type or "application/octet-stream")
 
 

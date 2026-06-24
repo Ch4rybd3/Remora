@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Upload, Search, X, ChevronDown, ChevronLeft, ChevronRight,
@@ -329,8 +329,9 @@ function ColResizeHandle({ col, onStart, onReset }: {
       className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize z-10 group/rh flex items-center justify-end"
       draggable={false}
       onMouseDown={e => { e.stopPropagation(); e.preventDefault(); onStart(e, col) }}
+      onClick={e => { e.stopPropagation(); e.preventDefault() }}
       onDoubleClick={e => { e.stopPropagation(); e.preventDefault(); onReset?.(col) }}
-      title="Drag to resize · Double-click to reset"
+      title="Drag to resize · Double-click to auto-fit"
     >
       <div className="w-px h-4 bg-white/10 group-hover/rh:bg-accent-green/50 transition-colors" />
     </div>
@@ -407,7 +408,7 @@ function GroupByBar({ groupByCols, onChange, isDragging }: {
 // ── GroupRowsFetcher ──────────────────────────────────────────────────────────
 // Fetches and renders rows for a single expanded leaf group inside a <tbody>.
 
-function GroupRowsFetcher({ caseId, meta, baseFilters, groupFilters, orderedCols, colW, depth, pinnedKeys, onPinToggle }: {
+function GroupRowsFetcher({ caseId, meta, baseFilters, groupFilters, orderedCols, colW, depth, pinnedKeys, exportedKeys, onPinToggle }: {
   caseId:       string
   meta:         CsvArtifactMeta
   baseFilters:  ArtifactRowFilters
@@ -416,6 +417,7 @@ function GroupRowsFetcher({ caseId, meta, baseFilters, groupFilters, orderedCols
   colW:         (col: string) => number
   depth:        number
   pinnedKeys:   Set<string>
+  exportedKeys: Set<string>
   onPinToggle:  (key: string, row: Record<string, string>) => void
 }) {
   const [page, setPage] = useState(1)
@@ -466,16 +468,22 @@ function GroupRowsFetcher({ caseId, meta, baseFilters, groupFilters, orderedCols
   return (
     <>
       {rows.map((row, idx) => {
-        const key      = makeRowKey(meta.id, row)
-        const isPinned = pinnedKeys.has(key)
+        const key        = makeRowKey(meta.id, row)
+        const isPinned   = pinnedKeys.has(key)
+        const isExported = exportedKeys.has(key)
         return (
           <tr key={`${key}-${idx}`}
-            className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors group">
-            <td className="w-8 shrink-0 px-1 py-1 text-center sticky left-0 z-[4] bg-bg-primary shadow-[1px_0_0_rgba(255,255,255,0.04)]"
-              onClick={e => { e.stopPropagation(); onPinToggle(key, row) }}>
+            className={`border-b border-white/[0.03] transition-colors group ${
+              isPinned ? 'bg-accent-green/[0.04]' : isExported ? 'bg-blue-500/[0.02]' : 'hover:bg-white/[0.02]'
+            }`}>
+            <td className={`w-8 shrink-0 px-1 py-1 text-center sticky left-0 z-[4] shadow-[1px_0_0_rgba(255,255,255,0.04)] ${isPinned ? 'bg-accent-green/[0.04]' : isExported ? 'bg-blue-500/[0.02]' : 'bg-bg-primary'}`}
+              onClick={e => { e.stopPropagation(); onPinToggle(key, row) }}
+              title={isExported && !isPinned ? 'Exporté vers la Timeline' : undefined}>
               {isPinned
                 ? <BookmarkCheck size={12} className="mx-auto text-accent-green/60" />
-                : <BookmarkPlus size={12} className="mx-auto text-accent-muted/15 group-hover:text-accent-muted/40 hover:!text-accent-green transition-colors cursor-pointer" />
+                : isExported
+                  ? <BookmarkCheck size={12} className="mx-auto text-blue-400/50" />
+                  : <BookmarkPlus size={12} className="mx-auto text-accent-muted/15 group-hover:text-accent-muted/40 hover:!text-accent-green transition-colors cursor-pointer" />
               }
             </td>
             {orderedCols.map((col, ci) => (
@@ -515,7 +523,7 @@ function GroupRowsFetcher({ caseId, meta, baseFilters, groupFilters, orderedCols
 
 const RQL_KW_BOOL    = new Set(['AND','OR','NOT'])
 const RQL_KW_OP      = new Set(['IN','BETWEEN','CONTAINS','STARTSWITH','ENDSWITH','REGEX','CIDR','LAST'])
-const RQL_TOK_RE     = /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\b(?:AND|OR|NOT|IN|BETWEEN|CONTAINS|STARTSWITH|ENDSWITH|REGEX|CIDR|LAST|NULL|TRUE|FALSE)\b|>=|<=|!=|[><=~(),.]+|\d+\.?\d*|[\w@][\w.\-@]*|\s+)/gi
+const RQL_TOK_RE     = /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\b(?:AND|OR|NOT|IN|BETWEEN|CONTAINS|STARTSWITH|ENDSWITH|REGEX|CIDR|LAST|NULL|TRUE|FALSE)\b|>=|<=|!=|[><=~()\*,.]+|\d+\.?\d*|[\w@][\w.\-@]*|\s+)/gi
 
 function highlightRQL(q: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = []
@@ -552,7 +560,9 @@ const RQL_EXAMPLES = [
   { label: 'CIDR',           q: 'IpAddress CIDR "10.0.0.0/8"' },
   { label: 'Dernier 2h',     q: '@timestamp LAST 2 h' },
   { label: 'Full-text',      q: '~ "mimikatz"' },
-  { label: 'Groupé',         q: '(EventID = "4624" OR EventID = "4625") AND NOT Computer = "WORKSTATION01"' },
+  { label: 'Wildcard col',  q: '* contains "mimikatz"' },
+  { label: 'Wildcard REGEX',q: '* REGEX "^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$"' },
+  { label: 'Groupé',        q: '(EventID = "4624" OR EventID = "4625") AND NOT Computer = "WORKSTATION01"' },
 ]
 
 // ── RQLBar ────────────────────────────────────────────────────────────────────
@@ -711,14 +721,222 @@ function RQLBar({ value, onChange, onRun, error, columns }: {
   )
 }
 
+// ── File type detection ────────────────────────────────────────────────────────
+
+type ArtifactFileType = 'csv' | 'txt' | 'json' | 'evtx' | 'eml'
+
+function getFileType(name: string): ArtifactFileType {
+  const ext = name.split('.').pop()?.toLowerCase() ?? ''
+  if (ext === 'evtx')           return 'evtx'
+  if (ext === 'eml')            return 'eml'
+  if (ext === 'json')           return 'json'
+  if (ext === 'txt' || ext === 'log') return 'txt'
+  return 'csv'
+}
+
+// ── Redirect banner for EVTX / EML ────────────────────────────────────────────
+
+function ArtifactRedirectView({ meta, caseId, type }: { meta: CsvArtifactMeta; caseId: string; type: 'evtx' | 'eml' }) {
+  const navigate = useNavigate()
+  const { setCurrentCase } = useCurrentCase()
+  const isEvtx = type === 'evtx'
+  const dest   = isEvtx ? '/artifacts/filesystem' : '/artifacts/email'
+  const label  = isEvtx ? 'Module Logs / EVTX' : 'Email Analysis'
+  const icon   = isEvtx ? '🗂️' : '📧'
+  const color  = isEvtx ? 'text-orange-400 bg-orange-500/8 border-orange-500/20' : 'text-blue-400 bg-blue-500/8 border-blue-500/20'
+  const hint   = isEvtx
+    ? 'Ce fichier EVTX a été enregistré dans le module Logs. Rendez-vous sur la page Logs pour le consulter et lancer Chainsaw.'
+    : 'Ce fichier EML a été enregistré dans le module Email Analysis. Rendez-vous sur la page Email Analysis pour l\'analyser.'
+  return (
+    <div className="flex flex-col items-center justify-center h-full gap-6 px-8">
+      <div className="text-5xl opacity-60">{icon}</div>
+      <div className={`flex flex-col items-center gap-3 text-center max-w-md p-6 rounded-xl border ${color}`}>
+        <p className="text-sm font-medium">{meta.original_name}</p>
+        <p className="text-xs text-accent-muted/60 leading-relaxed">{hint}</p>
+        <button
+          onClick={() => { setCurrentCase({ id: caseId, title: '' }); navigate(dest) }}
+          className="mt-2 px-4 py-2 rounded-lg text-xs font-medium bg-white/[0.05] border border-white/15 hover:bg-white/[0.08] transition-colors"
+        >
+          Ouvrir {label} →
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── TXT / LOG viewer ───────────────────────────────────────────────────────────
+
+function TextArtifactView({ meta, caseId }: { meta: CsvArtifactMeta; caseId: string }) {
+  const [search, setSearch] = useState('')
+  const { data, isLoading } = useQuery({
+    queryKey: ['artifact-raw', caseId, meta.id],
+    queryFn:  () => csvArtifactsApi.getRaw(caseId, meta.id),
+    staleTime: 60_000,
+  })
+
+  const lines = useMemo(() => {
+    const raw = data?.content ?? ''
+    const all = raw.split('\n')
+    if (!search.trim()) return all
+    const q = search.toLowerCase()
+    return all.filter(l => l.toLowerCase().includes(q))
+  }, [data?.content, search])
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center h-full text-accent-muted/30 text-sm animate-pulse">Chargement…</div>
+  }
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex items-center gap-3 px-4 py-2.5 border-b border-white/5 shrink-0 bg-bg-secondary/30">
+        <FileText size={13} className="text-accent-muted/40" />
+        <span className="text-xs font-medium text-white/70 flex-1 truncate font-mono">{meta.original_name}</span>
+        <div className="relative">
+          <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-accent-muted/30" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Filtrer les lignes…"
+            className="bg-white/5 border border-white/10 rounded pl-6 pr-3 py-1 text-[11px] text-white placeholder:text-accent-muted/30 outline-none focus:border-white/20 w-52"
+          />
+        </div>
+        <span className="text-[10px] text-accent-muted/30 shrink-0">{lines.length.toLocaleString()} lignes</span>
+      </div>
+      <div className="flex-1 overflow-y-auto overflow-x-auto font-mono text-[11px] text-white/65 leading-5 px-4 py-3 bg-bg-primary">
+        {lines.map((line, i) => (
+          <div key={i} className="flex gap-3 hover:bg-white/[0.02] rounded px-1 group">
+            <span className="text-accent-muted/20 select-none w-10 text-right shrink-0">{i + 1}</span>
+            <span className="break-all">{line || ' '}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── JSON viewer ───────────────────────────────────────────────────────────────
+
+function JsonNode({ data, depth = 0 }: { data: unknown; depth?: number }) {
+  const [open, setOpen] = useState(depth < 2)
+  if (data === null) return <span className="text-accent-muted/40">null</span>
+  if (typeof data === 'boolean') return <span className="text-purple-300">{String(data)}</span>
+  if (typeof data === 'number')  return <span className="text-blue-300">{String(data)}</span>
+  if (typeof data === 'string')  return <span className="text-accent-green/80">"{data}"</span>
+
+  const isArr = Array.isArray(data)
+  const entries = isArr
+    ? (data as unknown[]).map((v, i) => [String(i), v] as [string, unknown])
+    : Object.entries(data as Record<string, unknown>)
+
+  if (entries.length === 0) return <span className="text-accent-muted/30">{isArr ? '[]' : '{}'}</span>
+
+  const bracket = isArr ? ['[', ']'] : ['{', '}']
+  const indent  = depth * 16
+
+  return (
+    <span>
+      <button onClick={() => setOpen(o => !o)} className="text-accent-muted/40 hover:text-white transition-colors font-mono">
+        {open ? '▾' : '▸'}
+      </button>
+      <span className="text-accent-muted/30 ml-0.5">{bracket[0]}</span>
+      {!open && (
+        <span className="text-accent-muted/30 cursor-pointer hover:text-white" onClick={() => setOpen(true)}>
+          {' '}…{entries.length}{' '}
+        </span>
+      )}
+      {open && (
+        <span>
+          {entries.map(([k, v]) => (
+            <div key={k} style={{ paddingLeft: indent + 16 }}>
+              {!isArr && <span className="text-cyan-300/70">"{k}"</span>}
+              {!isArr && <span className="text-accent-muted/30">: </span>}
+              <JsonNode data={v} depth={depth + 1} />
+              <span className="text-accent-muted/20">,</span>
+            </div>
+          ))}
+          <div style={{ paddingLeft: indent }}><span className="text-accent-muted/30">{bracket[1]}</span></div>
+        </span>
+      )}
+      {!open && <span className="text-accent-muted/30">{bracket[1]}</span>}
+    </span>
+  )
+}
+
+function JsonArtifactView({ meta, caseId }: { meta: CsvArtifactMeta; caseId: string }) {
+  const [search, setSearch] = useState('')
+  const [mode, setMode]     = useState<'tree' | 'raw'>('tree')
+  const { data, isLoading } = useQuery({
+    queryKey: ['artifact-raw', caseId, meta.id],
+    queryFn:  () => csvArtifactsApi.getRaw(caseId, meta.id),
+    staleTime: 60_000,
+  })
+
+  const parsed = useMemo(() => {
+    if (!data?.content) return null
+    try { return JSON.parse(data.content) }
+    catch { return null }
+  }, [data?.content])
+
+  const rawLines = useMemo(() => {
+    if (!data?.content) return []
+    const all = data.content.split('\n')
+    if (!search.trim()) return all
+    const q = search.toLowerCase()
+    return all.filter(l => l.toLowerCase().includes(q))
+  }, [data?.content, search])
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center h-full text-accent-muted/30 text-sm animate-pulse">Chargement…</div>
+  }
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex items-center gap-3 px-4 py-2.5 border-b border-white/5 shrink-0 bg-bg-secondary/30">
+        <FileText size={13} className="text-accent-muted/40" />
+        <span className="text-xs font-medium text-white/70 flex-1 truncate font-mono">{meta.original_name}</span>
+        {mode === 'raw' && (
+          <div className="relative">
+            <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-accent-muted/30" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Filtrer les lignes…"
+              className="bg-white/5 border border-white/10 rounded pl-6 pr-3 py-1 text-[11px] text-white placeholder:text-accent-muted/30 outline-none focus:border-white/20 w-52"
+            />
+          </div>
+        )}
+        <div className="flex rounded border border-white/10 overflow-hidden">
+          <button onClick={() => setMode('tree')} className={`text-[10px] px-2 py-1 transition-colors ${mode === 'tree' ? 'bg-accent-green/10 text-accent-green' : 'text-accent-muted hover:text-white'}`}>Tree</button>
+          <button onClick={() => setMode('raw')}  className={`text-[10px] px-2 py-1 transition-colors ${mode === 'raw'  ? 'bg-accent-green/10 text-accent-green' : 'text-accent-muted hover:text-white'}`}>Raw</button>
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto overflow-x-auto font-mono text-[11px] px-4 py-3 bg-bg-primary">
+        {mode === 'tree' ? (
+          parsed !== null
+            ? <JsonNode data={parsed} depth={0} />
+            : <p className="text-red-400/60 text-xs">JSON invalide — impossible de parser le fichier.</p>
+        ) : (
+          rawLines.map((line, i) => (
+            <div key={i} className="flex gap-3 hover:bg-white/[0.02] rounded px-1">
+              <span className="text-accent-muted/20 select-none w-10 text-right shrink-0">{i + 1}</span>
+              <span className="text-white/65 break-all">{line || ' '}</span>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── ArtifactTableView ─────────────────────────────────────────────────────────
 
-function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onPinToggle }: {
+function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, exportedKeys, onPinToggle }: {
   caseId:        string
   meta:          CsvArtifactMeta
   state:         TabState
   onStateChange: (patch: Partial<TabState>) => void
   pinnedKeys:    Set<string>
+  exportedKeys:  Set<string>
   onPinToggle:   (key: string, row: Record<string, string>) => void
 }) {
   const [expandedRow,    setExpandedRow]    = useState<string | null>(null)
@@ -739,6 +957,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
   const colResizing  = useRef<{ col: string; startX: number; startW: number } | null>(null)
   const colWidthsRef = useRef<Record<string, number>>(state.colWidths ?? {})
   const onStateRef   = useRef(onStateChange)
+  const rowsRef      = useRef<Record<string, string>[]>([])
   useEffect(() => { onStateRef.current   = onStateChange }, [onStateChange])
   useEffect(() => { colWidthsRef.current = state.colWidths ?? {} }, [state.colWidths])
 
@@ -751,9 +970,18 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
   }, [state.colWidths, meta.date_column])
 
   const resetColWidth = useCallback((col: string) => {
-    const next = { ...colWidthsRef.current }
-    delete next[col]
-    onStateChange({ colWidths: next })
+    // Auto-fit: measure header + visible row content, pick max
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    if (ctx) ctx.font = '11px ui-sans-serif, system-ui, sans-serif'
+    const measure = (text: string) => ctx ? ctx.measureText(text).width : text.length * 7
+    const headerW = measure(col)
+    const maxDataW = rowsRef.current.reduce((max, row) => {
+      const w = measure(String(row[col] ?? ''))
+      return w > max ? w : max
+    }, 0)
+    const fitted = Math.min(600, Math.max(80, Math.max(headerW, maxDataW) + 28))
+    onStateChange({ colWidths: { ...colWidthsRef.current, [col]: fitted } })
   }, [onStateChange])
 
   useEffect(() => {
@@ -816,6 +1044,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
   const total   = data?.total   ?? 0
   const pages   = data?.pages   ?? 1
   const allCols = data?.columns ?? meta.columns
+  useEffect(() => { rowsRef.current = rows }, [rows])
 
   // ── Column ordering ───────────────────────────────────────────────────────
   const hiddenSet   = useMemo(() => new Set(state.hiddenCols), [state.hiddenCols])
@@ -1248,6 +1477,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
                   colW={colW}
                   depth={item.depth}
                   pinnedKeys={pinnedKeys}
+                  exportedKeys={exportedKeys}
                   onPinToggle={onPinToggle}
                 />
               )
@@ -1255,9 +1485,10 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
 
             {/* ── Flat rendering ─────────────────────────────────────────── */}
             {!isAnythingLoading && !groupActive && rows.map((row, idx) => {
-              const key      = makeRowKey(meta.id, row)
-              const isPinned = pinnedKeys.has(key)
-              const rowKey   = `${idx}`
+              const key        = makeRowKey(meta.id, row)
+              const isPinned   = pinnedKeys.has(key)
+              const isExported = exportedKeys.has(key)
+              const rowKey     = `${idx}`
               return (
                 <>
                   <tr key={idx}
@@ -1265,15 +1496,20 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
                     className={`border-b cursor-pointer transition-colors group ${
                       isPinned
                         ? 'border-accent-green/20 bg-accent-green/[0.04] hover:bg-accent-green/[0.07]'
-                        : expandedRow === rowKey
-                          ? 'border-white/[0.04] bg-accent-green/5'
-                          : 'border-white/[0.04] hover:bg-white/[0.025]'
+                        : isExported
+                          ? 'border-blue-500/10 bg-blue-500/[0.02] hover:bg-blue-500/[0.04]'
+                          : expandedRow === rowKey
+                            ? 'border-white/[0.04] bg-accent-green/5'
+                            : 'border-white/[0.04] hover:bg-white/[0.025]'
                     }`}>
-                    <td className={`w-8 shrink-0 px-1 py-1.5 text-center sticky left-0 z-[4] shadow-[1px_0_0_rgba(255,255,255,0.04)] ${isPinned ? 'bg-accent-green/[0.04]' : 'bg-bg-primary'}`}
-                      onClick={e => { e.stopPropagation(); handlePin(row) }}>
+                    <td className={`w-8 shrink-0 px-1 py-1.5 text-center sticky left-0 z-[4] shadow-[1px_0_0_rgba(255,255,255,0.04)] ${isPinned ? 'bg-accent-green/[0.04]' : isExported ? 'bg-blue-500/[0.02]' : 'bg-bg-primary'}`}
+                      onClick={e => { e.stopPropagation(); handlePin(row) }}
+                      title={isExported && !isPinned ? 'Exporté vers la Timeline' : undefined}>
                       {isPinned
                         ? <BookmarkCheck size={13} className="mx-auto text-accent-green/60" />
-                        : <BookmarkPlus size={13} className="mx-auto text-accent-muted/20 group-hover:text-accent-muted/50 hover:!text-accent-green transition-colors" />
+                        : isExported
+                          ? <BookmarkCheck size={13} className="mx-auto text-blue-400/50" />
+                          : <BookmarkPlus size={13} className="mx-auto text-accent-muted/20 group-hover:text-accent-muted/50 hover:!text-accent-green transition-colors" />
                       }
                     </td>
                     {orderedCols.map(col => (
@@ -1370,7 +1606,8 @@ function OmniSearchView({ caseId, query, regex, onOpenFile }: {
 function OmniFileGroup({ file, query, onOpen }: {
   file: OmniSearchFile; query: string; onOpen: () => void
 }) {
-  const previewCols = file.columns.slice(0, 6)
+  const [expanded, setExpanded] = useState(false)
+  const displayRows = expanded ? file.rows : file.rows.slice(0, 8)
   const ql = query.toLowerCase()
 
   function highlight(text: string) {
@@ -1399,24 +1636,24 @@ function OmniFileGroup({ file, query, onOpen }: {
           </span>
           <button onClick={onOpen}
             className="text-[10px] text-accent-muted hover:text-accent-green border border-white/10 hover:border-accent-green/30 px-2 py-0.5 rounded transition-colors">
-            Open file →
+            Ouvrir le fichier →
           </button>
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-[10px]" style={{ minWidth: previewCols.length * 160 + 'px' }}>
+        <table className="text-[10px]" style={{ minWidth: Math.max(600, file.columns.length * 140) + 'px' }}>
           <thead>
             <tr className="border-b border-white/5">
-              {previewCols.map(col => (
+              {file.columns.map(col => (
                 <th key={col} className="px-3 py-1.5 text-left font-medium text-accent-muted/30 uppercase tracking-widest whitespace-nowrap">{col}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {file.rows.slice(0, 5).map((row, i) => (
+            {displayRows.map((row, i) => (
               <tr key={i} className={`border-b border-white/[0.03] ${i % 2 === 0 ? '' : 'bg-white/[0.015]'}`}>
-                {previewCols.map(col => (
-                  <td key={col} className="px-3 py-1.5 text-white/60 font-mono truncate" style={{ maxWidth: 200 }}>
+                {file.columns.map(col => (
+                  <td key={col} className="px-3 py-1.5 text-white/60 font-mono truncate" style={{ maxWidth: 240 }}>
                     {highlight(row[col] ?? '')}
                   </td>
                 ))}
@@ -1425,6 +1662,17 @@ function OmniFileGroup({ file, query, onOpen }: {
           </tbody>
         </table>
       </div>
+      {file.rows.length > 8 && (
+        <button
+          onClick={() => setExpanded(e => !e)}
+          className="w-full py-1.5 text-[10px] text-accent-muted/40 hover:text-accent-green/60 hover:bg-white/[0.01] transition-colors border-t border-white/5"
+        >
+          {expanded
+            ? '▲ Réduire'
+            : `▼ Voir ${file.rows.length - 8} ligne${file.rows.length - 8 > 1 ? 's' : ''} de plus (${file.rows.length} au total)`
+          }
+        </button>
+      )}
     </div>
   )
 }
@@ -1769,8 +2017,9 @@ export default function ArtifactExplorer() {
     finally { setAddingEvidenceId(null) }
   }, [caseId, qc])
 
-  const [pinnedRows, setPinnedRows] = useState<PinnedRow[]>([])
-  const [exporting,  setExporting]  = useState(false)
+  const [pinnedRows,   setPinnedRows]   = useState<PinnedRow[]>([])
+  const [exporting,    setExporting]    = useState(false)
+  const [exportedKeys, setExportedKeys] = useState<Set<string>>(new Set())
 
   const pinnedKeySet = useMemo(() => new Set(pinnedRows.map(p => p.key)), [pinnedRows])
 
@@ -1831,6 +2080,7 @@ export default function ArtifactExplorer() {
         )
       )
 
+      setExportedKeys(prev => new Set([...prev, ...sorted.map(s => s.key)]))
       setPinnedRows([])
     } finally {
       setExporting(false)
@@ -1866,6 +2116,23 @@ export default function ArtifactExplorer() {
   }
 
   const activeMeta = activeTab ? files.find(f => f.id === activeTab) ?? null : null
+
+  const activeView = (() => {
+    if (!activeTab || !activeMeta) return null
+    const ft = getFileType(activeMeta.original_name)
+    if (ft === 'evtx') return <ArtifactRedirectView key={activeTab} meta={activeMeta} caseId={caseId} type="evtx" />
+    if (ft === 'eml')  return <ArtifactRedirectView key={activeTab} meta={activeMeta} caseId={caseId} type="eml" />
+    if (ft === 'txt')  return <TextArtifactView key={activeTab} meta={activeMeta} caseId={caseId} />
+    if (ft === 'json') return <JsonArtifactView key={activeTab} meta={activeMeta} caseId={caseId} />
+    return (
+      <ArtifactTableView key={activeTab} caseId={caseId} meta={activeMeta}
+        state={tabStates[activeTab] ?? defaultTabState()}
+        onStateChange={patch => updateTabState(activeTab, patch)}
+        pinnedKeys={pinnedKeySet}
+        exportedKeys={exportedKeys}
+        onPinToggle={(key, row) => handlePinToggle(key, row, activeMeta)} />
+    )
+  })()
 
   return (
     <div className="flex h-full overflow-hidden" data-no-select={isResizing.current || undefined}
@@ -1998,12 +2265,8 @@ export default function ArtifactExplorer() {
 
         {showOmni ? (
           <OmniSearchView caseId={caseId} query={omniDebounced} regex={omniRegex} onOpenFile={openFile} />
-        ) : activeTab && activeMeta ? (
-          <ArtifactTableView key={activeTab} caseId={caseId} meta={activeMeta}
-            state={tabStates[activeTab] ?? defaultTabState()}
-            onStateChange={patch => updateTabState(activeTab, patch)}
-            pinnedKeys={pinnedKeySet}
-            onPinToggle={(key, row) => handlePinToggle(key, row, activeMeta)} />
+        ) : activeView ? (
+          activeView
         ) : (
           <div className={`flex-1 flex flex-col items-center justify-center gap-4 transition-colors ${dragging ? 'bg-accent-green/5' : ''}`}>
             <Table2 size={48} className="text-accent-muted/15" />
