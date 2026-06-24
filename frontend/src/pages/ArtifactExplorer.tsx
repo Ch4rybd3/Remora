@@ -253,21 +253,62 @@ function PaginationBar({ page, pages, total, pageSize, onPage, onPageSize }: {
 
 // ── Row detail panel ──────────────────────────────────────────────────────────
 
+function renderDetailValue(val: string): React.ReactNode {
+  if (!val) return <span className="opacity-20 italic">empty</span>
+  const trimmed = val.trimStart()
+  if ((trimmed.startsWith('{') || trimmed.startsWith('[')) && val.trimEnd().endsWith(trimmed.startsWith('{') ? '}' : ']')) {
+    try {
+      const parsed = JSON.parse(val)
+      return (
+        <pre className="text-[10px] font-mono text-white/70 whitespace-pre-wrap break-all leading-relaxed">
+          {JSON.stringify(parsed, null, 2)}
+        </pre>
+      )
+    } catch { /* fall through */ }
+  }
+  return <span className="font-mono break-all">{val}</span>
+}
+
 function RowDetail({ row, columns, onClose }: {
   row: Record<string, string>; columns: string[]; onClose: () => void
 }) {
+  const [search, setSearch] = useState('')
+  const sq = search.toLowerCase()
+  const filteredCols = sq
+    ? columns.filter(c => c.toLowerCase().includes(sq) || (row[c] ?? '').toLowerCase().includes(sq))
+    : columns
+
   return (
     <div className="border-t border-white/8 bg-bg-secondary/60 px-4 py-3">
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] font-semibold text-accent-muted/60 uppercase tracking-widest">Row Detail</span>
-        <button onClick={onClose} className="text-accent-muted/40 hover:text-white transition-colors"><X size={13} /></button>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search size={9} className="absolute left-2 top-1/2 -translate-y-1/2 text-accent-muted/30" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="filter fields…"
+              className="bg-white/5 border border-white/8 rounded pl-5 pr-3 py-0.5 text-[10px] text-white placeholder:text-accent-muted/30 outline-none focus:border-white/20 w-36 transition-colors"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-accent-muted/40 hover:text-white">
+                <X size={8} />
+              </button>
+            )}
+          </div>
+          <button onClick={onClose} className="text-accent-muted/40 hover:text-white transition-colors"><X size={13} /></button>
+        </div>
       </div>
+      {sq && filteredCols.length === 0 && (
+        <p className="text-[10px] text-accent-muted/30 italic py-1">No fields match "{search}"</p>
+      )}
       <div className="rounded border border-white/8 overflow-hidden">
-        {columns.map((col, i) => (
+        {filteredCols.map((col, i) => (
           <div key={col} className={`flex text-[11px] ${i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
             <span className="w-52 shrink-0 px-3 py-1 text-accent-muted/50 border-r border-white/5 font-mono truncate" title={col}>{col}</span>
-            <span className="flex-1 px-3 py-1 text-white/70 font-mono break-all">
-              {row[col] || <span className="opacity-20 italic">empty</span>}
+            <span className="flex-1 px-3 py-1 text-white/70">
+              {renderDetailValue(row[col] ?? '')}
             </span>
           </div>
         ))}
@@ -278,15 +319,18 @@ function RowDetail({ row, columns, onClose }: {
 
 // ── ColResizeHandle ───────────────────────────────────────────────────────────
 
-function ColResizeHandle({ col, onStart }: {
+function ColResizeHandle({ col, onStart, onReset }: {
   col:     string
   onStart: (e: React.MouseEvent, col: string) => void
+  onReset?: (col: string) => void
 }) {
   return (
     <div
       className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize z-10 group/rh flex items-center justify-end"
       draggable={false}
       onMouseDown={e => { e.stopPropagation(); e.preventDefault(); onStart(e, col) }}
+      onDoubleClick={e => { e.stopPropagation(); e.preventDefault(); onReset?.(col) }}
+      title="Drag to resize · Double-click to reset"
     >
       <div className="w-px h-4 bg-white/10 group-hover/rh:bg-accent-green/50 transition-colors" />
     </div>
@@ -706,6 +750,12 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
     document.body.style.userSelect = 'none'
   }, [state.colWidths, meta.date_column])
 
+  const resetColWidth = useCallback((col: string) => {
+    const next = { ...colWidthsRef.current }
+    delete next[col]
+    onStateChange({ colWidths: next })
+  }, [onStateChange])
+
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       if (!colResizing.current) return
@@ -1115,7 +1165,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
                       {col}
                       {isSort && (state.filters.sort_dir === 'asc' ? <ArrowUp size={9} className="text-accent-green" /> : <ArrowDown size={9} className="text-accent-green" />)}
                     </span>
-                    <ColResizeHandle col={col} onStart={startColResize} />
+                    <ColResizeHandle col={col} onStart={startColResize} onReset={resetColWidth} />
                   </th>
                 )
               })}
@@ -1271,12 +1321,12 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
 
 // ── OmniSearchView ─────────────────────────────────────────────────────────────
 
-function OmniSearchView({ caseId, query, onOpenFile }: {
-  caseId: string; query: string; onOpenFile: (id: string) => void
+function OmniSearchView({ caseId, query, regex, onOpenFile }: {
+  caseId: string; query: string; regex: boolean; onOpenFile: (id: string) => void
 }) {
   const { data, isLoading } = useQuery({
-    queryKey: ['csv-omni', caseId, query],
-    queryFn:  () => csvArtifactsApi.search(caseId, query),
+    queryKey: ['csv-omni', caseId, query, regex],
+    queryFn:  () => csvArtifactsApi.search(caseId, query, 15, regex),
     enabled:  query.length >= 2,
     staleTime: 10_000,
   })
@@ -1532,6 +1582,40 @@ export default function ArtifactExplorer() {
   const [activeTab, setActiveTab] = useState<string | null>(null)
   const [tabStates, setTabStates] = useState<Record<string, TabState>>({})
 
+  // ── Persistence: load per-case state from localStorage on mount ───────────
+  const loadedCaseRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!caseId || loadedCaseRef.current === caseId) return
+    loadedCaseRef.current = caseId
+    try {
+      const raw = localStorage.getItem(`ae-state-${caseId}`)
+      if (!raw) return
+      const { openTabs: ot, activeTab: at, tabStates: ts } = JSON.parse(raw)
+      if (Array.isArray(ot)) setOpenTabs(ot)
+      if (at === null || typeof at === 'string') setActiveTab(at)
+      if (ts && typeof ts === 'object') setTabStates(ts)
+    } catch { /* ignore malformed data */ }
+  }, [caseId])
+
+  // ── Persistence: save on change ───────────────────────────────────────────
+  useEffect(() => {
+    if (!caseId) return
+    try {
+      localStorage.setItem(`ae-state-${caseId}`, JSON.stringify({ openTabs, activeTab, tabStates }))
+    } catch { /* storage quota */ }
+  }, [caseId, openTabs, activeTab, tabStates])
+
+  // ── Validate persisted tabs against server file list ─────────────────────
+  useEffect(() => {
+    if (!files.length) return
+    const validIds = new Set(files.map(f => f.id))
+    setOpenTabs(prev => {
+      const next = prev.filter(id => validIds.has(id))
+      return next.length !== prev.length ? next : prev
+    })
+    setActiveTab(prev => (prev && !validIds.has(prev) ? null : prev))
+  }, [files])
+
   const openFile = useCallback((id: string) => {
     setOpenTabs(prev => prev.includes(id) ? prev : [...prev, id])
     setActiveTab(id)
@@ -1611,14 +1695,17 @@ export default function ArtifactExplorer() {
   const [uploadErr, setUploadErr] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  const SUPPORTED_EXTS = ['.csv', '.json', '.txt', '.log']
+
   const handleFiles = async (fileList: FileList | null) => {
     if (!fileList || !caseId) return
     setUploadErr(null)
     setUploading(true)
     let lastId: string | null = null
     for (const file of Array.from(fileList)) {
-      if (!file.name.endsWith('.csv') && file.type !== 'text/csv') {
-        setUploadErr('Only .csv files are supported.')
+      const ext = '.' + (file.name.split('.').pop() ?? '').toLowerCase()
+      if (!SUPPORTED_EXTS.includes(ext)) {
+        setUploadErr(`Type non supporté: ${ext}. Acceptés: ${SUPPORTED_EXTS.join(', ')}`)
         continue
       }
       try {
@@ -1702,6 +1789,7 @@ export default function ArtifactExplorer() {
 
   const [omniQuery,     setOmniQuery]     = useState('')
   const [omniDebounced, setOmniDebounced] = useState('')
+  const [omniRegex,     setOmniRegex]     = useState(false)
   const omniTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const handleOmniChange = (val: string) => {
@@ -1752,21 +1840,28 @@ export default function ArtifactExplorer() {
             <Globe size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-accent-muted/30" />
             <input value={omniQuery} onChange={e => handleOmniChange(e.target.value)}
               placeholder="Omnisearch all files…"
-              className={`w-full bg-white/5 border rounded pl-7 pr-6 py-1.5 text-[11px] text-white placeholder:text-accent-muted/30 outline-none transition-colors ${omniQuery ? 'border-blue-400/30 bg-blue-500/5' : 'border-white/8 focus:border-white/20'}`} />
-            {omniQuery && (
-              <button onClick={() => { setOmniQuery(''); setOmniDebounced('') }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-accent-muted/40 hover:text-white"><X size={10} /></button>
-            )}
+              className={`w-full bg-white/5 border rounded pl-7 pr-14 py-1.5 text-[11px] text-white placeholder:text-accent-muted/30 outline-none transition-colors ${omniQuery ? 'border-blue-400/30 bg-blue-500/5' : 'border-white/8 focus:border-white/20'}`} />
+            <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              <button
+                onClick={() => setOmniRegex(r => !r)}
+                title={omniRegex ? 'Désactiver regex' : 'Activer regex'}
+                className={`px-1 py-0.5 rounded text-[9px] font-mono border transition-colors ${omniRegex ? 'border-accent-green/40 text-accent-green bg-accent-green/10' : 'border-white/10 text-accent-muted/40 hover:text-white hover:border-white/20'}`}
+              >.*</button>
+              {omniQuery && (
+                <button onClick={() => { setOmniQuery(''); setOmniDebounced('') }}
+                  className="text-accent-muted/40 hover:text-white"><X size={10} /></button>
+              )}
+            </div>
           </div>
         </div>
 
         <div className="px-3 py-2 border-b border-white/5 shrink-0">
-          <input ref={fileRef} type="file" accept=".csv,text/csv" multiple className="sr-only"
+          <input ref={fileRef} type="file" accept=".csv,.json,.txt,.log,text/csv,application/json" multiple className="sr-only"
             onChange={e => handleFiles(e.target.files)} />
           <button onClick={() => fileRef.current?.click()} disabled={uploading}
             className="w-full flex items-center justify-center gap-1.5 text-[11px] py-1.5 rounded border border-dashed border-white/15 text-accent-muted hover:text-accent-green hover:border-accent-green/30 transition-colors disabled:opacity-40">
             {uploading ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
-            {uploading ? 'Uploading…' : 'Upload .csv'}
+            {uploading ? 'Uploading…' : 'Upload file…'}
           </button>
           {uploadErr && <p className="text-[10px] text-severity-critical mt-1">{uploadErr}</p>}
         </div>
@@ -1850,7 +1945,7 @@ export default function ArtifactExplorer() {
         )}
 
         {showOmni ? (
-          <OmniSearchView caseId={caseId} query={omniDebounced} onOpenFile={openFile} />
+          <OmniSearchView caseId={caseId} query={omniDebounced} regex={omniRegex} onOpenFile={openFile} />
         ) : activeTab && activeMeta ? (
           <ArtifactTableView key={activeTab} caseId={caseId} meta={activeMeta}
             state={tabStates[activeTab] ?? defaultTabState()}
@@ -1862,11 +1957,11 @@ export default function ArtifactExplorer() {
             <Table2 size={48} className="text-accent-muted/15" />
             <div className="text-center">
               <p className="text-white/40 text-sm">Select a file from the sidebar</p>
-              <p className="text-accent-muted/30 text-xs mt-1">or drop CSV files here to upload</p>
+              <p className="text-accent-muted/30 text-xs mt-1">or drop .csv / .json / .txt / .log files here to upload</p>
             </div>
             {dragging && (
               <div className="border-2 border-dashed border-accent-green/40 rounded-xl px-12 py-6 text-accent-green/60 text-sm">
-                Drop CSV files to upload
+                Drop files to upload (.csv, .json, .txt, .log)
               </div>
             )}
           </div>

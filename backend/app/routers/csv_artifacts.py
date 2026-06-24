@@ -73,6 +73,78 @@ def _detect_date_column(columns: list[str]) -> Optional[str]:
     return None
 
 
+# ── Multi-format converter ────────────────────────────────────────────────────
+
+def _convert_to_flat_csv(raw: bytes, filename: str) -> bytes:
+    """
+    Convert .txt/.log (line-per-row) or .json (array-of-objects / JSONL) to CSV.
+    Returns UTF-8 encoded CSV bytes.
+    """
+    import io
+    import csv as _csv
+    import json as _json
+
+    ext = Path(filename).suffix.lower()
+
+    if ext in ('.txt', '.log'):
+        text  = raw.decode('utf-8', errors='replace')
+        lines = [ln for ln in text.splitlines() if ln.strip()]
+        buf   = io.StringIO()
+        w     = _csv.writer(buf)
+        w.writerow(['line_number', 'line'])
+        for i, ln in enumerate(lines, 1):
+            w.writerow([str(i), ln])
+        return buf.getvalue().encode('utf-8')
+
+    if ext == '.json':
+        text = raw.decode('utf-8', errors='replace')
+        try:
+            data = _json.loads(text)
+        except _json.JSONDecodeError:
+            # Try JSONL (newline-delimited JSON)
+            data = []
+            for ln in text.splitlines():
+                ln = ln.strip()
+                if not ln:
+                    continue
+                try:
+                    data.append(_json.loads(ln))
+                except Exception:
+                    data.append({'raw': ln})
+
+        if isinstance(data, list) and data:
+            if isinstance(data[0], dict):
+                all_keys: list[str] = list(dict.fromkeys(k for obj in data if isinstance(obj, dict) for k in obj))
+                buf = io.StringIO()
+                w2  = _csv.DictWriter(buf, fieldnames=all_keys, extrasaction='ignore')
+                w2.writeheader()
+                for obj in data:
+                    if isinstance(obj, dict):
+                        w2.writerow({k: str(obj.get(k, '')) for k in all_keys})
+                    else:
+                        w2.writerow({k: '' for k in all_keys})
+                return buf.getvalue().encode('utf-8')
+            else:
+                buf = io.StringIO()
+                w3  = _csv.writer(buf)
+                w3.writerow(['value'])
+                for item in data:
+                    w3.writerow([str(item)])
+                return buf.getvalue().encode('utf-8')
+
+        elif isinstance(data, dict):
+            buf = io.StringIO()
+            w4  = _csv.writer(buf)
+            w4.writerow(['key', 'value'])
+            for k, v in data.items():
+                w4.writerow([str(k), str(v)])
+            return buf.getvalue().encode('utf-8')
+
+        return b'value\n'
+
+    return raw
+
+
 # ── DuckDB helpers ────────────────────────────────────────────────────────────
 
 def _duck_inspect(file_path: str) -> tuple[list[str], int]:
@@ -253,14 +325,18 @@ def _query_groups(
         conn.close()
 
 
-def _omni_query(file_path: str, columns: list[str], q: str, limit: int) -> tuple[int, list[dict]]:
+def _omni_query(file_path: str, columns: list[str], q: str, limit: int, regex: bool = False) -> tuple[int, list[dict]]:
     """Search a single CSV file via DuckDB. Returns (hit_count, first_N_rows)."""
     if not columns:
         return 0, []
     conn = duckdb.connect()
     try:
-        col_conds = " OR ".join(f'CAST("{c}" AS VARCHAR) ILIKE ?' for c in columns)
-        params_fp = [f"%{q}%"] * len(columns)
+        if regex:
+            col_conds = " OR ".join(f'regexp_matches(CAST("{c}" AS VARCHAR), ?)' for c in columns)
+            params_fp = [q] * len(columns)
+        else:
+            col_conds = " OR ".join(f'CAST("{c}" AS VARCHAR) ILIKE ?' for c in columns)
+            params_fp = [f"%{q}%"] * len(columns)
 
         count = conn.execute(
             f"SELECT COUNT(*) FROM read_csv_auto(?, ignore_errors=true) WHERE {col_conds}",
@@ -313,8 +389,9 @@ def list_artifacts(case_id: str, db: Session = Depends(get_db)) -> list[dict]:
 @router.get("/cases/{case_id}/artifacts/search")
 def omni_search(
     case_id: str,
-    q:       str = Query(..., min_length=2),
-    limit:   int = Query(15, ge=1, le=100),
+    q:       str  = Query(..., min_length=2),
+    limit:   int  = Query(15, ge=1, le=100),
+    regex:   bool = Query(False, description="Use regex matching instead of ILIKE"),
     db:      Session = Depends(get_db),
 ) -> dict:
     """Full-text search across ALL CSV artifacts in a case (omnisearch via DuckDB)."""
@@ -329,7 +406,7 @@ def omni_search(
 
     for a in artifacts:
         cols = json.loads(a.columns)
-        hit_count, hits = _omni_query(a.file_path, cols, q, limit)
+        hit_count, hits = _omni_query(a.file_path, cols, q, limit, regex=regex)
         if hit_count > 0:
             total_hits += hit_count
             results.append({
@@ -358,9 +435,23 @@ async def upload_artifact(
     artifact_id = str(uuid.uuid4())
     dest_dir    = _artifacts_dir(case_id)
     safe_name   = Path(file.filename or "upload.csv").name
-    file_path   = str(dest_dir / f"{artifact_id}_{safe_name}")
+    ext         = Path(safe_name).suffix.lower()
+
+    SUPPORTED = {'.csv', '.json', '.txt', '.log'}
+    if ext not in SUPPORTED:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Type de fichier '{ext}' non supporté. Formats acceptés : {', '.join(sorted(SUPPORTED))}",
+        )
 
     raw = await file.read()
+
+    # Non-CSV files are normalized to CSV so DuckDB can read them uniformly
+    if ext != '.csv':
+        raw       = _convert_to_flat_csv(raw, safe_name)
+        safe_name = Path(safe_name).stem + '.csv'
+
+    file_path = str(dest_dir / f"{artifact_id}_{safe_name}")
     with open(file_path, "wb") as fh:
         fh.write(raw)
 

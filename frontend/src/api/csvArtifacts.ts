@@ -108,10 +108,10 @@ export const csvArtifactsApi = {
   delete: (caseId: string, artifactId: string) =>
     api.delete(`/cases/${caseId}/artifacts/${artifactId}`),
 
-  search: (caseId: string, q: string, limit = 15) =>
+  search: (caseId: string, q: string, limit = 15, regex = false) =>
     api
       .get<OmniSearchResponse>(
-        `/cases/${caseId}/artifacts/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+        `/cases/${caseId}/artifacts/search?q=${encodeURIComponent(q)}&limit=${limit}${regex ? '&regex=true' : ''}`,
       )
       .then(r => r.data),
 }
