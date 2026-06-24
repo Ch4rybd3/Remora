@@ -77,9 +77,17 @@ function CopyBtn({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false)
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation()
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+    const markCopied = () => { setCopied(true); setTimeout(() => setCopied(false), 1500) }
+    navigator.clipboard.writeText(text).then(markCopied).catch(() => {
+      // Fallback for environments where clipboard API is restricted
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none'
+      document.body.appendChild(ta)
+      ta.focus()
+      ta.select()
+      try { document.execCommand('copy'); markCopied() } catch { /* silent */ }
+      document.body.removeChild(ta)
     })
   }
   return (

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, FolderOpen, FileText, Users, LogOut, GitBranch, Mail, HardDrive, Shield, Cpu, Binary, FileOutput, Swords, Archive, Clock, AlertTriangle, ChevronDown, Plug, Table2 } from 'lucide-react'
+import { LayoutDashboard, FolderOpen, FileText, Users, LogOut, GitBranch, Mail, HardDrive, Shield, Cpu, Binary, FileOutput, Swords, Archive, Clock, AlertTriangle, ChevronDown, Plug, Table2, Download } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useTimezone, TIMEZONE_OPTIONS, type TzOption } from '../../context/TimezoneContext'
 
@@ -216,6 +216,36 @@ export default function Sidebar() {
           </div>
         ))}
       </nav>
+
+      {/* Backup */}
+      <div className="px-3 py-2 border-t border-white/5">
+        <button
+          onClick={async () => {
+            try {
+              const token = localStorage.getItem('remora_token')
+              const res = await fetch('/api/v1/backup', {
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+              })
+              if (!res.ok) throw new Error(`HTTP ${res.status}`)
+              const blob = await res.blob()
+              const url  = URL.createObjectURL(blob)
+              const a    = document.createElement('a')
+              const date = new Date().toISOString().slice(0, 10)
+              a.href     = url
+              a.download = `remora_backup_${date}.db`
+              a.click()
+              URL.revokeObjectURL(url)
+            } catch (err) {
+              alert(`Backup failed: ${err}`)
+            }
+          }}
+          className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-accent-muted/50 hover:text-accent-green hover:bg-accent-green/5 transition-colors"
+          title="Télécharger une sauvegarde SQLite de la base de données"
+        >
+          <Download size={12} />
+          Backup BD
+        </button>
+      </div>
 
       {/* Timezone selector */}
       <div className="px-3 pb-1 border-t border-white/5 pt-2">

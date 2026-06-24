@@ -44,11 +44,14 @@ const CATEGORY_ICON: Record<string, string> = {
 }
 
 /**
- * All CSV artifact destinations now go to the generic Artifact Explorer.
- * The ?open=<filename> param lets the Explorer auto-open the correct file.
- * Legacy case-scoped and global artifact routes are both handled here.
+ * Resolve destination page for a collection group.
+ * - EVTX files → /artifacts/filesystem (EVTX viewer, uses CurrentCase context)
+ * - EML files  → /artifacts/email      (Email Analysis, uses CurrentCase context)
+ * - Everything else → /artifacts/explorer?open=<filename>
  */
 function resolveDestination(page: string | null, firstFilename?: string): string {
+  if (page?.includes('/evtx'))   return '/artifacts/filesystem'
+  if (page?.includes('/emails')) return '/artifacts/email'
   const base = '/artifacts/explorer'
   if (!firstFilename) return base
   return `${base}?open=${encodeURIComponent(firstFilename)}`

@@ -66,7 +66,7 @@ class Token:
         return f"Token({self.type}, {self.value!r}, @{self.pos})"
 
 
-_SINGLE: dict[str, str] = {'(': 'LPAREN', ')': 'RPAREN', ',': 'COMMA', '~': 'TILDE'}
+_SINGLE: dict[str, str] = {'(': 'LPAREN', ')': 'RPAREN', ',': 'COMMA', '~': 'TILDE', '*': 'STAR'}
 _DOUBLE: dict[str, str] = {'!=': 'NEQ', '>=': 'GTE', '<=': 'LTE'}
 _KEYWORDS: dict[str, str] = {
     'AND': 'AND', 'OR': 'OR', 'NOT': 'NOT',
@@ -224,6 +224,12 @@ class LastNode:
 class FullTextNode:
     value: str
 
+@dataclass
+class WildcardColNode:
+    """* CONTAINS/STARTSWITH/ENDSWITH/REGEX "value" — applies op across ALL columns."""
+    op:    str   # 'contains' | 'startswith' | 'endswith' | 'regex'
+    value: str
+
 
 # ── Parser ────────────────────────────────────────────────────────────────────
 
@@ -295,9 +301,23 @@ class _Parser:
             val = self._eat('STRING')
             return FullTextNode(val.value)
 
-        # Field expression
-        if tok.type == 'IDENT':
-            col = self._eat('IDENT').value
+        # Wildcard column: * CONTAINS / STARTSWITH / ENDSWITH / REGEX "value"
+        if tok.type == 'STAR':
+            self._eat('STAR')
+            next_tok = self._peek()
+            if next_tok.type not in ('CONTAINS', 'STARTSWITH', 'ENDSWITH', 'REGEX'):
+                raise RQLSyntaxError(
+                    "Expected CONTAINS, STARTSWITH, ENDSWITH or REGEX after '*'", next_tok.pos
+                )
+            op = self._eat(next_tok.type).value.lower()
+            val = self._eat('STRING').value
+            return WildcardColNode(op, val)
+
+        # Field expression — bare identifier OR quoted column name
+        if tok.type in ('IDENT', 'STRING'):
+            # Quoted strings used as column names must be followed by an operator,
+            # not by another STRING (which would indicate a tilde-less FTS attempt).
+            col = self._eat(tok.type).value
             return self._field_expr(col)
 
         raise RQLSyntaxError(
@@ -533,6 +553,26 @@ def _to_sql(node: Any, columns: list[str], params: list) -> str:
         for col in columns:
             params.append(f'%{node.value}%')
             parts.append(f'CAST("{col}" AS VARCHAR) ILIKE ?')
+        return '(' + ' OR '.join(parts) + ')'
+
+    if isinstance(node, WildcardColNode):
+        if not columns:
+            return '1=1'
+        parts = []
+        for col in columns:
+            cv = _cast_varchar(col)
+            if node.op == 'contains':
+                params.append(f'%{node.value}%')
+                parts.append(f'{cv} ILIKE ?')
+            elif node.op == 'startswith':
+                params.append(f'{node.value}%')
+                parts.append(f'{cv} ILIKE ?')
+            elif node.op == 'endswith':
+                params.append(f'%{node.value}')
+                parts.append(f'{cv} ILIKE ?')
+            elif node.op == 'regex':
+                params.append(node.value)
+                parts.append(f'regexp_matches({cv}, ?)')
         return '(' + ' OR '.join(parts) + ')'
 
     raise RQLSyntaxError(f"Unknown AST node: {type(node).__name__}")

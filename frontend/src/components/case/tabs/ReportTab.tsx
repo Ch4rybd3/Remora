@@ -24,19 +24,30 @@ import {
   User, Hash, FileOutput, ChevronDown, ChevronRight,
   Network, List, StickyNote, CheckCircle2, Circle,
   Sparkles, BookOpen, AlertCircle, Clipboard, ClipboardCheck,
-  FlaskConical, Wrench, Flag,
+  FlaskConical, Wrench, Flag, FileText, AlignLeft,
 }                                                            from 'lucide-react'
 import { casesApi }                                          from '../../../api/cases'
 import { reportVersionsApi, type ReportVersionMeta }        from '../../../api/reportVersions'
 import { reportDocTemplatesApi }                             from '../../../api/reportDocTemplates'
 import { playbooksApi, type CasePlaybook }                   from '../../../api/playbooks'
+import { templatesApi }                                      from '../../../api/templates'
 import { topoSortNodes }                                      from '../../../utils/playbookUtils'
 import { NODE_TYPES, EDGE_TYPES }                            from '../../playbook/PlaybookNodes'
 import MarkdownEditor                                        from '../../ui/MarkdownEditor'
-import type { Case }                                         from '../../../types'
+import type { Case, Template }                               from '../../../types'
 import { fmtRelative, fmtDateTime }                          from '../../../utils/dateUtils'
 
 interface Props { case_: Case }
+
+// ── Section slug (mirrors backend _section_slug) ────────────────────────────────
+
+function sectionSlug(section: NonNullable<Template['report_sections']>[number]): string {
+  if (section.tag) return section.tag.toLowerCase().trim()
+  return section.name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '') || 'section'
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -336,13 +347,26 @@ function PlaybookReference({ caseId }: { caseId: string }) {
 export default function ReportTab({ case_ }: Props) {
   const qc = useQueryClient()
 
+  // ── Fixed 3-box state (used when no template or template has no dynamic sections) ──
   const [analysis,    setAnalysis]    = useState(case_.report_analysis    ?? '')
   const [remediation, setRemediation] = useState(case_.report_remediation ?? '')
   const [conclusion,  setConclusion]  = useState(case_.report_conclusion  ?? '')
+
+  // ── Dynamic per-section state ──────────────────────────────────────────────
+  const initSectionsData = (): Record<string, string> => {
+    try { return JSON.parse(case_.report_sections_data || '{}') } catch { return {} }
+  }
+  const [sectionsData,    setSectionsData]    = useState<Record<string, string>>(initSectionsData)
+
   const [dirty,              setDirty]             = useState(false)
   const [versionsOpen,       setVersionsOpen]      = useState(false)
   const [selectedTemplateId, setSelectedTemplateId]= useState<number | ''>('')
   const [exporting,          setExporting]         = useState(false)
+
+  const [rightTab,    setRightTab]    = useState<'summary' | 'playbook'>('summary')
+  const [quickNotes,  setQuickNotes]  = useState(case_.quick_notes        ?? '')
+  const [execSummary, setExecSummary] = useState(case_.executive_summary  ?? '')
+  const [notesDirty,  setNotesDirty]  = useState(false)
 
   const markDirty = () => setDirty(true)
 
@@ -352,6 +376,18 @@ export default function ReportTab({ case_ }: Props) {
     queryFn:  reportDocTemplatesApi.list,
   })
 
+  // ── Case template (for dynamic sections) ──────────────────────────────────
+  const { data: caseTemplate } = useQuery({
+    queryKey: ['template', case_.template_id],
+    queryFn:  () => templatesApi.get(case_.template_id!),
+    enabled:  !!case_.template_id,
+    staleTime: 60_000,
+  })
+
+  const dynamicSections = caseTemplate?.report_sections?.length
+    ? caseTemplate.report_sections
+    : null
+
   // ── Versions ───────────────────────────────────────────────────────────────
   const { data: versions = [] } = useQuery({
     queryKey: ['report-versions', case_.id],
@@ -360,7 +396,9 @@ export default function ReportTab({ case_ }: Props) {
 
   // ── Save ───────────────────────────────────────────────────────────────────
   const save = useMutation({
-    mutationFn: () => reportVersionsApi.save(case_.id, { analysis, remediation, conclusion }),
+    mutationFn: () => dynamicSections
+      ? reportVersionsApi.save(case_.id, { sections_data: sectionsData })
+      : reportVersionsApi.save(case_.id, { analysis, remediation, conclusion }),
     onSuccess:  () => {
       qc.invalidateQueries({ queryKey: ['case', case_.id] })
       qc.invalidateQueries({ queryKey: ['report-versions', case_.id] })
@@ -368,24 +406,43 @@ export default function ReportTab({ case_ }: Props) {
     },
   })
 
-  // ── Auto-generate (fills all 3 boxes from case template) ──────────────────
+  // ── Auto-generate (fills sections from case template) ─────────────────────
   const generate = useMutation({
     mutationFn: () => casesApi.generateReport(case_.id),
-    onSuccess:  (data) => {
-      if (data.analysis)    { setAnalysis(prev    => prev.trim() ? prev + '\n\n---\n\n' + data.analysis    : data.analysis)    }
-      if (data.remediation) { setRemediation(prev => prev.trim() ? prev + '\n\n---\n\n' + data.remediation : data.remediation) }
-      if (data.conclusion)  { setConclusion(prev  => prev.trim() ? prev + '\n\n---\n\n' + data.conclusion  : data.conclusion)  }
+    onSuccess:  (data: { analysis: string; remediation: string; conclusion: string; sections_data?: Record<string, string> }) => {
+      if (dynamicSections && data.sections_data) {
+        setSectionsData(prev => {
+          const merged = { ...prev }
+          for (const [k, v] of Object.entries(data.sections_data!)) {
+            merged[k] = merged[k]?.trim() ? merged[k] + '\n\n---\n\n' + v : v
+          }
+          return merged
+        })
+      } else {
+        if (data.analysis)    { setAnalysis(prev    => prev.trim() ? prev + '\n\n---\n\n' + data.analysis    : data.analysis)    }
+        if (data.remediation) { setRemediation(prev => prev.trim() ? prev + '\n\n---\n\n' + data.remediation : data.remediation) }
+        if (data.conclusion)  { setConclusion(prev  => prev.trim() ? prev + '\n\n---\n\n' + data.conclusion  : data.conclusion)  }
+      }
       setDirty(true)
     },
   })
 
   // ── Restore from version (combined → split back by separator) ─────────────
   const handleRestore = (combined: string) => {
-    // Try to split on section headers if present, else put all in analysis
-    const parts = combined.split(/\n{1,2}---\n{1,2}/)
-    setAnalysis(parts[0]?.trim()    ?? combined)
-    setRemediation(parts[1]?.trim() ?? '')
-    setConclusion(parts[2]?.trim()  ?? '')
+    if (dynamicSections) {
+      // For dynamic sections, put everything in the first section
+      const sections = dynamicSections
+      if (sections.length > 0) {
+        const slug = sectionSlug(sections[0])
+        setSectionsData(prev => ({ ...prev, [slug]: combined }))
+      }
+    } else {
+      // Try to split on section headers if present, else put all in analysis
+      const parts = combined.split(/\n{1,2}---\n{1,2}/)
+      setAnalysis(parts[0]?.trim()    ?? combined)
+      setRemediation(parts[1]?.trim() ?? '')
+      setConclusion(parts[2]?.trim()  ?? '')
+    }
     setDirty(true)
   }
 
@@ -408,9 +465,16 @@ export default function ReportTab({ case_ }: Props) {
 
   // ── Export MD (combined) ──────────────────────────────────────────────────
   const handleExportMd = () => {
-    const combined = [analysis, remediation, conclusion]
-      .filter(s => s.trim())
-      .join('\n\n---\n\n')
+    const combined = dynamicSections
+      ? dynamicSections
+          .map(s => {
+            const slug = sectionSlug(s)
+            const content = sectionsData[slug]?.trim()
+            return content ? `## ${s.name}\n\n${content}` : ''
+          })
+          .filter(Boolean)
+          .join('\n\n---\n\n')
+      : [analysis, remediation, conclusion].filter(s => s.trim()).join('\n\n---\n\n')
     const blob = new Blob([combined], { type: 'text/markdown' })
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')
@@ -419,6 +483,18 @@ export default function ReportTab({ case_ }: Props) {
     a.click()
     URL.revokeObjectURL(url)
   }
+
+  // ── Save quick notes + executive summary ─────────────────────────────────
+  const saveNotes = useMutation({
+    mutationFn: () => casesApi.update(case_.id, {
+      quick_notes:       quickNotes,
+      executive_summary: execSummary,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['case', case_.id] })
+      setNotesDirty(false)
+    },
+  })
 
   const hasTemplate = !!case_.template_id
 
@@ -439,7 +515,9 @@ export default function ReportTab({ case_ }: Props) {
             <span className="text-xs font-semibold text-accent-green tracking-wide">Rapport</span>
             {hasTemplate ? (
               <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-accent-green/8 text-accent-green/60 border border-accent-green/15">
-                template: {case_.template_id}
+                {dynamicSections
+                  ? `${dynamicSections.length} sections dynamiques`
+                  : `template: ${case_.template_id}`}
               </span>
             ) : (
               <span className="flex items-center gap-1 text-[9px] text-accent-muted/30">
@@ -554,52 +632,164 @@ export default function ReportTab({ case_ }: Props) {
           </div>
         )}
 
-        {/* ── 3 report boxes ────────────────────────────────────────────────── */}
+        {/* ── Report boxes ──────────────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto">
-          {[
-            { meta: BOX_META[0], value: analysis,    onChange: (v: string) => { setAnalysis(v);    markDirty() } },
-            { meta: BOX_META[1], value: remediation,  onChange: (v: string) => { setRemediation(v); markDirty() } },
-            { meta: BOX_META[2], value: conclusion,   onChange: (v: string) => { setConclusion(v);  markDirty() } },
-          ].map(({ meta, value, onChange }) => (
-            <div key={meta.tag} className="border-b border-white/5 last:border-b-0">
-              {/* Box header */}
-              <div className={`flex items-center gap-2 px-4 py-2 border-b border-white/5 ${meta.color}`}>
-                <span className="shrink-0">{meta.icon}</span>
-                <span className="text-[11px] font-semibold tracking-wide">{meta.label}</span>
-                <code className="ml-auto text-[9px] font-mono opacity-40">{meta.tag}</code>
+          {dynamicSections ? (
+            /* Dynamic sections from case template */
+            dynamicSections.map((section) => {
+              const slug = sectionSlug(section)
+              const catColor =
+                (section.category || '').includes('anal') ? 'text-blue-400 border-blue-500/20 bg-blue-500/5' :
+                (section.category || '').includes('remed') ? 'text-orange-400 border-orange-500/20 bg-orange-500/5' :
+                (section.category || '').includes('concl') ? 'text-purple-300 border-purple-500/20 bg-purple-500/5' :
+                'text-accent-green/70 border-accent-green/20 bg-accent-green/5'
+              return (
+                <div key={slug} className="border-b border-white/5 last:border-b-0">
+                  <div className={`flex items-center gap-2 px-4 py-2 border-b border-white/5 ${catColor}`}>
+                    <FlaskConical size={12} />
+                    <span className="text-[11px] font-semibold tracking-wide">{section.name}</span>
+                    <code className="ml-auto text-[9px] font-mono opacity-40">{`{{${slug}}}`}</code>
+                  </div>
+                  <div className="p-3">
+                    <MarkdownEditor
+                      value={sectionsData[slug] ?? ''}
+                      onChange={v => { setSectionsData(prev => ({ ...prev, [slug]: v })); markDirty() }}
+                      caseId={case_.id}
+                      minHeight={160}
+                      autoResize
+                      placeholder={section.template || `${section.name}…`}
+                    />
+                  </div>
+                </div>
+              )
+            })
+          ) : (
+            /* Fixed 3 boxes (no template or template has no sections) */
+            [
+              { meta: BOX_META[0], value: analysis,    onChange: (v: string) => { setAnalysis(v);    markDirty() } },
+              { meta: BOX_META[1], value: remediation,  onChange: (v: string) => { setRemediation(v); markDirty() } },
+              { meta: BOX_META[2], value: conclusion,   onChange: (v: string) => { setConclusion(v);  markDirty() } },
+            ].map(({ meta, value, onChange }) => (
+              <div key={meta.tag} className="border-b border-white/5 last:border-b-0">
+                <div className={`flex items-center gap-2 px-4 py-2 border-b border-white/5 ${meta.color}`}>
+                  <span className="shrink-0">{meta.icon}</span>
+                  <span className="text-[11px] font-semibold tracking-wide">{meta.label}</span>
+                  <code className="ml-auto text-[9px] font-mono opacity-40">{meta.tag}</code>
+                </div>
+                <div className="p-3">
+                  <MarkdownEditor
+                    value={value}
+                    onChange={onChange}
+                    caseId={case_.id}
+                    minHeight={160}
+                    autoResize
+                    placeholder={meta.placeholder}
+                  />
+                </div>
               </div>
-              {/* Editor */}
-              <div className="p-3">
-                <MarkdownEditor
-                  value={value}
-                  onChange={onChange}
-                  caseId={case_.id}
-                  minHeight={160}
-                  autoResize
-                  placeholder={meta.placeholder}
-                />
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
 
-      {/* ══ RIGHT — Playbook reference ══════════════════════════════════════ */}
+      {/* ══ RIGHT — Résumé + Playbook tabs ══════════════════════════════════ */}
       <div className="flex-[2] min-w-0 flex flex-col overflow-hidden bg-bg-secondary/20">
-        <div className="px-3 py-2.5 border-b border-white/5 shrink-0">
-          <div className="flex items-center gap-2">
-            <StickyNote size={12} className="text-accent-muted/50" />
-            <span className="text-[10px] font-semibold tracking-widest uppercase text-accent-muted/40">
-              Notes d'investigation
-            </span>
+
+        {/* Tab bar */}
+        <div className="flex items-center gap-0 border-b border-white/5 shrink-0">
+          <button
+            onClick={() => setRightTab('summary')}
+            className={`flex items-center gap-1.5 px-3 py-2.5 text-[10px] font-medium border-b-2 transition-colors ${
+              rightTab === 'summary'
+                ? 'border-accent-green text-accent-green'
+                : 'border-transparent text-accent-muted/40 hover:text-white'
+            }`}
+          >
+            <AlignLeft size={11} />
+            Résumé &amp; Notes
+          </button>
+          <button
+            onClick={() => setRightTab('playbook')}
+            className={`flex items-center gap-1.5 px-3 py-2.5 text-[10px] font-medium border-b-2 transition-colors ${
+              rightTab === 'playbook'
+                ? 'border-accent-green text-accent-green'
+                : 'border-transparent text-accent-muted/40 hover:text-white'
+            }`}
+          >
+            <StickyNote size={11} />
+            Notes Playbook
+          </button>
+          {notesDirty && (
+            <button
+              onClick={() => saveNotes.mutate()}
+              disabled={saveNotes.isPending}
+              className="ml-auto mr-3 flex items-center gap-1 text-[10px] px-2 py-1 rounded bg-accent-green/10 text-accent-green border border-accent-green/25 hover:bg-accent-green/20 transition-colors"
+            >
+              <Save size={10} className={saveNotes.isPending ? 'animate-pulse' : ''} />
+              {saveNotes.isPending ? '…' : 'Sauv.'}
+            </button>
+          )}
+        </div>
+
+        {/* Résumé tab */}
+        {rightTab === 'summary' && (
+          <div className="flex-1 overflow-y-auto">
+
+            {/* Executive Summary */}
+            <div className="border-b border-white/5">
+              <div className="flex items-center gap-2 px-3 py-2 bg-accent-green/[0.04] border-b border-accent-green/10">
+                <FileText size={11} className="text-accent-green/60" />
+                <span className="text-[11px] font-semibold text-accent-green/80 tracking-wide">Executive Summary</span>
+                <code className="ml-auto text-[9px] font-mono text-accent-muted/30">case.executive_summary</code>
+              </div>
+              <div className="p-3">
+                <MarkdownEditor
+                  value={execSummary}
+                  onChange={v => { setExecSummary(v); setNotesDirty(true) }}
+                  caseId={case_.id}
+                  minHeight={140}
+                  autoResize
+                  placeholder="Résumé exécutif — synthèse non-technique de l'incident, impact métier, actions clés…"
+                />
+              </div>
+            </div>
+
+            {/* Quick Notes */}
+            <div>
+              <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.02] border-b border-white/5">
+                <StickyNote size={11} className="text-accent-muted/50" />
+                <span className="text-[11px] font-semibold text-accent-muted/60 tracking-wide">Notes rapides</span>
+                <code className="ml-auto text-[9px] font-mono text-accent-muted/30">case.quick_notes</code>
+              </div>
+              <div className="p-3">
+                <MarkdownEditor
+                  value={quickNotes}
+                  onChange={v => { setQuickNotes(v); setNotesDirty(true) }}
+                  caseId={case_.id}
+                  minHeight={120}
+                  autoResize
+                  placeholder="Notes rapides d'investigation, IOCs à creuser, hypothèses…"
+                />
+              </div>
+            </div>
+
           </div>
-          <p className="text-[9px] text-accent-muted/20 mt-0.5">
-            Lecture seule — copie-colle dans l'éditeur de gauche
-          </p>
-        </div>
-        <div className="flex-1 overflow-hidden">
-          <PlaybookReference caseId={case_.id} />
-        </div>
+        )}
+
+        {/* Playbook tab */}
+        {rightTab === 'playbook' && (
+          <div className="flex-1 overflow-hidden">
+            <div className="px-3 py-2 border-b border-white/5 shrink-0">
+              <p className="text-[9px] text-accent-muted/20">
+                Lecture seule — copie-colle dans l'éditeur de gauche
+              </p>
+            </div>
+            <div className="h-full overflow-hidden">
+              <PlaybookReference caseId={case_.id} />
+            </div>
+          </div>
+        )}
+
       </div>
 
     </div>

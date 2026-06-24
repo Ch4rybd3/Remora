@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
-from ..models.case import CaseStatus, CaseSeverity
+from ..models.case import CaseStatus, CaseSeverity, CaseType
 
 
 class CaseBase(BaseModel):
@@ -13,9 +13,15 @@ class CaseBase(BaseModel):
     template_id: Optional[str] = None
     assigned_to: str = ""
     tlp: str = "TLP:AMBER"
+    case_type: CaseType = CaseType.ir
+    client_name: str = ""
     executive_summary: str = ""
     quick_notes: str = ""
     report: str = ""
+    report_analysis: str = ""
+    report_remediation: str = ""
+    report_conclusion: str = ""
+    report_sections_data: str = "{}"
 
 
 class CaseCreate(CaseBase):
@@ -30,9 +36,15 @@ class CaseUpdate(BaseModel):
     tags: Optional[str] = None
     assigned_to: Optional[str] = None
     tlp: Optional[str] = None
+    case_type: Optional[CaseType] = None
+    client_name: Optional[str] = None
     executive_summary: Optional[str] = None
     quick_notes: Optional[str] = None
     report: Optional[str] = None
+    report_analysis: Optional[str] = None
+    report_remediation: Optional[str] = None
+    report_conclusion: Optional[str] = None
+    report_sections_data: Optional[str] = None
 
 
 class CaseRead(CaseBase):
@@ -52,6 +64,8 @@ class CaseSummary(BaseModel):
     tags: str
     assigned_to: str
     tlp: str
+    case_type: CaseType = CaseType.ir
+    client_name: str = ""
     created_at: datetime
     updated_at: datetime
     ioc_count: int = 0

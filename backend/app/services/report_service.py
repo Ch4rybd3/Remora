@@ -1,22 +1,27 @@
 """
 Report generation service.
 
-generate_analysis()  — builds the 3 analyst-facing sections from the case
-  template's `report_sections` (each section carries a `category` field:
-  analyse | remediation | conclusion).
-
-Returns a dict:
+generate_analysis()  — builds analyst-facing sections from the case template's
+  `report_sections`.  Returns:
     {
-        "analysis":    str,   # → case.report_analysis    / {{report_analysis}}
-        "remediation": str,   # → case.report_remediation / {{report_remediation}}
-        "conclusion":  str,   # → case.report_conclusion  / {{report_conclusion}}
+        "analysis":      str,          # merged content for {{report_analysis}} (backward compat)
+        "remediation":   str,          # for {{report_remediation}}
+        "conclusion":    str,          # for {{report_conclusion}}
+        "sections_data": dict[str,str] # {slug: text} — one entry per section, for {{slug}} tags
     }
 
-The annexe data (IOC table, assets, MITRE matrix, timeline …) are handled
-by the Report Template via {{ }} tags in report_doc_templates.py.
+Section slug = section.get("tag") or slugified section["name"].
 """
 
+import re
 from ..models.case import Case
+
+
+def _section_slug(section: dict) -> str:
+    if section.get("tag"):
+        return section["tag"].lower().strip()
+    name = section.get("name", "section")
+    return re.sub(r'[^a-z0-9]+', '_', name.lower().strip()).strip('_') or "section"
 
 
 # ── Default sections used when the case has no template attached ───────────
@@ -69,37 +74,36 @@ class ReportService:
 
     def generate_analysis(self, case: Case, template: dict | None = None) -> dict:
         """
-        Return a dict with three markdown strings — one per report box.
+        Return a dict with per-section content plus backward-compat 3-bucket keys.
 
-        Sections in the case template's `report_sections` are routed to the
-        correct bucket via their `category` field:
-            analyse / analysis   → "analysis"
-            remediation          → "remediation"
-            conclusion           → "conclusion"
-
-        Sections without a recognised category default to "analysis".
-        If no template or no `report_sections`, DEFAULT_SECTIONS are used.
+        Each section gets:
+          - a slug (from section["tag"] or slugified section["name"])
+          - its content added to sections_data[slug]
+          - its content also merged into the matching bucket (analysis/remediation/conclusion)
         """
         sections_def: list[dict] = (
             (template.get("report_sections") or []) if template else []
         ) or DEFAULT_SECTIONS
 
         buckets: dict[str, list[str]] = {"analysis": [], "remediation": [], "conclusion": []}
+        sections_data: dict[str, str] = {}
 
         for section in sections_def:
             name          = section.get("name", "Section")
             template_text = (section.get("template") or "").strip()
             raw_cat       = (section.get("category") or "analyse").lower().strip()
             bucket        = _CAT_MAP.get(raw_cat, "analysis")
+            slug          = _section_slug(section)
 
-            lines: list[str] = [f"## {name}\n"]
-            lines.append(template_text + "\n" if template_text else "*…*\n")
-            buckets[bucket].append("\n".join(lines))
+            content = f"## {name}\n\n{template_text}\n" if template_text else f"## {name}\n\n*…*\n"
+            buckets[bucket].append(content)
+            sections_data[slug] = content.strip()
 
         return {
-            "analysis":    "\n".join(buckets["analysis"]).strip(),
-            "remediation": "\n".join(buckets["remediation"]).strip(),
-            "conclusion":  "\n".join(buckets["conclusion"]).strip(),
+            "analysis":      "\n".join(buckets["analysis"]).strip(),
+            "remediation":   "\n".join(buckets["remediation"]).strip(),
+            "conclusion":    "\n".join(buckets["conclusion"]).strip(),
+            "sections_data": sections_data,
         }
 
     # ── Private helpers ────────────────────────────────────────────────────────

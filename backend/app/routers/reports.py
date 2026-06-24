@@ -37,16 +37,18 @@ class ReportVersionFull(ReportVersionMeta):
 
 
 class SaveReportPayload(BaseModel):
-    content:    str = ""          # legacy combined field (kept for backward compat)
-    analysis:   Optional[str] = None
-    remediation: Optional[str] = None
-    conclusion: Optional[str] = None
+    content:              str = ""       # legacy combined field (kept for backward compat)
+    analysis:             Optional[str] = None
+    remediation:          Optional[str] = None
+    conclusion:           Optional[str] = None
+    sections_data:        Optional[dict] = None   # {slug: markdown_text} for dynamic sections
 
 
 class GenerateResponse(BaseModel):
-    analysis:    str
-    remediation: str
-    conclusion:  str
+    analysis:      str
+    remediation:   str
+    conclusion:    str
+    sections_data: dict = {}   # {slug: markdown_text} when template has dynamic sections
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -67,9 +69,8 @@ def generate_report(
     current_user: User    = Depends(get_current_user),
 ):
     """
-    Generate the 3 analyst-facing sections (Analyse, Remédiations, Conclusion)
-    from the case template's report_sections.  Returns a JSON object with keys
-    analysis / remediation / conclusion.
+    Generate the analyst-facing sections from the case template's report_sections.
+    Returns { analysis, remediation, conclusion, sections_data }.
     """
     case = _get_case_or_404(case_id, db)
     template = None
@@ -119,16 +120,32 @@ def save_report(
     """
     case = _get_case_or_404(case_id, db)
 
+    import json as _json
+
     # Persist individual sections
     if payload.analysis    is not None: case.report_analysis    = payload.analysis
     if payload.remediation is not None: case.report_remediation = payload.remediation
     if payload.conclusion  is not None: case.report_conclusion  = payload.conclusion
 
+    # Persist dynamic per-section data
+    if payload.sections_data is not None:
+        case.report_sections_data = _json.dumps(payload.sections_data, ensure_ascii=False)
+
     # Keep combined `report` in sync for {{report_content}} backward compat
     parts = []
-    for field in (case.report_analysis, case.report_remediation, case.report_conclusion):
-        if field and field.strip():
-            parts.append(field.strip())
+    # Include dynamic sections if present
+    try:
+        sd = _json.loads(case.report_sections_data or '{}')
+    except Exception:
+        sd = {}
+    if sd:
+        for v in sd.values():
+            if v and str(v).strip():
+                parts.append(str(v).strip())
+    else:
+        for field in (case.report_analysis, case.report_remediation, case.report_conclusion):
+            if field and field.strip():
+                parts.append(field.strip())
     case.report = "\n\n---\n\n".join(parts) if parts else (payload.content or "")
 
     # Snapshot content = combined markdown

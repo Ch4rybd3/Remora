@@ -554,10 +554,18 @@ def _render_markdown(template_text: str, case: Case, ctx: dict[str, str]) -> str
     text = text.replace("{{attack_graph}}", "_[Attach the attack graph image — export it from the Attack Graph tab]_")
     text = text.replace("{{mitre_matrix}}", _md_mitre_matrix(case))
     text = text.replace("{{mitre_matrix_img}}", "_[MITRE ATT&CK matrix image — available in DOCX export only]_")
-    # Split report content tags
+    # Split report content tags (fixed 3-section backward compat)
     text = text.replace("{{report_analysis}}",    (case.report_analysis    or "").strip() or "_[Aucune analyse rédigée.]_")
     text = text.replace("{{report_remediation}}", (case.report_remediation or "").strip() or "_[Aucune remédiation rédigée.]_")
     text = text.replace("{{report_conclusion}}",  (case.report_conclusion  or "").strip() or "_[Aucune conclusion rédigée.]_")
+    # Dynamic per-section tags from report_sections_data
+    import json as _json
+    try:
+        sections_data: dict = _json.loads(getattr(case, "report_sections_data", None) or "{}")
+    except Exception:
+        sections_data = {}
+    for slug, content in sections_data.items():
+        text = text.replace(f"{{{{{slug}}}}}", (content or "").strip() or f"_[Section «{slug}» non rédigée.]_")
     # Combined backward compat
     text = text.replace("{{report_content}}", case.report or "_[Aucun contenu de rapport rédigé.]_")
     return text
@@ -1283,6 +1291,19 @@ def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
 
         elif block_tag == "report_conclusion":
             _md_to_docx_paragraphs(doc, para, (case.report_conclusion or "").strip() or "_[Aucune conclusion rédigée.]_")
+
+        elif block_tag.startswith("report_") is False and block_tag not in (
+            "ioc_table", "asset_table", "evidence_table", "timeline_table",
+            "attack_graph", "mitre_matrix", "mitre_matrix_img", "report_content",
+        ):
+            # Dynamic per-section tag — look up in report_sections_data
+            import json as _json
+            try:
+                sd: dict = _json.loads(getattr(case, "report_sections_data", None) or "{}")
+            except Exception:
+                sd = {}
+            content = sd.get(block_tag, "").strip()
+            _md_to_docx_paragraphs(doc, para, content or f"_[Section «{block_tag}» non rédigée.]_")
 
         elif block_tag == "report_content":
             # Combined backward compat alias

@@ -1,13 +1,13 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, FolderOpen } from 'lucide-react'
+import { Plus, Search, FolderOpen, Building2 } from 'lucide-react'
 import { casesApi } from '../api/cases'
 import { templatesApi } from '../api/templates'
 import { usersApi } from '../api/auth'
 import { playbooksApi } from '../api/playbooks'
 import { useAuth } from '../context/AuthContext'
-import type { Case, CaseSeverity, CaseStatus } from '../types'
+import type { Case, CaseSeverity, CaseStatus, CaseType } from '../types'
 import { SeverityBadge, StatusBadge, TLPBadge, Tag } from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import EmptyState from '../components/ui/EmptyState'
@@ -16,6 +16,22 @@ import { GitBranch } from 'lucide-react'
 import { fmtDate } from '../utils/dateUtils'
 
 const USER_BADGE = 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+
+const CASE_TYPE_META: Record<CaseType, { label: string; color: string }> = {
+  ir:      { label: 'IR',      color: 'bg-severity-critical/10 text-severity-critical border-severity-critical/20' },
+  ctf:     { label: 'CTF',     color: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
+  pentest: { label: 'Pentest', color: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
+  sample:  { label: 'Sample',  color: 'bg-white/5 text-accent-muted border-white/10' },
+}
+
+function CaseTypeBadge({ type }: { type: CaseType }) {
+  const m = CASE_TYPE_META[type] ?? CASE_TYPE_META.ir
+  return (
+    <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border ${m.color}`}>
+      {m.label}
+    </span>
+  )
+}
 
 function toAssigneeTags(str: string): InputTag[] {
   return str.split(',').map(s => s.trim()).filter(Boolean).map(v => ({ value: v, badgeColor: USER_BADGE }))
@@ -28,6 +44,7 @@ function fromAssigneeTags(tags: InputTag[]): string {
 const empty = (): Partial<Case> => ({
   title: '', description: '', severity: 'medium', status: 'open',
   tags: '', tlp: 'TLP:AMBER', assigned_to: '', template_id: undefined,
+  case_type: 'ir', client_name: '',
 })
 
 export default function Cases() {
@@ -39,6 +56,7 @@ export default function Cases() {
   const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: usersApi.list })
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<CaseStatus | 'all'>('all')
+  const [typeFilter, setTypeFilter] = useState<CaseType | 'all'>('all')
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState<Partial<Case>>(empty())
   const [assigneeTags, setAssigneeTags] = useState<InputTag[]>([])
@@ -75,12 +93,15 @@ export default function Cases() {
   })
 
   const filtered = cases.filter(c => {
-    const matchSearch = c.title.toLowerCase().includes(search.toLowerCase())
+    const matchSearch = c.title.toLowerCase().includes(search.toLowerCase()) ||
+                        c.client_name?.toLowerCase().includes(search.toLowerCase())
     const matchStatus = statusFilter === 'all' || c.status === statusFilter
-    return matchSearch && matchStatus
+    const matchType   = typeFilter   === 'all' || c.case_type === typeFilter
+    return matchSearch && matchStatus && matchType
   })
 
   const statusTabs: (CaseStatus | 'all')[] = ['all', 'open', 'in_progress', 'closed', 'archived']
+  const typeTabs: (CaseType | 'all')[] = ['all', 'ir', 'ctf', 'pentest', 'sample']
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -94,28 +115,52 @@ export default function Cases() {
         </button>
       </div>
 
-      <div className="flex items-center gap-4 mb-6">
-        <div className="relative flex-1 max-w-sm">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-accent-muted" />
-          <input
-            className="input pl-9"
-            placeholder="Search cases…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+      {/* Search + filters */}
+      <div className="space-y-3 mb-6">
+        <div className="flex items-center gap-4">
+          <div className="relative flex-1 max-w-sm">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-accent-muted" />
+            <input
+              className="input pl-9"
+              placeholder="Search cases or client…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          {/* Status filter */}
+          <div className="flex gap-1 border border-white/10 rounded-lg p-1">
+            {statusTabs.map(s => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={`px-3 py-1 text-xs rounded-md capitalize transition-colors ${
+                  statusFilter === s ? 'bg-accent-green text-bg-primary font-semibold' : 'text-accent-muted hover:text-white'
+                }`}
+              >
+                {s.replace('_', ' ')}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex gap-1 border border-white/10 rounded-lg p-1">
-          {statusTabs.map(s => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              className={`px-3 py-1 text-xs rounded-md capitalize transition-colors ${
-                statusFilter === s ? 'bg-accent-green text-bg-primary font-semibold' : 'text-accent-muted hover:text-white'
-              }`}
-            >
-              {s.replace('_', ' ')}
-            </button>
-          ))}
+
+        {/* Type filter */}
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-accent-muted/40 uppercase tracking-widest">Type</span>
+          <div className="flex gap-1">
+            {typeTabs.map(t => (
+              <button
+                key={t}
+                onClick={() => setTypeFilter(t)}
+                className={`px-2.5 py-1 text-[10px] rounded-md font-mono capitalize transition-colors border ${
+                  typeFilter === t
+                    ? 'bg-accent-green/15 text-accent-green border-accent-green/30 font-semibold'
+                    : 'text-accent-muted/50 border-transparent hover:text-white hover:border-white/10'
+                }`}
+              >
+                {t === 'all' ? 'Tous' : CASE_TYPE_META[t as CaseType]?.label ?? t}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -133,6 +178,7 @@ export default function Cases() {
             <thead>
               <tr className="border-b border-white/5 text-accent-muted text-xs uppercase tracking-wide">
                 <th className="text-left px-4 py-3">Title</th>
+                <th className="text-left px-4 py-3">Type</th>
                 <th className="text-left px-4 py-3">Severity</th>
                 <th className="text-left px-4 py-3">Status</th>
                 <th className="text-left px-4 py-3">TLP</th>
@@ -151,6 +197,12 @@ export default function Cases() {
                   <td className="px-4 py-3">
                     <div>
                       <p className="font-medium">{c.title}</p>
+                      {c.client_name && (
+                        <p className="flex items-center gap-1 text-[10px] text-accent-muted/50 mt-0.5">
+                          <Building2 size={9} />
+                          {c.client_name}
+                        </p>
+                      )}
                       {c.tags && (
                         <div className="flex gap-1 mt-1 flex-wrap">
                           {c.tags.split(',').filter(Boolean).slice(0, 3).map(t => (
@@ -159,6 +211,9 @@ export default function Cases() {
                         </div>
                       )}
                     </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <CaseTypeBadge type={c.case_type ?? 'ir'} />
                   </td>
                   <td className="px-4 py-3"><SeverityBadge severity={c.severity} /></td>
                   <td className="px-4 py-3"><StatusBadge status={c.status} /></td>
@@ -174,9 +229,7 @@ export default function Cases() {
                     </div>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-accent-muted">{c.ioc_count}</td>
-                  <td className="px-4 py-3 text-xs text-accent-muted">
-                    {fmtDate(c.updated_at)}
-                  </td>
+                  <td className="px-4 py-3 text-xs text-accent-muted">{fmtDate(c.updated_at)}</td>
                 </tr>
               ))}
             </tbody>
@@ -184,12 +237,30 @@ export default function Cases() {
         </div>
       )}
 
-      <Modal open={modalOpen} onClose={() => { setModalOpen(false) }} title="New Case" size="lg">
+      {/* New Case modal */}
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="New Case" size="lg">
         <div className="space-y-4">
           <div>
             <label className="label">Title *</label>
             <input className="input" placeholder="e.g. Ransomware incident — FinanceServer01" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
           </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">Type</label>
+              <select className="input" value={form.case_type ?? 'ir'} onChange={e => setForm(f => ({ ...f, case_type: e.target.value as CaseType }))}>
+                <option value="ir">IR — Incident Response</option>
+                <option value="ctf">CTF — Capture The Flag</option>
+                <option value="pentest">Pentest</option>
+                <option value="sample">Sample / Test</option>
+              </select>
+            </div>
+            <div>
+              <label className="label flex items-center gap-1.5"><Building2 size={11} /> Client / Organisation</label>
+              <input className="input" placeholder="Nom du client ou organisme…" value={form.client_name ?? ''} onChange={e => setForm(f => ({ ...f, client_name: e.target.value }))} />
+            </div>
+          </div>
+
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="label">Severity</label>
@@ -228,6 +299,7 @@ export default function Cases() {
               </select>
             </div>
           </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Assigned To</label>
@@ -243,10 +315,12 @@ export default function Cases() {
               <input className="input" placeholder="ransomware, finance, ..." value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} />
             </div>
           </div>
+
           <div>
             <label className="label">Description</label>
             <textarea className="input resize-none h-24" placeholder="Brief description of the incident…" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
           </div>
+
           {/* Playbook selection */}
           {allPlaybooks.length > 0 && (
             <div>

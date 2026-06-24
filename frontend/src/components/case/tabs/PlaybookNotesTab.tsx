@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ReactFlow, Background, BackgroundVariant, Controls, MiniMap,
@@ -14,6 +14,7 @@ import { casesApi } from '../../../api/cases'
 import { NODE_TYPES, EDGE_TYPES } from '../../playbook/PlaybookNodes'
 import MarkdownEditor from '../../ui/MarkdownEditor'
 import Modal from '../../ui/Modal'
+import ConfirmDialog from '../../ui/ConfirmDialog'
 import type { Case } from '../../../types'
 
 interface Props { caseId: string; case_: Case }
@@ -54,6 +55,8 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
   /* ── Step expansion & draft notes ── */
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [draftNotes, setDraftNotes] = useState<Record<string, string>>({})
+  const draftNotesRef = useRef(draftNotes)
+  draftNotesRef.current = draftNotes
 
   // Pre-populate drafts whenever the active playbook changes so that
   // steps expanded by default already have their saved notes loaded.
@@ -89,9 +92,50 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
 
   const saveStepNotes = (cpId: string, nodeId: string) => {
     const existing = activeCp?.step_states[nodeId]
-    updateStep.mutate({ cpId, nodeId, done: existing?.done ?? false, notes: draftNotes[nodeId] ?? '' })
-    setExpanded(e => ({ ...e, [nodeId]: false }))
+    updateStep.mutate({ cpId, nodeId, done: existing?.done ?? false, notes: draftNotesRef.current[nodeId] ?? '' })
+    // Chevrons stay open — don't close after save
   }
+
+  /* ── Autosave ── */
+  const [autoSave, setAutoSave] = useState(() => localStorage.getItem('playbook-autosave') !== 'false')
+  useEffect(() => { localStorage.setItem('playbook-autosave', String(autoSave)) }, [autoSave])
+
+  useEffect(() => {
+    if (!autoSave || !activeCp) return
+    const timer = setTimeout(() => {
+      stepNodes(activeCp).forEach(n => {
+        const saved = activeCp.step_states[n.id]?.notes ?? ''
+        const draft = draftNotesRef.current[n.id] ?? ''
+        if (draft !== saved) {
+          updateStep.mutate({ cpId: activeCp.id, nodeId: n.id, done: activeCp.step_states[n.id]?.done ?? false, notes: draft })
+        }
+      })
+    }, 1500)
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftNotes, autoSave, activeCp?.id])
+
+  /* ── Ctrl+S — save all dirty steps ── */
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key !== 's') return
+      e.preventDefault()
+      if (!activeCp) return
+      stepNodes(activeCp).forEach(n => {
+        const saved = activeCp.step_states[n.id]?.notes ?? ''
+        const draft = draftNotesRef.current[n.id] ?? ''
+        if (draft !== saved) {
+          updateStep.mutate({ cpId: activeCp.id, nodeId: n.id, done: activeCp.step_states[n.id]?.done ?? false, notes: draft })
+        }
+      })
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCp?.id])
+
+  /* ── Detach confirmation ── */
+  const [detachTarget, setDetachTarget] = useState<string | null>(null)
 
   /* ── Add/remove playbook modal ── */
   const [addOpen, setAddOpen] = useState(false)
@@ -168,8 +212,9 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
                 <span className="truncate max-w-[120px]">{cp.playbook.name}</span>
                 <span className="opacity-50 text-[9px] tabular-nums">{doneCount(cp)}/{stepNodes(cp).length}</span>
                 <button
-                  onMouseDown={e => { e.stopPropagation(); detach.mutate(cp.id) }}
+                  onMouseDown={e => { e.stopPropagation(); setDetachTarget(cp.id) }}
                   className="opacity-40 hover:opacity-100 hover:text-severity-critical ml-0.5"
+                  title="Retirer ce playbook du case"
                 ><X size={9} /></button>
               </div>
             ))}
@@ -181,6 +226,17 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
           >
             <Plus size={11} />
           </button>
+
+          {/* Autosave toggle */}
+          <label className="flex items-center gap-1.5 text-[10px] text-accent-muted cursor-pointer select-none ml-auto shrink-0">
+            <input
+              type="checkbox"
+              checked={autoSave}
+              onChange={e => setAutoSave(e.target.checked)}
+              className="w-3 h-3 accent-accent-green"
+            />
+            Autosave
+          </label>
         </div>
 
         {/* Empty state */}
@@ -415,6 +471,16 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
           </div>
         </div>
       </Modal>
+
+      {/* ══ Detach confirmation ══════════════════════════════════════════════ */}
+      <ConfirmDialog
+        open={detachTarget !== null}
+        onClose={() => setDetachTarget(null)}
+        onConfirm={() => { if (detachTarget) detach.mutate(detachTarget) }}
+        title="Retirer le playbook"
+        message="Toutes les notes et l'état des étapes de ce playbook seront perdus pour ce case. Continuer ?"
+        confirmLabel="Retirer"
+      />
     </div>
   )
 }

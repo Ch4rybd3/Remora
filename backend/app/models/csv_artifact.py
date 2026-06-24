@@ -18,3 +18,4 @@ class CsvArtifactFile(Base):
     ez_label      = Column(String(100), nullable=True)           # e.g. "Shimcache (AppCompatCache)"
     ez_category   = Column(String(100), nullable=True)           # internal category key
     uploaded_at   = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    evidence_id   = Column(String, ForeignKey("evidences.id", ondelete="SET NULL"), nullable=True)

@@ -10,6 +10,7 @@ import { SeverityBadge, TLPBadge, Tag } from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import TemplateTTPModal from '../components/mitre/TemplateTTPModal'
+import TemplateFormModal from '../components/templates/TemplateFormModal'
 
 const NEW_TEMPLATE_YAML = `name: "New Template"
 description: "Description of this template"
@@ -335,12 +336,10 @@ export default function Templates() {
         />
       )}
 
-      {/* YAML Create modal */}
-      <EditorModal
+      {/* Form-based Create modal */}
+      <TemplateFormModal
         open={createOpen}
         onClose={() => { setCreateOpen(false); setYamlError(null) }}
-        initialYaml={NEW_TEMPLATE_YAML}
-        title="New Template"
         onSave={async yaml => { await createMutation.mutateAsync(yaml) }}
         isSaving={createMutation.isPending}
         error={yamlError}

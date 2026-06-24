@@ -5,9 +5,11 @@ Performance: DuckDB reads CSV files directly via its optimised columnar scanner.
 Filters, sorts and pagination are pushed down to SQL — no full in-memory load.
 Benchmarks on a 500 k-row CSV: ~300 ms with filters vs ~8 s for the Python fallback.
 """
+import hashlib
 import json
 import os
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -73,16 +75,91 @@ def _detect_date_column(columns: list[str]) -> Optional[str]:
     return None
 
 
+# ── Multi-format converter ────────────────────────────────────────────────────
+
+def _convert_to_flat_csv(raw: bytes, filename: str) -> bytes:
+    """
+    Convert .txt/.log (line-per-row) or .json (array-of-objects / JSONL) to CSV.
+    Returns UTF-8 encoded CSV bytes.
+    """
+    import io
+    import csv as _csv
+    import json as _json
+
+    ext = Path(filename).suffix.lower()
+
+    if ext in ('.txt', '.log'):
+        text  = raw.decode('utf-8', errors='replace')
+        lines = [ln for ln in text.splitlines() if ln.strip()]
+        buf   = io.StringIO()
+        w     = _csv.writer(buf)
+        w.writerow(['line_number', 'line'])
+        for i, ln in enumerate(lines, 1):
+            w.writerow([str(i), ln])
+        return buf.getvalue().encode('utf-8')
+
+    if ext == '.json':
+        text = raw.decode('utf-8', errors='replace')
+        try:
+            data = _json.loads(text)
+        except _json.JSONDecodeError:
+            # Try JSONL (newline-delimited JSON)
+            data = []
+            for ln in text.splitlines():
+                ln = ln.strip()
+                if not ln:
+                    continue
+                try:
+                    data.append(_json.loads(ln))
+                except Exception:
+                    data.append({'raw': ln})
+
+        if isinstance(data, list) and data:
+            if isinstance(data[0], dict):
+                all_keys: list[str] = list(dict.fromkeys(k for obj in data if isinstance(obj, dict) for k in obj))
+                buf = io.StringIO()
+                w2  = _csv.DictWriter(buf, fieldnames=all_keys, extrasaction='ignore')
+                w2.writeheader()
+                for obj in data:
+                    if isinstance(obj, dict):
+                        w2.writerow({k: str(obj.get(k, '')) for k in all_keys})
+                    else:
+                        w2.writerow({k: '' for k in all_keys})
+                return buf.getvalue().encode('utf-8')
+            else:
+                buf = io.StringIO()
+                w3  = _csv.writer(buf)
+                w3.writerow(['value'])
+                for item in data:
+                    w3.writerow([str(item)])
+                return buf.getvalue().encode('utf-8')
+
+        elif isinstance(data, dict):
+            buf = io.StringIO()
+            w4  = _csv.writer(buf)
+            w4.writerow(['key', 'value'])
+            for k, v in data.items():
+                w4.writerow([str(k), str(v)])
+            return buf.getvalue().encode('utf-8')
+
+        return b'value\n'
+
+    return raw
+
+
 # ── DuckDB helpers ────────────────────────────────────────────────────────────
 
+def _normalize_col(name: str) -> str:
+    """Replace whitespace in a column name with underscores so it works in RQL."""
+    import re as _re
+    return _re.sub(r'\s+', '_', name)
+
+
 def _duck_inspect(file_path: str) -> tuple[list[str], int]:
-    """Return (column_names, row_count) using DuckDB's CSV scanner."""
+    """Return (normalized_column_names, row_count) using DuckDB's CSV scanner."""
     conn = duckdb.connect()
     try:
-        conn.execute(
-            "CREATE TEMP TABLE _src AS SELECT * FROM read_csv_auto(?, ignore_errors=true)",
-            [file_path],
-        )
+        _load_normalized(conn, file_path)
         cols  = [row[0] for row in conn.execute("DESCRIBE _src").fetchall()]
         count = conn.execute("SELECT COUNT(*) FROM _src").fetchone()[0]
         return cols, count
@@ -90,6 +167,22 @@ def _duck_inspect(file_path: str) -> tuple[list[str], int]:
         return [], 0
     finally:
         conn.close()
+
+
+def _load_normalized(conn, file_path: str) -> None:
+    """
+    Create temp table _src from the CSV and rename any column that contains spaces
+    to its underscore-normalized form so RQL identifiers always match.
+    """
+    conn.execute(
+        "CREATE TEMP TABLE _src AS SELECT * FROM read_csv_auto(?, ignore_errors=true)",
+        [file_path],
+    )
+    raw_cols = [row[0] for row in conn.execute("DESCRIBE _src").fetchall()]
+    for raw in raw_cols:
+        norm = _normalize_col(raw)
+        if norm != raw:
+            conn.execute(f'ALTER TABLE _src RENAME COLUMN "{raw}" TO "{norm}"')
 
 
 def _build_where(
@@ -181,10 +274,7 @@ def _query_rows(
     """
     conn = duckdb.connect()
     try:
-        conn.execute(
-            "CREATE TEMP TABLE _src AS SELECT * FROM read_csv_auto(?, ignore_errors=true)",
-            [file_path],
-        )
+        _load_normalized(conn, file_path)
 
         where, params = _build_where(columns, q, col_filters, rql)
 
@@ -226,10 +316,7 @@ def _query_groups(
 
     conn = duckdb.connect()
     try:
-        conn.execute(
-            "CREATE TEMP TABLE _src AS SELECT * FROM read_csv_auto(?, ignore_errors=true)",
-            [file_path],
-        )
+        _load_normalized(conn, file_path)
 
         where, params = _build_where(columns, q, col_filters, rql)
 
@@ -253,27 +340,29 @@ def _query_groups(
         conn.close()
 
 
-def _omni_query(file_path: str, columns: list[str], q: str, limit: int) -> tuple[int, list[dict]]:
+def _omni_query(file_path: str, columns: list[str], q: str, limit: int, regex: bool = False) -> tuple[int, list[dict]]:
     """Search a single CSV file via DuckDB. Returns (hit_count, first_N_rows)."""
     if not columns:
         return 0, []
     conn = duckdb.connect()
     try:
-        col_conds = " OR ".join(f'CAST("{c}" AS VARCHAR) ILIKE ?' for c in columns)
-        params_fp = [f"%{q}%"] * len(columns)
+        _load_normalized(conn, file_path)
+        if regex:
+            col_conds = " OR ".join(f'regexp_matches(CAST("{c}" AS VARCHAR), ?)' for c in columns)
+            params_fp = [q] * len(columns)
+        else:
+            col_conds = " OR ".join(f'CAST("{c}" AS VARCHAR) ILIKE ?' for c in columns)
+            params_fp = [f"%{q}%"] * len(columns)
 
-        count = conn.execute(
-            f"SELECT COUNT(*) FROM read_csv_auto(?, ignore_errors=true) WHERE {col_conds}",
-            [file_path] + params_fp,
-        ).fetchone()[0]
+        count = conn.execute(f"SELECT COUNT(*) FROM _src WHERE {col_conds}", params_fp).fetchone()[0]
 
         if count == 0:
             return 0, []
 
         col_select = ", ".join(f'CAST("{c}" AS VARCHAR) AS "{c}"' for c in columns)
         rows_raw = conn.execute(
-            f"SELECT {col_select} FROM read_csv_auto(?, ignore_errors=true) WHERE {col_conds} LIMIT {limit}",
-            [file_path] + params_fp,
+            f"SELECT {col_select} FROM _src WHERE {col_conds} LIMIT {limit}",
+            params_fp,
         ).fetchall()
 
         return count, [dict(zip(columns, row)) for row in rows_raw]
@@ -304,6 +393,7 @@ def list_artifacts(case_id: str, db: Session = Depends(get_db)) -> list[dict]:
             "ez_label":      r.ez_label,
             "ez_category":   r.ez_category,
             "uploaded_at":   r.uploaded_at.isoformat(),
+            "evidence_id":   r.evidence_id,
         }
         for r in rows
     ]
@@ -313,8 +403,9 @@ def list_artifacts(case_id: str, db: Session = Depends(get_db)) -> list[dict]:
 @router.get("/cases/{case_id}/artifacts/search")
 def omni_search(
     case_id: str,
-    q:       str = Query(..., min_length=2),
-    limit:   int = Query(15, ge=1, le=100),
+    q:       str  = Query(..., min_length=2),
+    limit:   int  = Query(15, ge=1, le=100),
+    regex:   bool = Query(False, description="Use regex matching instead of ILIKE"),
     db:      Session = Depends(get_db),
 ) -> dict:
     """Full-text search across ALL CSV artifacts in a case (omnisearch via DuckDB)."""
@@ -329,7 +420,7 @@ def omni_search(
 
     for a in artifacts:
         cols = json.loads(a.columns)
-        hit_count, hits = _omni_query(a.file_path, cols, q, limit)
+        hit_count, hits = _omni_query(a.file_path, cols, q, limit, regex=regex)
         if hit_count > 0:
             total_hits += hit_count
             results.append({
@@ -358,9 +449,23 @@ async def upload_artifact(
     artifact_id = str(uuid.uuid4())
     dest_dir    = _artifacts_dir(case_id)
     safe_name   = Path(file.filename or "upload.csv").name
-    file_path   = str(dest_dir / f"{artifact_id}_{safe_name}")
+    ext         = Path(safe_name).suffix.lower()
+
+    SUPPORTED = {'.csv', '.json', '.txt', '.log'}
+    if ext not in SUPPORTED:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Type de fichier '{ext}' non supporté. Formats acceptés : {', '.join(sorted(SUPPORTED))}",
+        )
 
     raw = await file.read()
+
+    # Non-CSV files are normalized to CSV so DuckDB can read them uniformly
+    if ext != '.csv':
+        raw       = _convert_to_flat_csv(raw, safe_name)
+        safe_name = Path(safe_name).stem + '.csv'
+
+    file_path = str(dest_dir / f"{artifact_id}_{safe_name}")
     with open(file_path, "wb") as fh:
         fh.write(raw)
 
@@ -402,6 +507,7 @@ async def upload_artifact(
         "ez_label":      rec.ez_label,
         "ez_category":   rec.ez_category,
         "uploaded_at":   rec.uploaded_at.isoformat(),
+        "evidence_id":   rec.evidence_id,
     }
 
 
@@ -490,6 +596,103 @@ def get_groups(
     }
 
 
+@router.post("/cases/{case_id}/artifacts/{artifact_id}/add-evidence", status_code=status.HTTP_201_CREATED)
+def add_evidence_for_artifact(
+    case_id:      str,
+    artifact_id:  str,
+    db:           Session = Depends(get_db),
+    current_user: User    = Depends(get_current_user),
+) -> dict:
+    """
+    Create an Evidence record from this artifact and link it for Chain of Custody tracking.
+    Idempotent — returns existing evidence if already linked.
+    """
+    from ..models.evidence import Evidence, EvidenceType, AcquisitionMethod
+
+    a = _get_artifact_or_404(artifact_id, case_id, db)
+
+    # Idempotent: if already linked return existing record
+    if a.evidence_id:
+        ev = db.query(Evidence).filter(Evidence.id == a.evidence_id).first()
+        if ev:
+            return _evidence_dto(ev)
+
+    size = 0
+    sha256 = ""
+    try:
+        size    = os.path.getsize(a.file_path)
+        sha256  = hashlib.sha256(Path(a.file_path).read_bytes()).hexdigest()
+    except Exception:
+        pass
+
+    now_str = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    coc_entry = (
+        f"[{now_str}] Enregistré dans Artifact Explorer par {current_user.username}.\n"
+        f"  Fichier: {a.original_name} — {a.row_count} lignes\n"
+    )
+
+    ev = Evidence(
+        case_id            = case_id,
+        name               = a.original_name,
+        evidence_type      = EvidenceType.log,
+        acquisition_method = AcquisitionMethod.logical_copy,
+        original_filename  = a.original_name,
+        file_size          = size,
+        sha256_hash        = sha256,
+        collected_at       = a.uploaded_at,
+        collected_by       = current_user.username,
+        chain_of_custody   = coc_entry,
+        description        = f"Artefact importé via Artifact Explorer. {a.row_count} lignes.",
+        tags               = a.ez_category or "",
+    )
+    db.add(ev)
+    db.flush()
+
+    a.evidence_id = ev.id
+    db.commit()
+    db.refresh(ev)
+    print(f"[csv_artifacts] evidence {ev.id} created for artifact {artifact_id}", flush=True)
+    return _evidence_dto(ev)
+
+
+@router.post("/cases/{case_id}/artifacts/{artifact_id}/coc-note", status_code=status.HTTP_204_NO_CONTENT)
+def append_coc_note(
+    case_id:      str,
+    artifact_id:  str,
+    body:         dict,
+    db:           Session = Depends(get_db),
+    current_user: User    = Depends(get_current_user),
+):
+    """Append a Chain of Custody note to the evidence linked to this artifact."""
+    from ..models.evidence import Evidence
+
+    a = _get_artifact_or_404(artifact_id, case_id, db)
+    if not a.evidence_id:
+        raise HTTPException(status_code=404, detail="Aucune pièce à conviction liée à cet artefact")
+
+    ev = db.query(Evidence).filter(Evidence.id == a.evidence_id).first()
+    if not ev:
+        raise HTTPException(status_code=404, detail="Pièce à conviction introuvable")
+
+    note    = str(body.get("note", "")).strip()
+    now_str = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    entry   = f"[{now_str}] {current_user.username}: {note}\n"
+
+    ev.chain_of_custody = (ev.chain_of_custody or "") + entry
+    db.commit()
+
+
+def _evidence_dto(ev) -> dict:
+    return {
+        "id":               ev.id,
+        "name":             ev.name,
+        "evidence_type":    ev.evidence_type,
+        "sha256_hash":      ev.sha256_hash,
+        "collected_by":     ev.collected_by,
+        "collected_at":     ev.collected_at.isoformat() if ev.collected_at else None,
+    }
+
+
 @router.delete("/cases/{case_id}/artifacts/{artifact_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_artifact(
     case_id:      str,
@@ -504,6 +707,27 @@ def delete_artifact(
         pass
     db.delete(a)
     db.commit()
+
+
+@router.get("/cases/{case_id}/artifacts/{artifact_id}/raw")
+def get_raw(
+    case_id:     str,
+    artifact_id: str,
+    db:          Session = Depends(get_db),
+):
+    """Return the raw file content for non-CSV artifacts (TXT, LOG, JSON).
+    Returns { content: str, encoding: 'text' | 'json' }.
+    """
+    a = _get_artifact_or_404(artifact_id, case_id, db)
+    try:
+        raw = Path(a.file_path).read_bytes()
+    except OSError as exc:
+        raise HTTPException(status_code=404, detail=f"File not found on disk: {exc}")
+
+    text = raw.decode('utf-8', errors='replace')
+    ext  = Path(a.original_name).suffix.lower()
+    enc  = 'json' if ext == '.json' else 'text'
+    return {"content": text, "encoding": enc}
 
 
 # ── Public helper used by collection_import ───────────────────────────────────

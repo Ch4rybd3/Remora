@@ -20,6 +20,7 @@ from .models.user import User, UserRole
 from .services.auth_service import hash_password
 from .core.deps import get_current_user
 from .routers import cases, iocs, assets, evidences, timeline, templates, reports
+from .routers import backup as backup_router
 from .routers import auth, users as users_router, playbooks as playbooks_router
 from .routers import email_analysis as email_analysis_router
 from .routers import knowledge as knowledge_router
@@ -74,6 +75,20 @@ def _setup_collection_imports() -> None:
 _setup_collection_imports()
 
 
+def _setup_case_text_fields() -> None:
+    """Add quick_notes and executive_summary to cases if they don't exist."""
+    with engine.connect() as conn:
+        for col in ("quick_notes", "executive_summary"):
+            try:
+                conn.execute(text(f"ALTER TABLE cases ADD COLUMN {col} TEXT DEFAULT ''"))
+                conn.commit()
+                print(f"[migration] cases.{col} added", flush=True)
+            except Exception:
+                pass  # Column already exists
+
+
+_setup_case_text_fields()
+
 
 def _setup_playbooks() -> None:
     """Add layout_dir column to playbooks table if it doesn't already exist."""
@@ -91,9 +106,10 @@ _setup_playbooks()
 def _setup_report_sections() -> None:
     """Add report_analysis / report_remediation / report_conclusion columns to cases."""
     with engine.connect() as conn:
-        for col in ("report_analysis", "report_remediation", "report_conclusion"):
+        for col in ("report_analysis", "report_remediation", "report_conclusion", "report_sections_data"):
             try:
-                conn.execute(text(f"ALTER TABLE cases ADD COLUMN {col} TEXT DEFAULT ''"))
+                default = "'{}'" if col == "report_sections_data" else "''"
+                conn.execute(text(f"ALTER TABLE cases ADD COLUMN {col} TEXT DEFAULT {default}"))
                 conn.commit()
                 print(f"[migration] cases.{col} added", flush=True)
             except Exception:
@@ -142,6 +158,43 @@ def _setup_cti_tools() -> None:
 
 
 _setup_cti_tools()
+
+
+def _setup_csv_artifact_evidence() -> None:
+    """Add evidence_id FK column to csv_artifact_files if it doesn't already exist."""
+    with engine.connect() as conn:
+        try:
+            conn.execute(text(
+                "ALTER TABLE csv_artifact_files ADD COLUMN evidence_id TEXT "
+                "REFERENCES evidences(id) ON DELETE SET NULL"
+            ))
+            conn.commit()
+            print("[migration] csv_artifact_files.evidence_id added", flush=True)
+        except Exception:
+            pass  # Column already exists
+
+
+_setup_csv_artifact_evidence()
+
+
+def _setup_case_type() -> None:
+    """Add case_type and client_name columns to cases if they don't exist."""
+    with engine.connect() as conn:
+        for stmt, msg in [
+            ("ALTER TABLE cases ADD COLUMN case_type TEXT NOT NULL DEFAULT 'ir'",
+             "[migration] cases.case_type added"),
+            ("ALTER TABLE cases ADD COLUMN client_name TEXT NOT NULL DEFAULT ''",
+             "[migration] cases.client_name added"),
+        ]:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+                print(msg, flush=True)
+            except Exception:
+                pass  # Column already exists
+
+
+_setup_case_type()
 
 NOTE_IMAGES_DIR = settings.evidence_store_path.parent / "note_images"
 NOTE_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
@@ -250,6 +303,7 @@ app.include_router(vault_router.router,                prefix="/api/v1", **_auth
 app.include_router(connectors_router.router,           prefix="/api/v1", **_auth)
 app.include_router(cti_router.router,                  prefix="/api/v1", **_auth)
 app.include_router(collection_import_router.router,    prefix="/api/v1", **_auth)
+app.include_router(backup_router.router,               prefix="/api/v1", **_auth)
 
 
 @app.get("/api/v1/health")

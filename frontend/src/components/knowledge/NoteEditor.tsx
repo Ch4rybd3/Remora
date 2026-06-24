@@ -257,24 +257,15 @@ export default function NoteEditor({ path, onNodeNavigate, onContentChange, scro
     }, 1500)
   }, [doSave])
 
-  // ── Image upload handlers for live editor ──────────────────────────────────
-  const handleLivePaste = useCallback(async (blob: Blob) => {
+  // ── Image upload handler for live editor (LiveEditor handles insertion via setImage) ──
+  const handleUploadImage = useCallback(async (file: Blob | File): Promise<string> => {
     setUploading(true)
     try {
-      const url = await knowledgeApi.uploadImage(blob)
-      handleChange(contentRef.current.trimEnd() + `\n\n![screenshot](${url})\n`)
-    } catch { /* silent */ }
-    finally { setUploading(false) }
-  }, [handleChange])
-
-  const handleLiveDrop = useCallback(async (file: File) => {
-    setUploading(true)
-    try {
-      const url = await knowledgeApi.uploadImage(file)
-      handleChange(contentRef.current.trimEnd() + `\n\n![${file.name}](${url})\n`)
-    } catch { /* silent */ }
-    finally { setUploading(false) }
-  }, [handleChange])
+      return await knowledgeApi.uploadImage(file)
+    } finally {
+      setUploading(false)
+    }
+  }, [])
 
   // ── Scroll to heading when TOC item is clicked ─────────────────────────────
   useEffect(() => {
@@ -331,8 +322,7 @@ export default function NoteEditor({ path, onNodeNavigate, onContentChange, scro
         onChange={handleChange}
         placeholder={`# ${filename.replace(/\.md$/i, '')}\n\nStart writing…\n\nLink notes with [[Note Name]]`}
         minHeight={400}
-        onPasteImage={handleLivePaste}
-        onDropImage={handleLiveDrop}
+        uploadImage={handleUploadImage}
         suggestions={noteNames}
         onWikilinkClick={handleWikilinkClick}
       />
