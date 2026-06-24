@@ -6,7 +6,7 @@ import {
   ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, SlidersHorizontal,
   BookmarkPlus, BookmarkCheck, Download, Columns3, Trash2, FileText,
   Loader2, Info, Table2, Globe, Layers, GripVertical, ChevronRight as ChevronRightIcon,
-  Terminal, HelpCircle, Play, AlertCircle,
+  Terminal, HelpCircle, Play, AlertCircle, Shield, ShieldCheck,
 } from 'lucide-react'
 import { csvArtifactsApi, type CsvArtifactMeta, type ArtifactRowFilters, type OmniSearchFile, type GroupResult } from '../api/csvArtifacts'
 import { timelineApi } from '../api/timeline'
@@ -1536,13 +1536,19 @@ function PinnedPanel({ pinned, onUnpin, onClear, onExport, exporting }: {
 
 // ── Sidebar file row ──────────────────────────────────────────────────────────
 
-function FileSidebarRow({ meta, isOpen, onOpen, onDelete }: {
-  meta: CsvArtifactMeta; isOpen: boolean; onOpen: () => void; onDelete: () => void
+function FileSidebarRow({ meta, isOpen, onOpen, onDelete, onAddEvidence, addingEvidence }: {
+  meta: CsvArtifactMeta
+  isOpen: boolean
+  onOpen: () => void
+  onDelete: () => void
+  onAddEvidence: () => void
+  addingEvidence: boolean
 }) {
+  const hasEvidence = !!meta.evidence_id
   return (
     <div onClick={onOpen}
       className={`group relative px-3 py-2.5 cursor-pointer border-l-2 transition-colors ${isOpen ? 'bg-accent-green/5 border-l-accent-green/40' : 'border-l-transparent hover:bg-white/[0.03]'}`}>
-      <div className="flex items-start gap-2 pr-5">
+      <div className="flex items-start gap-2 pr-12">
         <FileText size={12} className="mt-0.5 shrink-0 text-accent-muted/30" />
         <div className="flex-1 min-w-0">
           <p className="text-[11px] text-white/80 truncate leading-snug font-mono">{meta.original_name}</p>
@@ -1556,6 +1562,24 @@ function FileSidebarRow({ meta, isOpen, onOpen, onDelete }: {
           <p className="text-[9px] text-accent-muted/25 mt-0.5">{fmtRelative(meta.uploaded_at)}</p>
         </div>
       </div>
+      {/* Add to Evidence button */}
+      <button
+        onClick={e => { e.stopPropagation(); if (!hasEvidence) onAddEvidence() }}
+        title={hasEvidence ? 'Lié à la chaîne de conservation' : 'Ajouter à la chaîne de conservation'}
+        disabled={addingEvidence}
+        className={`absolute right-7 top-2.5 transition-all ${
+          hasEvidence
+            ? 'opacity-100 text-blue-400/70 cursor-default'
+            : 'opacity-0 group-hover:opacity-100 text-accent-muted/40 hover:text-blue-400 cursor-pointer'
+        } disabled:opacity-40`}
+      >
+        {addingEvidence
+          ? <Loader2 size={11} className="animate-spin" />
+          : hasEvidence
+            ? <ShieldCheck size={11} />
+            : <Shield size={11} />
+        }
+      </button>
       <button onClick={e => { e.stopPropagation(); onDelete() }}
         className="absolute right-2 top-2.5 opacity-0 group-hover:opacity-100 text-accent-muted/40 hover:text-severity-critical transition-all">
         <Trash2 size={11} />
@@ -1733,6 +1757,18 @@ export default function ArtifactExplorer() {
     },
   })
 
+  const [addingEvidenceId, setAddingEvidenceId] = useState<string | null>(null)
+
+  const handleAddEvidence = useCallback(async (artifactId: string) => {
+    if (!caseId) return
+    setAddingEvidenceId(artifactId)
+    try {
+      await csvArtifactsApi.addEvidence(caseId, artifactId)
+      qc.invalidateQueries({ queryKey: ['csv-artifacts', caseId] })
+    } catch { /* silently ignore errors */ }
+    finally { setAddingEvidenceId(null) }
+  }, [caseId, qc])
+
   const [pinnedRows, setPinnedRows] = useState<PinnedRow[]>([])
   const [exporting,  setExporting]  = useState(false)
 
@@ -1781,6 +1817,20 @@ export default function ArtifactExplorer() {
         })
       }
       qc.invalidateQueries({ queryKey: ['timeline', caseId] })
+
+      // Append CoC note on each artifact that has a linked evidence record
+      const countByArtifact = sorted.reduce<Record<string, number>>((acc, p) => {
+        acc[p.artifactId] = (acc[p.artifactId] ?? 0) + 1
+        return acc
+      }, {})
+      await Promise.allSettled(
+        Object.entries(countByArtifact).map(([artifactId, count]) =>
+          csvArtifactsApi.cocNote(caseId, artifactId,
+            `${count} événement(s) exporté(s) vers Timeline`
+          )
+        )
+      )
+
       setPinnedRows([])
     } finally {
       setExporting(false)
@@ -1906,7 +1956,9 @@ export default function ArtifactExplorer() {
             <FileSidebarRow key={f.id} meta={f}
               isOpen={openTabs.includes(f.id)}
               onOpen={() => openFile(f.id)}
-              onDelete={() => deleteMutation.mutate(f.id)} />
+              onDelete={() => deleteMutation.mutate(f.id)}
+              onAddEvidence={() => handleAddEvidence(f.id)}
+              addingEvidence={addingEvidenceId === f.id} />
           ))}
         </div>
 

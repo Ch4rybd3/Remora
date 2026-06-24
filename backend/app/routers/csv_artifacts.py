@@ -5,9 +5,11 @@ Performance: DuckDB reads CSV files directly via its optimised columnar scanner.
 Filters, sorts and pagination are pushed down to SQL — no full in-memory load.
 Benchmarks on a 500 k-row CSV: ~300 ms with filters vs ~8 s for the Python fallback.
 """
+import hashlib
 import json
 import os
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -380,6 +382,7 @@ def list_artifacts(case_id: str, db: Session = Depends(get_db)) -> list[dict]:
             "ez_label":      r.ez_label,
             "ez_category":   r.ez_category,
             "uploaded_at":   r.uploaded_at.isoformat(),
+            "evidence_id":   r.evidence_id,
         }
         for r in rows
     ]
@@ -493,6 +496,7 @@ async def upload_artifact(
         "ez_label":      rec.ez_label,
         "ez_category":   rec.ez_category,
         "uploaded_at":   rec.uploaded_at.isoformat(),
+        "evidence_id":   rec.evidence_id,
     }
 
 
@@ -578,6 +582,103 @@ def get_groups(
         "groups":       groups,
         "total_groups": len(groups),
         "group_by":     group_cols,
+    }
+
+
+@router.post("/cases/{case_id}/artifacts/{artifact_id}/add-evidence", status_code=status.HTTP_201_CREATED)
+def add_evidence_for_artifact(
+    case_id:      str,
+    artifact_id:  str,
+    db:           Session = Depends(get_db),
+    current_user: User    = Depends(get_current_user),
+) -> dict:
+    """
+    Create an Evidence record from this artifact and link it for Chain of Custody tracking.
+    Idempotent — returns existing evidence if already linked.
+    """
+    from ..models.evidence import Evidence, EvidenceType, AcquisitionMethod
+
+    a = _get_artifact_or_404(artifact_id, case_id, db)
+
+    # Idempotent: if already linked return existing record
+    if a.evidence_id:
+        ev = db.query(Evidence).filter(Evidence.id == a.evidence_id).first()
+        if ev:
+            return _evidence_dto(ev)
+
+    size = 0
+    sha256 = ""
+    try:
+        size    = os.path.getsize(a.file_path)
+        sha256  = hashlib.sha256(Path(a.file_path).read_bytes()).hexdigest()
+    except Exception:
+        pass
+
+    now_str = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    coc_entry = (
+        f"[{now_str}] Enregistré dans Artifact Explorer par {current_user.username}.\n"
+        f"  Fichier: {a.original_name} — {a.row_count} lignes\n"
+    )
+
+    ev = Evidence(
+        case_id            = case_id,
+        name               = a.original_name,
+        evidence_type      = EvidenceType.log,
+        acquisition_method = AcquisitionMethod.logical_copy,
+        original_filename  = a.original_name,
+        file_size          = size,
+        sha256_hash        = sha256,
+        collected_at       = a.uploaded_at,
+        collected_by       = current_user.username,
+        chain_of_custody   = coc_entry,
+        description        = f"Artefact importé via Artifact Explorer. {a.row_count} lignes.",
+        tags               = a.ez_category or "",
+    )
+    db.add(ev)
+    db.flush()
+
+    a.evidence_id = ev.id
+    db.commit()
+    db.refresh(ev)
+    print(f"[csv_artifacts] evidence {ev.id} created for artifact {artifact_id}", flush=True)
+    return _evidence_dto(ev)
+
+
+@router.post("/cases/{case_id}/artifacts/{artifact_id}/coc-note", status_code=status.HTTP_204_NO_CONTENT)
+def append_coc_note(
+    case_id:      str,
+    artifact_id:  str,
+    body:         dict,
+    db:           Session = Depends(get_db),
+    current_user: User    = Depends(get_current_user),
+):
+    """Append a Chain of Custody note to the evidence linked to this artifact."""
+    from ..models.evidence import Evidence
+
+    a = _get_artifact_or_404(artifact_id, case_id, db)
+    if not a.evidence_id:
+        raise HTTPException(status_code=404, detail="Aucune pièce à conviction liée à cet artefact")
+
+    ev = db.query(Evidence).filter(Evidence.id == a.evidence_id).first()
+    if not ev:
+        raise HTTPException(status_code=404, detail="Pièce à conviction introuvable")
+
+    note    = str(body.get("note", "")).strip()
+    now_str = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    entry   = f"[{now_str}] {current_user.username}: {note}\n"
+
+    ev.chain_of_custody = (ev.chain_of_custody or "") + entry
+    db.commit()
+
+
+def _evidence_dto(ev) -> dict:
+    return {
+        "id":               ev.id,
+        "name":             ev.name,
+        "evidence_type":    ev.evidence_type,
+        "sha256_hash":      ev.sha256_hash,
+        "collected_by":     ev.collected_by,
+        "collected_at":     ev.collected_at.isoformat() if ev.collected_at else None,
     }
 
 

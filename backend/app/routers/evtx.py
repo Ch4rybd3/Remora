@@ -818,3 +818,48 @@ def save_selection(
     db.commit()
     db.refresh(sel)
     return EvtxSelectionOut(events=sel.events or [], sent_ids=sel.sent_ids or [])
+
+
+# ── Public helper for collection import ──────────────────────────────────────
+
+def register_evtx_file(
+    source_path:       Path,
+    case_id:           str,
+    original_filename: str,
+    db:                Session,
+) -> EvtxFile:
+    """
+    Register an existing .evtx file (e.g. from collection import) in the EVTX
+    module and trigger background parsing.  The parse runs in a daemon thread so
+    the caller returns immediately.
+    """
+    import shutil as _shutil
+    import threading
+
+    dest_dir  = _case_dir(case_id)
+    file_id   = str(uuid.uuid4())
+    safe_name = f"{file_id}_{Path(original_filename).name}"
+    dest_path = dest_dir / safe_name
+
+    _shutil.copy2(str(source_path), str(dest_path))
+
+    db_file = EvtxFile(
+        id        = file_id,
+        case_id   = case_id,
+        filename  = original_filename,
+        file_path = str(dest_path),
+        status    = "pending",
+    )
+    db.add(db_file)
+    db.commit()
+    db.refresh(db_file)
+
+    # Launch parse in a daemon thread — we're already inside a background task
+    threading.Thread(
+        target=_parse_evtx_background,
+        args=(file_id, str(dest_path)),
+        daemon=True,
+    ).start()
+
+    print(f"[evtx] register_evtx_file: {original_filename} → {file_id}", flush=True)
+    return db_file

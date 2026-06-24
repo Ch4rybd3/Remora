@@ -9,6 +9,16 @@ export interface CsvArtifactMeta {
   ez_label: string | null
   ez_category: string | null
   uploaded_at: string
+  evidence_id: string | null
+}
+
+export interface ArtifactEvidenceMeta {
+  id: string
+  name: string
+  evidence_type: string
+  sha256_hash: string
+  collected_by: string
+  collected_at: string | null
 }
 
 export interface CsvArtifactRows {
@@ -107,6 +117,14 @@ export const csvArtifactsApi = {
 
   delete: (caseId: string, artifactId: string) =>
     api.delete(`/cases/${caseId}/artifacts/${artifactId}`),
+
+  addEvidence: (caseId: string, artifactId: string): Promise<ArtifactEvidenceMeta> =>
+    api.post<ArtifactEvidenceMeta>(`/cases/${caseId}/artifacts/${artifactId}/add-evidence`)
+      .then(r => r.data),
+
+  cocNote: (caseId: string, artifactId: string, note: string): Promise<void> =>
+    api.post(`/cases/${caseId}/artifacts/${artifactId}/coc-note`, { note })
+      .then(() => undefined),
 
   search: (caseId: string, q: string, limit = 15, regex = false) =>
     api

@@ -143,6 +143,23 @@ def _setup_cti_tools() -> None:
 
 _setup_cti_tools()
 
+
+def _setup_csv_artifact_evidence() -> None:
+    """Add evidence_id FK column to csv_artifact_files if it doesn't already exist."""
+    with engine.connect() as conn:
+        try:
+            conn.execute(text(
+                "ALTER TABLE csv_artifact_files ADD COLUMN evidence_id TEXT "
+                "REFERENCES evidences(id) ON DELETE SET NULL"
+            ))
+            conn.commit()
+            print("[migration] csv_artifact_files.evidence_id added", flush=True)
+        except Exception:
+            pass  # Column already exists
+
+
+_setup_csv_artifact_evidence()
+
 NOTE_IMAGES_DIR = settings.evidence_store_path.parent / "note_images"
 NOTE_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 

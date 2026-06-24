@@ -52,17 +52,18 @@ async def upload_collection(
         raise HTTPException(400, "No files provided")
 
     # Validate extensions
+    _FLAT_EXTS = {".csv", ".json", ".txt", ".log", ".evtx"}
     for f in files:
         ext = Path(f.filename).suffix.lower()
-        if ext not in (".zip", ".csv"):
-            raise HTTPException(400, f"Unsupported file type '{f.filename}' — only .zip and .csv are accepted")
+        if ext not in (".zip", *_FLAT_EXTS):
+            raise HTTPException(400, f"Type non supporté '{f.filename}'. Acceptés: .zip, .csv, .json, .txt, .log, .evtx")
 
-    # Mixed uploads not allowed — either one ZIP or N CSVs
+    # Mixed uploads not allowed — either one ZIP or flat files
     exts = {Path(f.filename).suffix.lower() for f in files}
-    if ".zip" in exts and ".csv" in exts:
-        raise HTTPException(400, "Cannot mix ZIP and CSV files in the same upload")
+    if ".zip" in exts and exts - {".zip"}:
+        raise HTTPException(400, "Impossible de mélanger ZIP et autres fichiers dans le même upload")
     if ".zip" in exts and len(files) > 1:
-        raise HTTPException(400, "Only one ZIP file per upload")
+        raise HTTPException(400, "Un seul fichier ZIP par upload")
 
     collection_id = str(uuid.uuid4())
     dest_dir = _collection_dir(case_id, collection_id)
@@ -109,7 +110,7 @@ async def upload_collection(
         ingest_mode = "zip"
         zip_path_for_bg = zip_path
 
-    # ── Case B: one or more CSV files ─────────────────────────────────────────
+    # ── Case B: one or more flat files (.csv / .json / .txt / .log / .evtx) ───
     else:
         zip_path_for_bg = None
         seen_names: dict[str, int] = {}   # deduplicate basenames if needed
@@ -118,50 +119,52 @@ async def upload_collection(
             content = await upload.read()
             total_size += len(content)
 
-            # The filename sent from the frontend may be a relative path
-            # (webkitRelativePath) like "KAPE/ProgramExecution/file.csv".
-            # We detect using the full relative path (basename extraction in
-            # detect()) but store the file using only the basename to avoid
-            # path-traversal issues.
-            rel_path = upload.filename   # e.g. "KAPE/ProgramExecution/file.csv"
+            rel_path = upload.filename   # may be a relative path from webkitRelativePath
             basename = Path(rel_path).name
+            file_ext = Path(basename).suffix.lower()
 
-            # Deduplicate identical basenames (rare but possible across folders)
+            # Deduplicate identical basenames
             if basename in seen_names:
                 seen_names[basename] += 1
-                stem, suffix = basename.rsplit(".", 1) if "." in basename else (basename, "")
+                stem, suffix = (basename.rsplit(".", 1) if "." in basename else (basename, ""))
                 safe_name = f"{stem}_{seen_names[basename]}.{suffix}" if suffix else f"{stem}_{seen_names[basename]}"
             else:
                 seen_names[basename] = 0
                 safe_name = basename
 
             # Save flat in extracted/
-            csv_dest = extracted_dir / safe_name
-            csv_dest.write_bytes(content)
+            dest_file = extracted_dir / safe_name
+            dest_file.write_bytes(content)
 
-            # Detect using the relative path (detect() takes the basename internally)
+            # Detect using the relative path (detect() uses basename internally)
             result = detect(rel_path)
-            print(f"[collection_import] detected {rel_path} → {result.category if result else 'unsupported'}", flush=True)
+            print(f"[collection_import] detected {rel_path} ({file_ext}) → {result.category if result else 'auto-route'}", flush=True)
 
-            # All CSVs are valid artifacts — unknown ones get category=None
-            # and are registered in Artifact Explorer with an "Unknown" label.
+            # EVTX files route to the EVTX module; all others to Artifact Explorer
+            if file_ext == ".evtx":
+                dest_label = "EVTX Module"
+                dest_page  = f"/cases/{case_id}/evtx"
+            else:
+                dest_label = result.destination_label if result else "Artifact Explorer"
+                dest_page  = result.destination_page.replace("{case_id}", case_id) if result else None
+
             imported_files.append(ImportedFile(
                 id=str(uuid.uuid4()),
                 collection_id=collection_id,
                 case_id=case_id,
                 filename=safe_name,
                 file_size=len(content),
-                status="pending",       # always attempt ingest for CSV files
-                category=result.category if result else None,
-                category_label=result.category_label if result else None,
-                destination_page=result.destination_page.replace("{case_id}", case_id) if result else None,
-                destination_label=result.destination_label if result else None,
+                status="pending",
+                category=result.category if result else ("evtx" if file_ext == ".evtx" else None),
+                category_label=result.category_label if result else ("EVTX" if file_ext == ".evtx" else None),
+                destination_page=dest_page,
+                destination_label=dest_label,
                 expires_at=expires,
             ))
 
         col_filename = (
             files[0].filename if len(files) == 1
-            else f"{len(files)} CSV files"
+            else f"{len(files)} fichiers"
         )
         ingest_mode = "csv"
 
@@ -217,29 +220,40 @@ def _run_pending(
     Returns the number of files processed.
     """
     from .csv_artifacts import register_csv_artifact
+    from .evtx import register_evtx_file
 
     processed = 0
     for file_id, filename, category in pending:
-        # Try exact path first, then basename search (handles ZIP subdirs and flat CSVs)
-        csv_path = extracted_dir / filename
-        if not csv_path.exists():
+        # Try exact path first, then basename search (handles ZIP subdirs and flat files)
+        file_path = extracted_dir / filename
+        if not file_path.exists():
             candidates = list(extracted_dir.rglob(Path(filename).name))
-            csv_path = candidates[0] if candidates else None
+            file_path = candidates[0] if candidates else None
 
-        print(f"[collection_import] registering {filename} → category={category} path={csv_path}", flush=True)
+        ext = Path(filename).suffix.lower()
+        print(f"[collection_import] registering {filename} ({ext}) → category={category} path={file_path}", flush=True)
 
         f = db.get(ImportedFile, file_id)
         if not f:
             continue
 
         try:
-            if csv_path is None or not csv_path.exists():
-                raise FileNotFoundError(f"CSV not found: {filename}")
+            if file_path is None or not file_path.exists():
+                raise FileNotFoundError(f"File not found: {filename}")
 
-            artifact = register_csv_artifact(csv_path, case_id, db)
-            f.status = "imported"
-            f.row_count = artifact.row_count if artifact else 0
-            f.imported_at = datetime.utcnow()
+            if ext == ".evtx":
+                # Route to EVTX module — parse runs asynchronously in daemon thread
+                evtx_rec = register_evtx_file(file_path, case_id, filename, db)
+                f.status    = "imported"
+                f.row_count = 0        # events counted after async parse
+                f.imported_at = datetime.utcnow()
+            else:
+                # All other supported types (.csv, .json, .txt, .log) go to Artifact Explorer
+                artifact = register_csv_artifact(file_path, case_id, db)
+                f.status    = "imported"
+                f.row_count = artifact.row_count if artifact else 0
+                f.imported_at = datetime.utcnow()
+
         except Exception as e:
             print(f"[collection_import] ERROR registering {filename}: {e}", flush=True)
             f.status = "error"
