@@ -11,7 +11,7 @@
  * survive database round-trips.  Non-resized images stay as ![alt](src).
  */
 
-import { useRef, useState, useCallback, useEffect } from 'react'
+import React, { useRef, useState, useCallback, useEffect } from 'react'
 import { useEditor, EditorContent, NodeViewWrapper } from '@tiptap/react'
 import { ReactNodeViewRenderer }                      from '@tiptap/react'
 import type { NodeViewProps }                         from '@tiptap/react'
@@ -305,8 +305,11 @@ export interface LiveEditorProps {
   onChange:          (v: string) => void
   placeholder:       string
   minHeight:         number
-  onPasteImage:      (blob: Blob)  => Promise<void>
-  onDropImage:       (file: File)  => Promise<void>
+  /** Upload handler: returns the URL for the stored image. */
+  uploadImage?:      (blob: Blob | File) => Promise<string>
+  /** Called when an upload starts/ends so the parent can show a spinner. */
+  onUploadStart?:    () => void
+  onUploadEnd?:      () => void
   /** Optional list of note names for [[wikilink]] autocomplete */
   suggestions?:      string[]
   /** Called when the user clicks a [[wikilink]] in the live editor */
@@ -314,7 +317,8 @@ export interface LiveEditorProps {
 }
 
 export function LiveEditor({
-  value, onChange, placeholder, minHeight, onPasteImage, onDropImage,
+  value, onChange, placeholder, minHeight,
+  uploadImage, onUploadStart, onUploadEnd,
   suggestions = [], onWikilinkClick,
 }: LiveEditorProps) {
   const lastEmitted    = useRef<string>(value)
@@ -332,8 +336,20 @@ export function LiveEditor({
   }, [])
 
   // Stable ref so the wikilink extension always calls the latest callback
-  const onWikilinkClickRef = useRef(onWikilinkClick)
+  const onWikilinkClickRef  = useRef(onWikilinkClick)
   useEffect(() => { onWikilinkClickRef.current = onWikilinkClick }, [onWikilinkClick])
+
+  // Stable refs for image-upload callbacks (captured in editorProps closures)
+  const uploadImageRef   = useRef(uploadImage)
+  const onUploadStartRef = useRef(onUploadStart)
+  const onUploadEndRef   = useRef(onUploadEnd)
+  useEffect(() => { uploadImageRef.current   = uploadImage   }, [uploadImage])
+  useEffect(() => { onUploadStartRef.current = onUploadStart }, [onUploadStart])
+  useEffect(() => { onUploadEndRef.current   = onUploadEnd   }, [onUploadEnd])
+
+  // Editor ref — needed because editorProps closures are created before useEditor returns
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const editorRef = useRef<any>(null)
 
   const editor = useEditor({
     extensions: [
@@ -414,24 +430,44 @@ export function LiveEditor({
         return false
       },
       handlePaste(_, event) {
-        const items = Array.from(event.clipboardData?.items ?? [])
-        const img   = items.find(i => i.type.startsWith('image/'))
-        if (!img) return false
+        const upload = uploadImageRef.current
+        const items  = Array.from(event.clipboardData?.items ?? [])
+        const img    = items.find(i => i.type.startsWith('image/'))
+        if (!img || !upload) return false
         event.preventDefault()
         const blob = img.getAsFile()
-        if (blob) onPasteImage(blob)
+        if (!blob) return true
+        onUploadStartRef.current?.()
+        upload(blob)
+          .then(url => {
+            editorRef.current?.chain().focus().setImage({ src: url, alt: 'screenshot' }).run()
+          })
+          .catch(() => {})
+          .finally(() => onUploadEndRef.current?.())
         return true
       },
       handleDrop(_, event) {
-        const file = Array.from(event.dataTransfer?.files ?? [])
+        const upload = uploadImageRef.current
+        const file   = Array.from(event.dataTransfer?.files ?? [])
           .find(f => f.type.startsWith('image/'))
-        if (!file) return false
+        if (!file || !upload) return false
         event.preventDefault()
-        onDropImage(file)
+        onUploadStartRef.current?.()
+        upload(file)
+          .then(url => {
+            editorRef.current?.chain().focus().setImage({ src: url, alt: file.name }).run()
+          })
+          .catch(() => {})
+          .finally(() => onUploadEndRef.current?.())
         return true
       },
     },
   })
+
+  // Keep editorRef in sync so image-upload closures always have the live editor
+  useEffect(() => {
+    if (editor) editorRef.current = editor
+  }, [editor])
 
   // Sync external value changes without clobbering cursor.
   // Also normalise any \[\[...\]\] that legacy saves may have written to disk
@@ -575,24 +611,7 @@ export default function MarkdownEditor({
     finally  { setUploading(false) }
   }
 
-  // Live mode — upload then append to markdown so the editor re-renders the image node
-  const handleLivePaste = useCallback(async (blob: Blob) => {
-    setUploading(true)
-    try {
-      const url = await doUpload(blob)
-      onChange(value.trimEnd() + `\n\n![screenshot](${url})\n`)
-    } catch { /* silent */ }
-    finally  { setUploading(false) }
-  }, [doUpload, onChange, value])
-
-  const handleLiveDrop = useCallback(async (file: File) => {
-    setUploading(true)
-    try {
-      const url = await doUpload(file)
-      onChange(value.trimEnd() + `\n\n![${file.name}](${url})\n`)
-    } catch { /* silent */ }
-    finally  { setUploading(false) }
-  }, [doUpload, onChange, value])
+  const hasUpload = !!(uploadImage || caseId)
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -616,8 +635,9 @@ export default function MarkdownEditor({
           onChange={onChange}
           placeholder={placeholder}
           minHeight={minHeight}
-          onPasteImage={handleLivePaste}
-          onDropImage={handleLiveDrop}
+          uploadImage={hasUpload ? doUpload : undefined}
+          onUploadStart={() => setUploading(true)}
+          onUploadEnd={()   => setUploading(false)}
         />
       )}
 

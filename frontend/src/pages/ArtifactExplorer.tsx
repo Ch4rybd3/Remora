@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -778,6 +778,23 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
     return [...inOrder, ...rest]
   }, [visibleCols, state.colOrder])
 
+  // ── Search-term highlight (orange) ───────────────────────────────────────
+  const highlightQuery = (state.filters.q ?? '').toLowerCase()
+  const highlightCell = useMemo(() => (text: string): React.ReactNode => {
+    if (!highlightQuery || text === '') return text
+    const idx = text.toLowerCase().indexOf(highlightQuery)
+    if (idx === -1) return text
+    return (
+      <>
+        {text.slice(0, idx)}
+        <mark style={{ background: 'rgba(251,146,60,0.28)', color: '#fb923c', borderRadius: 2, padding: '0 1px' }}>
+          {text.slice(idx, idx + highlightQuery.length)}
+        </mark>
+        {text.slice(idx + highlightQuery.length)}
+      </>
+    )
+  }, [highlightQuery])
+
   // ── Grouped flat list ─────────────────────────────────────────────────────
   const validGroupCols = useMemo(() =>
     groupByCols.filter(c => allCols.includes(c)),
@@ -1195,8 +1212,14 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
                 <>
                   <tr key={idx}
                     onClick={() => setExpandedRow(r => r === rowKey ? null : rowKey)}
-                    className={`border-b border-white/[0.04] cursor-pointer transition-colors group ${expandedRow === rowKey ? 'bg-accent-green/5' : 'hover:bg-white/[0.025]'}`}>
-                    <td className="w-8 shrink-0 px-1 py-1.5 text-center sticky left-0 z-[4] bg-bg-primary group-[.expanded]:bg-accent-green/5 shadow-[1px_0_0_rgba(255,255,255,0.04)]"
+                    className={`border-b cursor-pointer transition-colors group ${
+                      isPinned
+                        ? 'border-accent-green/20 bg-accent-green/[0.04] hover:bg-accent-green/[0.07]'
+                        : expandedRow === rowKey
+                          ? 'border-white/[0.04] bg-accent-green/5'
+                          : 'border-white/[0.04] hover:bg-white/[0.025]'
+                    }`}>
+                    <td className={`w-8 shrink-0 px-1 py-1.5 text-center sticky left-0 z-[4] shadow-[1px_0_0_rgba(255,255,255,0.04)] ${isPinned ? 'bg-accent-green/[0.04]' : 'bg-bg-primary'}`}
                       onClick={e => { e.stopPropagation(); handlePin(row) }}>
                       {isPinned
                         ? <BookmarkCheck size={13} className="mx-auto text-accent-green/60" />
@@ -1208,7 +1231,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, onP
                         className={`px-3 py-1.5 truncate ${col === meta.date_column ? 'font-mono text-[10px] text-white/45 whitespace-nowrap' : 'text-white/65'}`}
                         style={{ width: colW(col), minWidth: 60, maxWidth: colW(col) }}
                         title={row[col] ?? ''}>
-                        {row[col] ?? ''}
+                        {highlightCell(row[col] ?? '')}
                       </td>
                     ))}
                   </tr>

@@ -10,6 +10,7 @@ Auth is handled at the router-include level in main.py (**_auth).
 from __future__ import annotations
 
 import hashlib
+import html as _html
 import json
 import math
 import re
@@ -74,12 +75,12 @@ def _get_file_or_404(file_id: str, case_id: str, db: Session) -> EvtxFile:
 # ── EVTX field extraction ─────────────────────────────────────────────────────
 
 def _str(v: Any) -> str:
-    """Safely convert any value to a non-None string."""
+    """Safely convert any value to string, unescaping XML/HTML entities."""
     if v is None:
         return ""
     if isinstance(v, bool):
         return str(v).lower()
-    return str(v)
+    return _html.unescape(str(v))
 
 
 def _get_attr_name(obj: dict) -> str | None:
