@@ -1,0 +1,72 @@
+name: "CTF / Challenge"
+description: "Template for Capture The Flag competitions and security challenges"
+version: "1.0"
+tags:
+  - ctf
+  - challenge
+severity: medium
+tlp: "TLP:CLEAR"
+metadata:
+  category: ctf
+
+executive_summary_template: |
+  CTF : [NOM DE LA COMPÉTITION]
+  Équipe : [NOM DE L'ÉQUIPE]
+  Date : [DATE]
+
+  Challenges résolus : [N/TOTAL]
+  Points obtenus : [POINTS]
+
+report_sections:
+  # ── Box 1 : Analyse Technique ─────────────────────────────────────────────
+  - name: "Reconnaissance"
+    category: analyse
+    template: |
+      ## Analyse initiale
+
+      Décrire les informations collectées au départ (fichiers fournis, services exposés, hints…).
+
+  - name: "Exploitation"
+    category: analyse
+    template: |
+      ## Vulnérabilité identifiée
+
+      Décrire la faille ou le mécanisme exploité.
+
+      ## Chaîne d'exploitation
+
+      Décrire chaque étape de l'exploit dans l'ordre.
+
+      ## Preuve d'exploitation
+
+      ```
+      [commandes / payload / screenshot]
+      ```
+
+  # ── Box 2 : Remédiations (optionnel pour CTF) ─────────────────────────────
+  - name: "Remédiation"
+    category: remediation
+    template: |
+      Si applicable, décrire comment corriger la vulnérabilité exploitée.
+
+      - [ ] Patch / fix suggéré
+
+  # ── Box 3 : Conclusion / Flag ────────────────────────────────────────────
+  - name: "Flag"
+    category: conclusion
+    template: |
+      ```
+      flag{...}
+      ```
+
+      **Catégorie :** [Web / Pwn / Crypto / Rev / Forensics / Misc]
+      **Points :** [N]
+      **Difficulté :** [Easy / Medium / Hard]
+
+  - name: "Retour d'expérience"
+    category: conclusion
+    template: |
+      Ce qui était nouveau, ce qui était piégeux, ce que tu ferais différemment.
+
+      - [ ] Point d'apprentissage 1
+      - [ ] Point d'apprentissage 2

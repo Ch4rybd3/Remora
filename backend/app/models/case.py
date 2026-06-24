@@ -22,6 +22,13 @@ class CaseSeverity(str, enum.Enum):
     critical = "critical"
 
 
+class CaseType(str, enum.Enum):
+    ir = "ir"           # Incident Response
+    ctf = "ctf"         # Capture The Flag
+    pentest = "pentest" # Penetration Test
+    sample = "sample"   # Sample / Test
+
+
 class Case(Base):
     __tablename__ = "cases"
 
@@ -34,6 +41,8 @@ class Case(Base):
     template_id = Column(String, nullable=True)
     assigned_to = Column(String(255), default="")
     tlp = Column(String(10), default="TLP:AMBER")
+    case_type = Column(SAEnum(CaseType), default=CaseType.ir, nullable=False)
+    client_name = Column(String(255), default="")
 
     executive_summary = Column(Text, default="")
     quick_notes = Column(Text, default="")

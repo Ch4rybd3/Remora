@@ -161,6 +161,26 @@ def _setup_csv_artifact_evidence() -> None:
 
 _setup_csv_artifact_evidence()
 
+
+def _setup_case_type() -> None:
+    """Add case_type and client_name columns to cases if they don't exist."""
+    with engine.connect() as conn:
+        for stmt, msg in [
+            ("ALTER TABLE cases ADD COLUMN case_type TEXT NOT NULL DEFAULT 'ir'",
+             "[migration] cases.case_type added"),
+            ("ALTER TABLE cases ADD COLUMN client_name TEXT NOT NULL DEFAULT ''",
+             "[migration] cases.client_name added"),
+        ]:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+                print(msg, flush=True)
+            except Exception:
+                pass  # Column already exists
+
+
+_setup_case_type()
+
 NOTE_IMAGES_DIR = settings.evidence_store_path.parent / "note_images"
 NOTE_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 

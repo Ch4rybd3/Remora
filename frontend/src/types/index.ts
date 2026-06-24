@@ -1,5 +1,6 @@
-export type CaseStatus = 'open' | 'in_progress' | 'closed' | 'archived'
+export type CaseStatus   = 'open' | 'in_progress' | 'closed' | 'archived'
 export type CaseSeverity = 'informational' | 'low' | 'medium' | 'high' | 'critical'
+export type CaseType     = 'ir' | 'ctf' | 'pentest' | 'sample'
 
 export interface CaseSummary {
   id: string
@@ -9,6 +10,8 @@ export interface CaseSummary {
   tags: string
   assigned_to: string
   tlp: string
+  case_type: CaseType
+  client_name: string
   created_at: string
   updated_at: string
   ioc_count: number
