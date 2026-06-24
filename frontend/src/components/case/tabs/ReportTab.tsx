@@ -24,7 +24,7 @@ import {
   User, Hash, FileOutput, ChevronDown, ChevronRight,
   Network, List, StickyNote, CheckCircle2, Circle,
   Sparkles, BookOpen, AlertCircle, Clipboard, ClipboardCheck,
-  FlaskConical, Wrench, Flag,
+  FlaskConical, Wrench, Flag, SendToBack,
 }                                                            from 'lucide-react'
 import { casesApi }                                          from '../../../api/cases'
 import { reportVersionsApi, type ReportVersionMeta }        from '../../../api/reportVersions'
@@ -343,6 +343,7 @@ export default function ReportTab({ case_ }: Props) {
   const [versionsOpen,       setVersionsOpen]      = useState(false)
   const [selectedTemplateId, setSelectedTemplateId]= useState<number | ''>('')
   const [exporting,          setExporting]         = useState(false)
+  const [pushingSummary,     setPushingSummary]     = useState(false)
 
   const markDirty = () => setDirty(true)
 
@@ -420,6 +421,21 @@ export default function ReportTab({ case_ }: Props) {
     URL.revokeObjectURL(url)
   }
 
+  // ── Push conclusion + analysis to Executive Summary ──────────────────────
+  const handlePushToSummary = async () => {
+    const parts = [analysis, conclusion].filter(s => s.trim())
+    if (parts.length === 0) return
+    const draft = parts.join('\n\n---\n\n')
+    const existing = case_.executive_summary?.trim() ?? ''
+    const merged = existing ? existing + '\n\n---\n\n' + draft : draft
+    if (!confirm('Pousser Analyse + Conclusion vers le Executive Summary ?\n\nLe contenu existant sera conservé (ajout en bas).')) return
+    setPushingSummary(true)
+    try {
+      await casesApi.update(case_.id, { executive_summary: merged })
+      qc.invalidateQueries({ queryKey: ['case', case_.id] })
+    } finally { setPushingSummary(false) }
+  }
+
   const hasTemplate = !!case_.template_id
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -471,6 +487,17 @@ export default function ReportTab({ case_ }: Props) {
             >
               <FileDown size={12} />
               .md
+            </button>
+
+            {/* Push Analyse+Conclusion → Executive Summary */}
+            <button
+              className="btn-secondary text-xs flex items-center gap-1.5"
+              onClick={handlePushToSummary}
+              disabled={pushingSummary || (!analysis.trim() && !conclusion.trim())}
+              title="Copier Analyse Technique + Conclusion vers l'Executive Summary"
+            >
+              <SendToBack size={12} className={pushingSummary ? 'animate-pulse' : ''} />
+              {pushingSummary ? '…' : '→ Résumé'}
             </button>
 
             {/* Report template + DOCX export */}

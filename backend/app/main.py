@@ -20,6 +20,7 @@ from .models.user import User, UserRole
 from .services.auth_service import hash_password
 from .core.deps import get_current_user
 from .routers import cases, iocs, assets, evidences, timeline, templates, reports
+from .routers import backup as backup_router
 from .routers import auth, users as users_router, playbooks as playbooks_router
 from .routers import email_analysis as email_analysis_router
 from .routers import knowledge as knowledge_router
@@ -267,6 +268,7 @@ app.include_router(vault_router.router,                prefix="/api/v1", **_auth
 app.include_router(connectors_router.router,           prefix="/api/v1", **_auth)
 app.include_router(cti_router.router,                  prefix="/api/v1", **_auth)
 app.include_router(collection_import_router.router,    prefix="/api/v1", **_auth)
+app.include_router(backup_router.router,               prefix="/api/v1", **_auth)
 
 
 @app.get("/api/v1/health")
