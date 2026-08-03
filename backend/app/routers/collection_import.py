@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db, SessionLocal
 from ..core.deps import get_current_user
 from ..models.ez_artifacts import ImportedCollection, ImportedFile
+from ..models.csv_artifact import CsvArtifactFile
 from ..services.ez_detection import detect
 
 router = APIRouter()
@@ -273,9 +274,10 @@ def _run_pending(
             else:
                 # All other supported types (.csv, .json, .txt, .log) go to Artifact Explorer
                 artifact = register_csv_artifact(file_path, case_id, db)
-                f.status    = "imported"
-                f.row_count = artifact.row_count if artifact else 0
-                f.imported_at = datetime.utcnow()
+                f.status         = "imported"
+                f.row_count      = artifact.row_count if artifact else 0
+                f.imported_at    = datetime.utcnow()
+                f.csv_artifact_id = artifact.id if artifact else None
 
         except Exception as e:
             print(f"[collection_import] ERROR registering {filename}: {e}", flush=True)
@@ -371,9 +373,10 @@ def list_collections(
     result = []
     for col in cols:
         files = db.query(ImportedFile).filter(ImportedFile.collection_id == col.id).all()
+        tz_map = _resolve_timezones(files, db)
         result.append({
             **_collection_dto(col),
-            "files": [_file_dto(f) for f in files],
+            "files": [_file_dto(f, tz_map.get(f.id)) for f in files],
             "groups": _group_summary(files),   # ← needed for category cards in UI
         })
     return result
@@ -394,9 +397,10 @@ def get_collection(
         raise HTTPException(404, "Collection not found")
 
     files = db.query(ImportedFile).filter(ImportedFile.collection_id == collection_id).all()
+    tz_map = _resolve_timezones(files, db)
     return {
         **_collection_dto(col),
-        "files": [_file_dto(f) for f in files],
+        "files": [_file_dto(f, tz_map.get(f.id)) for f in files],
         "groups": _group_summary(files),
     }
 
@@ -449,6 +453,31 @@ def mark_evidence(
     return _file_dto(f)
 
 
+@router.patch("/cases/{case_id}/collection-imports/files/{file_id}/timezone")
+def set_file_timezone(
+    case_id: str,
+    file_id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Set the source timezone on the CsvArtifactFile linked to this ImportedFile."""
+    f = db.get(ImportedFile, file_id)
+    if not f or f.case_id != case_id:
+        raise HTTPException(404)
+    if not f.csv_artifact_id:
+        raise HTTPException(400, "File not linked to an Artifact Explorer record")
+
+    artifact = db.get(CsvArtifactFile, f.csv_artifact_id)
+    if not artifact:
+        raise HTTPException(404, "Linked artifact not found")
+
+    tz = body.get("timezone") or None
+    artifact.source_timezone = tz
+    db.commit()
+    return _file_dto(f, source_timezone=tz)
+
+
 # ─── DTOs ─────────────────────────────────────────────────────────────────────
 
 def _collection_dto(col: ImportedCollection) -> dict:
@@ -466,7 +495,17 @@ def _collection_dto(col: ImportedCollection) -> dict:
     }
 
 
-def _file_dto(f: ImportedFile) -> dict:
+def _resolve_timezones(files: list[ImportedFile], db: Session) -> dict[str, str | None]:
+    """Batch-fetch source_timezone from CsvArtifactFile for a list of ImportedFiles."""
+    artifact_ids = [f.csv_artifact_id for f in files if f.csv_artifact_id]
+    if not artifact_ids:
+        return {}
+    artifacts = db.query(CsvArtifactFile).filter(CsvArtifactFile.id.in_(artifact_ids)).all()
+    tz_by_artifact_id = {a.id: a.source_timezone for a in artifacts}
+    return {f.id: tz_by_artifact_id.get(f.csv_artifact_id) for f in files if f.csv_artifact_id}
+
+
+def _file_dto(f: ImportedFile, source_timezone: str | None = None) -> dict:
     return {
         "id": f.id,
         "filename": f.filename,
@@ -481,6 +520,8 @@ def _file_dto(f: ImportedFile) -> dict:
         "imported_at": f.imported_at.isoformat() if f.imported_at else None,
         "added_to_evidence": f.added_to_evidence,
         "expires_at": f.expires_at.isoformat() if f.expires_at else None,
+        "csv_artifact_id": f.csv_artifact_id,
+        "source_timezone": source_timezone,
     }
 
 

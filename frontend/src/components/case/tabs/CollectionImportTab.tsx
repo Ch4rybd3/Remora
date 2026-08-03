@@ -1,8 +1,9 @@
 import { useRef, useState, useCallback, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Globe } from 'lucide-react'
 import { collectionImportApi, type ImportedCollection, type ImportedFile, type GroupSummary } from '../../../api/collectionImport'
 import { useNavigate } from 'react-router-dom'
+import { TIMEZONE_OPTIONS } from '../../../context/TimezoneContext'
 
 interface Props { caseId: string }
 
@@ -125,8 +126,70 @@ function Progress({ val, total }: { val: number; total: number }) {
   )
 }
 
-function FileBadge({ f }: { f: ImportedFile }) {
+function TzPicker({ f, caseId }: { f: ImportedFile; caseId: string }) {
+  const [open, setOpen] = useState(false)
+  const qc = useQueryClient()
+
+  const setTz = useMutation({
+    mutationFn: (tz: string | null) => collectionImportApi.setFileTimezone(caseId, f.id, tz),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['collection-imports', caseId] })
+      setOpen(false)
+    },
+  })
+
+  const label = f.source_timezone
+    ? (TIMEZONE_OPTIONS.find(o => o.value === f.source_timezone)?.label ?? f.source_timezone)
+    : 'UTC'
+  const isCustom = !!f.source_timezone
+
+  return (
+    <div className="relative inline-block">
+      <button
+        onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
+        title="Source timezone for this artifact's timestamps"
+        className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+          isCustom
+            ? 'border-blue-500/40 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'
+            : 'border-white/10 bg-white/[0.03] text-gray-500 hover:text-gray-300 hover:border-white/20'
+        }`}
+      >
+        <Globe size={9} />
+        <span>{label}</span>
+      </button>
+      {open && (
+        <div className="absolute z-50 top-full left-0 mt-1 w-48 bg-[#0d1927] border border-white/15 rounded-lg shadow-xl text-xs overflow-hidden">
+          <div className="px-2 py-1.5 border-b border-white/10 text-[10px] text-gray-500 uppercase tracking-wide">
+            Timezone source
+          </div>
+          <div className="max-h-52 overflow-y-auto">
+            {/* Reset to default */}
+            <button
+              onClick={() => setTz.mutate(null)}
+              className={`w-full text-left px-3 py-1.5 hover:bg-white/5 ${!isCustom ? 'text-accent-green' : 'text-gray-400'}`}
+            >
+              UTC (default)
+            </button>
+            {TIMEZONE_OPTIONS.filter(o => o.value !== 'UTC').map(o => (
+              <button
+                key={o.value}
+                onClick={() => setTz.mutate(o.value)}
+                className={`w-full text-left px-3 py-1.5 hover:bg-white/5 ${f.source_timezone === o.value ? 'text-accent-green' : 'text-gray-400'}`}
+              >
+                {o.label}
+                <span className="text-gray-600 ml-1 text-[9px]">{o.region}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FileBadge({ f, caseId }: { f: ImportedFile; caseId: string }) {
   const color = STATUS_COLOR[f.status] ?? 'text-gray-400'
+  const showTzPicker = f.status === 'imported' && !!f.csv_artifact_id
   return (
     <tr className="border-b border-white/5 hover:bg-white/[0.02] text-xs">
       <td className="py-2 pl-3 pr-2 font-mono text-gray-400 max-w-[280px] truncate">
@@ -139,6 +202,9 @@ function FileBadge({ f }: { f: ImportedFile }) {
       </td>
       <td className={`py-2 px-2 font-semibold ${color}`}>{f.status}</td>
       <td className="py-2 px-2 text-gray-400 text-right">{fmtNum(f.row_count)}</td>
+      <td className="py-2 px-2">
+        {showTzPicker ? <TzPicker f={f} caseId={caseId} /> : <span className="text-gray-600">—</span>}
+      </td>
       <td className="py-2 px-2 text-gray-400 text-right">{fmt(f.file_size)}</td>
       <td className="py-2 pr-3 text-gray-500 text-right">
         {f.expires_at && !f.added_to_evidence
@@ -344,12 +410,13 @@ function CollectionCard({ cols, caseId }: { cols: ImportedCollection[]; caseId: 
                 <th className="py-2 px-2 text-left">Category</th>
                 <th className="py-2 px-2 text-left">Status</th>
                 <th className="py-2 px-2 text-right">Rows</th>
+                <th className="py-2 px-2 text-left">Timezone</th>
                 <th className="py-2 px-2 text-right">Size</th>
                 <th className="py-2 pr-3 text-right">Expires</th>
               </tr>
             </thead>
             <tbody>
-              {col.files.map(f => <FileBadge key={f.id} f={f} />)}
+              {col.files.map(f => <FileBadge key={f.id} f={f} caseId={caseId} />)}
             </tbody>
           </table>
         </div>

@@ -383,20 +383,22 @@ def list_artifacts(case_id: str, db: Session = Depends(get_db)) -> list[dict]:
         .order_by(CsvArtifactFile.uploaded_at.desc())
         .all()
     )
-    return [
-        {
-            "id":            r.id,
-            "original_name": r.original_name,
-            "columns":       json.loads(r.columns),
-            "row_count":     r.row_count,
-            "date_column":   r.date_column,
-            "ez_label":      r.ez_label,
-            "ez_category":   r.ez_category,
-            "uploaded_at":   r.uploaded_at.isoformat(),
-            "evidence_id":   r.evidence_id,
-        }
-        for r in rows
-    ]
+    return [_artifact_dto(r) for r in rows]
+
+
+def _artifact_dto(r: CsvArtifactFile) -> dict:
+    return {
+        "id":               r.id,
+        "original_name":    r.original_name,
+        "columns":          json.loads(r.columns),
+        "row_count":        r.row_count,
+        "date_column":      r.date_column,
+        "ez_label":         r.ez_label,
+        "ez_category":      r.ez_category,
+        "source_timezone":  r.source_timezone,
+        "uploaded_at":      r.uploaded_at.isoformat(),
+        "evidence_id":      r.evidence_id,
+    }
 
 
 # NOTE: static path segment "search" takes priority over /{artifact_id} in FastAPI.
@@ -498,17 +500,7 @@ async def upload_artifact(
     db.commit()
     db.refresh(rec)
 
-    return {
-        "id":            rec.id,
-        "original_name": rec.original_name,
-        "columns":       cols,
-        "row_count":     rec.row_count,
-        "date_column":   rec.date_column,
-        "ez_label":      rec.ez_label,
-        "ez_category":   rec.ez_category,
-        "uploaded_at":   rec.uploaded_at.isoformat(),
-        "evidence_id":   rec.evidence_id,
-    }
+    return _artifact_dto(rec)
 
 
 @router.get("/cases/{case_id}/artifacts/{artifact_id}/rows")
@@ -691,6 +683,23 @@ def _evidence_dto(ev) -> dict:
         "collected_by":     ev.collected_by,
         "collected_at":     ev.collected_at.isoformat() if ev.collected_at else None,
     }
+
+
+@router.patch("/cases/{case_id}/artifacts/{artifact_id}")
+def patch_artifact(
+    case_id:      str,
+    artifact_id:  str,
+    body:         dict,
+    db:           Session = Depends(get_db),
+    current_user: User    = Depends(get_current_user),
+) -> dict:
+    """Update mutable fields on a CsvArtifactFile (currently: source_timezone)."""
+    a = _get_artifact_or_404(artifact_id, case_id, db)
+    if "source_timezone" in body:
+        a.source_timezone = body["source_timezone"] or None
+    db.commit()
+    db.refresh(a)
+    return _artifact_dto(a)
 
 
 @router.delete("/cases/{case_id}/artifacts/{artifact_id}", status_code=status.HTTP_204_NO_CONTENT)

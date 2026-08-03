@@ -14,8 +14,9 @@ class CsvArtifactFile(Base):
     file_path     = Column(String, nullable=False)
     columns       = Column(Text, nullable=False, default="[]")   # JSON list of column names
     row_count     = Column(Integer, default=0)
-    date_column   = Column(String(200), nullable=True)           # auto-detected timestamp col
-    ez_label      = Column(String(100), nullable=True)           # e.g. "Shimcache (AppCompatCache)"
-    ez_category   = Column(String(100), nullable=True)           # internal category key
-    uploaded_at   = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    evidence_id   = Column(String, ForeignKey("evidences.id", ondelete="SET NULL"), nullable=True)
+    date_column     = Column(String(200), nullable=True)           # auto-detected timestamp col
+    ez_label        = Column(String(100), nullable=True)           # e.g. "Shimcache (AppCompatCache)"
+    ez_category     = Column(String(100), nullable=True)           # internal category key
+    source_timezone = Column(String(100), nullable=True)           # IANA tz of raw timestamps (null = UTC)
+    uploaded_at     = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    evidence_id     = Column(String, ForeignKey("evidences.id", ondelete="SET NULL"), nullable=True)

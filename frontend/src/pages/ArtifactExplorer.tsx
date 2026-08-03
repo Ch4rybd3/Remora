@@ -11,7 +11,7 @@ import {
 import { csvArtifactsApi, type CsvArtifactMeta, type ArtifactRowFilters, type OmniSearchFile, type GroupResult } from '../api/csvArtifacts'
 import { timelineApi } from '../api/timeline'
 import { useCurrentCase } from '../context/CurrentCaseContext'
-import { fmtRelative } from '../utils/dateUtils'
+import { fmtRelative, parseArtifactTimestamp } from '../utils/dateUtils'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -40,13 +40,14 @@ const defaultTabState = (): TabState => ({
 })
 
 interface PinnedRow {
-  key:          string
-  artifactId:   string
-  artifactName: string
-  ezLabel:      string | null
-  dateColumn:   string | null
-  columns:      string[]
-  row:          Record<string, string>
+  key:            string
+  artifactId:     string
+  artifactName:   string
+  ezLabel:        string | null
+  dateColumn:     string | null
+  sourceTimezone: string | null
+  columns:        string[]
+  row:            Record<string, string>
 }
 
 type FlatItem =
@@ -340,9 +341,11 @@ function ColResizeHandle({ col, onStart, onReset }: {
 
 // ── GroupByBar ────────────────────────────────────────────────────────────────
 
-function GroupByBar({ groupByCols, onChange, isDragging }: {
+function GroupByBar({ groupByCols, onRemove, onAdd, onClear, isDragging }: {
   groupByCols: string[]
-  onChange:    (cols: string[]) => void
+  onRemove:    (col: string) => void
+  onAdd:       (col: string) => void
+  onClear:     () => void
   isDragging:  boolean
 }) {
   const [isOver, setIsOver] = useState(false)
@@ -363,7 +366,7 @@ function GroupByBar({ groupByCols, onChange, isDragging }: {
         e.preventDefault()
         setIsOver(false)
         const col = e.dataTransfer.getData('column')
-        if (col && !groupByCols.includes(col)) onChange([...groupByCols, col])
+        if (col) onAdd(col)
       }}
     >
       <span className="text-[9px] text-accent-muted/30 uppercase tracking-widest shrink-0 select-none flex items-center gap-1">
@@ -377,7 +380,7 @@ function GroupByBar({ groupByCols, onChange, isDragging }: {
           {i > 0 && <ChevronRightIcon size={8} className="text-accent-green/30 mx-0.5" />}
           <span>{col}</span>
           <button
-            onClick={() => onChange(groupByCols.filter(c => c !== col))}
+            onClick={() => onRemove(col)}
             className="text-accent-green/40 hover:text-red-400 transition-colors ml-1">
             <X size={7} />
           </button>
@@ -396,7 +399,7 @@ function GroupByBar({ groupByCols, onChange, isDragging }: {
 
       {hasGroups && (
         <button
-          onClick={() => onChange([])}
+          onClick={onClear}
           className="ml-auto text-[9px] text-accent-muted/30 hover:text-red-400 transition-colors shrink-0 flex items-center gap-0.5">
           <X size={8} /> Effacer
         </button>
@@ -423,7 +426,7 @@ function GroupRowsFetcher({ caseId, meta, baseFilters, groupFilters, orderedCols
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 100
 
-  // Merge group equality filters into existing col_filters
+  // Merge group equality filters into existing col_filters, preserving rql
   const mergedFilters = useMemo((): ArtifactRowFilters => {
     const existing: Record<string, { mode: string; value: string }> = baseFilters.col_filters
       ? (() => { try { return JSON.parse(baseFilters.col_filters!) } catch { return {} } })()
@@ -436,6 +439,7 @@ function GroupRowsFetcher({ caseId, meta, baseFilters, groupFilters, orderedCols
       sort_col:    baseFilters.sort_col,
       sort_dir:    baseFilters.sort_dir ?? 'asc',
       col_filters: JSON.stringify({ ...existing, ...groupCF }),
+      rql:         baseFilters.rql,
       page,
       page_size:   PAGE_SIZE,
     }
@@ -567,12 +571,13 @@ const RQL_EXAMPLES = [
 
 // ── RQLBar ────────────────────────────────────────────────────────────────────
 
-function RQLBar({ value, onChange, onRun, error, columns }: {
-  value:    string
-  onChange: (v: string) => void
-  onRun:    (v: string) => void
-  error:    string | null
-  columns:  string[]
+function RQLBar({ value, onChange, onRun, error, columns, hasActiveFilters }: {
+  value:            string
+  onChange:         (v: string) => void
+  onRun:            (v: string) => void
+  error:            string | null
+  columns:          string[]
+  hasActiveFilters: boolean
 }) {
   const [showHelp, setShowHelp] = useState(false)
   const [autocomplete, setAutocomplete] = useState<string[]>([])
@@ -697,6 +702,14 @@ function RQLBar({ value, onChange, onRun, error, columns }: {
         <div className="flex items-center gap-1.5 mx-3 mb-2 px-2 py-1 rounded bg-red-500/10 border border-red-500/20 text-[10px] text-red-400">
           <AlertCircle size={10} className="shrink-0" />
           {error}
+        </div>
+      )}
+
+      {/* Warning: column filters + RQL are ANDed — can narrow OR results unexpectedly */}
+      {value && hasActiveFilters && !error && (
+        <div className="flex items-center gap-1.5 mx-3 mb-2 px-2 py-1 rounded bg-yellow-500/8 border border-yellow-500/20 text-[10px] text-yellow-400/80">
+          <AlertCircle size={10} className="shrink-0" />
+          Des filtres de colonnes sont actifs et s'appliquent en AND avec la requête RQL — les résultats OR peuvent être réduits.
         </div>
       )}
 
@@ -1050,12 +1063,26 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, exp
   const hiddenSet   = useMemo(() => new Set(state.hiddenCols), [state.hiddenCols])
   const visibleCols = useMemo(() => allCols.filter(c => !hiddenSet.has(c)), [allCols, hiddenSet])
 
+  // validGroupCols must be declared before orderedCols (used to exclude grouped cols)
+  const validGroupCols = useMemo(() =>
+    groupByCols.filter(c => allCols.includes(c)),
+    [groupByCols, allCols]
+  )
+
+  const groupedSet = useMemo(() => new Set(validGroupCols), [validGroupCols])
+
   const orderedCols = useMemo(() => {
-    if (!state.colOrder?.length) return visibleCols
-    const inOrder = state.colOrder.filter(c => visibleCols.includes(c))
-    const rest    = visibleCols.filter(c => !inOrder.includes(c))
-    return [...inOrder, ...rest]
-  }, [visibleCols, state.colOrder])
+    // When grouping is active, exclude grouped columns from the row display —
+    // their values are already shown in the group header rows.
+    const baseCols = groupActive
+      ? visibleCols.filter(c => !groupedSet.has(c))
+      : visibleCols
+    if (!state.colOrder?.length) return baseCols
+    const inOrder = state.colOrder.filter(c => baseCols.includes(c))
+    const rest    = baseCols.filter(c => !inOrder.includes(c))
+    // Deduplicate defensively (guards against stale localStorage state)
+    return [...new Set([...inOrder, ...rest])]
+  }, [visibleCols, state.colOrder, groupActive, groupedSet])
 
   // ── Search-term highlight (orange) ───────────────────────────────────────
   const highlightQuery = (state.filters.q ?? '').toLowerCase()
@@ -1075,10 +1102,6 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, exp
   }, [highlightQuery])
 
   // ── Grouped flat list ─────────────────────────────────────────────────────
-  const validGroupCols = useMemo(() =>
-    groupByCols.filter(c => allCols.includes(c)),
-    [groupByCols, allCols]
-  )
 
   const backendGroups = groupData?.groups ?? []
 
@@ -1279,12 +1302,17 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, exp
         onRun={handleRqlRun}
         error={rqlError}
         columns={allCols}
+        hasActiveFilters={activeColCount > 0 || !!state.filters.q}
       />
 
       {/* ── Group-by drop zone ──────────────────────────────────────────── */}
       <GroupByBar
         groupByCols={validGroupCols}
-        onChange={cols => onStateChange({ groupByCols: cols })}
+        onRemove={col => onStateChange({ groupByCols: groupByCols.filter(c => c !== col) })}
+        onAdd={col => {
+          if (!groupByCols.includes(col)) onStateChange({ groupByCols: [...groupByCols, col] })
+        }}
+        onClear={() => onStateChange({ groupByCols: [] })}
         isDragging={draggingCol !== null}
       />
 
@@ -1441,7 +1469,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, exp
               if (item.type === 'group') {
                 const indent = item.depth * 20
                 return (
-                  <tr key={item.key}
+                  <tr key={`h:${item.key}`}
                     onClick={() => toggleGroup(item.key)}
                     className="border-b border-white/[0.06] cursor-pointer select-none hover:bg-white/[0.03] transition-colors"
                     style={{ background: item.depth === 0 ? 'rgba(255,255,255,0.025)' : item.depth === 1 ? 'rgba(255,255,255,0.015)' : undefined }}>
@@ -1471,7 +1499,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, exp
                   key={item.groupKey}
                   caseId={caseId}
                   meta={meta}
-                  baseFilters={state.filters}
+                  baseFilters={activeFilters}
                   groupFilters={item.groupFilters}
                   orderedCols={orderedCols}
                   colW={colW}
@@ -1805,6 +1833,12 @@ function FileSidebarRow({ meta, isOpen, onOpen, onDelete, onAddEvidence, addingE
               ? <EZBadge label={meta.ez_label} />
               : <span className="text-[8px] font-semibold px-1.5 py-0.5 rounded border bg-gray-500/10 text-gray-500 border-gray-500/20">unknown</span>
             }
+            {meta.source_timezone && (
+              <span className="flex items-center gap-0.5 text-[8px] font-semibold px-1.5 py-0.5 rounded border border-blue-500/30 bg-blue-500/10 text-blue-400">
+                <Globe size={7} />
+                {meta.source_timezone.split('/').pop()?.replace('_', ' ') ?? meta.source_timezone}
+              </span>
+            )}
             <span className="text-[9px] text-accent-muted/40">{meta.row_count.toLocaleString()} rows</span>
           </div>
           <p className="text-[9px] text-accent-muted/25 mt-0.5">{fmtRelative(meta.uploaded_at)}</p>
@@ -2028,11 +2062,12 @@ export default function ArtifactExplorer() {
       if (prev.some(p => p.key === key)) return prev.filter(p => p.key !== key)
       return [...prev, {
         key,
-        artifactId:   meta.id,
-        artifactName: meta.original_name,
-        ezLabel:      meta.ez_label,
-        dateColumn:   meta.date_column,
-        columns:      meta.columns,
+        artifactId:     meta.id,
+        artifactName:   meta.original_name,
+        ezLabel:        meta.ez_label,
+        dateColumn:     meta.date_column,
+        sourceTimezone: meta.source_timezone ?? null,
+        columns:        meta.columns,
         row,
       }]
     })
@@ -2050,7 +2085,7 @@ export default function ArtifactExplorer() {
       for (const item of sorted) {
         const dateVal = item.dateColumn ? item.row[item.dateColumn] ?? '' : ''
         const ts = dateVal
-          ? (() => { try { return new Date(dateVal.replace(' ', 'T')).toISOString() } catch { return new Date().toISOString() } })()
+          ? parseArtifactTimestamp(dateVal, item.sourceTimezone)
           : new Date().toISOString()
         const mainEntry = Object.entries(item.row).find(([k, v]) => k !== item.dateColumn && v?.trim())
         const title = ((item.ezLabel ?? item.artifactName) + (mainEntry ? ' — ' + mainEntry[1] : '')).slice(0, 120)

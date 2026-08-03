@@ -14,6 +14,8 @@ export interface ImportedFile {
   imported_at: string | null
   added_to_evidence: boolean
   expires_at: string | null
+  csv_artifact_id: string | null
+  source_timezone: string | null
 }
 
 export interface GroupSummary {
@@ -107,6 +109,18 @@ export const collectionImportApi = {
       headers: { ...headers, 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({ added, evidence_id: evidenceId }),
+    })
+    if (!res.ok) throw new Error(await res.text())
+    return res.json()
+  },
+
+  async setFileTimezone(caseId: string, fileId: string, timezone: string | null): Promise<ImportedFile> {
+    const headers = await authHeaders()
+    const res = await fetch(`${BASE}/cases/${caseId}/collection-imports/files/${fileId}/timezone`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ timezone }),
     })
     if (!res.ok) throw new Error(await res.text())
     return res.json()
