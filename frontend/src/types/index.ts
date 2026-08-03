@@ -126,6 +126,20 @@ export interface TimelineEvent {
   created_at: string
 }
 
+export type IncidentLogCategory = 'remediation' | 'handover' | 'communication' | 'investigation' | 'other'
+
+export interface IncidentLogEntry {
+  id: string
+  case_id: string
+  timeline_event_id: string | null
+  event_ts: string
+  category: IncidentLogCategory
+  title: string
+  description: string
+  actor: string
+  created_at: string
+}
+
 export interface TTPDefinition {
   technique_id:   string
   technique_name: string

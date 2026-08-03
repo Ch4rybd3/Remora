@@ -8,6 +8,7 @@ export interface CsvArtifactMeta {
   date_column: string | null
   ez_label: string | null
   ez_category: string | null
+  source_timezone: string | null
   uploaded_at: string
   evidence_id: string | null
 }
@@ -135,4 +136,8 @@ export const csvArtifactsApi = {
 
   getRaw: (caseId: string, artifactId: string): Promise<{ content: string; encoding: 'text' | 'json' }> =>
     api.get(`/cases/${caseId}/artifacts/${artifactId}/raw`).then(r => r.data),
+
+  setTimezone: (caseId: string, artifactId: string, timezone: string | null): Promise<CsvArtifactMeta> =>
+    api.patch<CsvArtifactMeta>(`/cases/${caseId}/artifacts/${artifactId}`, { source_timezone: timezone })
+      .then(r => r.data),
 }

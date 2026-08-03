@@ -157,6 +157,72 @@ export function fmtDateStamp(iso?: string | null): string {
   ].join('')
 }
 
+// ── Artifact timestamp parsing ────────────────────────────────────────────────
+
+/**
+ * Parse a raw artifact timestamp string (e.g. "2024-07-15 14:30:00") that is in
+ * `sourceTz` and return the equivalent UTC ISO string.
+ *
+ * If `sourceTz` is null/undefined/"UTC", treats the string as already UTC.
+ * If the string already contains timezone info (Z / +HH:mm), uses it as-is.
+ *
+ * The algorithm avoids external deps by using Intl.DateTimeFormat to resolve the
+ * UTC offset at the given approximate time, then correcting the initial UTC guess.
+ */
+export function parseArtifactTimestamp(raw: string, sourceTz?: string | null): string {
+  if (!raw) return new Date().toISOString()
+
+  // Normalize separators
+  const normalized = raw.trim().replace(' ', 'T')
+
+  // Check if the string already carries timezone info
+  const hasOffset = /Z$|[+-]\d{2}:?\d{2}$/.test(normalized)
+
+  if (hasOffset || !sourceTz || sourceTz === 'UTC') {
+    try {
+      const d = new Date(hasOffset ? normalized : normalized + 'Z')
+      if (!isNaN(d.getTime())) return d.toISOString()
+    } catch { /* fall through */ }
+    return new Date().toISOString()
+  }
+
+  // Parse the local timestamp as if it were UTC (our initial guess)
+  const asUtcMs = (() => {
+    try {
+      const d = new Date(normalized + 'Z')
+      return isNaN(d.getTime()) ? null : d.getTime()
+    } catch { return null }
+  })()
+  if (asUtcMs === null) return new Date().toISOString()
+
+  // Format our UTC guess in the source timezone to get the local-time representation
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: sourceTz,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false,
+    }).formatToParts(new Date(asUtcMs))
+
+    const p: Record<string, string> = {}
+    parts.forEach(part => { p[part.type] = part.value })
+
+    // What UTC ms corresponds to the local-time display of our guess?
+    const tzLocalMs = Date.UTC(
+      parseInt(p.year), parseInt(p.month) - 1, parseInt(p.day),
+      parseInt(p.hour === '24' ? '0' : p.hour), parseInt(p.minute), parseInt(p.second)
+    )
+
+    // offset = asUtcMs - tzLocalMs  (negative when tz is ahead of UTC, e.g. UTC+2 → -2h)
+    const offsetMs = asUtcMs - tzLocalMs
+
+    // True UTC = treat-as-UTC guess adjusted by offset
+    return new Date(asUtcMs + offsetMs).toISOString()
+  } catch {
+    return new Date(asUtcMs).toISOString()
+  }
+}
+
 // ── Form helpers ──────────────────────────────────────────────────────────────
 
 /**

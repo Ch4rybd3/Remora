@@ -20,6 +20,8 @@ from .models.user import User, UserRole
 from .services.auth_service import hash_password
 from .core.deps import get_current_user
 from .routers import cases, iocs, assets, evidences, timeline, templates, reports
+from .routers import incident_log as incident_log_router
+from .models import incident_log as _incident_log_models  # ensure table is registered
 from .routers import backup as backup_router
 from .routers import auth, users as users_router, playbooks as playbooks_router
 from .routers import email_analysis as email_analysis_router
@@ -196,6 +198,26 @@ def _setup_case_type() -> None:
 
 _setup_case_type()
 
+
+def _setup_artifact_timezone() -> None:
+    """Add source_timezone to csv_artifact_files and csv_artifact_id to imported_files."""
+    with engine.connect() as conn:
+        for stmt, msg in [
+            ("ALTER TABLE csv_artifact_files ADD COLUMN source_timezone TEXT",
+             "[migration] csv_artifact_files.source_timezone added"),
+            ("ALTER TABLE imported_files ADD COLUMN csv_artifact_id TEXT",
+             "[migration] imported_files.csv_artifact_id added"),
+        ]:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+                print(msg, flush=True)
+            except Exception:
+                pass  # Column already exists
+
+
+_setup_artifact_timezone()
+
 NOTE_IMAGES_DIR = settings.evidence_store_path.parent / "note_images"
 NOTE_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -281,6 +303,7 @@ app.include_router(iocs.router, prefix="/api/v1", **_auth)
 app.include_router(assets.router, prefix="/api/v1", **_auth)
 app.include_router(evidences.router, prefix="/api/v1", **_auth)
 app.include_router(timeline.router, prefix="/api/v1", **_auth)
+app.include_router(incident_log_router.router, prefix="/api/v1", **_auth)
 app.include_router(templates.router, prefix="/api/v1", **_auth)
 app.include_router(reports.router, prefix="/api/v1", **_auth)
 app.include_router(users_router.router, prefix="/api/v1")  # users router has its own deps

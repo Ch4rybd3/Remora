@@ -70,6 +70,9 @@ class ImportedFile(Base):
     error_message = Column(Text)
     imported_at   = Column(DateTime)
 
+    # Link to Artifact Explorer record (set after CSV ingest)
+    csv_artifact_id   = Column(String, nullable=True)  # FK to csv_artifact_files.id
+
     # Retention
     added_to_evidence = Column(Boolean, default=False)
     evidence_id       = Column(String)                 # FK to evidences.id if added
