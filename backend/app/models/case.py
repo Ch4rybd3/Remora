@@ -67,6 +67,8 @@ class Case(Base):
     evidences = relationship("Evidence", back_populates="case", cascade="all, delete-orphan")
     timeline = relationship("TimelineEvent", back_populates="case",
                             cascade="all, delete-orphan", order_by="TimelineEvent.event_ts")
+    incident_log = relationship("IncidentLogEntry", back_populates="case",
+                                cascade="all, delete-orphan", order_by="IncidentLogEntry.event_ts")
     evtx_files = relationship("EvtxFile", back_populates="case", cascade="all, delete-orphan")
     ttps = relationship("CaseTTP", cascade="all, delete-orphan",
                         foreign_keys="CaseTTP.case_id",

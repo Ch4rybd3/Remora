@@ -15,13 +15,14 @@ import IOCsTab from '../components/case/tabs/IOCsTab'
 import AssetsTab from '../components/case/tabs/AssetsTab'
 import EvidencesTab from '../components/case/tabs/EvidencesTab'
 import TimelineTab from '../components/case/tabs/TimelineTab'
+import IncidentLogTab from '../components/case/tabs/IncidentLogTab'
 import AttackGraphTab from '../components/case/tabs/AttackGraphTab'
 import MitreTab from '../components/case/tabs/MitreTab'
 import CollectionImportTab from '../components/case/tabs/CollectionImportTab'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import { fmtDateTimeShort } from '../utils/dateUtils'
 
-type Tab = 'summary' | 'playbook' | 'report' | 'iocs' | 'assets' | 'evidences' | 'timeline' | 'attack_graph' | 'mitre' | 'collection'
+type Tab = 'summary' | 'playbook' | 'report' | 'iocs' | 'assets' | 'evidences' | 'timeline' | 'incident_log' | 'attack_graph' | 'mitre' | 'collection'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'summary',      label: 'Executive Summary' },
@@ -31,6 +32,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'evidences',    label: 'Evidence' },
   { id: 'collection',   label: '⬆ Collections' },
   { id: 'timeline',     label: 'Timeline' },
+  { id: 'incident_log', label: 'Main courante' },
   { id: 'mitre',        label: 'MITRE ATT&CK' },
   { id: 'attack_graph', label: 'Attack Graph' },
   { id: 'report',       label: 'Report' },
@@ -221,6 +223,7 @@ export default function CaseDetail() {
             {activeTab === 'assets'     && <AssetsTab caseId={case_.id} />}
             {activeTab === 'evidences'  && <EvidencesTab caseId={case_.id} />}
             {activeTab === 'timeline'   && <TimelineTab caseId={case_.id} />}
+            {activeTab === 'incident_log' && <IncidentLogTab caseId={case_.id} caseTitle={case_.title} />}
             {activeTab === 'collection' && <CollectionImportTab caseId={case_.id} />}
           </div>
         )}

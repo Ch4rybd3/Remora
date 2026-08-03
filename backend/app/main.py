@@ -20,6 +20,8 @@ from .models.user import User, UserRole
 from .services.auth_service import hash_password
 from .core.deps import get_current_user
 from .routers import cases, iocs, assets, evidences, timeline, templates, reports
+from .routers import incident_log as incident_log_router
+from .models import incident_log as _incident_log_models  # ensure table is registered
 from .routers import backup as backup_router
 from .routers import auth, users as users_router, playbooks as playbooks_router
 from .routers import email_analysis as email_analysis_router
@@ -281,6 +283,7 @@ app.include_router(iocs.router, prefix="/api/v1", **_auth)
 app.include_router(assets.router, prefix="/api/v1", **_auth)
 app.include_router(evidences.router, prefix="/api/v1", **_auth)
 app.include_router(timeline.router, prefix="/api/v1", **_auth)
+app.include_router(incident_log_router.router, prefix="/api/v1", **_auth)
 app.include_router(templates.router, prefix="/api/v1", **_auth)
 app.include_router(reports.router, prefix="/api/v1", **_auth)
 app.include_router(users_router.router, prefix="/api/v1")  # users router has its own deps
