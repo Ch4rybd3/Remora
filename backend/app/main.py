@@ -22,6 +22,8 @@ from .core.deps import get_current_user
 from .routers import cases, iocs, assets, evidences, timeline, templates, reports
 from .routers import incident_log as incident_log_router
 from .models import incident_log as _incident_log_models  # ensure table is registered
+from .routers import clients as clients_router
+from .models import client as _client_models  # ensure tables are registered
 from .routers import backup as backup_router
 from .routers import auth, users as users_router, playbooks as playbooks_router
 from .routers import email_analysis as email_analysis_router
@@ -218,6 +220,20 @@ def _setup_artifact_timezone() -> None:
 
 _setup_artifact_timezone()
 
+
+def _setup_case_client_id() -> None:
+    """Add client_id FK column to cases if it doesn't already exist."""
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE cases ADD COLUMN client_id TEXT"))
+            conn.commit()
+            print("[migration] cases.client_id added", flush=True)
+        except Exception:
+            pass  # Column already exists
+
+
+_setup_case_client_id()
+
 NOTE_IMAGES_DIR = settings.evidence_store_path.parent / "note_images"
 NOTE_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -240,6 +256,49 @@ def _seed_admin():
 
 
 _seed_admin()
+
+
+def _seed_default_client_and_backfill():
+    """Ensure a default Client exists, then point every case without a
+    client_id at it — cases with a pre-existing client_name get their own
+    Client record instead (matched/created by name) so no data is lost."""
+    from .models.client import Client
+    from .models.case import Case
+
+    db = SessionLocal()
+    try:
+        default_client = db.query(Client).filter(Client.is_default == True).first()  # noqa: E712
+        if not default_client:
+            default_client = Client(name="Default Client", is_default=True)
+            db.add(default_client)
+            db.flush()
+            print("[remora] Default client created", flush=True)
+
+        orphan_cases = db.query(Case).filter(Case.client_id.is_(None)).all()
+        if orphan_cases:
+            named_clients: dict[str, Client] = {
+                c.name: c for c in db.query(Client).filter(Client.is_default == False).all()  # noqa: E712
+            }
+            for case in orphan_cases:
+                name = (case.client_name or "").strip()
+                if not name:
+                    case.client_id = default_client.id
+                    continue
+                client = named_clients.get(name)
+                if not client:
+                    client = Client(name=name)
+                    db.add(client)
+                    db.flush()
+                    named_clients[name] = client
+                case.client_id = client.id
+            print(f"[migration] Backfilled client_id on {len(orphan_cases)} case(s)", flush=True)
+
+        db.commit()
+    finally:
+        db.close()
+
+
+_seed_default_client_and_backfill()
 
 
 def _seed_playbooks():
@@ -304,6 +363,7 @@ app.include_router(assets.router, prefix="/api/v1", **_auth)
 app.include_router(evidences.router, prefix="/api/v1", **_auth)
 app.include_router(timeline.router, prefix="/api/v1", **_auth)
 app.include_router(incident_log_router.router, prefix="/api/v1", **_auth)
+app.include_router(clients_router.router, prefix="/api/v1", **_auth)
 app.include_router(templates.router, prefix="/api/v1", **_auth)
 app.include_router(reports.router, prefix="/api/v1", **_auth)
 app.include_router(users_router.router, prefix="/api/v1")  # users router has its own deps

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FolderOpen, X, ChevronRight, Plus, Clock } from 'lucide-react'
+import { FolderOpen, X, ChevronRight, Plus, Clock, Building2 } from 'lucide-react'
 import { useCurrentCase } from '../../context/CurrentCaseContext'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { incidentLogApi } from '../../api/incidentLog'
@@ -211,8 +211,18 @@ export default function TopBar() {
           <span className="truncate">{currentCase.title}</span>
         </button>
 
-        {/* Right — quick event + clear */}
+        {/* Right — client docs + quick event + clear */}
         <div className="flex items-center gap-1">
+          {currentCase.client_id && (
+            <button
+              onClick={() => navigate(`/config/clients/${currentCase.client_id}`)}
+              title="Aller à la documentation du client de ce case"
+              className="flex items-center gap-1 text-[11px] text-accent-muted/50 hover:text-accent-green transition-colors px-1.5 py-1 rounded hover:bg-accent-green/5"
+            >
+              <Building2 size={12} />
+              <span className="hidden sm:inline">Client</span>
+            </button>
+          )}
           <button
             onClick={() => setShowModal(true)}
             title="Ajouter un événement à la main courante (timeline + incident log)"

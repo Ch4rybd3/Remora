@@ -3,6 +3,7 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 interface CurrentCase {
   id: string
   title: string
+  client_id?: string | null
 }
 
 interface CurrentCaseContextValue {

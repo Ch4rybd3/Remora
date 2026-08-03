@@ -65,7 +65,7 @@ export default function CaseDetail() {
 
   // Définit ce case comme "case courant" dès qu'on le charge
   useEffect(() => {
-    if (case_) setCurrentCase({ id: case_.id, title: case_.title })
+    if (case_) setCurrentCase({ id: case_.id, title: case_.title, client_id: case_.client_id })
   }, [case_?.id, case_?.title])
 
   const update = useMutation({

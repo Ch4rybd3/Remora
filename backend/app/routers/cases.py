@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 from ..database import get_db
 from ..models.case import Case, CaseStatus
+from ..models.client import Client
 from ..models.user import User
 from ..schemas.case import CaseCreate, CaseRead, CaseUpdate, CaseSummary
 from ..services.template_service import TemplateService
@@ -34,6 +35,9 @@ def list_cases(db: Session = Depends(get_db)):
             tags=case.tags,
             assigned_to=case.assigned_to,
             tlp=case.tlp,
+            case_type=case.case_type,
+            client_name=case.client_name,
+            client_id=case.client_id,
             created_at=case.created_at,
             updated_at=case.updated_at,
             ioc_count=len(case.iocs),
@@ -52,6 +56,15 @@ def create_case(
 ):
     data = payload.model_dump()
     template_ttps: list[dict] = []
+
+    client = None
+    if data.get("client_id"):
+        client = db.query(Client).filter(Client.id == data["client_id"]).first()
+    if not client:
+        client = db.query(Client).filter(Client.is_default == True).first()  # noqa: E712
+    if client:
+        data["client_id"] = client.id
+        data["client_name"] = client.name
 
     if data.get("template_id"):
         tpl = TemplateService().get_template(data["template_id"])
@@ -109,6 +122,11 @@ def update_case(
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
     updates = payload.model_dump(exclude_unset=True)
+    if updates.get("client_id"):
+        client = db.query(Client).filter(Client.id == updates["client_id"]).first()
+        if not client:
+            raise HTTPException(status_code=404, detail="Client not found")
+        updates["client_name"] = client.name
     for key, value in updates.items():
         setattr(case, key, value)
     if "status" in updates and updates["status"] == CaseStatus.closed:
