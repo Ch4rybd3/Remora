@@ -12,6 +12,7 @@ export interface CaseSummary {
   tlp: string
   case_type: CaseType
   client_name: string
+  client_id: string | null
   created_at: string
   updated_at: string
   ioc_count: number
@@ -159,4 +160,60 @@ export interface Template {
   report_sections?: { name: string; tag?: string; category?: string; template?: string }[]
   metadata?: Record<string, unknown>
   ttp_definitions?: TTPDefinition[]
+}
+
+// ── Clients ──────────────────────────────────────────────────────────────────
+
+export interface DocSlot {
+  slug: string
+  label: string
+  description: string
+}
+
+export interface ClientDocTemplate {
+  id: string
+  name: string
+  description: string
+  slots: DocSlot[]
+  created_at: string
+}
+
+export interface ClientSummary {
+  id: string
+  name: string
+  is_default: boolean
+  industry: string
+  doc_template_id: string | null
+  case_count: number
+  document_count: number
+  created_at: string
+}
+
+export interface Client {
+  id: string
+  name: string
+  is_default: boolean
+  description: string
+  industry: string
+  contact_name: string
+  contact_email: string
+  contact_phone: string
+  address: string
+  notes: string
+  doc_template_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ClientDocument {
+  id: string
+  client_id: string
+  slot: string | null
+  name: string
+  description: string
+  file_name: string
+  file_size: number
+  mime_type: string
+  uploaded_at: string
+  uploaded_by: string | null
 }

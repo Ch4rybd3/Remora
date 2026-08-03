@@ -15,6 +15,7 @@ class CaseBase(BaseModel):
     tlp: str = "TLP:AMBER"
     case_type: CaseType = CaseType.ir
     client_name: str = ""
+    client_id: Optional[str] = None
     executive_summary: str = ""
     quick_notes: str = ""
     report: str = ""
@@ -38,6 +39,7 @@ class CaseUpdate(BaseModel):
     tlp: Optional[str] = None
     case_type: Optional[CaseType] = None
     client_name: Optional[str] = None
+    client_id: Optional[str] = None
     executive_summary: Optional[str] = None
     quick_notes: Optional[str] = None
     report: Optional[str] = None
@@ -66,6 +68,7 @@ class CaseSummary(BaseModel):
     tlp: str
     case_type: CaseType = CaseType.ir
     client_name: str = ""
+    client_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     ioc_count: int = 0

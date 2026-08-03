@@ -22,6 +22,8 @@ import VaultManagement from './pages/VaultManagement'
 import CTILookup from './pages/CTILookup'
 import Connectors from './pages/Connectors'
 import ArtifactExplorer from './pages/ArtifactExplorer'
+import Clients from './pages/Clients'
+import ClientDetail from './pages/ClientDetail'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth()
@@ -62,6 +64,8 @@ export default function App() {
         <Route path="/artifacts/cti"      element={<CTILookup />} />
         <Route path="/artifacts/explorer" element={<ArtifactExplorer />} />
         <Route path="/config/connectors"  element={<Connectors />} />
+        <Route path="/config/clients"     element={<Clients />} />
+        <Route path="/config/clients/:id" element={<ClientDetail />} />
         <Route path="/knowledge" element={<KnowledgeBase />} />
         <Route path="/knowledge/editor" element={<KnowledgeEditor />} />
         <Route path="/config/chainsaw-rules" element={<ChainsawRules />} />

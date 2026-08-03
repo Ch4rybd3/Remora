@@ -5,6 +5,7 @@ import { Plus, Search, FolderOpen, Building2 } from 'lucide-react'
 import { casesApi } from '../api/cases'
 import { templatesApi } from '../api/templates'
 import { usersApi } from '../api/auth'
+import { clientsApi } from '../api/clients'
 import { playbooksApi } from '../api/playbooks'
 import { useAuth } from '../context/AuthContext'
 import type { Case, CaseSeverity, CaseStatus, CaseType } from '../types'
@@ -44,7 +45,7 @@ function fromAssigneeTags(tags: InputTag[]): string {
 const empty = (): Partial<Case> => ({
   title: '', description: '', severity: 'medium', status: 'open',
   tags: '', tlp: 'TLP:AMBER', assigned_to: '', template_id: undefined,
-  case_type: 'ir', client_name: '',
+  case_type: 'ir', client_id: null,
 })
 
 export default function Cases() {
@@ -54,6 +55,7 @@ export default function Cases() {
   const { data: cases = [], isLoading } = useQuery({ queryKey: ['cases'], queryFn: casesApi.list })
   const { data: templates = [] } = useQuery({ queryKey: ['templates'], queryFn: templatesApi.list })
   const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: usersApi.list })
+  const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: clientsApi.list })
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<CaseStatus | 'all'>('all')
   const [typeFilter, setTypeFilter] = useState<CaseType | 'all'>('all')
@@ -77,7 +79,8 @@ export default function Cases() {
   })), [users])
 
   const openModal = () => {
-    setForm(empty())
+    const defaultClient = clients.find(c => c.is_default)
+    setForm({ ...empty(), client_id: defaultClient?.id ?? null })
     setAssigneeTags(me ? [{ value: me.username, badgeColor: USER_BADGE }] : [])
     setSelectedPlaybooks([])
     setModalOpen(true)
@@ -257,7 +260,10 @@ export default function Cases() {
             </div>
             <div>
               <label className="label flex items-center gap-1.5"><Building2 size={11} /> Client / Organisation</label>
-              <input className="input" placeholder="Nom du client ou organisme…" value={form.client_name ?? ''} onChange={e => setForm(f => ({ ...f, client_name: e.target.value }))} />
+              <select className="input" value={form.client_id ?? ''} onChange={e => setForm(f => ({ ...f, client_id: e.target.value || null }))}>
+                <option value="">— Aucun (client par défaut) —</option>
+                {clients.map(c => <option key={c.id} value={c.id}>{c.name}{c.is_default ? ' (défaut)' : ''}</option>)}
+              </select>
             </div>
           </div>
 

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, FolderOpen, FileText, Users, LogOut, GitBranch, Mail, HardDrive, Shield, Cpu, Binary, FileOutput, Swords, Archive, Clock, AlertTriangle, ChevronDown, Plug, Table2, Download } from 'lucide-react'
+import { LayoutDashboard, FolderOpen, FileText, Users, LogOut, GitBranch, Mail, HardDrive, Shield, Cpu, Binary, FileOutput, Swords, Archive, Clock, AlertTriangle, ChevronDown, Plug, Table2, Download, Building2 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useTimezone, TIMEZONE_OPTIONS, type TzOption } from '../../context/TimezoneContext'
 
@@ -163,6 +163,7 @@ export default function Sidebar() {
     {
       heading: 'Config',
       items: [
+        { to: '/config/clients',         icon: Building2,  label: 'Clients' },
         { to: '/templates',              icon: FileText,   label: 'Case Templates' },
         { to: '/report-templates',       icon: FileOutput, label: 'Report Templates' },
         { to: '/playbooks',              icon: GitBranch,  label: 'Playbooks' },

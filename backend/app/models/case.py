@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, DateTime, Enum as SAEnum
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum as SAEnum
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 import uuid
@@ -42,7 +42,8 @@ class Case(Base):
     assigned_to = Column(String(255), default="")
     tlp = Column(String(10), default="TLP:AMBER")
     case_type = Column(SAEnum(CaseType), default=CaseType.ir, nullable=False)
-    client_name = Column(String(255), default="")
+    client_name = Column(String(255), default="")  # legacy free-text, kept in sync with client.name
+    client_id = Column(String, ForeignKey("clients.id", ondelete="SET NULL"), nullable=True)
 
     executive_summary = Column(Text, default="")
     quick_notes = Column(Text, default="")
@@ -69,6 +70,7 @@ class Case(Base):
                             cascade="all, delete-orphan", order_by="TimelineEvent.event_ts")
     incident_log = relationship("IncidentLogEntry", back_populates="case",
                                 cascade="all, delete-orphan", order_by="IncidentLogEntry.event_ts")
+    client = relationship("Client", back_populates="cases")
     evtx_files = relationship("EvtxFile", back_populates="case", cascade="all, delete-orphan")
     ttps = relationship("CaseTTP", cascade="all, delete-orphan",
                         foreign_keys="CaseTTP.case_id",
