@@ -115,6 +115,8 @@ export interface Evidence {
   created_at: string
 }
 
+export type TimelineOrigin = 'manual' | 'incident_log' | 'artifact' | 'ioc'
+
 export interface TimelineEvent {
   id: string
   case_id: string
@@ -124,6 +126,10 @@ export interface TimelineEvent {
   actor: string
   source: string
   tags: string
+  origin: TimelineOrigin
+  /** JSON string: the full untouched source record, shown under a chevron */
+  raw_payload: string | null
+  raw_source: string
   created_at: string
 }
 

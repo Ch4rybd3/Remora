@@ -10,7 +10,7 @@ from ..models.case import Case
 from ..models.user import User
 from ..schemas.playbook import (
     PlaybookCreate, PlaybookUpdate, PlaybookRead,
-    CasePlaybookCreate, CasePlaybookRead, StepStateUpdate,
+    CasePlaybookCreate, CasePlaybookRead, StepStateUpdate, StepAssigneeUpdate,
 )
 from ..services.audit_service import audit_log
 from ..core.deps import get_current_user
@@ -171,17 +171,65 @@ def update_step(
         raise HTTPException(status_code=404, detail="Association introuvable")
     case = _get_case(case_id, db)
     states: dict = json.loads(cp.step_states)
+    previous: dict = states.get(node_id) or {}
     states[node_id] = {
         "done": payload.done,
         "comment": payload.comment,
         "notes": payload.notes,
         "done_at": datetime.now(timezone.utc).isoformat() if payload.done else None,
+        # Assignment is owned by the dedicated endpoint below — carry it over so
+        # ticking a step never silently drops who it was assigned to.
+        "assignee": previous.get("assignee"),
     }
     cp.step_states = json.dumps(states)
     audit_log(db, user=current_user, action="playbook.step_update",
               resource_type="playbook", resource_id=cp.playbook_id,
               case_id=case_id, case_title=case.title,
               details={"node_id": node_id, "done": payload.done})
+    db.commit()
+    db.refresh(cp)
+    return cp
+
+
+@router.patch("/cases/{case_id}/playbooks/{cp_id}/steps/{node_id}/assignee",
+              response_model=CasePlaybookRead)
+def update_step_assignee(
+    case_id: str, cp_id: str, node_id: str,
+    payload: StepAssigneeUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Assign a playbook step to a Remora user or an external party.
+
+    Kept separate from update_step so assigning never touches done/comment
+    and vice-versa.
+    """
+    cp = db.query(CasePlaybook).filter(
+        CasePlaybook.id == cp_id, CasePlaybook.case_id == case_id
+    ).first()
+    if not cp:
+        raise HTTPException(status_code=404, detail="Association introuvable")
+
+    if payload.assignee and payload.assignee.kind == "user":
+        if not payload.assignee.user_id:
+            raise HTTPException(status_code=400, detail="user_id requis pour kind='user'")
+        if not db.query(User).filter(User.id == payload.assignee.user_id).first():
+            raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+
+    case = _get_case(case_id, db)
+    states: dict = json.loads(cp.step_states)
+    state: dict = states.get(node_id) or {
+        "done": False, "comment": "", "notes": "", "done_at": None,
+    }
+    state["assignee"] = payload.assignee.model_dump() if payload.assignee else None
+    states[node_id] = state
+    cp.step_states = json.dumps(states)
+
+    audit_log(db, user=current_user, action="playbook.step_assign",
+              resource_type="playbook", resource_id=cp.playbook_id,
+              case_id=case_id, case_title=case.title,
+              details={"node_id": node_id,
+                       "assignee": payload.assignee.label if payload.assignee else None})
     db.commit()
     db.refresh(cp)
     return cp

@@ -66,7 +66,7 @@ function QuickTimelineModal({ caseId, onClose }: { caseId: string; onClose: () =
         {/* Header */}
         <div className="flex items-center gap-2 mb-4">
           <Clock size={14} className="text-accent-green shrink-0" />
-          <h3 className="text-sm font-semibold text-white flex-1">Main courante — Nouvel événement</h3>
+          <h3 className="text-sm font-semibold text-white flex-1">Incident log — Nouvel événement</h3>
           <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors p-1">
             <X size={14} />
           </button>
@@ -172,7 +172,7 @@ function QuickTimelineModal({ caseId, onClose }: { caseId: string; onClose: () =
             ) : (
               <Plus size={12} />
             )}
-            Ajouter à la main courante
+            Ajouter à l'incident log
           </button>
         </div>
 
@@ -225,11 +225,11 @@ export default function TopBar() {
           )}
           <button
             onClick={() => setShowModal(true)}
-            title="Ajouter un événement à la main courante (timeline + incident log)"
+            title="Ajouter un événement à l'incident log (dual-écrit dans la timeline)"
             className="flex items-center gap-1 text-[11px] text-accent-muted/50 hover:text-accent-green transition-colors px-1.5 py-1 rounded hover:bg-accent-green/5"
           >
             <Plus size={12} />
-            <span className="hidden sm:inline">Main courante</span>
+            <span className="hidden sm:inline">Incident log</span>
           </button>
           <button
             onClick={clearCurrentCase}

@@ -10,6 +10,10 @@ class TimelineEventBase(BaseModel):
     actor: str = ""
     source: str = ""
     tags: str = ""
+    origin: str = "manual"
+    # Full source record as a JSON string; rendered under a chevron in the UI
+    raw_payload: Optional[str] = None
+    raw_source: str = ""
 
 
 class TimelineEventCreate(TimelineEventBase):
@@ -23,6 +27,9 @@ class TimelineEventUpdate(BaseModel):
     actor: Optional[str] = None
     source: Optional[str] = None
     tags: Optional[str] = None
+    origin: Optional[str] = None
+    raw_payload: Optional[str] = None
+    raw_source: Optional[str] = None
 
 
 class TimelineEventRead(TimelineEventBase):

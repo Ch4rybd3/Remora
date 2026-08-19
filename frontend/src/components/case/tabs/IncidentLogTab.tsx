@@ -108,7 +108,7 @@ export default function IncidentLogTab({ caseId, caseTitle }: Props) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-accent-green font-semibold text-sm uppercase tracking-wide">
-          Main courante — Incident Log
+          Incident log
           <span className="ml-2 text-accent-muted font-normal normal-case">({entries.length})</span>
         </h3>
         <div className="flex items-center gap-2">
@@ -134,7 +134,7 @@ export default function IncidentLogTab({ caseId, caseTitle }: Props) {
       {entries.length === 0 ? (
         <EmptyState
           icon={ScrollText}
-          message="Aucune entrée dans la main courante"
+          message="Aucune entrée dans l'incident log"
           action={{ label: '+ Ajouter une entrée', onClick: openCreate }}
         />
       ) : (
@@ -194,7 +194,7 @@ export default function IncidentLogTab({ caseId, caseTitle }: Props) {
         </div>
       )}
 
-      <Modal open={modalOpen} onClose={closeModal} title={isEditing ? "Modifier l'entrée" : 'Ajouter à la main courante'} size="md">
+      <Modal open={modalOpen} onClose={closeModal} title={isEditing ? "Modifier l'entrée" : "Ajouter à l'incident log"} size="md">
         <div className="space-y-4">
           <div>
             <label className="label">Catégorie</label>
@@ -277,7 +277,7 @@ export default function IncidentLogTab({ caseId, caseTitle }: Props) {
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => deleteTarget && remove.mutate(deleteTarget)}
         title="Supprimer l'entrée"
-        message="Cette entrée sera retirée de la main courante et de la timeline consolidée."
+        message="Cette entrée sera retirée de l'incident log et de la timeline consolidée."
       />
     </div>
   )

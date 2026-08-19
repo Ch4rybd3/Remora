@@ -234,6 +234,42 @@ def _setup_case_client_id() -> None:
 
 _setup_case_client_id()
 
+
+def _setup_timeline_provenance() -> None:
+    """Add origin / raw_payload / raw_source columns to timeline_events."""
+    with engine.connect() as conn:
+        for stmt, msg in [
+            ("ALTER TABLE timeline_events ADD COLUMN origin TEXT NOT NULL DEFAULT 'manual'",
+             "[migration] timeline_events.origin added"),
+            ("ALTER TABLE timeline_events ADD COLUMN raw_payload TEXT",
+             "[migration] timeline_events.raw_payload added"),
+            ("ALTER TABLE timeline_events ADD COLUMN raw_source TEXT DEFAULT ''",
+             "[migration] timeline_events.raw_source added"),
+        ]:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+                print(msg, flush=True)
+            except Exception:
+                pass  # Column already exists
+
+    # Backfill: events dual-written by the incident log predate the origin
+    # column and would otherwise all read as 'manual'.
+    with engine.connect() as conn:
+        try:
+            conn.execute(text(
+                "UPDATE timeline_events SET origin = 'incident_log' "
+                "WHERE origin = 'manual' AND id IN "
+                "(SELECT timeline_event_id FROM incident_log_entries "
+                " WHERE timeline_event_id IS NOT NULL)"
+            ))
+            conn.commit()
+        except Exception:
+            pass  # incident_log_entries may not exist yet
+
+
+_setup_timeline_provenance()
+
 NOTE_IMAGES_DIR = settings.evidence_store_path.parent / "note_images"
 NOTE_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 

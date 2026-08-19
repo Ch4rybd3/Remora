@@ -3,9 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ReactFlow, Background, Controls, type Node, type Edge } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { Plus, GitBranch, CheckCircle2, Circle, ChevronDown, ChevronUp, X, ExternalLink, AlertCircle } from 'lucide-react'
-import { playbooksApi, type CasePlaybook, type Playbook } from '../../../api/playbooks'
+import { playbooksApi, type CasePlaybook, type Playbook, type StepAssignee } from '../../../api/playbooks'
+import { usersApi } from '../../../api/auth'
 import { topoSortNodes } from '../../../utils/playbookUtils'
 import { NODE_TYPES, EDGE_TYPES } from '../../playbook/PlaybookNodes'
+import StepAssigneePicker from '../../playbook/StepAssigneePicker'
 import Modal from '../../ui/Modal'
 
 interface Props { caseId: string }
@@ -25,6 +27,11 @@ export default function PlaybookTab({ caseId }: Props) {
   const { data: allPlaybooks = [] } = useQuery({
     queryKey: ['playbooks'],
     queryFn: playbooksApi.list,
+  })
+
+  const { data: users = [] } = useQuery({
+    queryKey: ['users'],
+    queryFn: usersApi.list,
   })
 
   const attach = useMutation({
@@ -50,6 +57,12 @@ export default function PlaybookTab({ caseId }: Props) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['case-playbooks', caseId] }),
   })
 
+  const assignStep = useMutation({
+    mutationFn: ({ cpId, nodeId, assignee }: { cpId: string; nodeId: string; assignee: StepAssignee | null }) =>
+      playbooksApi.assignStep(caseId, cpId, nodeId, assignee),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['case-playbooks', caseId] }),
+  })
+
   const activeCp = casePlaybooks.find(cp => cp.id === activeTab) ?? casePlaybooks[0] ?? null
 
   // Key that changes whenever any step's done-state flips → forces ReactFlow remount
@@ -57,7 +70,7 @@ export default function PlaybookTab({ caseId }: Props) {
   const graphKey = activeCp
     ? activeCp.id + '|' + Object.entries(activeCp.step_states)
         .sort(([a], [b]) => a.localeCompare(b))
-        .map(([id, s]) => `${id}=${s.done ? 1 : 0}`)
+        .map(([id, s]) => `${id}=${s.done ? 1 : 0}:${s.assignee?.label ?? ''}`)
         .join(',')
     : 'empty'
   const availablePlaybooks = allPlaybooks.filter(pb => !casePlaybooks.find(cp => cp.playbook_id === pb.id))
@@ -211,6 +224,12 @@ export default function PlaybookTab({ caseId }: Props) {
                           <p className="text-[10px] text-accent-muted mt-0.5 leading-snug">{nodeData.description}</p>
                         )}
                       </div>
+                      <StepAssigneePicker
+                        assignee={state?.assignee}
+                        users={users}
+                        onChange={assignee => assignStep.mutate({ cpId: activeCp.id, nodeId: node.id, assignee })}
+                        disabled={assignStep.isPending}
+                      />
                       <button
                         onClick={() => setExpandedStep(expanded ? null : node.id)}
                         className="text-accent-muted hover:text-white transition-colors shrink-0"
@@ -293,6 +312,7 @@ function buildViewNodes(cp: CasePlaybook): Node[] {
     data: {
       ...n.data,
       done: cp.step_states[n.id]?.done ?? false,
+      assignee: cp.step_states[n.id]?.assignee ?? null,
       linked_playbook_id: (n.data as any).linked_playbook_id,
       linked_playbook_name: (n.data as any).linked_playbook_name,
     },

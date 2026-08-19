@@ -32,7 +32,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'evidences',    label: 'Evidence' },
   { id: 'collection',   label: '⬆ Collections' },
   { id: 'timeline',     label: 'Timeline' },
-  { id: 'incident_log', label: 'Main courante' },
+  { id: 'incident_log', label: 'Incident log' },
   { id: 'mitre',        label: 'MITRE ATT&CK' },
   { id: 'attack_graph', label: 'Attack Graph' },
   { id: 'report',       label: 'Report' },
