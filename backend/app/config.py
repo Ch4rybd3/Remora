@@ -42,6 +42,19 @@ class Settings(BaseSettings):
     templates_path: Path = BASE_DIR / "templates"
     max_upload_size_mb: int = 500
 
+    # ── Drop folder ───────────────────────────────────────────────────────────
+    # Watched directory with one sub-folder per case. Bind-mount it from the
+    # host (see docker-compose.yml) to drop artifacts without going through
+    # the browser.
+    dropzone_path: Path = BASE_DIR / "data" / "dropzone"
+    # Poll the drop folder and ingest automatically. Turn off to require an
+    # explicit "Scanner" click in the Collection tab.
+    dropzone_auto_ingest: bool = True
+    dropzone_poll_seconds: int = 30
+    # A file is ingested only after being untouched for this long, so a copy
+    # still in progress is never read half-written.
+    dropzone_stable_seconds: int = 15
+
     # Accepts either a JSON array or a comma-separated string in .env:
     #   CORS_ORIGINS=http://localhost,https://myserver.com
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]

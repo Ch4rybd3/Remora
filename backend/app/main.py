@@ -37,6 +37,7 @@ from .routers import report_doc_templates as report_doc_templates_router
 from .routers import connectors as connectors_router
 from .routers import cti as cti_router
 from .routers import collection_import as collection_import_router
+from .routers import dropzone as dropzone_router
 from .models import ez_artifacts as _ez_artifacts_models   # ensure EZ tables are registered
 from .routers import chainsaw as chainsaw_router
 from .routers import chainsaw_rules as chainsaw_rules_router
@@ -422,7 +423,14 @@ app.include_router(vault_router.router,                prefix="/api/v1", **_auth
 app.include_router(connectors_router.router,           prefix="/api/v1", **_auth)
 app.include_router(cti_router.router,                  prefix="/api/v1", **_auth)
 app.include_router(collection_import_router.router,    prefix="/api/v1", **_auth)
+app.include_router(dropzone_router.router,             prefix="/api/v1", **_auth)
 app.include_router(backup_router.router,               prefix="/api/v1", **_auth)
+
+
+@app.on_event("startup")
+def _start_dropzone_poller() -> None:
+    """Watch the drop folder for artifacts dropped outside the browser."""
+    dropzone_router.start_poller()
 
 
 @app.get("/api/v1/health")
