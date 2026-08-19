@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { emailAnalysisApi, type EmailAnalysisResult, type HeaderItem, type AttachmentItem, type EmailWarning, type WarningLevel, type CaseEmailSummary } from '../api/emailAnalysis'
 import { iocsApi } from '../api/iocs'
+import { timelineApi } from '../api/timeline'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import { fmtRelative } from '../utils/dateUtils'
 
@@ -357,18 +358,229 @@ function AttachmentRow({
   )
 }
 
+// ── Send to timeline ───────────────────────────────────────────────────────
+// Same contract as the Artifact Explorer pinned panel: the analyst edits the
+// title and description before sending, and the full record travels along in
+// raw_payload so the Timeline tab can show it under a chevron without ever
+// overwriting what was written here.
+
+/** RFC 2822 Date header → value for a datetime-local input. Falls back to now. */
+function emailDateToLocalInput(raw: string): string {
+  const d = new Date(raw)
+  if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 16)
+  // Shift by the local offset so the datetime-local input shows local wall time
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
+}
+
+function buildEmailTitle(r: EmailAnalysisResult): string {
+  const sender = extractEmailAddress(r.from_addr) || r.from_addr
+  const subject = r.subject?.trim() || '(sans objet)'
+  return `Email — ${subject}${sender ? ` — de ${sender}` : ''}`.slice(0, 120)
+}
+
+function buildEmailDescription(r: EmailAnalysisResult): string {
+  const lines = [
+    `From: ${r.from_addr}`,
+    `To: ${r.to_addr}`,
+    r.reply_to    ? `Reply-To: ${r.reply_to}` : '',
+    r.return_path ? `Return-Path: ${r.return_path}` : '',
+    `Subject: ${r.subject}`,
+    `Date: ${r.date}`,
+    r.attachments.length ? `Pièces jointes: ${r.attachments.map(a => a.filename).join(', ')}` : '',
+    r.urls.length ? `URLs: ${r.urls.length}` : '',
+  ].filter(Boolean)
+
+  const critical = r.warnings.filter(w => w.level === 'critical' || w.level === 'high')
+  if (critical.length) {
+    lines.push('', 'Alertes:', ...critical.map(w => `- [${w.level}] ${w.title}`))
+  }
+  return lines.join('\n')
+}
+
+/** Every parsed field, untruncated — rendered under the Timeline chevron. */
+function buildEmailRawPayload(r: EmailAnalysisResult, filename?: string): string {
+  const payload: Record<string, string> = {
+    ...(filename ? { SourceFile: filename } : {}),
+    Subject:     r.subject,
+    From:        r.from_addr,
+    To:          r.to_addr,
+    ReplyTo:     r.reply_to,
+    ReturnPath:  r.return_path,
+    Date:        r.date,
+  }
+  // All headers, key ones first; duplicates suffixed rather than dropped
+  for (const h of [...r.key_headers, ...r.all_headers]) {
+    let name = h.name
+    let i = 2
+    while (name in payload) name = `${h.name} (${i++})`
+    payload[name] = h.value
+  }
+  r.attachments.forEach((a, i) => {
+    payload[`Attachment ${i + 1}`] = `${a.filename} · ${a.content_type} · ${a.size} B · sha256=${a.sha256}`
+  })
+  r.urls.forEach((u, i) => { payload[`URL ${i + 1}`] = u })
+  r.warnings.forEach((w, i) => { payload[`Warning ${i + 1}`] = `[${w.level}] ${w.title} — ${w.detail}` })
+  return JSON.stringify(payload)
+}
+
+function SendEmailToTimeline({ result, caseId, filename }: {
+  result:   EmailAnalysisResult
+  caseId:   string
+  filename?: string
+}) {
+  const qc = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const [ts,   setTs]   = useState(() => emailDateToLocalInput(result.date))
+  const [title, setTitle] = useState(() => buildEmailTitle(result))
+  const [desc,  setDesc]  = useState(() => buildEmailDescription(result))
+  const [sent,  setSent]  = useState(false)
+
+  // Re-seed the form when the analyst switches to another email
+  const seedKey = `${filename ?? ''}|${result.subject}|${result.date}`
+  const [lastSeed, setLastSeed] = useState(seedKey)
+  if (seedKey !== lastSeed) {
+    setLastSeed(seedKey)
+    setTs(emailDateToLocalInput(result.date))
+    setTitle(buildEmailTitle(result))
+    setDesc(buildEmailDescription(result))
+    setSent(false)
+  }
+
+  const dateUnparsable = isNaN(new Date(result.date).getTime())
+
+  const send = useMutation({
+    mutationFn: () => timelineApi.create(caseId, {
+      event_ts:    new Date(ts).toISOString(),
+      title:       title.trim() || buildEmailTitle(result),
+      description: desc,
+      actor:       extractEmailAddress(result.from_addr),
+      source:      filename ?? 'Email Analysis',
+      tags:        'email',
+      origin:      'artifact',
+      raw_payload: buildEmailRawPayload(result, filename),
+      raw_source:  `Email · ${filename ?? result.subject}`,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['timeline', caseId] })
+      setSent(true)
+      setOpen(false)
+    },
+  })
+
+  return (
+    <div className="rounded-lg border border-white/8 bg-bg-secondary overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-2">
+        <button onClick={() => setOpen(o => !o)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+          <ChevronRight size={11} className={`text-accent-muted/40 transition-transform ${open ? 'rotate-90' : ''}`} />
+          <Clock size={12} className="text-accent-green shrink-0" />
+          <span className="text-[11px] font-semibold text-white">Ajouter à la timeline</span>
+          <span className="text-[10px] text-accent-muted/40 truncate">
+            {dateUnparsable
+              ? 'date de l\'email illisible — à corriger'
+              : `daté du ${new Date(result.date).toLocaleString()}`}
+          </span>
+        </button>
+        {sent && (
+          <span className="flex items-center gap-1 text-[10px] text-accent-green/70 shrink-0">
+            <CheckCircle2 size={10} /> envoyé
+          </span>
+        )}
+        {!open && !sent && (
+          <button
+            onClick={() => send.mutate()}
+            disabled={send.isPending}
+            className="flex items-center gap-1 text-[10px] px-2 py-1 rounded border border-accent-green/30 text-accent-green bg-accent-green/5 hover:bg-accent-green/10 transition-colors disabled:opacity-40 shrink-0"
+          >
+            {send.isPending ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}
+            Envoyer
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="px-3 pb-3 pt-1 border-t border-white/5 space-y-2">
+          {dateUnparsable && (
+            <p className="flex items-center gap-1.5 text-[10px] text-yellow-400/80">
+              <AlertTriangle size={10} />
+              L'en-tête Date n'a pas pu être interprété ({result.date || 'vide'}) — l'horodatage a été
+              initialisé à maintenant, corrigez-le ci-dessous.
+            </p>
+          )}
+          <div>
+            <label className="text-[9px] uppercase tracking-widest text-accent-muted/40">Horodatage</label>
+            <input
+              type="datetime-local"
+              value={ts}
+              onChange={e => setTs(e.target.value)}
+              className="w-full mt-0.5 bg-black/30 border border-white/10 rounded px-2 py-1 text-[11px] font-mono text-white/90 focus:border-accent-green/40 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="text-[9px] uppercase tracking-widest text-accent-muted/40">Titre</label>
+            <input
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              className="w-full mt-0.5 bg-black/30 border border-white/10 rounded px-2 py-1 text-[11px] text-white/90 focus:border-accent-green/40 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="text-[9px] uppercase tracking-widest text-accent-muted/40">Description</label>
+            <textarea
+              value={desc}
+              onChange={e => setDesc(e.target.value)}
+              rows={7}
+              className="w-full mt-0.5 bg-black/30 border border-white/10 rounded px-2 py-1 text-[10px] font-mono text-accent-muted resize-y focus:border-accent-green/40 focus:outline-none"
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => {
+                setTs(emailDateToLocalInput(result.date))
+                setTitle(buildEmailTitle(result))
+                setDesc(buildEmailDescription(result))
+              }}
+              className="text-[10px] text-accent-muted/40 hover:text-accent-green transition-colors"
+            >
+              Réinitialiser
+            </button>
+            <button
+              onClick={() => send.mutate()}
+              disabled={send.isPending}
+              className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded border border-accent-green/30 text-accent-green bg-accent-green/5 hover:bg-accent-green/10 transition-colors disabled:opacity-40"
+            >
+              {send.isPending ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}
+              Envoyer à la timeline
+            </button>
+          </div>
+          <p className="text-[9px] text-accent-muted/30">
+            L'email complet (tous les en-têtes, pièces jointes, URLs, alertes) est joint à
+            l'événement et consultable sous un chevron dans la timeline.
+          </p>
+          {send.isError && (
+            <p className="text-[10px] text-severity-critical">
+              {(send.error as Error)?.message ?? 'Échec de l\'envoi'}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── EmailResultView — shared analysis display ──────────────────────────────
 
 function EmailResultView({
   result,
   caseId,
   caseTitle,
+  filename,
   addedKeys,
   onAdded,
 }: {
   result: EmailAnalysisResult
   caseId?: string
   caseTitle?: string
+  filename?: string
   addedKeys: Set<string>
   onAdded: (type: string, value: string) => void
 }) {
@@ -377,6 +589,9 @@ function EmailResultView({
 
   return (
     <div className="space-y-4">
+      {/* Timeline export — only meaningful with a case to send to */}
+      {caseId && <SendEmailToTimeline result={result} caseId={caseId} filename={filename} />}
+
       <WarningsSection warnings={result.warnings} />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -765,6 +980,7 @@ export default function EmailAnalysis() {
                 result={activeResult}
                 caseId={caseId}
                 caseTitle={caseTitle}
+                filename={selectedEmailDetail?.filename}
                 addedKeys={addedKeys}
                 onAdded={handleAdded}
               />

@@ -150,7 +150,9 @@ export default function DropFolderPanel({ caseId }: Props) {
 
           <p className="px-3 py-2 text-[10px] text-accent-muted/45 leading-relaxed">
             Déposez vos artefacts (KAPE, EZ Tools, EVTX, EML, ZIP) dans ce dossier : ils sont
-            ingérés comme un import de collection, sans passer par le navigateur.
+            ingérés comme un import de collection, sans passer par le navigateur. Ce chemin est
+            celui du serveur ; il peut aussi être monté en lecteur réseau (partage SMB
+            <code className="font-mono mx-0.5">dropzone</code>, à activer côté serveur).
             {' '}Un fichier n'est traité qu'après {dz.stable_seconds}s sans modification,
             pour ne jamais lire une copie en cours.
             {dz.processed_count > 0 && (

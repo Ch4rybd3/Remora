@@ -32,6 +32,49 @@ services:
     networks:
       - remora-net
 
+  # ── Drop folder over SMB (opt-in) ────────────────────────────────────────────
+  # Exposes the drop folder as a Windows/macOS/Linux network share so analysts
+  # can drop artifacts from their own machine without SSH or a browser upload.
+  #
+  # Disabled by default — it opens a file-sharing port. Enable explicitly:
+  #     docker compose --profile smb up -d
+  #
+  # Then map \\<server>\dropzone (Windows) or smb://<server>/dropzone (macOS),
+  # with the credentials from SMB_USER / SMB_PASSWORD in .env.
+  dropzone-smb:
+    image: dperson/samba:latest
+    container_name: remora-dropzone-smb
+    profiles: ["smb"]
+    restart: unless-stopped
+    ports:
+      # Defaults to localhost — set SMB_BIND_HOST=0.0.0.0 in .env to expose it
+      # on the LAN, and only do that on a trusted network.
+      - "${SMB_BIND_HOST:-127.0.0.1}:${SMB_PORT:-445}:445"
+    volumes:
+      - ${DROPZONE_HOST_PATH:-./dropzone}:/dropzone
+    environment:
+      SMB_USER:     ${SMB_USER:-remora}
+      SMB_PASSWORD: ${SMB_PASSWORD:-}
+    # The password is checked at runtime, not via ${VAR:?}: compose interpolates
+    # every service in the file even when its profile is inactive, so a required
+    # variable here would break a plain `docker compose up`.
+    entrypoint:
+      - sh
+      - -c
+      - |
+        if [ -z "$$SMB_PASSWORD" ]; then
+          echo "[dropzone-smb] SMB_PASSWORD is empty — refusing to start an unauthenticated share." >&2
+          echo "[dropzone-smb] Set SMB_PASSWORD in .env, then: docker compose --profile smb up -d" >&2
+          exit 1
+        fi
+        exec /sbin/tini -- /usr/bin/samba.sh \
+          -u "$$SMB_USER;$$SMB_PASSWORD" \
+          -s "dropzone;/dropzone;yes;no;no;$$SMB_USER" \
+          -g "server min protocol = SMB2" \
+          -p
+    networks:
+      - remora-net
+
   # ── Frontend — React SPA served by nginx + API reverse proxy ────────────────
   frontend:
     build:

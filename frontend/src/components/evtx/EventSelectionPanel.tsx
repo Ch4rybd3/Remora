@@ -48,6 +48,42 @@ function buildTags(ev: PinnedEvtxEvent): string {
   return tags.join(',')
 }
 
+/**
+ * Full record shipped to the timeline as raw_payload — the record fields plus
+ * every EventData key, untruncated. The Timeline tab renders it under a
+ * chevron, so the analyst can rewrite title/description freely without ever
+ * losing the underlying evidence.
+ */
+function buildRawPayload(ev: PinnedEvtxEvent): string {
+  return JSON.stringify({
+    RecordId:    ev.record_id ?? '',
+    TimeCreated: ev.time_created ?? '',
+    EventId:     ev.event_id ?? '',
+    Level:       ev.level_name ?? '',
+    Channel:     ev.channel ?? '',
+    Provider:    ev.provider ?? '',
+    Computer:    ev.computer ?? '',
+    UserId:      ev.user_id ?? '',
+    SourceFile:  ev._filename,
+    ...(ev.event_data ?? {}),
+  })
+}
+
+/** Fields common to every push, whether sent one by one or in bulk. */
+function timelinePayload(ev: PinnedEvtxEvent, title: string, description: string) {
+  return {
+    event_ts:    ev.time_created ?? new Date().toISOString(),
+    title,
+    description,
+    actor:       ev.computer ?? '',
+    source:      ev._filename,
+    tags:        buildTags(ev),
+    origin:      'artifact' as const,
+    raw_payload: buildRawPayload(ev),
+    raw_source:  `EVTX · ${ev._filename}`,
+  }
+}
+
 // ── Level colours ─────────────────────────────────────────────────────────────
 
 const LEVEL_DOT: Record<string, string> = {
@@ -82,16 +118,11 @@ function PinnedRow({ ev, caseId, isSent, isLast, onRemove, onSent }: PinnedRowPr
   const [showDetails, setShowDetails] = useState(false)
   const [editTitle,   setEditTitle]   = useState(buildTitle(ev))
   const [editingTitle, setEditingTitle] = useState(false)
+  const [editDesc,    setEditDesc]    = useState(buildDescription(ev))
+  const [editingDesc, setEditingDesc] = useState(false)
 
   const push = useMutation({
-    mutationFn: () => timelineApi.create(caseId, {
-      event_ts:    ev.time_created ?? new Date().toISOString(),
-      title:       editTitle,
-      description: buildDescription(ev),
-      actor:       ev.computer ?? '',
-      source:      ev._filename,
-      tags:        buildTags(ev),
-    }),
+    mutationFn: () => timelineApi.create(caseId, timelinePayload(ev, editTitle, editDesc)),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['timeline', caseId] })
       onSent()
@@ -142,6 +173,29 @@ function PinnedRow({ ev, caseId, isSent, isLast, onRemove, onSent }: PinnedRowPr
               onClick={() => setEditingTitle(true)}
             >
               {editTitle}
+            </p>
+          )}
+        </div>
+
+        {/* Description — click to edit before adding to timeline */}
+        <div className="px-2.5 mb-1.5">
+          {editingDesc ? (
+            <textarea
+              autoFocus
+              rows={5}
+              className="w-full bg-black/30 border border-white/10 rounded px-1.5 py-1 text-[10px] font-mono text-accent-muted resize-y focus:border-accent-green/40 focus:outline-none"
+              value={editDesc}
+              onChange={e => setEditDesc(e.target.value)}
+              onBlur={() => setEditingDesc(false)}
+              onKeyDown={e => { if (e.key === 'Escape') setEditingDesc(false) }}
+            />
+          ) : (
+            <p
+              className="text-[9px] text-accent-muted/45 leading-snug whitespace-pre-line line-clamp-3 cursor-pointer hover:text-accent-muted/70 transition-colors"
+              title="Cliquer pour éditer la description avant l'envoi"
+              onClick={() => setEditingDesc(true)}
+            >
+              {editDesc || <span className="italic opacity-50">Cliquer pour ajouter une description…</span>}
             </p>
           )}
         </div>
@@ -269,14 +323,7 @@ export default function EventSelectionPanel({
     setPushingAll(true)
     for (const ev of unsentEvents) {
       try {
-        await timelineApi.create(caseId, {
-          event_ts:    ev.time_created ?? new Date().toISOString(),
-          title:       buildTitle(ev),
-          description: buildDescription(ev),
-          actor:       ev.computer ?? '',
-          source:      ev._filename,
-          tags:        buildTags(ev),
-        })
+        await timelineApi.create(caseId, timelinePayload(ev, buildTitle(ev), buildDescription(ev)))
         onSent(ev.id)
       } catch { /* continue on error */ }
     }
