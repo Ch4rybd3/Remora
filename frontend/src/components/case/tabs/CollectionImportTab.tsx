@@ -4,6 +4,7 @@ import { ChevronRight, Globe } from 'lucide-react'
 import { collectionImportApi, type ImportedCollection, type ImportedFile, type GroupSummary } from '../../../api/collectionImport'
 import { useNavigate } from 'react-router-dom'
 import { TIMEZONE_OPTIONS } from '../../../context/TimezoneContext'
+import DropFolderPanel from '../DropFolderPanel'
 
 interface Props { caseId: string }
 
@@ -642,6 +643,9 @@ export default function CollectionImportTab({ caseId }: Props) {
           </ul>
         </div>
       )}
+
+      {/* Drop folder — ingestion without going through the browser */}
+      <DropFolderPanel caseId={caseId} />
 
       {/* Supported tools legend */}
       <div className="flex flex-wrap gap-2 text-xs text-gray-500 items-center">

@@ -19,7 +19,28 @@ interface NodeData {
   label: string
   description?: string
   done?: boolean
+  assignee?: NodeAssignee | null
   [key: string]: unknown
+}
+
+// ── Assignee badge ────────────────────────────────────────────────────────────
+// Injected read-only by the case Playbook tab (assignment itself happens in the
+// checklist); absent in the playbook library editor, where nodes carry no case
+// state.
+
+interface NodeAssignee { kind: 'user' | 'external'; label: string; color?: string }
+
+function AssigneeBadge({ assignee }: { assignee: NodeAssignee }) {
+  const color = assignee.color || '#94a3b8'
+  return (
+    <span
+      className="inline-flex items-center max-w-full mt-1.5 px-1.5 h-4 rounded border text-[8px] font-medium truncate"
+      style={{ color, borderColor: `${color}40`, backgroundColor: `${color}14` }}
+      title={assignee.kind === 'external' ? `${assignee.label} (externe)` : assignee.label}
+    >
+      {assignee.label}
+    </span>
+  )
 }
 
 // ── StartNode ─────────────────────────────────────────────────────────────────
@@ -93,6 +114,7 @@ export function StepNode({ data, selected }: NodeProps) {
       {d.description && !done && (
         <p className="text-[10px] text-accent-muted mt-1 leading-snug">{d.description}</p>
       )}
+      {d.assignee && <AssigneeBadge assignee={d.assignee} />}
       <Handle
         type="source"
         position={dir === 'RIGHT' ? Position.Right : Position.Bottom}
@@ -143,6 +165,11 @@ export function DecisionNode({ data, selected }: NodeProps) {
       {done && (
         <span className="absolute top-1 right-4 pointer-events-none text-accent-green">
           <CheckCircle2 size={11} />
+        </span>
+      )}
+      {d.assignee && (
+        <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 pointer-events-none">
+          <AssigneeBadge assignee={d.assignee} />
         </span>
       )}
 
@@ -206,6 +233,7 @@ export function RemediationNode({ data, selected }: NodeProps) {
       {d.description && !done && (
         <p className="text-[10px] text-accent-muted mt-1 leading-snug pl-4">{d.description}</p>
       )}
+      {d.assignee && <span className="block pl-4"><AssigneeBadge assignee={d.assignee} /></span>}
       <Handle
         type="source"
         position={dir === 'RIGHT' ? Position.Right : Position.Bottom}
@@ -269,6 +297,7 @@ export function PlaybookRefNode({ data, selected }: NodeProps) {
       {!hasLink && !done && (
         <p className="text-[9px] text-purple-400/30 mt-0.5 pl-4 italic">non lié</p>
       )}
+      {d.assignee && <span className="block pl-4"><AssigneeBadge assignee={d.assignee} /></span>}
       <Handle
         type="source"
         position={dir === 'RIGHT' ? Position.Right : Position.Bottom}

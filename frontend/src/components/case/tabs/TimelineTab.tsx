@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Clock, Pencil } from 'lucide-react'
+import { Plus, Trash2, Clock, Pencil, ChevronRight, Copy } from 'lucide-react'
 import { timelineApi } from '../../../api/timeline'
 import { iocsApi } from '../../../api/iocs'
 import { assetsApi } from '../../../api/assets'
-import type { TimelineEvent, IOC, Asset } from '../../../types'
+import type { TimelineEvent, TimelineOrigin, IOC, Asset } from '../../../types'
 import type { Suggestion } from '../../ui/SuggestInput'
 import type { InputTag } from '../../ui/TagInput'
 import { fmtDateTime } from '../../../utils/dateUtils'
@@ -44,7 +44,79 @@ const ASSET_COLOR = (asset: Asset) =>
 
 const CUSTOM_COLOR = 'bg-white/5 text-accent-muted border-white/10'
 
+/** Provenance badge — tells at a glance where an event came from. */
+const ORIGIN_META: Record<TimelineOrigin, { label: string; cls: string }> = {
+  manual:       { label: 'Manuel',       cls: 'bg-white/5 text-accent-muted border-white/10' },
+  incident_log: { label: 'Incident log', cls: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
+  artifact:     { label: 'Artefact',     cls: 'bg-accent-green/10 text-accent-green/80 border-accent-green/20' },
+  ioc:          { label: 'IOC',          cls: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Parse the stored raw_payload JSON into ordered key/value pairs. */
+function parseRawPayload(raw: string | null): [string, string][] | null {
+  if (!raw) return null
+  try {
+    const obj = JSON.parse(raw)
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null
+    const entries = Object.entries(obj).map(
+      ([k, v]) => [k, v == null ? '' : String(v)] as [string, string]
+    )
+    return entries.length ? entries : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Full source record, collapsed behind a chevron so it never competes with the
+ * analyst-authored title/description above it.
+ */
+function RawPayloadPanel({ entries, source }: { entries: [string, string][]; source: string }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="mt-2">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1 text-[11px] text-accent-muted/60 hover:text-accent-green transition-colors"
+      >
+        <ChevronRight size={11} className={`transition-transform ${open ? 'rotate-90' : ''}`} />
+        Event brut
+        <span className="text-accent-muted/40">({entries.length} champs{source ? ` · ${source}` : ''})</span>
+      </button>
+
+      {open && (
+        <div className="mt-1.5 rounded border border-white/5 bg-black/20 overflow-hidden">
+          <div className="flex justify-end px-2 pt-1.5">
+            <button
+              onClick={() => navigator.clipboard.writeText(
+                entries.map(([k, v]) => `${k}: ${v}`).join('\n')
+              )}
+              className="flex items-center gap-1 text-[10px] text-accent-muted/50 hover:text-accent-green transition-colors"
+              title="Copier l'event brut"
+            >
+              <Copy size={10} /> Copier
+            </button>
+          </div>
+          <div className="max-h-72 overflow-auto">
+            <table className="w-full text-[11px] font-mono">
+              <tbody>
+                {entries.map(([k, v]) => (
+                  <tr key={k} className="border-t border-white/5 align-top">
+                    <td className="px-2 py-1 text-accent-muted/70 whitespace-nowrap w-px">{k}</td>
+                    <td className="px-2 py-1 text-accent-muted break-all">{v || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function buildSuggestions(iocs: IOC[], assets: Asset[]): Suggestion[] {
   const iocSugg: Suggestion[] = iocs.map(ioc => ({
@@ -199,6 +271,8 @@ export default function TimelineTab({ caseId }: Props) {
           <div className="space-y-0">
             {events.map(ev => {
               const actors = stringToTags(ev.actor, iocs, assets)
+              const raw    = parseRawPayload(ev.raw_payload)
+              const origin = ORIGIN_META[ev.origin] ?? ORIGIN_META.manual
               return (
                 <div key={ev.id} className="relative pl-8 pb-6 group">
                   <div className="absolute left-0 top-1 w-3.5 h-3.5 rounded-full border-2 border-accent-green bg-bg-primary" />
@@ -208,6 +282,9 @@ export default function TimelineTab({ caseId }: Props) {
                         <div className="flex items-center gap-2 flex-wrap mb-1">
                           <span className="text-xs font-mono text-accent-green shrink-0">
                             {fmtDateTime(ev.event_ts)}
+                          </span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded border shrink-0 ${origin.cls}`}>
+                            {origin.label}
                           </span>
                           {ev.source && (
                             <span className="text-xs text-accent-muted/60 shrink-0">via {ev.source}</span>
@@ -230,8 +307,10 @@ export default function TimelineTab({ caseId }: Props) {
                         )}
 
                         {ev.description && (
-                          <p className="text-xs text-accent-muted mt-1 leading-relaxed">{ev.description}</p>
+                          <p className="text-xs text-accent-muted mt-1 leading-relaxed whitespace-pre-wrap">{ev.description}</p>
                         )}
+
+                        {raw && <RawPayloadPanel entries={raw} source={ev.raw_source} />}
                       </div>
                       <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                         <button

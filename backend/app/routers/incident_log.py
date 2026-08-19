@@ -72,6 +72,7 @@ def create_entry(
         actor=data["actor"] or (current_user.username or ""),
         source="incident_log",
         tags=data["category"],
+        origin="incident_log",
     )
     db.add(timeline_event)
     db.flush()

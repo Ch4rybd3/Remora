@@ -100,6 +100,15 @@ def create_case(
               resource_name=case.title, case_id=case.id, case_title=case.title)
     db.commit()
     db.refresh(case)
+
+    # Drop folder for this case — created eagerly so the analyst can start
+    # dropping artifacts straight away. Never fatal to case creation.
+    try:
+        from ..services.dropzone import ensure_case_folder
+        ensure_case_folder(case)
+    except Exception as e:
+        print(f"[cases] could not create drop folder for {case.id}: {e}", flush=True)
+
     return case
 
 

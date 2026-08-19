@@ -37,6 +37,7 @@ from .routers import report_doc_templates as report_doc_templates_router
 from .routers import connectors as connectors_router
 from .routers import cti as cti_router
 from .routers import collection_import as collection_import_router
+from .routers import dropzone as dropzone_router
 from .models import ez_artifacts as _ez_artifacts_models   # ensure EZ tables are registered
 from .routers import chainsaw as chainsaw_router
 from .routers import chainsaw_rules as chainsaw_rules_router
@@ -234,6 +235,42 @@ def _setup_case_client_id() -> None:
 
 _setup_case_client_id()
 
+
+def _setup_timeline_provenance() -> None:
+    """Add origin / raw_payload / raw_source columns to timeline_events."""
+    with engine.connect() as conn:
+        for stmt, msg in [
+            ("ALTER TABLE timeline_events ADD COLUMN origin TEXT NOT NULL DEFAULT 'manual'",
+             "[migration] timeline_events.origin added"),
+            ("ALTER TABLE timeline_events ADD COLUMN raw_payload TEXT",
+             "[migration] timeline_events.raw_payload added"),
+            ("ALTER TABLE timeline_events ADD COLUMN raw_source TEXT DEFAULT ''",
+             "[migration] timeline_events.raw_source added"),
+        ]:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+                print(msg, flush=True)
+            except Exception:
+                pass  # Column already exists
+
+    # Backfill: events dual-written by the incident log predate the origin
+    # column and would otherwise all read as 'manual'.
+    with engine.connect() as conn:
+        try:
+            conn.execute(text(
+                "UPDATE timeline_events SET origin = 'incident_log' "
+                "WHERE origin = 'manual' AND id IN "
+                "(SELECT timeline_event_id FROM incident_log_entries "
+                " WHERE timeline_event_id IS NOT NULL)"
+            ))
+            conn.commit()
+        except Exception:
+            pass  # incident_log_entries may not exist yet
+
+
+_setup_timeline_provenance()
+
 NOTE_IMAGES_DIR = settings.evidence_store_path.parent / "note_images"
 NOTE_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -386,7 +423,14 @@ app.include_router(vault_router.router,                prefix="/api/v1", **_auth
 app.include_router(connectors_router.router,           prefix="/api/v1", **_auth)
 app.include_router(cti_router.router,                  prefix="/api/v1", **_auth)
 app.include_router(collection_import_router.router,    prefix="/api/v1", **_auth)
+app.include_router(dropzone_router.router,             prefix="/api/v1", **_auth)
 app.include_router(backup_router.router,               prefix="/api/v1", **_auth)
+
+
+@app.on_event("startup")
+def _start_dropzone_poller() -> None:
+    """Watch the drop folder for artifacts dropped outside the browser."""
+    dropzone_router.start_poller()
 
 
 @app.get("/api/v1/health")

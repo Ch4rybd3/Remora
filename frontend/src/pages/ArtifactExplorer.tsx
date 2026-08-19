@@ -44,10 +44,188 @@ interface PinnedRow {
   artifactId:     string
   artifactName:   string
   ezLabel:        string | null
+  ezCategory:     string | null
   dateColumn:     string | null
   sourceTimezone: string | null
   columns:        string[]
   row:            Record<string, string>
+  /** Analyst-editable, pre-filled from the parser recipe below. */
+  title:          string
+  description:    string
+}
+
+// ── Timeline title/description recipes ────────────────────────────────────────
+// Per-parser hints telling which columns actually carry meaning, so an exported
+// event reads like an event instead of "first non-empty column". Column names
+// are matched case-insensitively; missing columns are skipped, and a parser with
+// no recipe (or no matching column) falls back to the generic heuristic.
+
+interface TitleRecipe {
+  /** Slots joined with ' — '. Within a slot, the first present & non-empty column wins. */
+  title:   string[][]
+  /** Columns listed as `name: value` lines in the default description. */
+  detail?: string[]
+}
+
+const TITLE_RECIPES: Record<string, TitleRecipe> = {
+  evtx_ez: {
+    title:  [['Computer'], ['EventId', 'EventID'], ['MapDescription'], ['PayloadData1']],
+    detail: ['Provider', 'Channel', 'Level', 'UserName', 'RemoteHost', 'ExecutableInfo',
+             'PayloadData1', 'PayloadData2', 'PayloadData3'],
+  },
+  mft_ez: {
+    title:  [['ParentPath'], ['FileName']],
+    detail: ['Extension', 'FileSize', 'IsDirectory', 'HasAds', 'SiFlags', 'SI<FN'],
+  },
+  usn_ez: {
+    title:  [['ParentPath'], ['Name'], ['UpdateReasons']],
+    detail: ['Extension', 'FileAttributes', 'UpdateSequenceNumber', 'EntryNumber'],
+  },
+  mft_boot: {
+    title:  [['SourceFile'], ['VolumeSerialNumber']],
+    detail: ['BytesPerSector', 'SectorsPerCluster', 'TotalSectors'],
+  },
+  shimcache: {
+    title:  [['Path'], ['Executed']],
+    detail: ['ControlSet', 'CacheEntryPosition', 'Duplicate', 'SourceFile'],
+  },
+  amcache_unassociated: {
+    title:  [['Name', 'ApplicationName'], ['FullPath']],
+    detail: ['SHA1', 'FileExtension', 'ProductName', 'CompanyName', 'IsOsComponent'],
+  },
+  amcache_associated: {
+    title:  [['Name', 'ApplicationName'], ['FullPath']],
+    detail: ['SHA1', 'FileExtension', 'ProductName', 'CompanyName', 'ProgramId'],
+  },
+  amcache_programs: {
+    title:  [['Name'], ['Version'], ['Publisher']],
+    detail: ['ProgramId', 'InstallDate', 'RootDirPath', 'UninstallString'],
+  },
+  amcache_shortcuts: {
+    title:  [['LnkName']],
+    detail: ['ProgramId', 'KeyLastWriteTimestamp'],
+  },
+  amcache_drivers: {
+    title:  [['DriverName'], ['Product']],
+    detail: ['SHA1', 'Service', 'DriverCompany', 'Signed'],
+  },
+  amcache_devices: {
+    title:  [['ModelName'], ['Manufacturer']],
+    detail: ['Categories', 'PrimaryCategory', 'DiscoveryMethod'],
+  },
+  amcache_pnp: {
+    title:  [['HWID'], ['Description']],
+    detail: ['Manufacturer', 'Model', 'Service', 'ClassGuid'],
+  },
+  lnk_files: {
+    title:  [['LocalPath', 'TargetIDAbsolutePath', 'CommonPath'], ['Arguments']],
+    detail: ['SourceFile', 'WorkingDirectory', 'MachineID', 'MachineMACAddress',
+             'VolumeSerialNumber', 'VolumeLabel', 'DriveType', 'FileSize'],
+  },
+  jump_lists_auto: {
+    title:  [['AppIdDescription', 'AppId'], ['Path']],
+    detail: ['SourceFile', 'Hostname', 'MacAddress', 'InteractionCount', 'EntryNumber'],
+  },
+  jump_lists_custom: {
+    title:  [['AppIdDescription', 'AppId'], ['Path', 'LocalPath']],
+    detail: ['SourceFile', 'Arguments', 'WorkingDirectory'],
+  },
+  recycle_bin: {
+    title:  [['FileName']],
+    detail: ['FileSize', 'FileType', 'SourceName'],
+  },
+  windows_timeline: {
+    title:  [['Executable'], ['DisplayText'], ['ActivityType']],
+    detail: ['AppId', 'ContentInfo', 'Duration', 'Payload'],
+  },
+  windows_timeline_pkg: {
+    title:  [['Name'], ['Platform']],
+    detail: ['Expires'],
+  },
+  shellbags: {
+    title:  [['AbsolutePath', 'Value']],
+    detail: ['BagPath', 'ShellType', 'MFTEntry', 'ChildBags'],
+  },
+  srum_app_usage: {
+    title:  [['ExeInfo'], ['UserName']],
+    detail: ['ExeInfoDescription', 'AppId', 'ForegroundCycleTime', 'BackgroundCycleTime',
+             'BytesRead', 'BytesWritten'],
+  },
+  srum_network: {
+    title:  [['ExeInfo'], ['UserName']],
+    detail: ['BytesReceived', 'BytesSent', 'InterfaceLuid', 'L2ProfileId', 'AppId'],
+  },
+  srum_net_conn: {
+    title:  [['ExeInfo'], ['UserName']],
+    detail: ['InterfaceLuid', 'L2ProfileId', 'ConnectedTime', 'ConnectStartTime'],
+  },
+  srum_timeline: {
+    title:  [['ExeInfo'], ['UserName']],
+    detail: ['ExeInfoDescription', 'AppId', 'EndTime', 'DurationMs'],
+  },
+  srum_energy: {
+    title:  [['ExeInfo'], ['UserName']],
+    detail: ['AppId', 'ChargeLevel', 'EventTimestamp'],
+  },
+  registry_batch: {
+    title:  [['KeyPath'], ['ValueName'], ['ValueData']],
+    detail: ['HivePath', 'HiveType', 'Description', 'Category', 'ValueType', 'Comment'],
+  },
+  registry_plugin: {
+    title:  [['KeyPath', 'ValueName'], ['ValueData', 'Value']],
+    detail: ['HivePath', 'Description', 'Comment'],
+  },
+}
+
+/** Case-insensitive column lookup returning the trimmed cell value, or ''. */
+function pickCol(row: Record<string, string>, candidates: string[]): string {
+  const lower = new Map(Object.keys(row).map(k => [k.toLowerCase(), k]))
+  for (const cand of candidates) {
+    const key = lower.get(cand.toLowerCase())
+    const val = key !== undefined ? (row[key] ?? '').trim() : ''
+    if (val) return val
+  }
+  return ''
+}
+
+/**
+ * Build the default timeline title for a pinned row.
+ * Uses the parser recipe when one matches, otherwise the legacy heuristic
+ * (artifact label + first non-empty non-date column).
+ */
+function buildDefaultTitle(item: Omit<PinnedRow, 'title' | 'description'>): string {
+  const prefix = item.ezLabel ?? item.artifactName
+  const recipe = item.ezCategory ? TITLE_RECIPES[item.ezCategory] : undefined
+
+  if (recipe) {
+    const parts = recipe.title.map(slot => pickCol(item.row, slot)).filter(Boolean)
+    if (parts.length) return `${prefix} — ${parts.join(' — ')}`.slice(0, 120)
+  }
+
+  const fallback = Object.entries(item.row).find(([k, v]) => k !== item.dateColumn && v?.trim())
+  return (prefix + (fallback ? ' — ' + fallback[1] : '')).slice(0, 120)
+}
+
+/**
+ * Build the default timeline description. The full record always ships in
+ * raw_payload, so this stays a short readable summary of the useful columns.
+ */
+function buildDefaultDescription(item: Omit<PinnedRow, 'title' | 'description'>): string {
+  const recipe = item.ezCategory ? TITLE_RECIPES[item.ezCategory] : undefined
+
+  if (recipe?.detail) {
+    const lines = recipe.detail
+      .map(col => [col, pickCol(item.row, [col])] as const)
+      .filter(([, v]) => v)
+      .map(([k, v]) => `${k}: ${v}`)
+    if (lines.length) return lines.join('\n')
+  }
+
+  return Object.entries(item.row)
+    .filter(([k, v]) => k !== item.dateColumn && v?.trim())
+    .slice(0, 8)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join('\n')
 }
 
 type FlatItem =
@@ -1707,13 +1885,23 @@ function OmniFileGroup({ file, query, onOpen }: {
 
 // ── Pinned panel ──────────────────────────────────────────────────────────────
 
-function PinnedPanel({ pinned, onUnpin, onClear, onExport, exporting }: {
+function PinnedPanel({ pinned, onUnpin, onClear, onExport, onEdit, onReset, exporting }: {
   pinned:    PinnedRow[]
   onUnpin:   (key: string) => void
   onClear:   () => void
   onExport:  () => void
+  onEdit:    (key: string, patch: Partial<Pick<PinnedRow, 'title' | 'description'>>) => void
+  onReset:   (key: string) => void
   exporting: boolean
 }) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+
+  const toggleExpanded = (key: string) => setExpanded(prev => {
+    const next = new Set(prev)
+    next.has(key) ? next.delete(key) : next.add(key)
+    return next
+  })
+
   const sorted = useMemo(() => [...pinned].sort((a, b) => {
     const ta = a.dateColumn ? a.row[a.dateColumn] ?? '' : ''
     const tb = b.dateColumn ? b.row[b.dateColumn] ?? '' : ''
@@ -1721,7 +1909,7 @@ function PinnedPanel({ pinned, onUnpin, onClear, onExport, exporting }: {
   }), [pinned])
 
   return (
-    <div className="w-64 shrink-0 border-l border-white/5 bg-bg-card flex flex-col overflow-hidden">
+    <div className="w-72 shrink-0 border-l border-white/5 bg-bg-card flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-3 py-3 border-b border-white/5 shrink-0">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-accent-muted/50 flex items-center gap-1.5">
           <BookmarkCheck size={10} />
@@ -1752,17 +1940,19 @@ function PinnedPanel({ pinned, onUnpin, onClear, onExport, exporting }: {
       {pinned.length > 0 && (
         <div className="flex-1 overflow-y-auto divide-y divide-white/[0.04]">
           {sorted.map(item => {
-            const ts = item.dateColumn ? item.row[item.dateColumn] : null
-            const mainVal = Object.entries(item.row)
-              .filter(([k]) => k !== item.dateColumn)
-              .find(([, v]) => v?.trim())?.[1] ?? ''
-            const secondVal = Object.entries(item.row)
-              .filter(([k]) => k !== item.dateColumn)
-              .find(([, v], i) => i > 0 && v?.trim())?.[1] ?? ''
+            const ts     = item.dateColumn ? item.row[item.dateColumn] : null
+            const isOpen = expanded.has(item.key)
 
             return (
               <div key={item.key} className="group relative px-3 py-2.5 hover:bg-white/[0.02] transition-colors">
                 <div className="flex items-start gap-2 pr-5">
+                  <button
+                    onClick={() => toggleExpanded(item.key)}
+                    title={isOpen ? 'Replier' : 'Éditer titre et description'}
+                    className="mt-0.5 shrink-0 text-accent-muted/30 hover:text-accent-green transition-colors"
+                  >
+                    <ChevronRightIcon size={11} className={`transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+                  </button>
                   <div className="flex-1 min-w-0">
                     {item.ezLabel
                       ? <span className="text-[8px] font-semibold px-1.5 py-0.5 rounded border bg-blue-500/10 text-blue-400 border-blue-500/20">{item.ezLabel}</span>
@@ -1771,14 +1961,52 @@ function PinnedPanel({ pinned, onUnpin, onClear, onExport, exporting }: {
                     {ts && (
                       <p className="text-[10px] font-mono text-white/50 mt-0.5 truncate">{ts}</p>
                     )}
-                    {mainVal && (
-                      <p className="text-[10px] text-white/70 mt-0.5 truncate leading-snug">{mainVal}</p>
-                    )}
-                    {secondVal && (
-                      <p className="text-[9px] text-accent-muted/35 truncate leading-snug">{secondVal}</p>
+                    <p className="text-[10px] text-white/70 mt-0.5 leading-snug line-clamp-2">
+                      {item.title || <span className="text-accent-muted/30 italic">Sans titre</span>}
+                    </p>
+                    {!isOpen && item.description && (
+                      <p className="text-[9px] text-accent-muted/35 truncate leading-snug">
+                        {item.description.split('\n')[0]}
+                      </p>
                     )}
                   </div>
                 </div>
+
+                {isOpen && (
+                  <div className="mt-2 pl-[19px] space-y-1.5">
+                    <div>
+                      <label className="text-[8px] uppercase tracking-widest text-accent-muted/40">Titre</label>
+                      <input
+                        value={item.title}
+                        onChange={e => onEdit(item.key, { title: e.target.value })}
+                        placeholder="Titre de l'événement…"
+                        className="w-full mt-0.5 bg-black/30 border border-white/10 rounded px-1.5 py-1 text-[10px] text-white/90 focus:border-accent-green/40 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[8px] uppercase tracking-widest text-accent-muted/40">Description</label>
+                      <textarea
+                        value={item.description}
+                        onChange={e => onEdit(item.key, { description: e.target.value })}
+                        rows={4}
+                        placeholder="Description…"
+                        className="w-full mt-0.5 bg-black/30 border border-white/10 rounded px-1.5 py-1 text-[10px] font-mono text-accent-muted resize-y focus:border-accent-green/40 focus:outline-none"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <button
+                        onClick={() => onReset(item.key)}
+                        className="text-[9px] text-accent-muted/40 hover:text-accent-green transition-colors"
+                      >
+                        Réinitialiser
+                      </button>
+                      <span className="text-[8px] text-accent-muted/25">
+                        {item.columns.length} champs conservés
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 <button onClick={() => onUnpin(item.key)}
                   className="absolute right-2 top-2.5 opacity-0 group-hover:opacity-100 text-accent-muted/30 hover:text-severity-critical transition-all">
                   <X size={10} />
@@ -2060,17 +2288,37 @@ export default function ArtifactExplorer() {
   const handlePinToggle = useCallback((key: string, row: Record<string, string>, meta: CsvArtifactMeta) => {
     setPinnedRows(prev => {
       if (prev.some(p => p.key === key)) return prev.filter(p => p.key !== key)
-      return [...prev, {
+      const base = {
         key,
         artifactId:     meta.id,
         artifactName:   meta.original_name,
         ezLabel:        meta.ez_label,
+        ezCategory:     meta.ez_category,
         dateColumn:     meta.date_column,
         sourceTimezone: meta.source_timezone ?? null,
         columns:        meta.columns,
         row,
+      }
+      return [...prev, {
+        ...base,
+        title:       buildDefaultTitle(base),
+        description: buildDefaultDescription(base),
       }]
     })
+  }, [])
+
+  /** Analyst edits to a pinned row's title/description, before export. */
+  const handlePinEdit = useCallback((key: string, patch: Partial<Pick<PinnedRow, 'title' | 'description'>>) => {
+    setPinnedRows(prev => prev.map(p => (p.key === key ? { ...p, ...patch } : p)))
+  }, [])
+
+  /** Restore the auto-generated title/description for one pinned row. */
+  const handlePinReset = useCallback((key: string) => {
+    setPinnedRows(prev => prev.map(p =>
+      p.key === key
+        ? { ...p, title: buildDefaultTitle(p), description: buildDefaultDescription(p) }
+        : p
+    ))
   }, [])
 
   const exportToTimeline = useCallback(async () => {
@@ -2087,17 +2335,18 @@ export default function ArtifactExplorer() {
         const ts = dateVal
           ? parseArtifactTimestamp(dateVal, item.sourceTimezone)
           : new Date().toISOString()
-        const mainEntry = Object.entries(item.row).find(([k, v]) => k !== item.dateColumn && v?.trim())
-        const title = ((item.ezLabel ?? item.artifactName) + (mainEntry ? ' — ' + mainEntry[1] : '')).slice(0, 120)
-        const description = Object.entries(item.row)
-          .filter(([k]) => k !== item.dateColumn)
-          .slice(0, 8)
-          .map(([k, v]) => `${k}: ${v}`)
-          .join('\n')
+        const source = item.ezLabel ?? item.artifactName
         await timelineApi.create(caseId, {
-          event_ts: ts, title, actor: '',
-          source: item.ezLabel ?? item.artifactName,
-          description, tags: '',
+          event_ts: ts,
+          title:       item.title.trim() || buildDefaultTitle(item),
+          description: item.description,
+          actor: '', source, tags: '',
+          // Full untouched record — rendered under a chevron in the Timeline
+          // tab so the analyst can rewrite title/description freely without
+          // ever losing the underlying evidence.
+          origin:      'artifact',
+          raw_payload: JSON.stringify(item.row),
+          raw_source:  `${source} · ${item.artifactName}`,
         })
       }
       qc.invalidateQueries({ queryKey: ['timeline', caseId] })
@@ -2324,6 +2573,8 @@ export default function ArtifactExplorer() {
         onUnpin={key => setPinnedRows(prev => prev.filter(p => p.key !== key))}
         onClear={() => setPinnedRows([])}
         onExport={exportToTimeline}
+        onEdit={handlePinEdit}
+        onReset={handlePinReset}
         exporting={exporting}
       />
     </div>

@@ -18,6 +18,10 @@ data/*
 !data/.gitkeep
 !data/*/.gitkeep
 
+# Default host-side drop folder (DROPZONE_HOST_PATH in .env) — holds the raw
+# artifacts analysts drop in, same sensitivity as data/.
+/dropzone/
+
 # Databases (belt-and-suspenders in case files escape data/)
 *.db
 *.db-wal

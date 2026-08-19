@@ -46,6 +46,31 @@ class StepStateUpdate(BaseModel):
     notes: str = ""     # markdown notes liées à cette étape
 
 
+class StepAssignee(BaseModel):
+    """Who owns a playbook step.
+
+    `kind="user"` points at a Remora account (`user_id` set); `kind="external"`
+    is free text for a service desk, a client contact or a third party who has
+    no account here.
+    """
+    kind: str                    # "user" | "external"
+    user_id: str | None = None
+    label: str                   # displayed name
+    color: str = ""              # hex, resolved client-side, stored for exports
+
+    @field_validator("kind")
+    @classmethod
+    def check_kind(cls, v: str) -> str:
+        if v not in ("user", "external"):
+            raise ValueError("kind must be 'user' or 'external'")
+        return v
+
+
+class StepAssigneeUpdate(BaseModel):
+    # null clears the assignment
+    assignee: StepAssignee | None = None
+
+
 class CasePlaybookCreate(BaseModel):
     playbook_id: str
 

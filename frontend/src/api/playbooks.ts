@@ -31,11 +31,24 @@ export interface Playbook {
   updated_at: string
 }
 
+/**
+ * Owner of a playbook step. `user` points at a Remora account; `external` is
+ * free text for a service desk, a client contact or any third party without
+ * an account here.
+ */
+export interface StepAssignee {
+  kind:     'user' | 'external'
+  user_id:  string | null
+  label:    string
+  color:    string
+}
+
 export interface StepState {
   done: boolean
   comment: string
   notes: string
   done_at: string | null
+  assignee?: StepAssignee | null
 }
 
 export interface CasePlaybook {
@@ -64,4 +77,8 @@ export const playbooksApi = {
     api.delete(`/cases/${caseId}/playbooks/${cpId}`),
   updateStep: (caseId: string, cpId: string, nodeId: string, done: boolean, comment: string, notes: string = '') =>
     api.patch<CasePlaybook>(`/cases/${caseId}/playbooks/${cpId}/steps/${nodeId}`, { done, comment, notes }).then(r => r.data),
+  /** Pass null to clear the assignment. */
+  assignStep: (caseId: string, cpId: string, nodeId: string, assignee: StepAssignee | null) =>
+    api.patch<CasePlaybook>(`/cases/${caseId}/playbooks/${cpId}/steps/${nodeId}/assignee`, { assignee })
+      .then(r => r.data),
 }

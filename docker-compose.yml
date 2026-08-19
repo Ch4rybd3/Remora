@@ -10,11 +10,18 @@ services:
     volumes:
       # All runtime data (SQLite DB, evidences, DuckDB files, Chainsaw, …)
       - remora_data:/app/data
+      # Drop folder — bind-mounted from the host so artifacts can be dropped
+      # straight from a file manager. See DROPZONE_HOST_PATH in .env.
+      - ${DROPZONE_HOST_PATH:-./dropzone}:/app/data/dropzone
     environment:
       # Validation: docker compose will refuse to start if SECRET_KEY is missing
       SECRET_KEY:             ${SECRET_KEY:?Please set SECRET_KEY in .env (see .env.example)}
       DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-admin}
       CORS_ORIGINS:           ${CORS_ORIGINS:-http://localhost}
+      DROPZONE_PATH:            /app/data/dropzone
+      DROPZONE_AUTO_INGEST:     ${DROPZONE_AUTO_INGEST:-true}
+      DROPZONE_POLL_SECONDS:    ${DROPZONE_POLL_SECONDS:-30}
+      DROPZONE_STABLE_SECONDS:  ${DROPZONE_STABLE_SECONDS:-15}
     healthcheck:
       test: ["CMD", "python3", "-c",
              "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
