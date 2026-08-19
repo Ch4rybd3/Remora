@@ -64,6 +64,38 @@ def pcap_status(current_user=Depends(get_current_user)):
     }
 
 
+@router.get("/cases/{case_id}/artifacts/{artifact_id}/pcap/streams/{stream_index}")
+def get_stream(
+    case_id: str,
+    artifact_id: str,
+    stream_index: int,
+    protocol: str = "tcp",
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Reassembled conversation — Wireshark's "Follow TCP Stream"."""
+    if stream_index < 0:
+        raise HTTPException(400, "stream_index doit être >= 0")
+    if protocol not in ("tcp", "udp"):
+        raise HTTPException(400, "protocol doit être 'tcp' ou 'udp'")
+
+    capture = _resolve_capture(artifact_id, case_id, db)
+    try:
+        result = pcap_service.follow_stream(capture, stream_index, protocol)
+    except pcap_service.TsharkUnavailable as e:
+        raise HTTPException(503, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"Reconstruction impossible: {e}")
+
+    if not result["chunks"]:
+        raise HTTPException(
+            404,
+            f"Flux {protocol} n°{stream_index} vide ou introuvable "
+            f"(une poignée de main sans données n'a rien à reconstruire)",
+        )
+    return {**result, "capture": capture.name}
+
+
 @router.get("/cases/{case_id}/artifacts/{artifact_id}/pcap/frames/{frame_number}")
 def get_frame(
     case_id: str,

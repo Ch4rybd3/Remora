@@ -21,6 +21,27 @@ export interface PcapFrame {
   layers:       Record<string, any>
 }
 
+/** One contiguous run of payload in a single direction. */
+export interface StreamChunk {
+  /** c2s = node0 → node1 (client to server); s2c = the reverse. */
+  direction: 'c2s' | 's2c'
+  /** Hex-encoded so binary payloads survive transport intact. */
+  hex:       string
+  bytes:     number
+}
+
+export interface PcapStream {
+  protocol:    'tcp' | 'udp'
+  stream:      number
+  node0:       string
+  node1:       string
+  chunks:      StreamChunk[]
+  total_bytes: number
+  /** True when the conversation exceeded the server-side size ceiling. */
+  truncated:   boolean
+  capture:     string
+}
+
 export const pcapApi = {
   status: () => api.get<PcapStatus>('/pcap/status').then(r => r.data),
 
@@ -28,6 +49,19 @@ export const pcapApi = {
     api.get<PcapFrame>(
       `/cases/${caseId}/artifacts/${artifactId}/pcap/frames/${frameNumber}`,
     ).then(r => r.data),
+
+  stream: (caseId: string, artifactId: string, streamIndex: number, protocol: 'tcp' | 'udp' = 'tcp') =>
+    api.get<PcapStream>(
+      `/cases/${caseId}/artifacts/${artifactId}/pcap/streams/${streamIndex}`,
+      { params: { protocol } },
+    ).then(r => r.data),
+}
+
+/** Hex → bytes, for rendering a stream chunk. */
+export function hexToBytes(hex: string): Uint8Array {
+  const out = new Uint8Array(Math.floor(hex.length / 2))
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16)
+  return out
 }
 
 /** A packet-list artifact is a CSV whose name carries the suffix above. */

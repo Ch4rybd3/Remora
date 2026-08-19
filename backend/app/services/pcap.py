@@ -175,6 +175,85 @@ def count_rows(csv_path: Path) -> int:
         return 0
 
 
+FOLLOW_TIMEOUT = 120
+# Ceiling on the payload returned for one conversation, so a bulk transfer
+# cannot flood the API response or the browser.
+FOLLOW_MAX_BYTES = 2 * 1024 * 1024
+
+
+def follow_stream(pcap_path: Path, stream_index: int, protocol: str = "tcp") -> dict:
+    """
+    Reassemble one conversation, as Wireshark's "Follow TCP Stream" does.
+
+    Uses tshark's `raw` mode rather than `ascii`: it hex-encodes each chunk, so
+    binary payloads survive intact (an `ascii` follow rewrites non-printable
+    bytes to dots and the original content is lost).
+
+    Output being parsed:
+
+        ===================================================================
+        Follow: tcp,raw
+        Filter: tcp.stream eq 0
+        Node 0: 192.168.1.10:44322
+        Node 1: 93.184.216.34:80
+        4745540...                 <- client → server
+        \t485454502...             <- server → client (leading tab)
+        ===================================================================
+    """
+    if protocol not in ("tcp", "udp"):
+        raise ValueError("protocol doit être 'tcp' ou 'udp'")
+
+    binary = tshark_path()
+    cmd = [binary, "-r", str(pcap_path), "-q",
+           "-z", f"follow,{protocol},raw,{int(stream_index)}"]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=FOLLOW_TIMEOUT)
+    if proc.returncode != 0:
+        raise RuntimeError((proc.stderr or "").strip()[:400])
+
+    node0 = node1 = ""
+    chunks: list[dict] = []
+    total = 0
+    truncated = False
+
+    for line in (proc.stdout or "").splitlines():
+        if line.startswith("Node 0:"):
+            node0 = line.split(":", 1)[1].strip()
+            continue
+        if line.startswith("Node 1:"):
+            node1 = line.split(":", 1)[1].strip()
+            continue
+        # Skip banner, filter line and separators
+        if not line or line.startswith(("=", "Follow:", "Filter:")):
+            continue
+
+        # A leading tab marks the second node's direction
+        is_s2c = line.startswith("\t")
+        payload = line.strip()
+        if not payload or any(c not in "0123456789abcdefABCDEF" for c in payload):
+            continue
+
+        size = len(payload) // 2
+        if total + size > FOLLOW_MAX_BYTES:
+            truncated = True
+            break
+        total += size
+        chunks.append({
+            "direction": "s2c" if is_s2c else "c2s",
+            "hex":       payload,
+            "bytes":     size,
+        })
+
+    return {
+        "protocol":     protocol,
+        "stream":       int(stream_index),
+        "node0":        node0,
+        "node1":        node1,
+        "chunks":       chunks,
+        "total_bytes":  total,
+        "truncated":    truncated,
+    }
+
+
 def frame_detail(pcap_path: Path, frame_number: int) -> dict:
     """
     Full protocol tree for one packet, as tshark's JSON dissection.

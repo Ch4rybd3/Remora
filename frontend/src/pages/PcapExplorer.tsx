@@ -9,10 +9,13 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Network, Search, X, ChevronRight, BookmarkPlus, BookmarkCheck,
-  Loader2, Download, AlertCircle, Filter,
+  Loader2, Download, AlertCircle, Filter, ArrowLeftRight, Copy, Check,
 } from 'lucide-react'
 import { csvArtifactsApi, type CsvArtifactMeta } from '../api/csvArtifacts'
-import { pcapApi, isPcapArtifact, captureName, type PcapFrame } from '../api/pcap'
+import {
+  pcapApi, isPcapArtifact, captureName, hexToBytes,
+  type PcapFrame, type PcapStream,
+} from '../api/pcap'
 import { timelineApi } from '../api/timeline'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import { parseArtifactTimestamp } from '../utils/dateUtils'
@@ -208,6 +211,152 @@ function HexDump({ hex, highlight }: {
   )
 }
 
+// ── Follow stream ─────────────────────────────────────────────────────────────
+
+function fmtBytes(n: number): string {
+  if (n < 1024) return `${n} o`
+  if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} Ko`
+  return `${(n / 1024 ** 2).toFixed(1)} Mo`
+}
+
+/** Printable-ASCII rendering; non-printable bytes shown as dots, like Wireshark. */
+function toAscii(bytes: Uint8Array): string {
+  let out = ''
+  for (const b of bytes) {
+    out += (b === 0x0a || b === 0x0d || b === 0x09) ? String.fromCharCode(b)
+         : (b >= 0x20 && b < 0x7f) ? String.fromCharCode(b)
+         : '.'
+  }
+  return out
+}
+
+function toHexBlock(bytes: Uint8Array): string {
+  const lines: string[] = []
+  for (let i = 0; i < bytes.length; i += 16) {
+    const row = bytes.slice(i, i + 16)
+    const hex = [...row].map(b => b.toString(16).padStart(2, '0')).join(' ')
+    lines.push(`${i.toString(16).padStart(4, '0')}  ${hex.padEnd(47)}  ${toAscii(row)}`)
+  }
+  return lines.join('\n')
+}
+
+function FollowStreamPanel({ stream, onClose }: { stream: PcapStream; onClose: () => void }) {
+  const [view,   setView]   = useState<'ascii' | 'hex'>('ascii')
+  const [side,   setSide]   = useState<'both' | 'c2s' | 's2c'>('both')
+  const [copied, setCopied] = useState(false)
+
+  const shown = stream.chunks.filter(c => side === 'both' || c.direction === side)
+
+  const asText = useMemo(
+    () => shown.map(c => {
+      const bytes = hexToBytes(c.hex)
+      return view === 'hex' ? toHexBlock(bytes) : toAscii(bytes)
+    }).join('\n'),
+    [shown, view],
+  )
+
+  const copy = () => {
+    navigator.clipboard.writeText(asText)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  const download = () => {
+    const blob = new Blob([asText], { type: 'text/plain' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href = url
+    a.download = `${stream.capture}_${stream.protocol}_stream_${stream.stream}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-8"
+         onClick={onClose}>
+      <div className="w-full max-w-5xl h-full max-h-[85vh] bg-bg-card border border-white/10 rounded-lg flex flex-col overflow-hidden"
+           onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/8 shrink-0">
+          <ArrowLeftRight size={13} className="text-accent-green shrink-0" />
+          <p className="text-xs font-semibold text-white shrink-0">
+            Flux {stream.protocol.toUpperCase()} n°{stream.stream}
+          </p>
+          <p className="text-[10px] font-mono text-accent-muted/50 truncate">
+            {stream.node0} ↔ {stream.node1}
+          </p>
+          <span className="text-[10px] text-accent-muted/35 shrink-0">
+            {fmtBytes(stream.total_bytes)} · {stream.chunks.length} segment(s)
+          </span>
+          <button onClick={onClose}
+            className="ml-auto text-accent-muted/40 hover:text-white transition-colors shrink-0">
+            <X size={14} />
+          </button>
+        </div>
+
+        {/* Controls */}
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5 shrink-0">
+          <div className="flex rounded border border-white/10 overflow-hidden">
+            {(['ascii', 'hex'] as const).map(v => (
+              <button key={v} onClick={() => setView(v)}
+                className={`text-[10px] px-2.5 py-1 transition-colors ${
+                  view === v ? 'bg-accent-green/10 text-accent-green' : 'text-accent-muted hover:text-white'
+                }`}>
+                {v === 'ascii' ? 'ASCII' : 'Hex'}
+              </button>
+            ))}
+          </div>
+          <div className="flex rounded border border-white/10 overflow-hidden">
+            {([
+              ['both', 'Les deux sens'],
+              ['c2s',  `→ ${stream.node1}`],
+              ['s2c',  `← ${stream.node1}`],
+            ] as const).map(([v, label]) => (
+              <button key={v} onClick={() => setSide(v)}
+                className={`text-[10px] px-2.5 py-1 truncate max-w-[180px] transition-colors ${
+                  side === v ? 'bg-accent-green/10 text-accent-green' : 'text-accent-muted hover:text-white'
+                }`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <button onClick={copy}
+            className="ml-auto flex items-center gap-1 text-[10px] px-2 py-1 rounded border border-white/10 text-accent-muted hover:text-accent-green hover:border-accent-green/40 transition-colors">
+            {copied ? <Check size={10} className="text-accent-green" /> : <Copy size={10} />} Copier
+          </button>
+          <button onClick={download}
+            className="flex items-center gap-1 text-[10px] px-2 py-1 rounded border border-white/10 text-accent-muted hover:text-accent-green hover:border-accent-green/40 transition-colors">
+            <Download size={10} /> Exporter
+          </button>
+        </div>
+
+        {stream.truncated && (
+          <p className="px-4 py-1.5 text-[10px] text-yellow-400/80 bg-yellow-500/5 border-b border-yellow-500/15 shrink-0">
+            Conversation tronquée : seuls les 2 premiers Mo sont affichés.
+          </p>
+        )}
+
+        {/* Content — client and server tinted differently, as in Wireshark */}
+        <div className="flex-1 overflow-auto p-3 font-mono text-[10px] leading-relaxed">
+          {shown.map((c, i) => (
+            <pre key={i}
+              className={`whitespace-pre-wrap break-all mb-2 px-2 py-1 rounded border-l-2 ${
+                c.direction === 'c2s'
+                  ? 'border-l-accent-green/40 bg-accent-green/[0.04] text-accent-green/85'
+                  : 'border-l-blue-400/40 bg-blue-400/[0.04] text-blue-300/85'
+              }`}>
+              {view === 'hex' ? toHexBlock(hexToBytes(c.hex)) : toAscii(hexToBytes(c.hex))}
+            </pre>
+          ))}
+          {shown.length === 0 && (
+            <p className="text-accent-muted/30 italic">Aucune donnée dans ce sens.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Pinned selection ──────────────────────────────────────────────────────────
 
 interface PinnedPacket {
@@ -356,6 +505,7 @@ export default function PcapExplorer() {
   const [highlight,  setHighlight]  = useState<{ offset: number; length: number } | null>(null)
   const [pinned,     setPinned]     = useState<PinnedPacket[]>([])
   const [exporting,  setExporting]  = useState(false)
+  const [following,  setFollowing]  = useState<number | null>(null)
 
   useEffect(() => {
     const t = setTimeout(() => { setDebounced(search); setPage(1) }, 400)
@@ -398,6 +548,20 @@ export default function PcapExplorer() {
   })
 
   const hex = frame ? rawHex(frame.layers['frame_raw']) : ''
+
+  const { data: stream, isFetching: loadingStream, error: streamError } = useQuery({
+    queryKey: ['pcap-stream', caseId, selectedId, following],
+    queryFn:  () => pcapApi.stream(caseId!, selectedId!, following!),
+    enabled:  !!caseId && !!selectedId && following !== null,
+  })
+
+  // TCP stream index of the currently selected packet, when it belongs to one
+  const currentStream = useMemo(() => {
+    if (frameNo === null) return null
+    const row = rows?.items.find(r => Number(r.No) === frameNo)
+    const raw = row?.TcpStream
+    return raw !== undefined && raw !== '' ? Number(raw) : null
+  }, [frameNo, rows])
 
   const pinnedKeys = useMemo(() => new Set(pinned.map(p => p.key)), [pinned])
 
@@ -596,9 +760,29 @@ export default function PcapExplorer() {
         {/* Detail panes */}
         <div className="h-64 shrink-0 border-t border-white/8 flex overflow-hidden">
           <div className="flex-1 min-w-0 border-r border-white/5 flex flex-col overflow-hidden">
-            <p className="px-2 py-1 text-[9px] uppercase tracking-widest text-accent-muted/35 border-b border-white/5 shrink-0">
-              Détail du paquet {frameNo !== null && `— n°${frameNo}`}
-            </p>
+            <div className="flex items-center gap-2 px-2 py-1 border-b border-white/5 shrink-0">
+              <p className="text-[9px] uppercase tracking-widest text-accent-muted/35">
+                Détail du paquet {frameNo !== null && `— n°${frameNo}`}
+              </p>
+              {currentStream !== null && (
+                <button
+                  onClick={() => setFollowing(currentStream)}
+                  disabled={loadingStream}
+                  title="Reconstruire la conversation complète de ce flux"
+                  className="ml-auto flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border border-accent-green/25 text-accent-green/80 hover:bg-accent-green/10 transition-colors disabled:opacity-40"
+                >
+                  {loadingStream
+                    ? <Loader2 size={9} className="animate-spin" />
+                    : <ArrowLeftRight size={9} />}
+                  Suivre le flux TCP {currentStream}
+                </button>
+              )}
+            </div>
+            {streamError && following !== null && (
+              <p className="px-2 py-1 text-[9px] text-severity-critical border-b border-white/5 shrink-0">
+                {(streamError as any)?.response?.data?.detail ?? 'Reconstruction impossible.'}
+              </p>
+            )}
             {frameNo === null ? (
               <p className="p-3 text-[10px] text-accent-muted/30 italic">
                 Sélectionnez un paquet pour voir son arborescence de protocoles.
@@ -626,6 +810,11 @@ export default function PcapExplorer() {
           </div>
         </div>
       </div>
+
+      {/* ── Follow stream overlay ────────────────────────────────────────── */}
+      {stream && following !== null && (
+        <FollowStreamPanel stream={stream} onClose={() => setFollowing(null)} />
+      )}
 
       {/* ── Selection panel ──────────────────────────────────────────────── */}
       <PinnedPanel
