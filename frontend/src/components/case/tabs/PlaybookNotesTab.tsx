@@ -8,10 +8,12 @@ import {
   CheckCircle2, Circle, ChevronDown, ChevronUp,
   Plus, X, GitBranch, StickyNote, Save, List, Network,
 } from 'lucide-react'
-import { playbooksApi, type CasePlaybook } from '../../../api/playbooks'
+import { playbooksApi, type CasePlaybook, type StepAssignee } from '../../../api/playbooks'
 import { topoSortNodes } from '../../../utils/playbookUtils'
 import { casesApi } from '../../../api/cases'
+import { usersApi } from '../../../api/auth'
 import { NODE_TYPES, EDGE_TYPES } from '../../playbook/PlaybookNodes'
+import StepAssigneePicker from '../../playbook/StepAssigneePicker'
 import MarkdownEditor from '../../ui/MarkdownEditor'
 import Modal from '../../ui/Modal'
 import ConfirmDialog from '../../ui/ConfirmDialog'
@@ -31,7 +33,11 @@ function doneCount(cp: CasePlaybook) {
 function buildViewNodes(cp: CasePlaybook): Node[] {
   return cp.playbook.nodes.map(n => ({
     ...n,
-    data: { ...n.data, done: cp.step_states[n.id]?.done ?? false },
+    data: {
+      ...n.data,
+      done: cp.step_states[n.id]?.done ?? false,
+      assignee: cp.step_states[n.id]?.assignee ?? null,
+    },
   })) as Node[]
 }
 
@@ -87,6 +93,18 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
         notes ?? existing?.notes ?? '',
       )
     },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['case-playbooks', caseId] }),
+  })
+
+  /* ── Step assignment ── */
+  const { data: users = [] } = useQuery({
+    queryKey: ['users'],
+    queryFn: usersApi.list,
+  })
+
+  const assignStep = useMutation({
+    mutationFn: ({ cpId, nodeId, assignee }: { cpId: string; nodeId: string; assignee: StepAssignee | null }) =>
+      playbooksApi.assignStep(caseId, cpId, nodeId, assignee),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['case-playbooks', caseId] }),
   })
 
@@ -331,6 +349,12 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
                         {hasNotes && !isExpanded && (
                           <span className="text-[9px] bg-accent-green/8 text-accent-green/60 border border-accent-green/15 px-1.5 py-0.5 rounded">note</span>
                         )}
+                        <StepAssigneePicker
+                          assignee={state?.assignee}
+                          users={users}
+                          onChange={assignee => assignStep.mutate({ cpId: activeCp.id, nodeId: node.id, assignee })}
+                          disabled={assignStep.isPending}
+                        />
                         <button
                           onClick={() => toggleExpand(node.id, activeCp)}
                           className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border transition-colors ${
