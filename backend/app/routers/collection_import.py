@@ -53,11 +53,11 @@ async def upload_collection(
         raise HTTPException(400, "No files provided")
 
     # Validate extensions
-    _FLAT_EXTS = {".csv", ".json", ".txt", ".log", ".evtx", ".eml"}
+    _FLAT_EXTS = {".csv", ".json", ".txt", ".log", ".evtx", ".eml", ".pcap", ".pcapng", ".cap"}
     for f in files:
         ext = Path(f.filename).suffix.lower()
         if ext not in (".zip", *_FLAT_EXTS):
-            raise HTTPException(400, f"Type non supporté '{f.filename}'. Acceptés: .zip, .csv, .json, .txt, .log, .evtx, .eml")
+            raise HTTPException(400, f"Type non supporté '{f.filename}'. Acceptés: .zip, .csv, .json, .txt, .log, .evtx, .eml, .pcap, .pcapng, .cap")
 
     # Mixed uploads not allowed — either one ZIP or flat files
     exts = {Path(f.filename).suffix.lower() for f in files}
@@ -94,11 +94,14 @@ async def upload_collection(
             result  = detect(entry_name)
             is_csv  = entry_name.lower().endswith(".csv")
             entry_ext = Path(entry_name).suffix.lower()
-            is_routable = entry_ext in (".evtx", ".eml", ".json", ".txt", ".log")
+            is_routable = entry_ext in (".evtx", ".eml", ".json", ".txt", ".log", ".pcap", ".pcapng", ".cap")
             # Determine destination for known extensions
             if entry_ext == ".evtx":
                 dest_page  = f"/cases/{case_id}/evtx"
                 dest_label = "EVTX Module"
+            elif entry_ext in (".pcap", ".pcapng", ".cap"):
+                dest_page  = "/artifacts/explorer"
+                dest_label = "Network Capture"
             elif entry_ext == ".eml":
                 dest_page  = f"/cases/{case_id}/emails"
                 dest_label = "Email Analysis"
@@ -158,6 +161,9 @@ async def upload_collection(
             if file_ext == ".evtx":
                 dest_label = "EVTX Module"
                 dest_page  = f"/cases/{case_id}/evtx"
+            elif file_ext in (".pcap", ".pcapng", ".cap"):
+                dest_label = "Network Capture"
+                dest_page  = "/artifacts/explorer"
             elif file_ext == ".eml":
                 dest_label = "Email Analysis"
                 dest_page  = f"/cases/{case_id}/emails"
@@ -239,6 +245,7 @@ def _run_pending(
     from .csv_artifacts import register_csv_artifact
     from .evtx import register_evtx_file
     from .case_emails import register_email_file
+    from ..services.pcap import convert_to_csv, PCAP_EXTS
 
     processed = 0
     for file_id, filename, category in pending:
@@ -265,6 +272,15 @@ def _run_pending(
                 f.status    = "imported"
                 f.row_count = 0        # events counted after async parse
                 f.imported_at = datetime.utcnow()
+            elif ext in PCAP_EXTS:
+                # Dissect with tshark into a packet-list CSV, then register that
+                # CSV in the Artifact Explorer like any other artifact.
+                csv_path = convert_to_csv(file_path)
+                artifact = register_csv_artifact(csv_path, case_id, db)
+                f.status          = "imported"
+                f.row_count       = artifact.row_count if artifact else 0
+                f.imported_at     = datetime.utcnow()
+                f.csv_artifact_id = artifact.id if artifact else None
             elif ext == ".eml":
                 # Route to Email Analysis
                 register_email_file(file_path, case_id, Path(filename).name, db)

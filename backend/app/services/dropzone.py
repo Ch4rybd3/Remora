@@ -42,7 +42,8 @@ PROCESSED_DIRNAME = ".processed"
 INBOX_DIRNAME = "_inbox"
 
 # Same set the Collection Import upload endpoint accepts
-SUPPORTED_EXTS = {".csv", ".json", ".txt", ".log", ".evtx", ".eml", ".zip"}
+SUPPORTED_EXTS = {".csv", ".json", ".txt", ".log", ".evtx", ".eml", ".zip",
+                  ".pcap", ".pcapng", ".cap"}
 
 # Files matching these are never considered droppable artifacts
 _IGNORED_NAMES = {".ds_store", "thumbs.db", "desktop.ini"}

@@ -6,7 +6,9 @@ FROM python:3.12-slim
 
 # System libraries required by C-extension packages
 # (cryptography, lxml, lief, some volatility3 plugins, …)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# DEBIAN_FRONTEND: tshark's postinst asks whether non-root users may capture
+# packets, which would hang the build waiting on debconf.
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     libffi-dev \
@@ -18,6 +20,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # ── CTI network tools (used by /api/v1/cti/command) ──────────────────
     whois \
     dnsutils \
+    # ── PCAP dissection (services/pcap.py) ───────────────────────────────
+    # ~200 MB, mostly libwireshark. Ships the same dissectors as Wireshark,
+    # so captures get proper application-layer decoding (HTTP, DNS, TLS, SMB).
+    tshark \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Dependency layer (cached unless requirements.txt changes) ─────────────────
