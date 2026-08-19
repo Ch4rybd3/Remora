@@ -22,6 +22,7 @@ import VaultManagement from './pages/VaultManagement'
 import CTILookup from './pages/CTILookup'
 import Connectors from './pages/Connectors'
 import ArtifactExplorer from './pages/ArtifactExplorer'
+import PcapExplorer from './pages/PcapExplorer'
 import Clients from './pages/Clients'
 import ClientDetail from './pages/ClientDetail'
 
@@ -63,6 +64,7 @@ export default function App() {
         <Route path="/artifacts/binary"   element={<BinaryAnalysis />} />
         <Route path="/artifacts/cti"      element={<CTILookup />} />
         <Route path="/artifacts/explorer" element={<ArtifactExplorer />} />
+        <Route path="/artifacts/pcap"     element={<PcapExplorer />} />
         <Route path="/config/connectors"  element={<Connectors />} />
         <Route path="/config/clients"     element={<Clients />} />
         <Route path="/config/clients/:id" element={<ClientDetail />} />

@@ -172,8 +172,12 @@ export function fmtDateStamp(iso?: string | null): string {
 export function parseArtifactTimestamp(raw: string, sourceTz?: string | null): string {
   if (!raw) return new Date().toISOString()
 
-  // Normalize separators
-  const normalized = raw.trim().replace(' ', 'T')
+  // Normalize separators, then expand a bare hour offset to a full one:
+  // DuckDB renders real TIMESTAMPTZ columns as "2025-07-31 22:13:20+00",
+  // which Date() rejects. Without this the value silently became "now".
+  const normalized = raw.trim()
+    .replace(' ', 'T')
+    .replace(/([+-]\d{2})$/, '$1:00')
 
   // Check if the string already carries timezone info
   const hasOffset = /Z$|[+-]\d{2}:?\d{2}$/.test(normalized)
