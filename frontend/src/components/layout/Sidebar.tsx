@@ -150,6 +150,7 @@ export default function Sidebar() {
         { to: '/artifacts/email',      icon: Mail,      label: 'Email Analysis' },
         { to: '/artifacts/filesystem', icon: HardDrive, label: 'Logs' },
         { to: '/artifacts/pcap',       icon: Network,   label: 'Network (PCAP)' },
+        { to: '/artifacts/images',     icon: HardDrive, label: 'Disk Images' },
         { to: '/artifacts/memory',     icon: Cpu,       label: 'Memory Analysis' },
         { to: '/artifacts/binary',     icon: Binary,    label: 'Binary Analysis' },
         { to: '/artifacts/cti',        icon: Shield,    label: 'CTI Lookup' },

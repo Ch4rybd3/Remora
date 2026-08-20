@@ -55,6 +55,13 @@ class Settings(BaseSettings):
     # still in progress is never read half-written.
     dropzone_stable_seconds: int = 15
 
+    # ── Disk images ───────────────────────────────────────────────────────────
+    # Comma-separated directories the disk image explorer may read from,
+    # normally a read-only host bind mount. Images are read in place: a full
+    # E01 acquisition is far too large to upload and copy into the volume.
+    # Anything outside these roots is refused.
+    disk_image_paths: str = "/app/data/images"
+
     # Accepts either a JSON array or a comma-separated string in .env:
     #   CORS_ORIGINS=http://localhost,https://myserver.com
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]

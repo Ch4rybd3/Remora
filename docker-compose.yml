@@ -13,6 +13,9 @@ services:
       # Drop folder — bind-mounted from the host so artifacts can be dropped
       # straight from a file manager. See DROPZONE_HOST_PATH in .env.
       - ${DROPZONE_HOST_PATH:-./dropzone}:/app/data/dropzone
+      # Forensic disk images (E01, VMDK, raw…), mounted READ-ONLY. They are
+      # read in place — a full acquisition is far too large to upload.
+      - ${DISK_IMAGES_HOST_PATH:-./images}:/app/data/images:ro
     environment:
       # Validation: docker compose will refuse to start if SECRET_KEY is missing
       SECRET_KEY:             ${SECRET_KEY:?Please set SECRET_KEY in .env (see .env.example)}
@@ -22,6 +25,7 @@ services:
       DROPZONE_AUTO_INGEST:     ${DROPZONE_AUTO_INGEST:-true}
       DROPZONE_POLL_SECONDS:    ${DROPZONE_POLL_SECONDS:-30}
       DROPZONE_STABLE_SECONDS:  ${DROPZONE_STABLE_SECONDS:-15}
+      DISK_IMAGE_PATHS:         /app/data/images
     healthcheck:
       test: ["CMD", "python3", "-c",
              "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]

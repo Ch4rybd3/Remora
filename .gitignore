@@ -22,6 +22,10 @@ data/*
 # artifacts analysts drop in, same sensitivity as data/.
 /dropzone/
 
+# Default host-side disk image directory (DISK_IMAGES_HOST_PATH in .env) —
+# forensic acquisitions, never committed.
+/images/
+
 # Databases (belt-and-suspenders in case files escape data/)
 *.db
 *.db-wal

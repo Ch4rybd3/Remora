@@ -39,6 +39,7 @@ from .routers import cti as cti_router
 from .routers import collection_import as collection_import_router
 from .routers import dropzone as dropzone_router
 from .routers import pcap as pcap_router
+from .routers import disk_images as disk_images_router
 from .models import ez_artifacts as _ez_artifacts_models   # ensure EZ tables are registered
 from .routers import chainsaw as chainsaw_router
 from .routers import chainsaw_rules as chainsaw_rules_router
@@ -426,6 +427,7 @@ app.include_router(cti_router.router,                  prefix="/api/v1", **_auth
 app.include_router(collection_import_router.router,    prefix="/api/v1", **_auth)
 app.include_router(dropzone_router.router,             prefix="/api/v1", **_auth)
 app.include_router(pcap_router.router,                 prefix="/api/v1", **_auth)
+app.include_router(disk_images_router.router,          prefix="/api/v1", **_auth)
 app.include_router(backup_router.router,               prefix="/api/v1", **_auth)
 
 
