@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from ..config import settings
 from ..core.deps import get_current_user
 from ..database import get_db
 from ..models.case import Case
@@ -60,6 +61,8 @@ def status(current_user=Depends(get_current_user)):
         "configured":     bool(roots),
         "supported_exts": sorted(di.IMAGE_EXTS),
         "max_read_bytes": di.MAX_READ_BYTES,
+        # Where the analyst should drop images from their own machine
+        "host_path":      str(settings.disk_images_host_path or ""),
     }
 
 

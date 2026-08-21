@@ -61,6 +61,11 @@ class Settings(BaseSettings):
     # E01 acquisition is far too large to upload and copy into the volume.
     # Anything outside these roots is refused.
     disk_image_paths: str = "/app/data/images"
+    # Host-side path of the same directory. Never used to read anything — it
+    # only lets the UI print a copy-pasteable rsync/sshfs command, since the
+    # container-side path is meaningless to someone sitting at their own
+    # machine.
+    disk_images_host_path: str = ""
 
     # Accepts either a JSON array or a comma-separated string in .env:
     #   CORS_ORIGINS=http://localhost,https://myserver.com

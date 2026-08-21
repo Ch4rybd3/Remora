@@ -2,10 +2,16 @@ import api from './client'
 
 export interface DiskImageStatus {
   available:       boolean
+  /** Paths as seen inside the container. */
   roots:           string[]
   configured:      boolean
   supported_exts:  string[]
   max_read_bytes:  number
+  /**
+   * Host-side path of the image directory — the one an analyst must target
+   * when copying files in. Empty when not configured.
+   */
+  host_path:       string
 }
 
 export interface DiskImageFile {

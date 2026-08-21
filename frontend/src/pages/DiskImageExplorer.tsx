@@ -8,7 +8,7 @@ import { useState, useMemo, useCallback } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import {
   HardDrive, ChevronRight, Folder, FolderOpen, File as FileIcon, Loader2,
-  AlertCircle, Download, Hash, FileOutput, Check, Copy, Layers,
+  AlertCircle, Download, Hash, FileOutput, Check, Copy, Layers, HelpCircle,
 } from 'lucide-react'
 import {
   diskImagesApi, type DirEntry, type DiskImageFile, type Partition,
@@ -33,6 +33,115 @@ function fmtDate(iso: string | null): string {
 /** NTFS metadata files ($MFT, $LogFile…) — worth flagging, not hiding. */
 function isMetadata(name: string): boolean {
   return name.startsWith('$')
+}
+
+// ── Transfer tips ─────────────────────────────────────────────────────────────
+// A fresh instance shows an empty explorer with no clue how images get there.
+// This panel spells it out with commands already filled in for this server.
+
+function CopyableCommand({ label, command, hint }: {
+  label:   string
+  command: string
+  hint?:   string
+}) {
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    navigator.clipboard.writeText(command)
+    setCopied(true); setTimeout(() => setCopied(false), 1500)
+  }
+  return (
+    <div>
+      <p className="text-[10px] text-accent-muted/60 mb-1">{label}</p>
+      <div className="flex items-start gap-2 rounded border border-white/8 bg-black/30 px-2 py-1.5">
+        <code className="flex-1 min-w-0 text-[10px] font-mono text-accent-green/80 break-all whitespace-pre-wrap">
+          {command}
+        </code>
+        <button onClick={copy} title="Copier la commande"
+          className="shrink-0 text-accent-muted/40 hover:text-accent-green transition-colors">
+          {copied ? <Check size={11} className="text-accent-green" /> : <Copy size={11} />}
+        </button>
+      </div>
+      {hint && <p className="text-[9px] text-accent-muted/35 mt-1 leading-relaxed">{hint}</p>}
+    </div>
+  )
+}
+
+function TransferTips({ hostPath, configured }: { hostPath: string; configured: boolean }) {
+  // The host the analyst reached this UI on is, in practice, the host holding
+  // the images — a far better default than a placeholder.
+  const host = typeof window !== 'undefined' ? window.location.hostname : 'serveur'
+  const user = '<utilisateur>'
+
+  // A relative DISK_IMAGES_HOST_PATH (the "./images" default) is meaningless as
+  // an scp/rsync destination — it would resolve against the SSH home directory
+  // and copy to the wrong place without any error. Substitute a placeholder and
+  // say so, rather than handing out a command that silently misfires.
+  const isAbsolute = hostPath.startsWith('/')
+  const target = isAbsolute ? hostPath.replace(/\/$/, '') : '/chemin/absolu/vers/images'
+
+  return (
+    <div className="space-y-3">
+      <p className="text-[10px] text-accent-muted/50 leading-relaxed">
+        Les images sont lues <strong className="text-accent-muted/80">sur place</strong>, jamais
+        téléversées : une acquisition complète pèse couramment plusieurs centaines de Go.
+        Copiez-les dans <code className="font-mono text-accent-green/70">{target}</code> sur{' '}
+        <code className="font-mono text-accent-green/70">{host}</code>, elles apparaîtront ici.
+      </p>
+
+      {!isAbsolute && (
+        <p className="flex items-start gap-1.5 text-[10px] text-yellow-400/80 bg-yellow-500/5 border border-yellow-500/20 rounded px-2 py-1.5 leading-relaxed">
+          <AlertCircle size={11} className="mt-0.5 shrink-0" />
+          <span>
+            <code className="font-mono">DISK_IMAGES_HOST_PATH</code> vaut{' '}
+            <code className="font-mono">{hostPath || '(vide)'}</code>, un chemin relatif au
+            répertoire du <code className="font-mono">docker-compose.yml</code>. Les commandes
+            ci-dessous ont besoin d'un chemin absolu : remplacez{' '}
+            <code className="font-mono">{target}</code> par le chemin réel, ou passez la variable
+            en absolu dans le <code className="font-mono">.env</code>.
+          </span>
+        </p>
+      )}
+
+      <CopyableCommand
+        label="Copier une image depuis votre machine"
+        command={`rsync -avP --partial mon-image.E01 ${user}@${host}:${target}/`}
+        hint="-P affiche la progression et --partial reprend un transfert interrompu — indispensable sur une image de plusieurs dizaines de Go."
+      />
+
+      <CopyableCommand
+        label="Set segmenté (.E01, .E02, …)"
+        command={`rsync -avP --partial mon-image.E0* ${user}@${host}:${target}/`}
+        hint="Copiez toute la série : dissect résout seul les segments suivants à partir du premier."
+      />
+
+      <CopyableCommand
+        label="Monter le dossier comme un lecteur local"
+        command={`sshfs ${user}@${host}:${target} ~/remora-images`}
+        hint="Pour glisser-déposer depuis votre gestionnaire de fichiers plutôt que pousser des fichiers. Démonter avec : fusermount -u ~/remora-images"
+      />
+
+      {!configured && (
+        <CopyableCommand
+          label="Côté serveur — à faire une seule fois, avant de démarrer la pile"
+          command={[
+            'sudo mkdir -p /mnt/evidence',
+            'sudo chown $USER:$USER /mnt/evidence',
+            '# puis dans .env :  DISK_IMAGES_HOST_PATH=/mnt/evidence',
+            'docker compose up -d',
+          ].join('\n')}
+          hint="Créez le répertoire avant le premier démarrage : sinon Docker le crée en root et vous ne pourrez rien y déposer."
+        />
+      )}
+
+      <p className="text-[9px] text-accent-muted/35 leading-relaxed border-t border-white/5 pt-2">
+        Le répertoire est monté en lecture seule : Remora ne peut ni modifier ni supprimer une
+        acquisition. Il vit sur l'hôte et survit aux redémarrages comme aux reconstructions de
+        conteneurs. Si c'est un disque ou un partage réseau dédié, pensez à l'inscrire dans{' '}
+        <code className="font-mono">/etc/fstab</code> — sinon après un reboot le répertoire sera
+        vide et aucune image n'apparaîtra.
+      </p>
+    </div>
+  )
 }
 
 // ── Hex viewer ────────────────────────────────────────────────────────────────
@@ -131,6 +240,7 @@ export default function DiskImageExplorer() {
   const [copied,      setCopied]      = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [tipsOpen,    setTipsOpen]    = useState(false)
 
   const { data: status } = useQuery({ queryKey: ['di-status'], queryFn: diskImagesApi.status })
 
@@ -225,17 +335,19 @@ export default function DiskImageExplorer() {
 
   if (status && !status.configured) {
     return (
-      <div className="p-6 space-y-3">
+      <div className="p-6 max-w-3xl space-y-4">
         <div className="flex items-start gap-2 text-sm text-yellow-400 bg-yellow-500/5 border border-yellow-500/20 rounded-lg px-4 py-3">
           <AlertCircle size={14} className="mt-0.5 shrink-0" />
           <div>
             <p className="font-semibold">Aucun répertoire d'images configuré</p>
             <p className="text-[11px] text-yellow-400/70 mt-1 leading-relaxed">
-              Montez un volume contenant vos images et renseignez <code className="font-mono">DISK_IMAGES_HOST_PATH</code>{' '}
-              dans le <code className="font-mono">.env</code>, puis redémarrez la pile.
-              Les images sont lues sur place, en lecture seule.
+              Renseignez <code className="font-mono">DISK_IMAGES_HOST_PATH</code> dans le{' '}
+              <code className="font-mono">.env</code>, puis redémarrez la pile.
             </p>
           </div>
+        </div>
+        <div className="rounded-lg border border-white/8 bg-bg-card p-4">
+          <TransferTips hostPath={status.host_path} configured={false} />
         </div>
       </div>
     )
@@ -245,10 +357,27 @@ export default function DiskImageExplorer() {
     <div className="flex h-full overflow-hidden">
       {/* ── Evidence tree ────────────────────────────────────────────────── */}
       <div className="w-72 shrink-0 border-r border-white/5 bg-bg-card flex flex-col overflow-hidden">
-        <p className="px-3 py-3 text-[10px] font-semibold uppercase tracking-widest text-accent-muted/50 flex items-center gap-1.5 border-b border-white/5">
-          <HardDrive size={11} /> Images
-          {images.length > 0 && <span className="ml-auto text-accent-muted/30">{images.length}</span>}
-        </p>
+        <div className="px-3 py-3 flex items-center gap-1.5 border-b border-white/5">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-accent-muted/50 flex items-center gap-1.5">
+            <HardDrive size={11} /> Images
+          </p>
+          {images.length > 0 && <span className="text-accent-muted/30 text-[10px]">{images.length}</span>}
+          <button
+            onClick={() => setTipsOpen(o => !o)}
+            title="Comment déposer une image sur le serveur"
+            className={`ml-auto transition-colors ${
+              tipsOpen ? 'text-accent-green' : 'text-accent-muted/30 hover:text-accent-green'
+            }`}
+          >
+            <HelpCircle size={12} />
+          </button>
+        </div>
+
+        {tipsOpen && (
+          <div className="px-3 py-3 border-b border-white/5 bg-black/20 max-h-[60vh] overflow-y-auto">
+            <TransferTips hostPath={status?.host_path ?? ''} configured />
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto">
           {loadingImages && (
@@ -257,10 +386,16 @@ export default function DiskImageExplorer() {
             </div>
           )}
           {!loadingImages && images.length === 0 && (
-            <p className="px-3 py-6 text-[10px] text-accent-muted/30 leading-relaxed text-center">
-              Aucune image trouvée dans{' '}
-              <code className="font-mono">{status?.roots.join(', ') || '—'}</code>.
-            </p>
+            <div className="px-3 py-6 text-center">
+              <p className="text-[10px] text-accent-muted/30 leading-relaxed">
+                Aucune image trouvée dans{' '}
+                <code className="font-mono">{status?.host_path || status?.roots.join(', ') || '—'}</code>.
+              </p>
+              <button onClick={() => setTipsOpen(true)}
+                className="mt-2 text-[10px] text-accent-green/70 hover:text-accent-green underline">
+                Comment en déposer une ?
+              </button>
+            </div>
           )}
 
           {images.map(img => (

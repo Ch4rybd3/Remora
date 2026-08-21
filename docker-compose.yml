@@ -26,6 +26,8 @@ services:
       DROPZONE_POLL_SECONDS:    ${DROPZONE_POLL_SECONDS:-30}
       DROPZONE_STABLE_SECONDS:  ${DROPZONE_STABLE_SECONDS:-15}
       DISK_IMAGE_PATHS:         /app/data/images
+      # Display-only: lets the UI show a copy-pasteable transfer command
+      DISK_IMAGES_HOST_PATH:    ${DISK_IMAGES_HOST_PATH:-./images}
     healthcheck:
       test: ["CMD", "python3", "-c",
              "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
