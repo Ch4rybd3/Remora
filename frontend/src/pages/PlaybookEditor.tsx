@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -16,9 +16,14 @@ function NodeInternalsSync({ trigger, nodeIds }: { trigger: number; nodeIds: str
   }, [trigger]) // eslint-disable-line react-hooks/exhaustive-deps
   return null
 }
-import { ArrowLeft, Save, Plus, Trash2, GitBranch, Wand2, Link2Off, ArrowDown, ArrowRight, ImageDown, SquareDashed } from 'lucide-react'
+import { ArrowLeft, Save, Plus, Trash2, GitBranch, Wand2, Link2Off, ArrowDown, ArrowRight, ImageDown, SquareDashed, Spline } from 'lucide-react'
 import { playbooksApi, type PlaybookNode, type PlaybookEdge } from '../api/playbooks'
-import { NODE_TYPES, EDGE_TYPES, LayoutDirContext } from '../components/playbook/PlaybookNodes'
+import { NODE_TYPES, LayoutDirContext } from '../components/playbook/PlaybookNodes'
+import {
+  EDGE_TYPES, EDGE_SHAPES, PlaybookEdgeEditContext,
+  edgeShape, edgeWaypoints,
+  type EdgeShape, type PlaybookEdgeData,
+} from '../components/playbook/PlaybookEdges'
 import { applyElkLayout } from '../utils/elkLayout'
 import { renderPlaybookToCanvas } from '../utils/playbookExport'
 import Modal from '../components/ui/Modal'
@@ -64,6 +69,17 @@ function cleanNode(n: Node): Omit<Node, 'measured' | 'positionAbsolute' | 'selec
   const { measured, positionAbsolute, selected, dragging, initialized, ...rest } = n as Node & {
     positionAbsolute?: unknown; initialized?: unknown
   }
+  return rest
+}
+
+/**
+ * Same idea for edges: `selected` is transient UI state and must not be
+ * persisted, or a reloaded playbook comes back with links pre-highlighted.
+ * `data` (shape + waypoints) is authored content and is kept.
+ */
+function cleanEdge(e: Edge): Omit<Edge, 'selected'> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { selected, ...rest } = e
   return rest
 }
 
@@ -157,7 +173,7 @@ export default function PlaybookEditor() {
         description,
         layout_dir: layoutDir,
         nodes: nodes.map(cleanNode) as unknown as PlaybookNode[],
-        edges: edges as unknown as PlaybookEdge[],
+        edges: edges.map(cleanEdge) as unknown as PlaybookEdge[],
       }
       return isNew ? playbooksApi.create(payload) : playbooksApi.update(id!, payload)
     },
@@ -219,6 +235,22 @@ export default function PlaybookEditor() {
     setSelNodes(nodes)
     setSelEdges(edges)
   }, [])
+
+  // ── Edge reshaping ────────────────────────────────────────────────────────
+  // The edge components mutate their own `data` through this context, so the
+  // canvas stays the single owner of the edge list.
+
+  const updateEdgeData = useCallback((edgeId: string, patch: PlaybookEdgeData) => {
+    setEdges(eds => eds.map(e =>
+      e.id === edgeId ? { ...e, data: { ...(e.data ?? {}), ...patch } } : e,
+    ))
+  }, [])
+
+  // `snap` is a module-level helper, so this memo only changes with the setter
+  const edgeEditApi = useMemo(
+    () => ({ updateEdgeData, editable: true, snap }),
+    [updateEdgeData],
+  )
 
   // ── Add node at viewport center ───────────────────────────────────────────
 
@@ -343,6 +375,11 @@ export default function PlaybookEditor() {
       // Merge laid-out positions back, keep frame nodes in place
       const laidMap = new Map(laid.map(n => [n.id, n]))
       setNodes(nds => nds.map(n => laidMap.get(n.id) ?? n))
+      // Hand-placed waypoints were anchored to the old positions — keeping them
+      // would leave links looping through empty space. ELK reroutes everything.
+      setEdges(eds => eds.map(e =>
+        edgeWaypoints(e).length > 0 ? { ...e, data: { ...(e.data ?? {}), waypoints: [] } } : e,
+      ))
       setTimeout(() => rfInstance.current?.fitView({ padding: 0.2, duration: 300 }), 50)
     } finally {
       setLaying(false)
@@ -423,7 +460,28 @@ export default function PlaybookEditor() {
 
   const selNodeCount = selNodes.length
   const selEdgeCount = selEdges.length
-  const hasSelection = selNodeCount > 0 || selEdgeCount > 0
+
+  // Selection snapshots go stale as soon as an edge is reshaped — re-read the
+  // selected edges from state so the toolbar reflects their current shape.
+  const selEdgeIds = useMemo(() => new Set(selEdges.map(e => e.id)), [selEdges])
+  const liveSelEdges = useMemo(
+    () => edges.filter(e => selEdgeIds.has(e.id)),
+    [edges, selEdgeIds],
+  )
+  const currentShape: EdgeShape | null =
+    liveSelEdges.length > 0 ? edgeShape(liveSelEdges[0]) : null
+  const selWaypointCount = liveSelEdges.reduce((n, e) => n + edgeWaypoints(e).length, 0)
+
+  const applyEdgeShape = (shape: EdgeShape) =>
+    setEdges(eds => eds.map(e =>
+      selEdgeIds.has(e.id) ? { ...e, data: { ...(e.data ?? {}), shape } } : e,
+    ))
+
+  /** Drop every bend point of the selected links — back to a plain connection. */
+  const resetEdgeShape = () =>
+    setEdges(eds => eds.map(e =>
+      selEdgeIds.has(e.id) ? { ...e, data: { ...(e.data ?? {}), waypoints: [] } } : e,
+    ))
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -515,7 +573,7 @@ export default function PlaybookEditor() {
             <button
               onClick={() => runLayout()}
               disabled={laying || nodes.length === 0}
-              title="Re-apply auto layout"
+              title="Ré-appliquer la mise en page automatique (les points de passage des liens sont réinitialisés)"
               className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-accent-muted hover:text-white hover:bg-white/5 transition-colors disabled:opacity-40"
             >
               <Wand2 size={12} />
@@ -540,6 +598,38 @@ export default function PlaybookEditor() {
               <Trash2 size={12} />
               {selNodeCount > 1 ? `Delete (${selNodeCount})` : 'Delete node'}
             </button>
+          )}
+          {/* ── Link shape ─────────────────────────────────────────────── */}
+          {selEdgeCount > 0 && (
+            <div
+              className="flex items-center gap-1 px-2 py-1 rounded border border-white/10 bg-white/[0.02]"
+              title="Double-cliquez sur un lien pour y ajouter un point de passage, puis glissez-le pour contourner un nœud"
+            >
+              <Spline size={11} className="text-accent-muted shrink-0" />
+              {EDGE_SHAPES.map(sh => (
+                <button
+                  key={sh.value}
+                  onClick={() => applyEdgeShape(sh.value)}
+                  title={sh.hint}
+                  className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+                    currentShape === sh.value
+                      ? 'bg-accent-green/10 text-accent-green'
+                      : 'text-accent-muted hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  {sh.label}
+                </button>
+              ))}
+              {selWaypointCount > 0 && (
+                <button
+                  onClick={resetEdgeShape}
+                  title="Supprimer tous les points de passage des liens sélectionnés"
+                  className="text-[10px] px-1.5 py-0.5 rounded text-accent-muted hover:text-white hover:bg-white/5 transition-colors border-l border-white/10 ml-0.5 pl-2"
+                >
+                  ✕ {selWaypointCount} pt{selWaypointCount > 1 ? 's' : ''}
+                </button>
+              )}
+            </div>
           )}
           {selEdgeCount > 0 && (
             <button
@@ -579,6 +669,7 @@ export default function PlaybookEditor() {
         {/* ── Canvas ──────────────────────────────────────────────────── */}
         <div ref={canvasRef} className="flex-1 bg-bg-primary">
           <LayoutDirContext.Provider value={layoutDir}>
+          <PlaybookEdgeEditContext.Provider value={edgeEditApi}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -604,6 +695,7 @@ export default function PlaybookEditor() {
             <MiniMap nodeColor={() => '#2DD4BF'} />
             <NodeInternalsSync trigger={updateInternalsTrigger} nodeIds={nodes.map(n => n.id)} />
           </ReactFlow>
+          </PlaybookEdgeEditContext.Provider>
           </LayoutDirContext.Provider>
         </div>
       </div>

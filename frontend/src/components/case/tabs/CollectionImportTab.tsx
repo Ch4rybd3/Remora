@@ -8,6 +8,25 @@ import DropFolderPanel from '../DropFolderPanel'
 
 interface Props { caseId: string }
 
+/**
+ * Archive containers the backend can unpack (see backend/app/services/archives.py).
+ * Two-part suffixes are listed first so `.tar.gz` matches before `.gz`.
+ */
+const ARCHIVE_EXTS = [
+  '.tar.gz', '.tar.bz2', '.tar.xz', '.tar.zst', '.tar.lz',
+  '.zip', '.jar', '.7z', '.rar', '.tar',
+  '.tgz', '.tbz', '.tbz2', '.txz',
+  '.gz', '.bz2', '.xz', '.zst', '.zstd',
+] as const
+
+/** The archive suffix of `name`, or null when it is not an archive. */
+function archiveExt(name: string): string | null {
+  const low = name.toLowerCase()
+  return ARCHIVE_EXTS.find(e => low.endsWith(e)) ?? null
+}
+
+const isArchiveFile = (name: string) => archiveExt(name) !== null
+
 // Each upload batch stays under this to avoid nginx / memory issues
 const MAX_BATCH_BYTES = 200 * 1024 * 1024          // 200 MB
 // Files above this threshold get a notice about browsing performance
@@ -242,7 +261,8 @@ function CollectionCard({ cols, caseId }: { cols: ImportedCollection[]; caseId: 
   })
 
   const groups = col.groups ?? []
-  const isCsv  = !col.filename.toLowerCase().endsWith('.zip')
+  const colArchiveExt = archiveExt(col.filename)
+  const isCsv         = colArchiveExt === null
 
   // Summary counters
   const importedCount = col.files.filter(f => f.status === 'imported').length
@@ -260,7 +280,7 @@ function CollectionCard({ cols, caseId }: { cols: ImportedCollection[]; caseId: 
             {expanded ? '▾' : '▸'}
           </button>
           <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-white/10 text-gray-500 uppercase shrink-0">
-            {isCsv ? 'csv' : 'zip'}
+            {isCsv ? 'csv' : colArchiveExt!.replace(/^\./, '')}
           </span>
           <p className="text-sm font-medium text-white truncate flex-1 min-w-0" title={col.filename}>
             {displayName(col.filename)}
@@ -432,12 +452,14 @@ function DropZone({ onFiles }: { onFiles: (files: File[]) => void }) {
   const [dragging, setDragging] = useState(false)
 
   const validate = (files: File[]): string | null => {
-    const exts = new Set(files.map(f => f.name.split('.').pop()?.toLowerCase()))
-    if (exts.has('zip') && exts.has('csv')) return 'Cannot mix ZIP and CSV in the same upload'
-    if (exts.has('zip') && files.length > 1) return 'Only one ZIP file per upload'
+    const archives = files.filter(f => isArchiveFile(f.name))
+    if (archives.length > 0 && archives.length !== files.length)
+      return 'Impossible de mélanger une archive et d\'autres fichiers dans le même upload'
+    if (archives.length > 1) return 'Une seule archive par upload'
     for (const f of files) {
-      const ext = f.name.split('.').pop()?.toLowerCase()
-      if (ext !== 'zip' && ext !== 'csv') return `Unsupported file type: ${f.name}`
+      if (isArchiveFile(f.name)) continue
+      if (f.name.split('.').pop()?.toLowerCase() !== 'csv')
+        return `Type de fichier non supporté : ${f.name}`
     }
     return null
   }
@@ -465,7 +487,7 @@ function DropZone({ onFiles }: { onFiles: (files: File[]) => void }) {
       <p className="text-2xl mb-2">📂</p>
       <p className="text-gray-400 text-sm">Drop files here</p>
       <p className="text-gray-600 text-xs mt-1">
-        ZIP archive <span className="text-gray-700 mx-1">or</span> one or more CSV files
+        Archive (ZIP, 7z, RAR, TAR…) <span className="text-gray-700 mx-1">ou</span> un ou plusieurs fichiers CSV
       </p>
     </div>
   )
@@ -474,7 +496,7 @@ function DropZone({ onFiles }: { onFiles: (files: File[]) => void }) {
 // ── Main tab ──────────────────────────────────────────────────────────────────
 
 export default function CollectionImportTab({ caseId }: Props) {
-  const zipRef = useRef<HTMLInputElement>(null)
+  const archiveRef = useRef<HTMLInputElement>(null)
   const csvRef = useRef<HTMLInputElement>(null)
   const folderRef = useRef<HTMLInputElement>(null)
   const [uploadState, setUploadState] = useState<{
@@ -539,7 +561,7 @@ export default function CollectionImportTab({ caseId }: Props) {
     uploadBatched(csvFiles)
   }
 
-  function handleZipChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleArchiveChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? [])
     if (files.length) upload.mutate(files)
     e.target.value = ''
@@ -568,7 +590,7 @@ export default function CollectionImportTab({ caseId }: Props) {
             Artifact Collections
           </h3>
           <p className="text-xs text-gray-500 mt-0.5">
-            Import EZ Tools / KAPE output — ZIP, individual CSVs, or an entire folder (recursive)
+            Import EZ Tools / KAPE — archive (ZIP, 7z, RAR, TAR…), CSV individuels, ou un dossier entier (récursif)
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -600,22 +622,28 @@ export default function CollectionImportTab({ caseId }: Props) {
           >
             📄 CSV(s)
           </button>
-          {/* ZIP */}
+          {/* Archive */}
           <button
             className="btn-primary text-xs flex items-center gap-1.5"
-            onClick={() => zipRef.current?.click()}
+            onClick={() => archiveRef.current?.click()}
             disabled={busy}
-            title="Import a ZIP archive (KAPE triage, EZ Tools batch output)"
+            title="Importer une archive — ZIP, 7z, RAR, TAR/TGZ/TAR.XZ… (triage KAPE, sortie EZ Tools)"
           >
             {upload.isPending ? (
               <>
                 <span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 Uploading…
               </>
-            ) : '🗜 ZIP'}
+            ) : '🗜 Archive'}
           </button>
 
-          <input ref={zipRef}    type="file" accept=".zip" className="hidden" onChange={handleZipChange} />
+          <input
+            ref={archiveRef}
+            type="file"
+            accept={ARCHIVE_EXTS.join(',')}
+            className="hidden"
+            onChange={handleArchiveChange}
+          />
           <input ref={csvRef}    type="file" accept=".csv" className="hidden" multiple onChange={handleCsvChange} />
           {/* webkitdirectory allows recursive folder selection */}
           <input

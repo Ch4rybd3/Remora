@@ -35,15 +35,18 @@ from ..config import settings
 from ..models.case import Case
 from ..models.ez_artifacts import ImportedCollection, ImportedFile
 from ..services.ez_detection import detect
+from ..services.archives import ARCHIVE_EXTS, ArchiveError, extract_all, is_archive
 
 # Folder holding files already ingested, inside each case folder
 PROCESSED_DIRNAME = ".processed"
 # Case-less drop folder
 INBOX_DIRNAME = "_inbox"
 
-# Same set the Collection Import upload endpoint accepts
-SUPPORTED_EXTS = {".csv", ".json", ".txt", ".log", ".evtx", ".eml", ".zip",
-                  ".pcap", ".pcapng", ".cap"}
+# Same set the Collection Import upload endpoint accepts — flat artifacts plus
+# every archive container the archives service can open.
+FLAT_EXTS = {".csv", ".json", ".txt", ".log", ".evtx", ".eml",
+             ".pcap", ".pcapng", ".cap"}
+SUPPORTED_EXTS = FLAT_EXTS | ARCHIVE_EXTS
 
 # Files matching these are never considered droppable artifacts
 _IGNORED_NAMES = {".ds_store", "thumbs.db", "desktop.ini"}
@@ -157,7 +160,8 @@ class DroppedFile:
 
     @property
     def supported(self) -> bool:
-        return self.path.suffix.lower() in SUPPORTED_EXTS
+        # is_archive() handles two-part suffixes like .tar.gz that Path.suffix misses
+        return self.path.suffix.lower() in FLAT_EXTS or is_archive(self.name)
 
 
 def _is_ignorable(p: Path) -> bool:
@@ -226,10 +230,39 @@ def ingest_files(
     total_size = 0
     seen: dict[str, int] = {}
 
+    def _row(rel_name: str, size: int | None) -> ImportedFile:
+        """Build an ImportedFile row for a file sitting at `extracted/<rel_name>`."""
+        ext = Path(rel_name).suffix.lower()
+        result = detect(rel_name)
+        if ext == ".evtx":
+            dest_page, dest_label = f"/cases/{case.id}/evtx", "EVTX Module"
+        elif ext == ".eml":
+            dest_page, dest_label = f"/cases/{case.id}/emails", "Email Analysis"
+        elif ext in (".pcap", ".pcapng", ".cap"):
+            dest_page, dest_label = "/artifacts/explorer", "Network Capture"
+        elif result:
+            dest_page = result.destination_page.replace("{case_id}", case.id)
+            dest_label = result.destination_label
+        else:
+            dest_page, dest_label = None, "Artifact Explorer"
+
+        return ImportedFile(
+            id=str(uuid.uuid4()),
+            collection_id=collection_id,
+            case_id=case.id,
+            filename=rel_name,
+            file_size=size,
+            status="pending",
+            category=result.category if result else (ext.lstrip(".") or None),
+            category_label=result.category_label if result else (ext.lstrip(".").upper() or None),
+            destination_page=dest_page,
+            destination_label=dest_label,
+            expires_at=expires,
+        )
+
     for src in files:
         if not src.exists():
             continue
-        ext = src.suffix.lower()
 
         # Deduplicate basenames within this batch
         if src.name in seen:
@@ -240,34 +273,29 @@ def ingest_files(
             seen[src.name] = 0
             safe_name = src.name
 
-        shutil.copy2(src, extracted_dir / safe_name)
         size = src.stat().st_size
         total_size += size
 
-        result = detect(safe_name)
-        if ext == ".evtx":
-            dest_page, dest_label = f"/cases/{case.id}/evtx", "EVTX Module"
-        elif ext == ".eml":
-            dest_page, dest_label = f"/cases/{case.id}/emails", "Email Analysis"
-        elif result:
-            dest_page = result.destination_page.replace("{case_id}", case.id)
-            dest_label = result.destination_label
-        else:
-            dest_page, dest_label = None, "Artifact Explorer"
+        # ── Archives: unpack into extracted/<archive stem>/ and register the
+        #    entries individually, exactly like the Collection Import upload.
+        if is_archive(src.name):
+            sub = extracted_dir / (_slugify(Path(safe_name).stem) or f"archive-{len(rows)}")
+            try:
+                extract_all(src, sub, src.name)
+            except ArchiveError as e:
+                print(f"[dropzone] archive {src.name} illisible: {e}", flush=True)
+                continue
+            # Walk what actually landed on disk rather than re-reading the
+            # archive index — unsafe entries were dropped during extraction.
+            for entry in sorted(p for p in sub.rglob("*") if p.is_file()):
+                rows.append(_row(
+                    str(entry.relative_to(extracted_dir)),
+                    entry.stat().st_size,
+                ))
+            continue
 
-        rows.append(ImportedFile(
-            id=str(uuid.uuid4()),
-            collection_id=collection_id,
-            case_id=case.id,
-            filename=safe_name,
-            file_size=size,
-            status="pending",
-            category=result.category if result else (ext.lstrip(".") or None),
-            category_label=result.category_label if result else (ext.lstrip(".").upper() or None),
-            destination_page=dest_page,
-            destination_label=dest_label,
-            expires_at=expires,
-        ))
+        shutil.copy2(src, extracted_dir / safe_name)
+        rows.append(_row(safe_name, size))
 
     if not rows:
         return collection_id, []

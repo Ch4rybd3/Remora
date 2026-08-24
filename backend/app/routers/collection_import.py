@@ -1,14 +1,14 @@
 """
 Collection Import router — /api/v1/cases/{case_id}/collection-imports
 
-Handles ZIP upload (KAPE triage output, EZ Tools parsed output, etc.),
-file detection, background ingest, and status reporting.
+Handles archive upload (KAPE triage output, EZ Tools parsed output, etc. —
+ZIP, 7z, RAR, TAR and its compressed variants), file detection, background
+ingest, and status reporting.
 """
 from __future__ import annotations
 
 import shutil
 import uuid
-import zipfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -21,6 +21,10 @@ from ..core.deps import get_current_user
 from ..models.ez_artifacts import ImportedCollection, ImportedFile
 from ..models.csv_artifact import CsvArtifactFile
 from ..services.ez_detection import detect
+from ..services.archives import (
+    ARCHIVE_EXTS_LABEL, ArchiveError,
+    archive_suffix, extract_all, is_archive, list_entries,
+)
 
 router = APIRouter()
 
@@ -45,8 +49,10 @@ async def upload_collection(
 ):
     """
     Accepts:
-      - A single ZIP file (KAPE / EZ Tools archive) — entries extracted automatically.
-      - One or more CSV files — saved directly, no extraction needed.
+      - A single archive (KAPE / EZ Tools output) — ZIP, 7z, RAR, TAR and its
+        compressed variants (.tar.gz, .tgz, .tar.xz, …) or a bare .gz/.bz2/.xz.
+        Entries are extracted automatically.
+      - One or more flat files (CSV, JSON, EVTX, EML, PCAP…) — saved directly.
     All uploads grouped into one ImportedCollection record.
     """
     if not files:
@@ -56,15 +62,19 @@ async def upload_collection(
     _FLAT_EXTS = {".csv", ".json", ".txt", ".log", ".evtx", ".eml", ".pcap", ".pcapng", ".cap"}
     for f in files:
         ext = Path(f.filename).suffix.lower()
-        if ext not in (".zip", *_FLAT_EXTS):
-            raise HTTPException(400, f"Type non supporté '{f.filename}'. Acceptés: .zip, .csv, .json, .txt, .log, .evtx, .eml, .pcap, .pcapng, .cap")
+        if ext not in _FLAT_EXTS and not is_archive(f.filename):
+            raise HTTPException(
+                400,
+                f"Type non supporté '{f.filename}'. Acceptés: "
+                f"{', '.join(sorted(_FLAT_EXTS))} et les archives ({ARCHIVE_EXTS_LABEL})",
+            )
 
-    # Mixed uploads not allowed — either one ZIP or flat files
-    exts = {Path(f.filename).suffix.lower() for f in files}
-    if ".zip" in exts and exts - {".zip"}:
-        raise HTTPException(400, "Impossible de mélanger ZIP et autres fichiers dans le même upload")
-    if ".zip" in exts and len(files) > 1:
-        raise HTTPException(400, "Un seul fichier ZIP par upload")
+    # Mixed uploads not allowed — either one archive or flat files
+    archives = [f for f in files if is_archive(f.filename)]
+    if archives and len(archives) != len(files):
+        raise HTTPException(400, "Impossible de mélanger une archive et d'autres fichiers dans le même upload")
+    if len(archives) > 1:
+        raise HTTPException(400, "Une seule archive par upload")
 
     collection_id = str(uuid.uuid4())
     dest_dir = _collection_dir(case_id, collection_id)
@@ -75,19 +85,19 @@ async def upload_collection(
     imported_files: list[ImportedFile] = []
     total_size = 0
 
-    # ── Case A: single ZIP ────────────────────────────────────────────────────
-    if ".zip" in exts:
+    # ── Case A: single archive (zip / 7z / rar / tar…) ───────────────────────
+    if archives:
         upload = files[0]
         content = await upload.read()
         total_size = len(content)
-        zip_path = dest_dir / "upload.zip"
-        zip_path.write_bytes(content)
+        suffix = archive_suffix(upload.filename) or ".zip"
+        archive_path = dest_dir / f"upload{suffix}"
+        archive_path.write_bytes(content)
 
         try:
-            with zipfile.ZipFile(zip_path) as zf:
-                all_entries = [e for e in zf.namelist() if not e.endswith("/")]
-        except zipfile.BadZipFile:
-            raise HTTPException(400, "Invalid ZIP file")
+            all_entries = list_entries(archive_path, upload.filename)
+        except ArchiveError as e:
+            raise HTTPException(400, str(e))
 
         col_filename = upload.filename
         for entry_name in all_entries:
@@ -124,12 +134,12 @@ async def upload_collection(
                 expires_at=expires,
             ))
 
-        ingest_mode = "zip"
-        zip_path_for_bg = zip_path
+        ingest_mode = "archive"
+        archive_path_for_bg = archive_path
 
     # ── Case B: one or more flat files (.csv / .json / .txt / .log / .evtx) ───
     else:
-        zip_path_for_bg = None
+        archive_path_for_bg = None
         seen_names: dict[str, int] = {}   # deduplicate basenames if needed
 
         for upload in files:
@@ -211,12 +221,13 @@ async def upload_collection(
     # ── Background ingest ─────────────────────────────────────────────────────
     pending = [(f.id, f.filename, f.category) for f in imported_files if f.status == "pending"]
 
-    if ingest_mode == "zip":
+    if ingest_mode == "archive":
         background_tasks.add_task(
-            _extract_and_ingest, zip_path_for_bg, dest_dir, collection_id, case_id, pending
+            _extract_and_ingest, archive_path_for_bg, col_filename,
+            dest_dir, collection_id, case_id, pending,
         )
     else:
-        # CSV files already in extracted/ — call ingest directly (no ZIP extraction)
+        # CSV files already in extracted/ — call ingest directly (no extraction)
         background_tasks.add_task(
             _ingest_pending, extracted_dir, collection_id, case_id, pending
         )
@@ -310,18 +321,18 @@ def _run_pending(
 
 
 def _extract_and_ingest(
-    zip_path: Path,
+    archive_path: Path,
+    original_name: str,
     dest_dir: Path,
     collection_id: str,
     case_id: str,
     pending: list[tuple[str, str, str]],
 ):
-    """Background task for ZIP uploads — extracts first, then ingests."""
+    """Background task for archive uploads — extracts first, then ingests."""
     db: Session = SessionLocal()
     try:
         extracted_dir = dest_dir / "extracted"
-        with zipfile.ZipFile(zip_path) as zf:
-            zf.extractall(extracted_dir)
+        extract_all(archive_path, extracted_dir, original_name)
 
         processed = _run_pending(extracted_dir, collection_id, case_id, pending, db)
 
@@ -330,7 +341,7 @@ def _extract_and_ingest(
             col.status = "done"
             col.processed_files = processed
         db.commit()
-        print(f"[collection_import] ZIP collection {collection_id} done — {processed} files", flush=True)
+        print(f"[collection_import] archive collection {collection_id} done — {processed} files", flush=True)
 
     except Exception as e:
         print(f"[collection_import] FATAL {collection_id}: {e}", flush=True)

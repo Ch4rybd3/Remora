@@ -123,6 +123,8 @@
 
 .live-editor {
   width: 100%;
+  min-width: 0;      /* allows the editor to shrink inside flex parents */
+  max-width: 100%;
 }
 
 .live-editor .ProseMirror {
@@ -137,6 +139,18 @@
   font-family: 'Inter', system-ui, sans-serif;
   cursor: text;
   min-height: inherit;
+  /* Forensic content is full of unbreakable tokens — hashes, registry paths,
+     base64 blobs, command lines. Without these the text escapes the rounded
+     box and paints over the neighbouring editors. */
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  overflow-x: clip;
+}
+
+/* Every block child inherits the same wrapping contract */
+.live-editor .ProseMirror > * {
+  max-width: 100%;
 }
 
 .live-editor .ProseMirror:focus {
@@ -187,6 +201,17 @@
 /* Paragraphs */
 .live-editor .ProseMirror p {
   margin: 0.3rem 0;
+  overflow-wrap: anywhere;
+}
+
+/* Headings must wrap too — a pasted path used as a title is common */
+.live-editor .ProseMirror h1,
+.live-editor .ProseMirror h2,
+.live-editor .ProseMirror h3,
+.live-editor .ProseMirror h4,
+.live-editor .ProseMirror h5,
+.live-editor .ProseMirror h6 {
+  overflow-wrap: anywhere;
 }
 
 /* Bold / Italic */
@@ -201,6 +226,7 @@
   font-size: 0.7rem;
   padding: 0.1em 0.35em;
   border-radius: 3px;
+  overflow-wrap: anywhere;
 }
 
 /* Code block */
@@ -210,7 +236,11 @@
   border-radius: 6px;
   padding: 0.75rem 1rem;
   margin: 0.5rem 0;
-  overflow-x: auto;
+  /* Wrap rather than scroll: a horizontal scrollbar inside a report section
+     hides the end of every command line when the document is exported. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 100%;
 }
 .live-editor .ProseMirror pre code {
   background: none;
@@ -224,6 +254,10 @@
 .live-editor .ProseMirror ol {
   padding-left: 1.4rem;
   margin: 0.3rem 0;
+  max-width: 100%;
+}
+.live-editor .ProseMirror li p {
+  overflow-wrap: anywhere;
 }
 .live-editor .ProseMirror li {
   margin: 0.1rem 0;
@@ -266,6 +300,23 @@
   color: #2DD4BF;
   text-decoration: underline;
   text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+
+/* Tables (pasted from Excel / a SIEM export) scroll inside their own box
+   instead of pushing the editor wider than its column. */
+.live-editor .ProseMirror table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+.live-editor .ProseMirror th,
+.live-editor .ProseMirror td {
+  border: 1px solid rgba(255,255,255,0.10);
+  padding: 0.25rem 0.5rem;
+  overflow-wrap: anywhere;
 }
 
 /* Wikilinks [[Note Name]] — inline decoration */
@@ -287,4 +338,66 @@
 /* Selection */
 .live-editor .ProseMirror ::selection {
   background: rgba(45,212,191,0.18);
+}
+
+/* ── RQL query box (Artifact Explorer) ────────────────────────────────────── */
+/* The textarea sits on top of a syntax-highlight mirror and both must wrap at
+   exactly the same width. A visible scrollbar would narrow the textarea's
+   content box and desynchronise the two, so it is hidden — the box scrolls
+   with the wheel and the caret keys all the same. */
+
+.rql-input {
+  scrollbar-width: none;          /* Firefox */
+  -ms-overflow-style: none;       /* legacy Edge */
+}
+.rql-input::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* ── Rendered markdown (preview mode / read-only views) ───────────────────── */
+/* The `prose` utilities come from @tailwindcss/typography, which this project
+   does not install — so preview panes need their own wrapping contract. */
+
+.md-preview {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.md-preview pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  background: #080e18;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  margin: 0.5rem 0;
+}
+.md-preview code,
+.md-preview a,
+.md-preview p,
+.md-preview li,
+.md-preview h1,
+.md-preview h2,
+.md-preview h3,
+.md-preview h4 {
+  overflow-wrap: anywhere;
+}
+.md-preview table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+.md-preview th,
+.md-preview td {
+  border: 1px solid rgba(255,255,255,0.10);
+  padding: 0.25rem 0.5rem;
+}
+.md-preview img {
+  max-width: 100%;
+  height: auto;
 }

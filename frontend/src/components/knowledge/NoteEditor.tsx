@@ -73,7 +73,7 @@ function MarkdownPreview({
   return (
     <div
       ref={scrollRef}
-      className="prose prose-invert prose-sm max-w-none h-full overflow-auto px-6 py-5 text-white/80"
+      className="md-preview prose prose-invert prose-sm max-w-none h-full overflow-auto px-6 py-5 text-white/80"
     >
       {content.trim() ? (
         <ReactMarkdown

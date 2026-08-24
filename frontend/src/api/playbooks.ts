@@ -16,8 +16,22 @@ export interface PlaybookEdge {
   id: string
   source: string
   target: string
+  sourceHandle?: string | null
+  targetHandle?: string | null
   label?: string
   type?: string
+  animated?: boolean
+  /**
+   * Free-form edge payload. Remora stores the link's authored shape here:
+   *   `shape`     — 'curve' | 'step' | 'straight'
+   *   `waypoints` — bend points in flow coordinates, so a link can be routed
+   *                 around nodes instead of cutting through them.
+   */
+  data?: {
+    shape?: 'curve' | 'step' | 'straight'
+    waypoints?: { x: number; y: number }[]
+    [key: string]: unknown
+  }
 }
 
 export interface Playbook {

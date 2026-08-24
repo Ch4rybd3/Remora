@@ -657,7 +657,7 @@ export default function MarkdownEditor({
 
       {mode === 'preview' && (
         <div
-          className="prose prose-invert prose-sm max-w-none px-3 py-2.5 rounded-lg bg-white/[0.02] border border-white/8 text-xs text-white/80 overflow-auto"
+          className="md-preview prose prose-invert prose-sm max-w-none min-w-0 px-3 py-2.5 rounded-lg bg-white/[0.02] border border-white/8 text-xs text-white/80 overflow-auto"
           style={{ minHeight }}
         >
           <MarkdownBody value={value} />

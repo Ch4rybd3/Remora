@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react'
 import {
-  Handle, Position, NodeResizer, BaseEdge, getBezierPath,
-  type NodeProps, type EdgeProps,
+  Handle, Position, NodeResizer,
+  type NodeProps,
 } from '@xyflow/react'
 import { CheckCircle2, ShieldCheck, GitBranch, ExternalLink } from 'lucide-react'
 
@@ -354,28 +354,10 @@ export const NODE_TYPES = {
   playbook_ref: PlaybookRefNode,
 }
 
-// ── SmartEdge — anti-loop bezier ──────────────────────────────────────────────
-// Replaces smoothstep: uses adaptive curvature so short edges stay straight
-// instead of folding back on themselves.
+// ── Edge types ────────────────────────────────────────────────────────────────
+// Edges live in PlaybookEdges.tsx (they carry their own reshaping logic).
+// Re-exported here so the existing `import { NODE_TYPES, EDGE_TYPES }` call
+// sites keep working.
 
-function SmartEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, style }: EdgeProps) {
-  const dx = targetX - sourceX
-  const dy = targetY - sourceY
-  const dist = Math.sqrt(dx * dx + dy * dy)
-  const curvature = dist < 80 ? 0.05 : 0.25
-
-  const [edgePath] = getBezierPath({
-    sourceX, sourceY, sourcePosition,
-    targetX, targetY, targetPosition,
-    curvature,
-  })
-
-  return <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
-}
-
-// ── Edge type map ─────────────────────────────────────────────────────────────
-// Override 'smoothstep' so existing saved playbooks automatically get anti-loop behavior.
-
-export const EDGE_TYPES = {
-  smoothstep: SmartEdge,
-}
+export { EDGE_TYPES, PlaybookEdgeEditContext } from './PlaybookEdges'
+export type { EdgeShape, Waypoint, PlaybookEdgeData } from './PlaybookEdges'

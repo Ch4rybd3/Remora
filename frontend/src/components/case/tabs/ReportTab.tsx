@@ -209,7 +209,7 @@ function PlaybookStepEditor({
         <span className={`mt-0.5 shrink-0 ${done ? 'text-accent-green' : 'text-accent-muted/25'}`}>
           {done ? <CheckCircle2 size={12} /> : <Circle size={12} />}
         </span>
-        <p className={`text-[11px] font-medium leading-snug flex-1 ${done ? 'text-accent-muted/40 line-through' : 'text-white/80'}`}>
+        <p className={`text-[11px] font-medium leading-snug flex-1 min-w-0 break-words ${done ? 'text-accent-muted/40 line-through' : 'text-white/80'}`}>
           <span className="text-accent-muted/20 font-mono mr-1">{String(idx + 1).padStart(2, '0')}.</span>
           {(node.data as any).label}
         </p>
@@ -227,7 +227,7 @@ function PlaybookStepEditor({
           <CopyBtn getText={() => draft} />
         </div>
       </div>
-      <div className="px-3 pb-2.5">
+      <div className="px-3 pb-2.5 min-w-0 overflow-hidden">
         <MarkdownEditor
           value={draft}
           onChange={v => { setDraft(v); setDirty(v !== (state?.notes ?? '')) }}
@@ -646,11 +646,13 @@ export default function ReportTab({ case_ }: Props) {
               return (
                 <div key={slug} className="border-b border-white/5 last:border-b-0">
                   <div className={`flex items-center gap-2 px-4 py-2 border-b border-white/5 ${catColor}`}>
-                    <FlaskConical size={12} />
-                    <span className="text-[11px] font-semibold tracking-wide">{section.name}</span>
-                    <code className="ml-auto text-[9px] font-mono opacity-40">{`{{${slug}}}`}</code>
+                    <FlaskConical size={12} className="shrink-0" />
+                    <span className="text-[11px] font-semibold tracking-wide truncate min-w-0" title={section.name}>
+                      {section.name}
+                    </span>
+                    <code className="ml-auto shrink-0 text-[9px] font-mono opacity-40">{`{{${slug}}}`}</code>
                   </div>
-                  <div className="p-3">
+                  <div className="p-3 min-w-0 overflow-hidden">
                     <MarkdownEditor
                       value={sectionsData[slug] ?? ''}
                       onChange={v => { setSectionsData(prev => ({ ...prev, [slug]: v })); markDirty() }}
@@ -673,10 +675,10 @@ export default function ReportTab({ case_ }: Props) {
               <div key={meta.tag} className="border-b border-white/5 last:border-b-0">
                 <div className={`flex items-center gap-2 px-4 py-2 border-b border-white/5 ${meta.color}`}>
                   <span className="shrink-0">{meta.icon}</span>
-                  <span className="text-[11px] font-semibold tracking-wide">{meta.label}</span>
-                  <code className="ml-auto text-[9px] font-mono opacity-40">{meta.tag}</code>
+                  <span className="text-[11px] font-semibold tracking-wide truncate min-w-0">{meta.label}</span>
+                  <code className="ml-auto shrink-0 text-[9px] font-mono opacity-40">{meta.tag}</code>
                 </div>
-                <div className="p-3">
+                <div className="p-3 min-w-0 overflow-hidden">
                   <MarkdownEditor
                     value={value}
                     onChange={onChange}
@@ -742,7 +744,7 @@ export default function ReportTab({ case_ }: Props) {
                 <span className="text-[11px] font-semibold text-accent-green/80 tracking-wide">Executive Summary</span>
                 <code className="ml-auto text-[9px] font-mono text-accent-muted/30">case.executive_summary</code>
               </div>
-              <div className="p-3">
+              <div className="p-3 min-w-0 overflow-hidden">
                 <MarkdownEditor
                   value={execSummary}
                   onChange={v => { setExecSummary(v); setNotesDirty(true) }}
@@ -761,7 +763,7 @@ export default function ReportTab({ case_ }: Props) {
                 <span className="text-[11px] font-semibold text-accent-muted/60 tracking-wide">Notes rapides</span>
                 <code className="ml-auto text-[9px] font-mono text-accent-muted/30">case.quick_notes</code>
               </div>
-              <div className="p-3">
+              <div className="p-3 min-w-0 overflow-hidden">
                 <MarkdownEditor
                   value={quickNotes}
                   onChange={v => { setQuickNotes(v); setNotesDirty(true) }}

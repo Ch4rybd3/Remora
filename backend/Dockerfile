@@ -24,6 +24,11 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     # ~200 MB, mostly libwireshark. Ships the same dissectors as Wireshark,
     # so captures get proper application-layer decoding (HTTP, DNS, TLS, SMB).
     tshark \
+    # ── Archive extraction fallbacks (services/archives.py) ──────────────
+    # p7zip-full provides /usr/bin/7z (7z, RAR5, zstd tarballs); unar is the
+    # rarfile backend for legacy RAR archives.
+    p7zip-full \
+    unar \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Dependency layer (cached unless requirements.txt changes) ─────────────────

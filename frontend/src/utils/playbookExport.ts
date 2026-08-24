@@ -5,6 +5,10 @@
  */
 import type { Node, Edge } from '@xyflow/react'
 import type { LayoutDir } from '../components/playbook/PlaybookNodes'
+import {
+  edgeShape, edgeWaypoints, orthogonalPoints,
+  type EdgeShape, type Waypoint,
+} from '../components/playbook/PlaybookEdges'
 
 // ── Palette (mirrors PlaybookNodes.tsx + Tailwind config) ─────────────────────
 
@@ -85,42 +89,86 @@ function wrapText(
   return lines
 }
 
-/** Smooth bezier curve between two points (ReactFlow smoothstep style). */
+/** Arrowhead pointing along `angle`, tip at (x, y). */
+function drawArrowhead(ctx: CanvasRenderingContext2D, x: number, y: number, angle: number, color: string) {
+  const aw = 6 * SCALE
+  ctx.beginPath()
+  ctx.fillStyle = color
+  ctx.moveTo(x, y)
+  ctx.lineTo(x - aw * Math.cos(angle - 0.4), y - aw * Math.sin(angle - 0.4))
+  ctx.lineTo(x - aw * Math.cos(angle + 0.4), y - aw * Math.sin(angle + 0.4))
+  ctx.closePath()
+  ctx.fill()
+}
+
+/** Polyline with rounded corners — canvas twin of roundedPolylinePath(). */
+function tracePolyline(ctx: CanvasRenderingContext2D, pts: Waypoint[], r: number) {
+  ctx.moveTo(pts[0].x, pts[0].y)
+  for (let i = 1; i < pts.length - 1; i++) {
+    const p = pts[i], before = pts[i - 1], after = pts[i + 1]
+    const dIn  = Math.hypot(p.x - before.x, p.y - before.y)
+    const dOut = Math.hypot(after.x - p.x,  after.y - p.y)
+    const rIn  = Math.min(r, dIn  / 2)
+    const rOut = Math.min(r, dOut / 2)
+    const ux = dIn  === 0 ? 0 : (before.x - p.x) / dIn
+    const uy = dIn  === 0 ? 0 : (before.y - p.y) / dIn
+    const vx = dOut === 0 ? 0 : (after.x  - p.x) / dOut
+    const vy = dOut === 0 ? 0 : (after.y  - p.y) / dOut
+    ctx.lineTo(p.x + ux * rIn, p.y + uy * rIn)
+    ctx.quadraticCurveTo(p.x, p.y, p.x + vx * rOut, p.y + vy * rOut)
+  }
+  const last = pts[pts.length - 1]
+  ctx.lineTo(last.x, last.y)
+}
+
+/**
+ * Draw one link. Without waypoints this is the classic bezier; with them the
+ * exported image follows the exact shape the analyst drew on the canvas.
+ */
 function drawEdge(
   ctx: CanvasRenderingContext2D,
   x1: number, y1: number,
   x2: number, y2: number,
   color: string,
   dir: LayoutDir,
+  waypoints: Waypoint[] = [],
+  shape: EdgeShape = 'curve',
 ) {
-  const d = dir === 'RIGHT'
-    ? Math.abs(x2 - x1) * 0.55
-    : Math.abs(y2 - y1) * 0.55
-
   ctx.beginPath()
   ctx.strokeStyle = color
   ctx.lineWidth   = 1.5 * SCALE
   ctx.setLineDash([5 * SCALE, 4 * SCALE])
-  ctx.moveTo(x1, y1)
 
-  if (dir === 'RIGHT') {
-    ctx.bezierCurveTo(x1 + d, y1, x2 - d, y2, x2, y2)
+  let arrowAngle: number
+
+  if (waypoints.length === 0 && shape === 'curve') {
+    const d = dir === 'RIGHT'
+      ? Math.abs(x2 - x1) * 0.55
+      : Math.abs(y2 - y1) * 0.55
+    ctx.moveTo(x1, y1)
+    if (dir === 'RIGHT') ctx.bezierCurveTo(x1 + d, y1, x2 - d, y2, x2, y2)
+    else                 ctx.bezierCurveTo(x1, y1 + d, x2, y2 - d, x2, y2)
+    // Tangent at the endpoint is the direction from the last control point
+    arrowAngle = dir === 'RIGHT'
+      ? Math.atan2(0, 1)
+      : Math.atan2(1, 0)
   } else {
-    ctx.bezierCurveTo(x1, y1 + d, x2, y2 - d, x2, y2)
+    let pts: Waypoint[] = [{ x: x1, y: y1 }, ...waypoints, { x: x2, y: y2 }]
+    if (shape === 'step') pts = orthogonalPoints(pts)
+    if (shape === 'straight') {
+      ctx.moveTo(pts[0].x, pts[0].y)
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
+    } else {
+      tracePolyline(ctx, pts, (shape === 'step' ? 8 : 16) * SCALE)
+    }
+    const a = pts[pts.length - 2]
+    const b = pts[pts.length - 1]
+    arrowAngle = Math.atan2(b.y - a.y, b.x - a.x)
   }
+
   ctx.stroke()
   ctx.setLineDash([])
-
-  // Small arrowhead at endpoint
-  const angle = Math.atan2(y2 - (dir === 'RIGHT' ? y2 : y2 - d), x2 - (dir === 'RIGHT' ? x2 - d : x2))
-  const aw    = 6 * SCALE
-  ctx.beginPath()
-  ctx.fillStyle = color
-  ctx.moveTo(x2, y2)
-  ctx.lineTo(x2 - aw * Math.cos(angle - 0.4), y2 - aw * Math.sin(angle - 0.4))
-  ctx.lineTo(x2 - aw * Math.cos(angle + 0.4), y2 - aw * Math.sin(angle + 0.4))
-  ctx.closePath()
-  ctx.fill()
+  drawArrowhead(ctx, x2, y2, arrowAngle, color)
 }
 
 // ── Node renderers ────────────────────────────────────────────────────────────
@@ -445,7 +493,13 @@ export function renderPlaybookToCanvas(
         ? C.edgeNo
         : C.edge
 
-    drawEdge(ctx, sx, sy, tx, ty, color, dir)
+    // Waypoints are stored in flow coordinates — lift them into canvas space
+    const wps = edgeWaypoints(edge).map(w => ({
+      x: ox + w.x * SCALE,
+      y: oy + w.y * SCALE,
+    }))
+
+    drawEdge(ctx, sx, sy, tx, ty, color, dir, wps, edgeShape(edge))
   })
 
   // ── Nodes (frames first so they render behind other nodes) ───────────────

@@ -747,6 +747,9 @@ const RQL_EXAMPLES = [
   { label: 'Groupé',        q: '(EventID = "4624" OR EventID = "4625") AND NOT Computer = "WORKSTATION01"' },
 ]
 
+/** Tallest the query box grows before it starts scrolling (≈6 lines). */
+const RQL_MAX_HEIGHT = 120
+
 // ── RQLBar ────────────────────────────────────────────────────────────────────
 
 function RQLBar({ value, onChange, onRun, error, columns, hasActiveFilters }: {
@@ -763,19 +766,23 @@ function RQLBar({ value, onChange, onRun, error, columns, hasActiveFilters }: {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const mirrorRef = useRef<HTMLDivElement>(null)
 
-  // Sync scroll between mirror and textarea
+  // Keep the highlight mirror glued to the textarea on both axes — past the
+  // 120 px cap the textarea scrolls, and an unsynced mirror would leave the
+  // visible lines unpainted (the textarea's own text is transparent).
   const syncScroll = () => {
     if (inputRef.current && mirrorRef.current) {
+      mirrorRef.current.scrollTop  = inputRef.current.scrollTop
       mirrorRef.current.scrollLeft = inputRef.current.scrollLeft
     }
   }
 
-  // Auto-height
+  // Auto-height, capped — then re-sync so the mirror matches the new box
   useEffect(() => {
     const el = inputRef.current
     if (!el) return
     el.style.height = 'auto'
-    el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+    el.style.height = Math.min(el.scrollHeight, RQL_MAX_HEIGHT) + 'px'
+    syncScroll()
   }, [value])
 
   // Column autocomplete — show when last word looks like an identifier start
@@ -838,12 +845,16 @@ function RQLBar({ value, onChange, onRun, error, columns, hasActiveFilters }: {
         </div>
       </div>
 
-      {/* Input area with syntax-highlight overlay */}
-      <div className="relative mx-3 mb-2">
+      {/* Input area with syntax-highlight overlay.
+          The mirror paints the colours and the textarea's own glyphs are
+          transparent, so both boxes must wrap identically — same padding, same
+          1 px border, same `pre-wrap`. A `whitespace-pre` mirror is exactly why
+          a query wrapping onto a second line used to render invisible. */}
+      <div className="relative mx-3 mb-2 rounded bg-white/[0.04]">
         {/* Mirror div for syntax highlighting */}
         <div ref={mirrorRef} aria-hidden
-          className="absolute inset-0 px-2.5 py-1.5 font-mono text-[11px] leading-relaxed whitespace-pre overflow-hidden pointer-events-none select-none"
-          style={{ wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
+          className="absolute inset-0 px-2.5 py-1.5 font-mono text-[11px] leading-relaxed overflow-hidden pointer-events-none select-none border border-transparent rounded"
+          style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
           {value ? highlighted : null}
         </div>
         {/* Actual textarea */}
@@ -855,9 +866,15 @@ function RQLBar({ value, onChange, onRun, error, columns, hasActiveFilters }: {
           onScroll={syncScroll}
           placeholder='EventID = "4624" AND Computer contains "DC" ...'
           rows={1}
-          className={`w-full resize-none font-mono text-[11px] leading-relaxed bg-white/[0.04] border rounded px-2.5 py-1.5 outline-none transition-colors placeholder:text-accent-muted/20 overflow-hidden
+          className={`rql-input relative w-full resize-none font-mono text-[11px] leading-relaxed bg-transparent border rounded px-2.5 py-1.5 outline-none transition-colors placeholder:text-accent-muted/20 overflow-y-auto overflow-x-hidden
             ${error ? 'border-red-500/40 text-transparent caret-red-400' : value ? 'border-accent-green/25 text-transparent caret-white' : 'border-white/8 text-white/80'}`}
-          style={{ minHeight: 32 }}
+          style={{
+            minHeight:    32,
+            maxHeight:    RQL_MAX_HEIGHT,
+            whiteSpace:   'pre-wrap',
+            wordBreak:    'break-word',
+            overflowWrap: 'anywhere',
+          }}
           spellCheck={false}
         />
 
