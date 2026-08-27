@@ -20,7 +20,7 @@ export interface AGNodeData {
 // ── Shared handle set ─────────────────────────────────────────────────────────
 // Four connection points (top / bottom / left / right).
 function Handles({ color }: { color: string }) {
-  const cls = `!w-2.5 !h-2.5 !rounded-full !border-2 ${color} !bg-bg-primary`
+  const cls = `!w-2.5 !h-2.5 !rounded-pill !border-2 ${color} !bg-canvas`
   return (
     <>
       <Handle type="target" position={Position.Top}    className={cls} />
@@ -43,7 +43,7 @@ function NodeShell({ selected, border, bg, children, handles }: {
   return (
     <div
       style={{ width: NODE_WIDTH, background: bg }}
-      className={`relative rounded-lg border px-3 py-3 shadow-lg transition-all ${border} ${
+      className={`relative border px-3 py-3 shadow-lg transition-all ${border} ${
         selected ? 'shadow-lg' : ''
       }`}
     >
@@ -67,15 +67,15 @@ function NodeBody({ icon: Icon, iconCls, subLabel, subLabelCls, label, notes }: 
       <Icon size={13} className={`${iconCls} shrink-0 mt-px`} />
       <div className="min-w-0 flex-1">
         {subLabel && (
-          <p className={`text-[10px] font-mono leading-none mb-1 truncate ${subLabelCls}`}>
+          <p className={`text-label font-mono leading-none mb-1 truncate ${subLabelCls}`}>
             {subLabel}
           </p>
         )}
-        <p className="text-[12px] font-semibold text-white leading-snug break-words">
+        <p className="text-ui font-semibold text-fg leading-snug break-words">
           {label}
         </p>
         {notes && (
-          <p className="text-[10px] text-accent-muted/60 mt-1.5 leading-snug line-clamp-2">
+          <p className="text-label text-fg-secondary/60 mt-1.5 leading-snug line-clamp-2">
             {notes}
           </p>
         )}
@@ -90,13 +90,13 @@ export function TimelineNode({ data, selected }: NodeProps) {
   return (
     <NodeShell
       selected={selected}
-      border={selected ? 'border-accent-green' : 'border-accent-green/35'}
+      border={selected ? 'border-accent' : 'border-accent/35'}
       bg={selected ? 'rgba(45,212,191,0.10)' : 'rgba(45,212,191,0.05)'}
-      handles={<Handles color="!border-accent-green" />}
+      handles={<Handles color="!border-accent" />}
     >
       <NodeBody
-        icon={Clock} iconCls="text-accent-green"
-        subLabel={d.subLabel} subLabelCls="text-accent-green/60"
+        icon={Clock} iconCls="text-accent"
+        subLabel={d.subLabel} subLabelCls="text-accent/60"
         label={d.label} notes={d.notes}
       />
     </NodeShell>
@@ -119,17 +119,17 @@ export function AssetNode({ data, selected }: NodeProps) {
       selected={selected}
       border={comp
         ? (selected ? 'border-severity-critical' : 'border-severity-critical/40')
-        : (selected ? 'border-blue-400'          : 'border-blue-500/35')}
+        : (selected ? 'border-severity-low'          : 'border-severity-low/35')}
       bg={comp
         ? (selected ? 'rgba(239,68,68,0.10)'  : 'rgba(239,68,68,0.04)')
         : (selected ? 'rgba(59,130,246,0.10)' : 'rgba(59,130,246,0.04)')}
-      handles={<Handles color={comp ? '!border-severity-critical' : '!border-blue-400'} />}
+      handles={<Handles color={comp ? '!border-severity-critical' : '!border-severity-low'} />}
     >
       <NodeBody
         icon={Icon}
-        iconCls={comp ? 'text-severity-critical' : 'text-blue-400'}
+        iconCls={comp ? 'text-severity-critical' : 'text-severity-low'}
         subLabel={d.subLabel}
-        subLabelCls={comp ? 'text-severity-critical/60' : 'text-blue-400/60'}
+        subLabelCls={comp ? 'text-severity-critical/60' : 'text-severity-low/60'}
         label={d.label}
         notes={comp ? (d.notes ?? 'Compromised') : d.notes}
       />
@@ -139,17 +139,17 @@ export function AssetNode({ data, selected }: NodeProps) {
 
 // ── IOC node ──────────────────────────────────────────────────────────────────
 const IOC_THEME: Record<string, { border: string; bg: [string, string]; icon: string }> = {
-  ip:          { border: 'border-red-500',    bg: ['rgba(239,68,68,0.08)',   'rgba(239,68,68,0.04)'],   icon: 'text-red-400'    },
-  domain:      { border: 'border-orange-500', bg: ['rgba(249,115,22,0.08)', 'rgba(249,115,22,0.04)'],  icon: 'text-orange-400' },
-  url:         { border: 'border-orange-400', bg: ['rgba(251,146,60,0.08)', 'rgba(251,146,60,0.04)'],  icon: 'text-orange-300' },
-  hash_md5:    { border: 'border-purple-500', bg: ['rgba(168,85,247,0.08)', 'rgba(168,85,247,0.04)'],  icon: 'text-purple-400' },
-  hash_sha1:   { border: 'border-purple-500', bg: ['rgba(168,85,247,0.08)', 'rgba(168,85,247,0.04)'],  icon: 'text-purple-400' },
-  hash_sha256: { border: 'border-purple-500', bg: ['rgba(168,85,247,0.08)', 'rgba(168,85,247,0.04)'],  icon: 'text-purple-400' },
-  email:       { border: 'border-blue-500',   bg: ['rgba(59,130,246,0.08)', 'rgba(59,130,246,0.04)'],  icon: 'text-blue-400'   },
-  filename:    { border: 'border-yellow-500', bg: ['rgba(234,179,8,0.08)',  'rgba(234,179,8,0.04)'],   icon: 'text-yellow-400' },
-  registry:    { border: 'border-pink-500',   bg: ['rgba(236,72,153,0.08)', 'rgba(236,72,153,0.04)'],  icon: 'text-pink-400'   },
+  ip:          { border: 'border-severity-critical',    bg: ['rgba(239,68,68,0.08)',   'rgba(239,68,68,0.04)'],   icon: 'text-severity-critical'    },
+  domain:      { border: 'border-severity-high', bg: ['rgba(249,115,22,0.08)', 'rgba(249,115,22,0.04)'],  icon: 'text-severity-high' },
+  url:         { border: 'border-severity-high', bg: ['rgba(251,146,60,0.08)', 'rgba(251,146,60,0.04)'],  icon: 'text-severity-high' },
+  hash_md5:    { border: 'border-data-2', bg: ['rgba(168,85,247,0.08)', 'rgba(168,85,247,0.04)'],  icon: 'text-data-2' },
+  hash_sha1:   { border: 'border-data-2', bg: ['rgba(168,85,247,0.08)', 'rgba(168,85,247,0.04)'],  icon: 'text-data-2' },
+  hash_sha256: { border: 'border-data-2', bg: ['rgba(168,85,247,0.08)', 'rgba(168,85,247,0.04)'],  icon: 'text-data-2' },
+  email:       { border: 'border-severity-low',   bg: ['rgba(59,130,246,0.08)', 'rgba(59,130,246,0.04)'],  icon: 'text-severity-low'   },
+  filename:    { border: 'border-severity-medium', bg: ['rgba(234,179,8,0.08)',  'rgba(234,179,8,0.04)'],   icon: 'text-severity-medium' },
+  registry:    { border: 'border-data-3',   bg: ['rgba(236,72,153,0.08)', 'rgba(236,72,153,0.04)'],  icon: 'text-data-3'   },
 }
-const IOC_DEFAULT = { border: 'border-white/20', bg: ['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.03)'] as [string, string], icon: 'text-accent-muted' }
+const IOC_DEFAULT = { border: 'border-strong', bg: ['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.03)'] as [string, string], icon: 'text-fg-secondary' }
 
 export function IOCNode({ data, selected }: NodeProps) {
   const d   = data as AGNodeData
@@ -179,16 +179,15 @@ export function AttackerNode({ data, selected }: NodeProps) {
   return (
     <div
       style={{ width: NODE_WIDTH, background: selected ? 'rgba(239,68,68,0.14)' : 'rgba(239,68,68,0.07)' }}
-      className={`relative rounded-full border-2 py-2.5 shadow-xl transition-all flex items-center justify-center gap-2 ${
-        selected ? 'border-severity-critical' : 'border-severity-critical/50'
+      className={`relative rounded-pill border-2 py-2.5 shadow-xl transition-all flex items-center justify-center gap-2 ${ selected ? 'border-severity-critical' : 'border-severity-critical/50'
       }`}
     >
-      <Handle type="source" position={Position.Bottom} className="!w-2.5 !h-2.5 !rounded-full !border-2 !border-severity-critical !bg-bg-primary" />
-      <Handle type="target" position={Position.Top}    className="!w-2.5 !h-2.5 !rounded-full !border-2 !border-severity-critical !bg-bg-primary" />
-      <Handle type="source" position={Position.Right} id="r" className="!w-2.5 !h-2.5 !rounded-full !border-2 !border-severity-critical !bg-bg-primary" />
-      <Handle type="target" position={Position.Left}  id="l" className="!w-2.5 !h-2.5 !rounded-full !border-2 !border-severity-critical !bg-bg-primary" />
+      <Handle type="source" position={Position.Bottom} className="!w-2.5 !h-2.5 !rounded-pill !border-2 !border-severity-critical !bg-canvas" />
+      <Handle type="target" position={Position.Top}    className="!w-2.5 !h-2.5 !rounded-pill !border-2 !border-severity-critical !bg-canvas" />
+      <Handle type="source" position={Position.Right} id="r" className="!w-2.5 !h-2.5 !rounded-pill !border-2 !border-severity-critical !bg-canvas" />
+      <Handle type="target" position={Position.Left}  id="l" className="!w-2.5 !h-2.5 !rounded-pill !border-2 !border-severity-critical !bg-canvas" />
       <Skull size={14} className="text-severity-critical shrink-0" />
-      <span className="text-[12px] font-bold text-severity-critical">{d.label || 'Attacker'}</span>
+      <span className="text-ui font-bold text-severity-critical">{d.label || 'Attacker'}</span>
     </div>
   )
 }
@@ -199,12 +198,12 @@ export function FreeNode({ data, selected }: NodeProps) {
   return (
     <NodeShell
       selected={selected}
-      border={selected ? 'border-white/40' : 'border-white/12'}
+      border={selected ? 'border-strong' : 'border-hairline'}
       bg={selected ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)'}
-      handles={<Handles color="!border-white/30" />}
+      handles={<Handles color="!border-strong" />}
     >
       <NodeBody
-        icon={StickyNote} iconCls="text-accent-muted/60"
+        icon={StickyNote} iconCls="text-fg-secondary/60"
         subLabel={undefined} subLabelCls=""
         label={d.label} notes={d.notes}
       />

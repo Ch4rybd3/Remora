@@ -101,7 +101,7 @@ function drawArrowhead(ctx: CanvasRenderingContext2D, x: number, y: number, angl
   ctx.fill()
 }
 
-/** Polyline with rounded corners — canvas twin of roundedPolylinePath(). */
+/** Polyline with rounded-control corners — canvas twin of roundedPolylinePath(). */
 function tracePolyline(ctx: CanvasRenderingContext2D, pts: Waypoint[], r: number) {
   ctx.moveTo(pts[0].x, pts[0].y)
   for (let i = 1; i < pts.length - 1; i++) {

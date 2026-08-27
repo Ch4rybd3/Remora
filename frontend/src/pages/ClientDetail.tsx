@@ -135,16 +135,16 @@ function UploadZone({ label, onUpload, uploading }: {
         if (f) onUpload(f)
       }}
       onClick={() => inputRef.current?.click()}
-      className={`border-2 border-dashed rounded-lg py-4 px-3 text-center cursor-pointer transition-colors ${
-        dragging ? 'border-accent-green/60 bg-accent-green/5' : 'border-white/10 hover:border-white/20'
+      className={`border-2 border-dashed py-4 px-3 text-center cursor-pointer transition-colors ${
+        dragging ? 'border-accent/60 bg-accent/5' : 'border-hairline hover:border-strong'
       }`}
     >
       {uploading ? (
-        <p className="text-xs text-accent-muted/60">Envoi…</p>
+        <p className="text-label text-fg-secondary/60">Envoi…</p>
       ) : (
         <>
-          <Upload size={16} className="mx-auto mb-1 text-accent-muted/30" />
-          <p className="text-[11px] text-accent-muted/50">{label}</p>
+          <Upload size={16} className="mx-auto mb-1 text-fg-secondary/30" />
+          <p className="text-label text-fg-secondary/50">{label}</p>
         </>
       )}
       <input
@@ -165,20 +165,20 @@ function DocRow({ doc, onPreview, onDelete }: {
   onDelete: () => void
 }) {
   return (
-    <div className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-white/[0.03] transition-colors group">
-      <DocIcon name={doc.file_name} className="text-accent-green/70 shrink-0" />
+    <div className="flex items-center gap-3 py-2 px-3 hover:bg-white/[0.03] transition-colors group">
+      <DocIcon name={doc.file_name} className="text-accent/70 shrink-0" />
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-white truncate">{doc.name}</p>
-        <p className="text-[10px] text-accent-muted/40">
+        <p className="text-ui text-fg truncate">{doc.name}</p>
+        <p className="text-label text-fg-secondary/40">
           {fmtBytes(doc.file_size)} · {fmtDateTimeShort(doc.uploaded_at)}
           {doc.uploaded_by ? ` · ${doc.uploaded_by}` : ''}
         </p>
       </div>
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-        <button onClick={onPreview} className="p-1.5 rounded text-accent-muted/40 hover:text-accent-green hover:bg-accent-green/5" title="Preview">
+        <button onClick={onPreview} className="p-1.5 rounded-control text-fg-secondary/40 hover:text-accent hover:bg-accent/5" title="Preview">
           <Eye size={13} />
         </button>
-        <button onClick={onDelete} className="p-1.5 rounded text-accent-muted/40 hover:text-severity-critical hover:bg-severity-critical/5" title="Delete">
+        <button onClick={onDelete} className="p-1.5 rounded-control text-fg-secondary/40 hover:text-severity-critical hover:bg-severity-critical/5" title="Delete">
           <Trash2 size={13} />
         </button>
       </div>
@@ -198,8 +198,8 @@ function SlotCard({ slot, doc, uploading, onUpload, onPreview, onDelete }: {
 }) {
   return (
     <div className="card p-4">
-      <p className="text-sm font-medium text-white">{slot.label}</p>
-      {slot.description && <p className="text-[11px] text-accent-muted/50 mt-0.5 mb-2">{slot.description}</p>}
+      <p className="text-ui font-medium text-fg">{slot.label}</p>
+      {slot.description && <p className="text-label text-fg-secondary/50 mt-0.5 mb-2">{slot.description}</p>}
       <div className="mt-2">
         {doc ? (
           <DocRow doc={doc} onPreview={onPreview} onDelete={onDelete} />
@@ -254,47 +254,47 @@ export default function ClientDetail() {
   })
 
   if (isLoading || !client) {
-    return <div className="p-6 text-center text-accent-muted text-sm">Loading...</div>
+    return <div className="p-6 text-center text-fg-secondary text-ui">Loading...</div>
   }
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-start gap-3">
-        <button onClick={() => navigate('/config/clients')} className="p-2 rounded-lg text-accent-muted/50 hover:text-white hover:bg-white/5 transition-colors shrink-0 mt-0.5">
+        <button onClick={() => navigate('/config/clients')} className="p-2 text-fg-secondary/50 hover:text-fg hover:bg-fg/5 transition-colors shrink-0 mt-0.5">
           <ArrowLeft size={18} />
         </button>
-        <div className="p-2.5 rounded-lg bg-accent-green/10 text-accent-green shrink-0">
+        <div className="p-2.5 bg-accent/10 text-accent shrink-0">
           <Building2 size={20} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-xl font-bold text-white">{client.name}</h1>
+            <h1 className="text-title font-bold text-fg">{client.name}</h1>
             {client.is_default && (
-              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-400">
+              <span className="flex items-center gap-1 text-label px-1.5 py-0.5 rounded-control border border-severity-medium/30 bg-severity-medium/10 text-severity-medium">
                 <Star size={9} /> Default
               </span>
             )}
           </div>
-          {client.industry && <p className="text-sm text-accent-muted mt-0.5">{client.industry}</p>}
-          {client.description && <p className="text-xs text-accent-muted/60 mt-1 max-w-2xl">{client.description}</p>}
+          {client.industry && <p className="text-ui text-fg-secondary mt-0.5">{client.industry}</p>}
+          {client.description && <p className="text-label text-fg-secondary/60 mt-1 max-w-2xl">{client.description}</p>}
         </div>
-        <button className="btn-secondary text-xs flex items-center gap-1.5 shrink-0" onClick={() => setEditing(true)}>
+        <button className="btn-secondary text-label flex items-center gap-1.5 shrink-0" onClick={() => setEditing(true)}>
           <Pencil size={12} /> Edit
         </button>
       </div>
 
       {/* Contact + meta */}
       {(client.contact_name || client.contact_email || client.contact_phone || client.address || client.notes) && (
-        <div className="card p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-          {client.contact_name && <div><p className="text-accent-muted/40 uppercase text-[10px] mb-0.5">Contact</p><p className="text-white">{client.contact_name}</p></div>}
-          {client.contact_email && <div><p className="text-accent-muted/40 uppercase text-[10px] mb-0.5">Email</p><p className="text-white">{client.contact_email}</p></div>}
-          {client.contact_phone && <div><p className="text-accent-muted/40 uppercase text-[10px] mb-0.5">Phone</p><p className="text-white">{client.contact_phone}</p></div>}
-          {client.address && <div><p className="text-accent-muted/40 uppercase text-[10px] mb-0.5">Adresse</p><p className="text-white">{client.address}</p></div>}
+        <div className="card p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-label">
+          {client.contact_name && <div><p className="text-fg-secondary/40 uppercase text-label mb-0.5">Contact</p><p className="text-fg">{client.contact_name}</p></div>}
+          {client.contact_email && <div><p className="text-fg-secondary/40 uppercase text-label mb-0.5">Email</p><p className="text-fg">{client.contact_email}</p></div>}
+          {client.contact_phone && <div><p className="text-fg-secondary/40 uppercase text-label mb-0.5">Phone</p><p className="text-fg">{client.contact_phone}</p></div>}
+          {client.address && <div><p className="text-fg-secondary/40 uppercase text-label mb-0.5">Adresse</p><p className="text-fg">{client.address}</p></div>}
           {client.notes && (
-            <div className="col-span-2 sm:col-span-4 pt-2 border-t border-white/5">
-              <p className="text-accent-muted/40 uppercase text-[10px] mb-0.5">Notes</p>
-              <p className="text-white whitespace-pre-line">{client.notes}</p>
+            <div className="col-span-2 sm:col-span-4 pt-2 border-t border-hairline">
+              <p className="text-fg-secondary/40 uppercase text-label mb-0.5">Notes</p>
+              <p className="text-fg whitespace-pre-line">{client.notes}</p>
             </div>
           )}
         </div>
@@ -303,14 +303,14 @@ export default function ClientDetail() {
       {/* Cases link */}
       <button
         onClick={() => navigate('/cases')}
-        className="flex items-center gap-2 text-xs text-accent-muted/60 hover:text-accent-green transition-colors"
+        className="flex items-center gap-2 text-label text-fg-secondary/60 hover:text-accent transition-colors"
       >
         <FolderOpen size={13} /> Voir les cases de ce client
       </button>
 
       {/* Knowledge base */}
       <div>
-        <h2 className="text-accent-green font-semibold text-sm uppercase tracking-wide mb-3">
+        <h2 className="text-accent font-semibold text-ui uppercase tracking-wide mb-3">
           Base de connaissance
         </h2>
 
@@ -331,7 +331,7 @@ export default function ClientDetail() {
         )}
 
         <div className="card p-4">
-          <p className="text-sm font-medium text-white mb-2">
+          <p className="text-ui font-medium text-fg mb-2">
             {template ? 'Autres documents' : 'Documents'}
           </p>
           <UploadZone
@@ -340,7 +340,7 @@ export default function ClientDetail() {
             uploading={uploadingSlot === 'freeform'}
           />
           {freeformDocs.length > 0 && (
-            <div className="mt-2 divide-y divide-white/5">
+            <div className="mt-2 divide-y divide-hairline">
               {freeformDocs.map(doc => (
                 <DocRow key={doc.id} doc={doc} onPreview={() => setPreviewDoc(doc)} onDelete={() => setDeleteTarget(doc)} />
               ))}

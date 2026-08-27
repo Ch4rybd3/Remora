@@ -18,11 +18,11 @@ interface Props {
 
 function StatusBadge({ f }: { f: BinaryFile }) {
   if (f.status === 'ready') {
-    return <span className="text-[9px] text-accent-green font-mono">✓ {f.binary_type ?? 'ready'}</span>
+    return <span className="text-label text-accent font-mono">✓ {f.binary_type ?? 'ready'}</span>
   }
   if (f.status === 'analysing' || f.status === 'pending') {
     return (
-      <span className="flex items-center gap-1 text-[9px] text-yellow-400">
+      <span className="flex items-center gap-1 text-label text-severity-medium">
         <Loader2 size={9} className="animate-spin" />
         {f.status}
       </span>
@@ -30,7 +30,7 @@ function StatusBadge({ f }: { f: BinaryFile }) {
   }
   if (f.status === 'error') {
     return (
-      <span className="flex items-center gap-1 text-[9px] text-severity-critical">
+      <span className="flex items-center gap-1 text-label text-severity-critical">
         <AlertTriangle size={9} />
         error
       </span>
@@ -66,29 +66,28 @@ function FileRow({
   return (
     <div
       onClick={onSelect}
-      className={`px-3 py-2.5 cursor-pointer border-b border-white/5 hover:bg-white/5 transition-colors group ${
-        selected ? 'bg-accent-green/5 border-l-2 border-l-accent-green/40' : ''
+      className={`px-3 py-2.5 cursor-pointer border-b border-hairline hover:bg-fg/5 transition-colors group ${ selected ? 'bg-accent/5 border-l-2 border-l-accent/40' : ''
       }`}
     >
       <div className="flex items-start gap-2">
-        <Lock size={11} className="mt-0.5 shrink-0 text-accent-muted/30" />
+        <Lock size={11} className="mt-0.5 shrink-0 text-fg-secondary/30" />
         <div className="flex-1 min-w-0">
-          <p className={`text-[11px] font-mono truncate ${selected ? 'text-white' : 'text-white/70'}`}>
+          <p className={`text-label font-mono truncate ${selected ? 'text-fg' : 'text-fg/70'}`}>
             {f.filename}
           </p>
           <div className="flex items-center gap-2 mt-0.5">
             <StatusBadge f={f} />
             {f.file_size !== null && (
-              <span className="text-[8px] text-accent-muted/30">{fmtSize(f.file_size)}</span>
+              <span className="text-label text-fg-secondary/30">{fmtSize(f.file_size)}</span>
             )}
           </div>
-          <p className="text-[8px] text-accent-muted/25 mt-0.5">
+          <p className="text-label text-fg-secondary/25 mt-0.5">
             {fmtDateTimeShort(f.uploaded_at)}
           </p>
         </div>
         <button
           onClick={e => { e.stopPropagation(); onDelete() }}
-          className="opacity-0 group-hover:opacity-100 p-1 rounded text-accent-muted/40 hover:text-severity-critical hover:bg-severity-critical/10 transition-all"
+          className="opacity-0 group-hover:opacity-100 p-1 rounded-control text-fg-secondary/40 hover:text-severity-critical hover:bg-severity-critical/10 transition-all"
           title="Delete"
         >
           <Trash2 size={11} />
@@ -97,14 +96,13 @@ function FileRow({
 
       {/* Evidence button — visible only when this file is selected */}
       {selected && (
-        <div className="mt-2 pt-2 border-t border-white/5">
+        <div className="mt-2 pt-2 border-t border-hairline">
           <button
             onClick={e => { e.stopPropagation(); onAddEvidence() }}
             disabled={f.added_to_evidence || addingEvidence}
-            className={`w-full flex items-center justify-center gap-1.5 py-1 rounded text-[10px] transition-colors ${
-              f.added_to_evidence
-                ? 'border border-accent-green/20 text-accent-green/60 bg-accent-green/5 cursor-default'
-                : 'border border-white/10 text-accent-muted/50 hover:border-accent-green/30 hover:text-accent-green hover:bg-accent-green/5'
+            className={`w-full flex items-center justify-center gap-1.5 py-1 rounded-control text-label transition-colors ${ f.added_to_evidence
+                ? 'border border-accent/20 text-accent/60 bg-accent/5 cursor-default'
+                : 'border border-hairline text-fg-secondary/50 hover:border-accent/30 hover:text-accent hover:bg-accent/5'
             } disabled:opacity-50`}
           >
             <BookmarkPlus size={10} />
@@ -153,46 +151,45 @@ function UploadForm({ caseId, onDone }: { caseId: string; onDone: () => void }) 
   }
 
   return (
-    <div className="p-3 space-y-2 border-b border-white/5">
+    <div className="p-3 space-y-2 border-b border-hairline">
       {/* Dropzone */}
       <div
         {...getRootProps()}
-        className={`border border-dashed rounded px-3 py-4 text-center cursor-pointer transition-colors ${
-          isDragActive
-            ? 'border-accent-green/50 bg-accent-green/5'
+        className={`border border-dashed rounded-control px-3 py-4 text-center cursor-pointer transition-colors ${ isDragActive
+            ? 'border-accent/50 bg-accent/5'
             : file
-              ? 'border-accent-green/30 bg-accent-green/5'
-              : 'border-white/10 hover:border-white/20 hover:bg-white/5'
+              ? 'border-accent/30 bg-accent/5'
+              : 'border-hairline hover:border-strong hover:bg-fg/5'
         }`}
       >
         <input {...getInputProps()} />
         {file ? (
           <div className="space-y-0.5">
-            <p className="text-[10px] font-mono text-accent-green truncate">{file.name}</p>
-            <p className="text-[9px] text-accent-muted/40">{fmtSize(file.size)}</p>
+            <p className="text-label font-mono text-accent truncate">{file.name}</p>
+            <p className="text-label text-fg-secondary/40">{fmtSize(file.size)}</p>
           </div>
         ) : (
           <div className="space-y-1">
-            <Upload size={14} className="mx-auto text-accent-muted/30" />
-            <p className="text-[10px] text-accent-muted/40">Drop a binary here</p>
-            <p className="text-[9px] text-accent-muted/25">PE · ELF · Mach-O</p>
+            <Upload size={14} className="mx-auto text-fg-secondary/30" />
+            <p className="text-label text-fg-secondary/40">Drop a binary here</p>
+            <p className="text-label text-fg-secondary/25">PE · ELF · Mach-O</p>
           </div>
         )}
       </div>
 
       {/* Password field */}
       <div className="relative">
-        <Lock size={10} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-accent-muted/30" />
+        <Lock size={10} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-secondary/30" />
         <input
           type={showPass ? 'text' : 'password'}
           placeholder="Encryption password"
           value={password}
           onChange={e => setPassword(e.target.value)}
-          className="w-full bg-bg-primary border border-white/10 rounded px-7 py-1.5 text-[11px] text-white placeholder:text-accent-muted/30 focus:outline-none focus:border-accent-green/30"
+          className="w-full bg-canvas border border-hairline rounded-control px-7 py-1.5 text-label text-fg placeholder:text-fg-secondary/30 focus:outline-none focus:border-accent/30"
         />
         <button
           onClick={() => setShowPass(v => !v)}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-accent-muted/30 hover:text-white transition-colors"
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-fg-secondary/30 hover:text-fg transition-colors"
           type="button"
         >
           {showPass ? <EyeOff size={11} /> : <Eye size={11} />}
@@ -200,20 +197,20 @@ function UploadForm({ caseId, onDone }: { caseId: string; onDone: () => void }) 
       </div>
 
       {/* Security note */}
-      <div className="flex items-start gap-1.5 px-2 py-1.5 bg-accent-green/5 border border-accent-green/15 rounded">
-        <ShieldCheck size={10} className="mt-0.5 shrink-0 text-accent-green/50" />
-        <p className="text-[9px] text-accent-muted/40 leading-relaxed">
+      <div className="flex items-start gap-1.5 px-2 py-1.5 bg-accent/5 border border-accent/15 rounded-control">
+        <ShieldCheck size={10} className="mt-0.5 shrink-0 text-accent/50" />
+        <p className="text-label text-fg-secondary/40 leading-relaxed">
           File encrypted with AES-256 + PBKDF2 before storage. Never executed server-side.
           Password is not stored anywhere.
         </p>
       </div>
 
-      {err && <p className="text-[10px] text-severity-critical">{err}</p>}
+      {err && <p className="text-label text-severity-critical">{err}</p>}
 
       <button
         onClick={handleUpload}
         disabled={uploading || !file || !password}
-        className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded bg-accent-green/10 border border-accent-green/20 text-accent-green text-[11px] font-medium hover:bg-accent-green/15 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-control bg-accent/10 border border-accent/20 text-accent text-label font-medium hover:bg-accent/15 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
         {uploading ? <><Loader2 size={11} className="animate-spin" /> Uploading…</> : <><Upload size={11} /> Upload & Analyse</>}
       </button>
@@ -256,11 +253,11 @@ export default function BinaryFileList({ caseId, selectedFileId, onSelectFile }:
       <div className="flex-1 overflow-y-auto">
         {isLoading && (
           <div className="flex items-center justify-center py-6">
-            <Loader2 size={16} className="animate-spin text-accent-muted/40" />
+            <Loader2 size={16} className="animate-spin text-fg-secondary/40" />
           </div>
         )}
         {!isLoading && files.length === 0 && (
-          <p className="text-center text-[10px] text-accent-muted/30 py-6">No binaries uploaded yet</p>
+          <p className="text-center text-label text-fg-secondary/30 py-6">No binaries uploaded yet</p>
         )}
         {files.map(f => (
           <FileRow

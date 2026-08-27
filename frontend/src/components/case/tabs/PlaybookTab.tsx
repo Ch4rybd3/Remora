@@ -91,15 +91,14 @@ export default function PlaybookTab({ caseId }: Props) {
           <button
             key={cp.id}
             onClick={() => setActiveTab(cp.id)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs transition-colors ${
-              (activeCp?.id === cp.id)
-                ? 'bg-accent-green/10 text-accent-green border border-accent-green/30'
-                : 'bg-white/5 text-accent-muted border border-white/10 hover:bg-white/10'
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-control text-label transition-colors ${ (activeCp?.id === cp.id)
+                ? 'bg-accent/10 text-accent border border-accent/30'
+                : 'bg-fg/5 text-fg-secondary border border-hairline hover:bg-fg/10'
             }`}
           >
             <GitBranch size={12} />
             {cp.playbook.name}
-            <span className="text-[10px] opacity-60">
+            <span className="text-label opacity-60">
               {doneCount(cp)}/{stepNodes(cp).length}
             </span>
             <span
@@ -112,7 +111,7 @@ export default function PlaybookTab({ caseId }: Props) {
         ))}
         <button
           onClick={() => setAddOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs border border-dashed border-white/20 text-accent-muted hover:text-white hover:border-white/40 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-control text-label border border-dashed border-strong text-fg-secondary hover:text-fg hover:border-strong transition-colors"
         >
           <Plus size={12} /> Add playbook
         </button>
@@ -120,9 +119,9 @@ export default function PlaybookTab({ caseId }: Props) {
 
       {!activeCp && (
         <div className="card p-10 text-center">
-          <GitBranch size={32} className="text-accent-muted mx-auto mb-3 opacity-40" />
-          <p className="text-accent-muted text-sm">No playbook attached to this case.</p>
-          <button className="btn-primary mt-4 inline-flex items-center gap-2 text-xs" onClick={() => setAddOpen(true)}>
+          <GitBranch size={32} className="text-fg-secondary mx-auto mb-3 opacity-40" />
+          <p className="text-fg-secondary text-ui">No playbook attached to this case.</p>
+          <button className="btn-primary mt-4 inline-flex items-center gap-2 text-label" onClick={() => setAddOpen(true)}>
             <Plus size={12} /> Attach a playbook
           </button>
         </div>
@@ -152,8 +151,8 @@ export default function PlaybookTab({ caseId }: Props) {
           {/* Step checklist */}
           <div className="space-y-2">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-semibold text-white">{activeCp.playbook.name}</p>
-              <span className="text-xs text-accent-muted">
+              <p className="text-ui font-semibold text-fg">{activeCp.playbook.name}</p>
+              <span className="text-label text-fg-secondary">
                 {doneCount(activeCp)} / {stepNodes(activeCp).length} done
               </span>
             </div>
@@ -174,27 +173,27 @@ export default function PlaybookTab({ caseId }: Props) {
                   const pbExists = linkedId ? !!allPlaybooks.find(pb => pb.id === linkedId) : false
 
                   return (
-                    <div key={node.id} className="rounded-lg border border-purple-400/20 bg-purple-400/5 px-3 py-2.5">
+                    <div key={node.id} className=" border border-data-2/20 bg-data-2/5 px-3 py-2.5">
                       <div className="flex items-start gap-3">
-                        <ExternalLink size={14} className="text-purple-400 shrink-0 mt-0.5" />
+                        <ExternalLink size={14} className="text-data-2 shrink-0 mt-0.5" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-purple-300">{nodeData.label}</p>
-                          <p className="text-[10px] text-purple-400/60 mt-0.5">→ {linkedName}</p>
+                          <p className="text-label font-medium text-data-2">{nodeData.label}</p>
+                          <p className="text-label text-data-2/60 mt-0.5">→ {linkedName}</p>
                           {!linkedId ? (
-                            <p className="text-[10px] text-accent-muted/50 mt-1 flex items-center gap-1">
+                            <p className="text-label text-fg-secondary/50 mt-1 flex items-center gap-1">
                               <AlertCircle size={10} /> Not linked - no playbook configured
                             </p>
                           ) : alreadyAttached ? (
-                            <p className="text-[10px] text-accent-green/70 mt-1 flex items-center gap-1">
+                            <p className="text-label text-accent/70 mt-1 flex items-center gap-1">
                               <CheckCircle2 size={10} /> Playbook already attached to the case
                             </p>
                           ) : !pbExists ? (
-                            <p className="text-[10px] text-accent-muted/50 mt-1 flex items-center gap-1">
+                            <p className="text-label text-fg-secondary/50 mt-1 flex items-center gap-1">
                               <AlertCircle size={10} /> Playbook introuvable
                             </p>
                           ) : (
                             <button
-                              className="mt-1.5 text-[10px] px-2.5 py-1 rounded border border-purple-400/30 text-purple-300 hover:bg-purple-400/10 transition-colors"
+                              className="mt-1.5 text-label px-2.5 py-1 rounded-control border border-data-2/30 text-data-2 hover:bg-data-2/10 transition-colors"
                               onClick={() => attach.mutate(linkedId)}
                               disabled={attach.isPending}
                             >
@@ -208,20 +207,20 @@ export default function PlaybookTab({ caseId }: Props) {
                 }
 
                 return (
-                  <div key={node.id} className={`rounded-lg border transition-colors ${done ? 'border-accent-green/20 bg-accent-green/5' : 'border-white/10 bg-white/[0.02]'}`}>
+                  <div key={node.id} className={` border transition-colors ${done ? 'border-accent/20 bg-accent/5' : 'border-hairline bg-white/[0.02]'}`}>
                     <div className="flex items-center gap-3 px-3 py-2.5">
                       <button
                         onClick={() => updateStep.mutate({ cpId: activeCp.id, nodeId: node.id, done: !done, comment })}
-                        className={`shrink-0 transition-colors ${done ? 'text-accent-green' : 'text-accent-muted hover:text-white'}`}
+                        className={`shrink-0 transition-colors ${done ? 'text-accent' : 'text-fg-secondary hover:text-fg'}`}
                       >
                         {done ? <CheckCircle2 size={16} /> : <Circle size={16} />}
                       </button>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-xs font-medium ${done ? 'line-through text-accent-muted' : 'text-white'}`}>
+                        <p className={`text-label font-medium ${done ? 'line-through text-fg-secondary' : 'text-fg'}`}>
                           {nodeData.label}
                         </p>
                         {nodeData.description && !done && (
-                          <p className="text-[10px] text-accent-muted mt-0.5 leading-snug">{nodeData.description}</p>
+                          <p className="text-label text-fg-secondary mt-0.5 leading-snug">{nodeData.description}</p>
                         )}
                       </div>
                       <StepAssigneePicker
@@ -232,21 +231,21 @@ export default function PlaybookTab({ caseId }: Props) {
                       />
                       <button
                         onClick={() => setExpandedStep(expanded ? null : node.id)}
-                        className="text-accent-muted hover:text-white transition-colors shrink-0"
+                        className="text-fg-secondary hover:text-fg transition-colors shrink-0"
                       >
                         {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                       </button>
                     </div>
                     {expanded && (
-                      <div className="px-3 pb-3 border-t border-white/5 pt-2">
+                      <div className="px-3 pb-3 border-t border-hairline pt-2">
                         <textarea
-                          className="input text-xs min-h-[60px] resize-y w-full"
+                          className="input text-label min-h-[60px] resize-y w-full"
                           placeholder="Add a comment…"
                           value={draft}
                           onChange={e => setCommentDraft(d => ({ ...d, [node.id]: e.target.value }))}
                         />
                         <button
-                          className="btn-primary text-[10px] mt-2 py-1"
+                          className="btn-primary text-label mt-2 py-1"
                           onClick={() => {
                             updateStep.mutate({ cpId: activeCp.id, nodeId: node.id, done, comment: draft })
                             setExpandedStep(null)
@@ -260,7 +259,7 @@ export default function PlaybookTab({ caseId }: Props) {
                 )
               })}
               {stepNodes(activeCp).length === 0 && (
-                <p className="text-accent-muted text-xs text-center py-4">This playbook has no steps defined.</p>
+                <p className="text-fg-secondary text-label text-center py-4">This playbook has no steps defined.</p>
               )}
             </div>
           </div>
@@ -271,22 +270,22 @@ export default function PlaybookTab({ caseId }: Props) {
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Attach a playbook" size="sm">
         <div className="space-y-3">
           {availablePlaybooks.length === 0 ? (
-            <p className="text-accent-muted text-sm py-4 text-center">All playbooks are already attached, or no playbooks exist.</p>
+            <p className="text-fg-secondary text-ui py-4 text-center">All playbooks are already attached, or no playbooks exist.</p>
           ) : (
             availablePlaybooks.map(pb => (
               <button
                 key={pb.id}
                 onClick={() => attach.mutate(pb.id)}
-                className="w-full text-left px-4 py-3 rounded-lg border border-white/10 hover:border-accent-green/40 hover:bg-accent-green/5 transition-colors group"
+                className="w-full text-left px-4 py-3 border border-hairline hover:border-accent/40 hover:bg-accent/5 transition-colors group"
               >
-                <p className="text-sm font-medium text-white group-hover:text-accent-green">{pb.name}</p>
-                {pb.description && <p className="text-xs text-accent-muted mt-0.5">{pb.description}</p>}
-                <p className="text-[10px] text-accent-muted/60 mt-1">{pb.nodes.length} node(s)</p>
+                <p className="text-ui font-medium text-fg group-hover:text-accent">{pb.name}</p>
+                {pb.description && <p className="text-label text-fg-secondary mt-0.5">{pb.description}</p>}
+                <p className="text-label text-fg-secondary/60 mt-1">{pb.nodes.length} node(s)</p>
               </button>
             ))
           )}
           <div className="flex justify-end pt-2">
-            <button className="btn-secondary text-xs" onClick={() => setAddOpen(false)}>Cancel</button>
+            <button className="btn-secondary text-label" onClick={() => setAddOpen(false)}>Cancel</button>
           </div>
         </div>
       </Modal>
@@ -297,9 +296,9 @@ export default function PlaybookTab({ caseId }: Props) {
 function ProgressBar({ value, max }: { value: number; max: number }) {
   const pct = max === 0 ? 0 : Math.round((value / max) * 100)
   return (
-    <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+    <div className="h-1.5 bg-fg/10 rounded-pill overflow-hidden">
       <div
-        className="h-full bg-accent-green rounded-full transition-all duration-500"
+        className="h-full bg-accent rounded-pill transition-all duration-500"
         style={{ width: `${pct}%` }}
       />
     </div>

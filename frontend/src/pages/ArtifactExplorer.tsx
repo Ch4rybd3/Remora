@@ -306,7 +306,7 @@ const MODE_LABEL: Record<FilterMode, string> = { 'contains': '~', '=': '=', '!co
 
 function EZBadge({ label }: { label: string }) {
   return (
-    <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-blue-500/10 text-blue-400 border-blue-500/20 whitespace-nowrap">
+    <span className="text-label font-semibold px-1.5 py-0.5 rounded-control border bg-severity-low/10 text-severity-low border-severity-low/20 whitespace-nowrap">
       {label}
     </span>
   )
@@ -325,20 +325,20 @@ function ColFilterInput({ filter, onChange }: {
   const active = filter.value.trim() !== ''
   return (
     <div
-      className={`flex items-center h-6 rounded border overflow-hidden transition-colors ${active ? 'border-accent-green/50 bg-accent-green/5' : 'border-white/8 bg-white/[0.03]'}`}
+      className={`flex items-center h-6 rounded-control border overflow-hidden transition-colors ${active ? 'border-accent/50 bg-accent/5' : 'border-hairline bg-white/[0.03]'}`}
       onClick={e => e.stopPropagation()}
     >
       <button onClick={cycleMode} title={`Mode: ${filter.mode}`}
-        className={`flex items-center justify-center shrink-0 w-6 h-full border-r text-[9px] font-mono font-bold transition-colors select-none ${active ? 'border-accent-green/30 text-accent-green hover:bg-accent-green/10' : 'border-white/8 text-accent-muted/50 hover:text-white hover:bg-white/5'}`}>
+        className={`flex items-center justify-center shrink-0 w-6 h-full border-r text-label font-mono font-bold transition-colors select-none ${active ? 'border-accent/30 text-accent hover:bg-accent/10' : 'border-hairline text-fg-secondary/50 hover:text-fg hover:bg-fg/5'}`}>
         {MODE_LABEL[filter.mode]}
       </button>
       <input value={filter.value} onChange={e => onChange({ ...filter, value: e.target.value })}
         onClick={e => e.stopPropagation()} placeholder="filter…"
-        className={`flex-1 min-w-0 px-1.5 text-[10px] bg-transparent outline-none placeholder:text-white/15 ${active ? 'text-white/90' : 'text-white/60'}`}
+        className={`flex-1 min-w-0 px-1.5 text-label bg-transparent outline-none placeholder:text-fg/15 ${active ? 'text-fg/90' : 'text-fg/60'}`}
         style={{ height: '100%' }} />
       {active && (
         <button onClick={e => { e.stopPropagation(); onChange({ ...filter, value: '' }) }}
-          className="shrink-0 pr-1 text-accent-muted/40 hover:text-severity-critical transition-colors">
+          className="shrink-0 pr-1 text-fg-secondary/40 hover:text-severity-critical transition-colors">
           <X size={8} />
         </button>
       )}
@@ -358,7 +358,7 @@ function ColumnToggler({ columns, hidden, onChange }: {
   return (
     <div className="relative">
       <button onClick={() => setOpen(o => !o)}
-        className={`flex items-center gap-1.5 px-2 py-1.5 rounded border text-[10px] transition-colors ${hidden.length > 0 ? 'border-accent-green/30 text-accent-green bg-accent-green/5' : 'border-white/8 text-accent-muted hover:text-white hover:border-white/20'}`}>
+        className={`flex items-center gap-1.5 px-2 py-1.5 rounded-control border text-label transition-colors ${hidden.length > 0 ? 'border-accent/30 text-accent bg-accent/5' : 'border-hairline text-fg-secondary hover:text-fg hover:border-strong'}`}>
         <Columns3 size={10} />
         <span>{visibleCount}/{columns.length} cols</span>
         <ChevronDown size={9} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -366,12 +366,12 @@ function ColumnToggler({ columns, hidden, onChange }: {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-1 z-50 bg-bg-card border border-white/10 rounded-lg shadow-xl w-64 max-h-72 overflow-y-auto py-1">
-            <div className="flex items-center justify-between px-3 py-1.5 border-b border-white/5">
-              <span className="text-[9px] uppercase tracking-widest text-accent-muted/40">Columns</span>
+          <div className="absolute right-0 top-full mt-1 z-50 bg-panel border border-hairline shadow-xl w-64 max-h-72 overflow-y-auto py-1">
+            <div className="flex items-center justify-between px-3 py-1.5 border-b border-hairline">
+              <span className="text-label uppercase tracking-widest text-fg-secondary/40">Columns</span>
               <div className="flex gap-2">
-                <button onClick={() => onChange([])} className="text-[9px] text-accent-green/60 hover:text-accent-green">All</button>
-                <button onClick={() => onChange([...columns])} className="text-[9px] text-accent-muted/40 hover:text-white">None</button>
+                <button onClick={() => onChange([])} className="text-label text-accent/60 hover:text-accent">All</button>
+                <button onClick={() => onChange([...columns])} className="text-label text-fg-secondary/40 hover:text-fg">None</button>
               </div>
             </div>
             {columns.map(col => (
@@ -383,8 +383,8 @@ function ColumnToggler({ columns, hidden, onChange }: {
                       : [...hidden, col]
                     onChange(next)
                   }}
-                  className="accent-accent-green w-3 h-3" />
-                <span className="text-[11px] text-white/70 font-mono truncate">{col}</span>
+                  className="accent-accent w-3 h-3" />
+                <span className="text-label text-fg/70 font-mono truncate">{col}</span>
               </label>
             ))}
           </div>
@@ -403,15 +403,15 @@ function PaginationBar({ page, pages, total, pageSize, onPage, onPageSize }: {
   const from = (page - 1) * pageSize + 1
   const to   = Math.min(page * pageSize, total)
   return (
-    <div className="flex items-center gap-3 px-3 py-2 border-t border-white/5 bg-bg-secondary/30 shrink-0">
+    <div className="flex items-center gap-3 px-3 py-2 border-t border-hairline bg-panel/30 shrink-0">
       <select value={pageSize} onChange={e => onPageSize(Number(e.target.value))}
-        className="bg-white/5 border border-white/8 rounded px-2 py-1 text-[10px] text-accent-muted outline-none">
+        className="bg-fg/5 border border-hairline rounded-control px-2 py-1 text-label text-fg-secondary outline-none">
         {[50, 100, 200, 500].map(s => <option key={s} value={s}>{s} / page</option>)}
       </select>
-      <span className="text-[10px] text-accent-muted/40">{from.toLocaleString()}–{to.toLocaleString()} of {total.toLocaleString()}</span>
+      <span className="text-label text-fg-secondary/40">{from.toLocaleString()}–{to.toLocaleString()} of {total.toLocaleString()}</span>
       <div className="flex items-center gap-0.5 ml-auto">
-        <button onClick={() => onPage(1)}        disabled={page === 1}     className="p-1 rounded text-accent-muted/40 hover:text-white disabled:opacity-20"><ChevronsLeft  size={13} /></button>
-        <button onClick={() => onPage(page - 1)} disabled={page === 1}     className="p-1 rounded text-accent-muted/40 hover:text-white disabled:opacity-20"><ChevronLeft   size={13} /></button>
+        <button onClick={() => onPage(1)}        disabled={page === 1}     className="p-1 rounded-control text-fg-secondary/40 hover:text-fg disabled:opacity-20"><ChevronsLeft  size={13} /></button>
+        <button onClick={() => onPage(page - 1)} disabled={page === 1}     className="p-1 rounded-control text-fg-secondary/40 hover:text-fg disabled:opacity-20"><ChevronLeft   size={13} /></button>
         {Array.from({ length: Math.min(7, pages) }, (_, i) => {
           let p: number
           if (pages <= 7)             p = i + 1
@@ -420,11 +420,11 @@ function PaginationBar({ page, pages, total, pageSize, onPage, onPageSize }: {
           else                        p = page - 3 + i
           return (
             <button key={p} onClick={() => onPage(p)}
-              className={`w-6 h-6 rounded text-[10px] transition-colors ${p === page ? 'bg-accent-green/15 text-accent-green' : 'text-accent-muted/50 hover:text-white'}`}>{p}</button>
+              className={`w-6 h-6 rounded-control text-label transition-colors ${p === page ? 'bg-accent/15 text-accent' : 'text-fg-secondary/50 hover:text-fg'}`}>{p}</button>
           )
         })}
-        <button onClick={() => onPage(page + 1)} disabled={page === pages} className="p-1 rounded text-accent-muted/40 hover:text-white disabled:opacity-20"><ChevronRight  size={13} /></button>
-        <button onClick={() => onPage(pages)}    disabled={page === pages} className="p-1 rounded text-accent-muted/40 hover:text-white disabled:opacity-20"><ChevronsRight size={13} /></button>
+        <button onClick={() => onPage(page + 1)} disabled={page === pages} className="p-1 rounded-control text-fg-secondary/40 hover:text-fg disabled:opacity-20"><ChevronRight  size={13} /></button>
+        <button onClick={() => onPage(pages)}    disabled={page === pages} className="p-1 rounded-control text-fg-secondary/40 hover:text-fg disabled:opacity-20"><ChevronsRight size={13} /></button>
       </div>
     </div>
   )
@@ -439,7 +439,7 @@ function renderDetailValue(val: string): React.ReactNode {
     try {
       const parsed = JSON.parse(val)
       return (
-        <pre className="text-[10px] font-mono text-white/70 whitespace-pre-wrap break-all leading-relaxed">
+        <pre className="text-label font-mono text-fg/70 whitespace-pre-wrap break-all leading-relaxed">
           {JSON.stringify(parsed, null, 2)}
         </pre>
       )
@@ -458,35 +458,35 @@ function RowDetail({ row, columns, onClose }: {
     : columns
 
   return (
-    <div className="border-t border-white/8 bg-bg-secondary/60 px-4 py-3">
+    <div className="border-t border-hairline bg-panel/60 px-4 py-3">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] font-semibold text-accent-muted/60 uppercase tracking-widest">Row Detail</span>
+        <span className="text-label font-semibold text-fg-secondary/60 uppercase tracking-widest">Row Detail</span>
         <div className="flex items-center gap-2">
           <div className="relative">
-            <Search size={9} className="absolute left-2 top-1/2 -translate-y-1/2 text-accent-muted/30" />
+            <Search size={9} className="absolute left-2 top-1/2 -translate-y-1/2 text-fg-secondary/30" />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="filter fields…"
-              className="bg-white/5 border border-white/8 rounded pl-5 pr-3 py-0.5 text-[10px] text-white placeholder:text-accent-muted/30 outline-none focus:border-white/20 w-36 transition-colors"
+              className="bg-fg/5 border border-hairline rounded-control pl-5 pr-3 py-0.5 text-label text-fg placeholder:text-fg-secondary/30 outline-none focus:border-strong w-36 transition-colors"
             />
             {search && (
-              <button onClick={() => setSearch('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-accent-muted/40 hover:text-white">
+              <button onClick={() => setSearch('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-fg-secondary/40 hover:text-fg">
                 <X size={8} />
               </button>
             )}
           </div>
-          <button onClick={onClose} className="text-accent-muted/40 hover:text-white transition-colors"><X size={13} /></button>
+          <button onClick={onClose} className="text-fg-secondary/40 hover:text-fg transition-colors"><X size={13} /></button>
         </div>
       </div>
       {sq && filteredCols.length === 0 && (
-        <p className="text-[10px] text-accent-muted/30 italic py-1">No fields match "{search}"</p>
+        <p className="text-label text-fg-secondary/30 italic py-1">No fields match "{search}"</p>
       )}
-      <div className="rounded border border-white/8 overflow-hidden">
+      <div className="rounded-control border border-hairline overflow-hidden">
         {filteredCols.map((col, i) => (
-          <div key={col} className={`flex text-[11px] ${i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-            <span className="w-52 shrink-0 px-3 py-1 text-accent-muted/50 border-r border-white/5 font-mono truncate" title={col}>{col}</span>
-            <span className="flex-1 px-3 py-1 text-white/70">
+          <div key={col} className={`flex text-label ${i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
+            <span className="w-52 shrink-0 px-3 py-1 text-fg-secondary/50 border-r border-hairline font-mono truncate" title={col}>{col}</span>
+            <span className="flex-1 px-3 py-1 text-fg/70">
               {renderDetailValue(row[col] ?? '')}
             </span>
           </div>
@@ -512,7 +512,7 @@ function ColResizeHandle({ col, onStart, onReset }: {
       onDoubleClick={e => { e.stopPropagation(); e.preventDefault(); onReset?.(col) }}
       title="Drag to resize · Double-click to auto-fit"
     >
-      <div className="w-px h-4 bg-white/10 group-hover/rh:bg-accent-green/50 transition-colors" />
+      <div className="w-px h-4 bg-fg/10 group-hover/rh:bg-accent/50 transition-colors" />
     </div>
   )
 }
@@ -531,12 +531,11 @@ function GroupByBar({ groupByCols, onRemove, onAdd, onClear, isDragging }: {
 
   return (
     <div
-      className={`flex items-center gap-1.5 px-3 py-1.5 border-b shrink-0 min-h-[34px] transition-all duration-150 ${
-        isOver
-          ? 'border-accent-green/40 bg-accent-green/[0.06]'
+      className={`flex items-center gap-1.5 px-3 py-1.5 border-b shrink-0 min-h-[34px] transition-all duration-150 ${ isOver
+          ? 'border-accent/40 bg-accent/[0.06]'
           : isDragging
-          ? 'border-accent-green/20 bg-accent-green/[0.02]'
-          : 'border-white/5'
+          ? 'border-accent/20 bg-accent/[0.02]'
+          : 'border-hairline'
       }`}
       onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setIsOver(true) }}
       onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsOver(false) }}
@@ -547,26 +546,25 @@ function GroupByBar({ groupByCols, onRemove, onAdd, onClear, isDragging }: {
         if (col) onAdd(col)
       }}
     >
-      <span className="text-[9px] text-accent-muted/30 uppercase tracking-widest shrink-0 select-none flex items-center gap-1">
+      <span className="text-label text-fg-secondary/30 uppercase tracking-widest shrink-0 select-none flex items-center gap-1">
         <Layers size={9} />
         Group by
       </span>
 
       {hasGroups && groupByCols.map((col, i) => (
         <span key={col}
-          className="flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-accent-green/30 bg-accent-green/[0.08] text-[10px] text-accent-green shrink-0 select-none">
-          {i > 0 && <ChevronRightIcon size={8} className="text-accent-green/30 mx-0.5" />}
+          className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-control border border-accent/30 bg-accent/[0.08] text-label text-accent shrink-0 select-none">
+          {i > 0 && <ChevronRightIcon size={8} className="text-accent/30 mx-0.5" />}
           <span>{col}</span>
           <button
             onClick={() => onRemove(col)}
-            className="text-accent-green/40 hover:text-red-400 transition-colors ml-1">
+            className="text-accent/40 hover:text-severity-critical transition-colors ml-1">
             <X size={7} />
           </button>
         </span>
       ))}
 
-      <span className={`text-[9px] italic select-none pointer-events-none ${
-        isOver ? 'text-accent-green/60' : isDragging ? 'text-accent-green/40' : 'text-accent-muted/20'
+      <span className={`text-label italic select-none pointer-events-none ${ isOver ? 'text-accent/60' : isDragging ? 'text-accent/40' : 'text-fg-secondary/20'
       }`}>
         {isOver
           ? 'Release to group'
@@ -578,7 +576,7 @@ function GroupByBar({ groupByCols, onRemove, onAdd, onClear, isDragging }: {
       {hasGroups && (
         <button
           onClick={onClear}
-          className="ml-auto text-[9px] text-accent-muted/30 hover:text-red-400 transition-colors shrink-0 flex items-center gap-0.5">
+          className="ml-auto text-label text-fg-secondary/30 hover:text-severity-critical transition-colors shrink-0 flex items-center gap-0.5">
           <X size={8} /> Effacer
         </button>
       )}
@@ -636,8 +634,8 @@ function GroupRowsFetcher({ caseId, meta, baseFilters, groupFilters, orderedCols
     <tr>
       <td colSpan={colSpanAll} className="px-3 py-2">
         <div className="flex items-center gap-1.5" style={{ paddingLeft: indent }}>
-          <Loader2 size={10} className="animate-spin text-accent-muted/30" />
-          <span className="text-[10px] text-accent-muted/30">Loading...</span>
+          <Loader2 size={10} className="animate-spin text-fg-secondary/30" />
+          <span className="text-label text-fg-secondary/30">Loading...</span>
         </div>
       </td>
     </tr>
@@ -655,22 +653,21 @@ function GroupRowsFetcher({ caseId, meta, baseFilters, groupFilters, orderedCols
         const isExported = exportedKeys.has(key)
         return (
           <tr key={`${key}-${idx}`}
-            className={`border-b border-white/[0.03] transition-colors group ${
-              isPinned ? 'bg-accent-green/[0.04]' : isExported ? 'bg-blue-500/[0.02]' : 'hover:bg-white/[0.02]'
+            className={`border-b border-strong/[0.03] transition-colors group ${ isPinned ? 'bg-accent/[0.04]' : isExported ? 'bg-severity-low/[0.02]' : 'hover:bg-white/[0.02]'
             }`}>
-            <td className={`w-8 shrink-0 px-1 py-1 text-center sticky left-0 z-[4] shadow-[1px_0_0_rgba(255,255,255,0.04)] ${isPinned ? 'bg-accent-green/[0.04]' : isExported ? 'bg-blue-500/[0.02]' : 'bg-bg-primary'}`}
+            <td className={`w-8 shrink-0 px-1 py-1 text-center sticky left-0 z-[4] shadow-[1px_0_0_rgba(255,255,255,0.04)] ${isPinned ? 'bg-accent/[0.04]' : isExported ? 'bg-severity-low/[0.02]' : 'bg-canvas'}`}
               onClick={e => { e.stopPropagation(); onPinToggle(key, row) }}
               title={isExported && !isPinned ? 'Exported to the Timeline' : undefined}>
               {isPinned
-                ? <BookmarkCheck size={12} className="mx-auto text-accent-green/60" />
+                ? <BookmarkCheck size={12} className="mx-auto text-accent/60" />
                 : isExported
-                  ? <BookmarkCheck size={12} className="mx-auto text-blue-400/50" />
-                  : <BookmarkPlus size={12} className="mx-auto text-accent-muted/15 group-hover:text-accent-muted/40 hover:!text-accent-green transition-colors cursor-pointer" />
+                  ? <BookmarkCheck size={12} className="mx-auto text-severity-low/50" />
+                  : <BookmarkPlus size={12} className="mx-auto text-fg-secondary/15 group-hover:text-fg-secondary/40 hover:!text-accent transition-colors cursor-pointer" />
               }
             </td>
             {orderedCols.map((col, ci) => (
               <td key={col}
-                className={`py-1 truncate text-[10px] ${col === meta.date_column ? 'font-mono text-white/40 whitespace-nowrap' : Object.keys(groupFilters).includes(col) ? 'text-white/30' : 'text-white/60'}`}
+                className={`py-1 truncate text-label ${col === meta.date_column ? 'font-mono text-fg/40 whitespace-nowrap' : Object.keys(groupFilters).includes(col) ? 'text-fg/30' : 'text-fg/60'}`}
                 style={{ paddingLeft: ci === 0 ? indent + 12 : 12, paddingRight: 12, width: colW(col), minWidth: 60, maxWidth: colW(col) }}
                 title={row[col] ?? ''}>
                 {row[col] ?? ''}
@@ -683,15 +680,15 @@ function GroupRowsFetcher({ caseId, meta, baseFilters, groupFilters, orderedCols
       {/* Mini-pagination for this group */}
       {pages > 1 && (
         <tr>
-          <td colSpan={colSpanAll} className="py-1 border-b border-white/[0.03]">
-            <div className="flex items-center gap-1.5 text-[9px] text-accent-muted/40" style={{ paddingLeft: indent + 12 }}>
+          <td colSpan={colSpanAll} className="py-1 border-b border-strong/[0.03]">
+            <div className="flex items-center gap-1.5 text-label text-fg-secondary/40" style={{ paddingLeft: indent + 12 }}>
               <span>{total.toLocaleString()} lignes</span>
               <div className="flex items-center gap-0.5 ml-2">
                 <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                  className="p-0.5 rounded hover:text-white disabled:opacity-20"><ChevronLeft size={10} /></button>
-                <span className="text-accent-green/60">{page}/{pages}</span>
+                  className="p-0.5 rounded-control hover:text-fg disabled:opacity-20"><ChevronLeft size={10} /></button>
+                <span className="text-accent/60">{page}/{pages}</span>
                 <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page === pages}
-                  className="p-0.5 rounded hover:text-white disabled:opacity-20"><ChevronRight size={10} /></button>
+                  className="p-0.5 rounded-control hover:text-fg disabled:opacity-20"><ChevronRight size={10} /></button>
               </div>
             </div>
           </td>
@@ -711,21 +708,21 @@ function highlightRQL(q: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = []
   let last = 0
   for (const m of q.matchAll(RQL_TOK_RE)) {
-    if (m.index! > last) nodes.push(<span key={last} className="text-red-400">{q.slice(last, m.index)}</span>)
+    if (m.index! > last) nodes.push(<span key={last} className="text-severity-critical">{q.slice(last, m.index)}</span>)
     const tok = m[0]; const up = tok.trim().toUpperCase()
-    let cls = 'text-white/80'
-    if (/^["']/.test(tok))           cls = 'text-yellow-300'
-    else if (/^\d/.test(tok))        cls = 'text-green-400'
-    else if (RQL_KW_BOOL.has(up))    cls = 'text-purple-400 font-semibold'
-    else if (RQL_KW_OP.has(up))      cls = 'text-orange-400'
-    else if (up === '~')             cls = 'text-accent-green'
-    else if (/^[><=!]+$/.test(tok))  cls = 'text-blue-400'
-    else if (/^[(),.]+$/.test(tok))  cls = 'text-white/40'
-    else if (/^[\w@]/.test(tok) && tok.trim()) cls = 'text-cyan-300'
+    let cls = 'text-fg/80'
+    if (/^["']/.test(tok))           cls = 'text-severity-medium'
+    else if (/^\d/.test(tok))        cls = 'text-accent'
+    else if (RQL_KW_BOOL.has(up))    cls = 'text-data-2 font-semibold'
+    else if (RQL_KW_OP.has(up))      cls = 'text-severity-high'
+    else if (up === '~')             cls = 'text-accent'
+    else if (/^[><=!]+$/.test(tok))  cls = 'text-severity-low'
+    else if (/^[(),.]+$/.test(tok))  cls = 'text-fg/40'
+    else if (/^[\w@]/.test(tok) && tok.trim()) cls = 'text-data-5'
     nodes.push(<span key={m.index} className={cls}>{tok}</span>)
     last = m.index! + tok.length
   }
-  if (last < q.length) nodes.push(<span key={last} className="text-red-400">{q.slice(last)}</span>)
+  if (last < q.length) nodes.push(<span key={last} className="text-severity-critical">{q.slice(last)}</span>)
   return nodes
 }
 
@@ -824,21 +821,21 @@ function RQLBar({ value, onChange, onRun, error, columns, hasActiveFilters }: {
   const highlighted = useMemo(() => highlightRQL(value), [value])
 
   return (
-    <div className="border-b border-white/5 bg-bg-secondary/20 shrink-0">
+    <div className="border-b border-hairline bg-panel/20 shrink-0">
       {/* Bar header */}
       <div className="flex items-center gap-2 px-3 pt-2 pb-1">
-        <Terminal size={10} className="text-accent-green/60 shrink-0" />
-        <span className="text-[9px] font-semibold uppercase tracking-widest text-accent-green/60">RQL Query</span>
-        <span className="text-[8px] text-accent-muted/25 ml-1">Enter to run - Tab to complete</span>
+        <Terminal size={10} className="text-accent/60 shrink-0" />
+        <span className="text-label font-semibold uppercase tracking-widest text-accent/60">RQL Query</span>
+        <span className="text-label text-fg-secondary/25 ml-1">Enter to run - Tab to complete</span>
         <div className="ml-auto flex items-center gap-1">
           {value && (
             <button onClick={() => { onChange(''); onRun('') }}
-              className="p-1 text-accent-muted/30 hover:text-white transition-colors" title="Effacer">
+              className="p-1 text-fg-secondary/30 hover:text-fg transition-colors" title="Effacer">
               <X size={10} />
             </button>
           )}
           <button onClick={() => setShowHelp(h => !h)}
-            className={`p-1 transition-colors ${showHelp ? 'text-accent-green' : 'text-accent-muted/40 hover:text-white'}`}
+            className={`p-1 transition-colors ${showHelp ? 'text-accent' : 'text-fg-secondary/40 hover:text-fg'}`}
             title="Exemples">
             <HelpCircle size={12} />
           </button>
@@ -850,10 +847,10 @@ function RQLBar({ value, onChange, onRun, error, columns, hasActiveFilters }: {
           transparent, so both boxes must wrap identically — same padding, same
           1 px border, same `pre-wrap`. A `whitespace-pre` mirror is exactly why
           a query wrapping onto a second line used to render invisible. */}
-      <div className="relative mx-3 mb-2 rounded bg-white/[0.04]">
+      <div className="relative mx-3 mb-2 rounded-control bg-white/[0.04]">
         {/* Mirror div for syntax highlighting */}
         <div ref={mirrorRef} aria-hidden
-          className="absolute inset-0 px-2.5 py-1.5 font-mono text-[11px] leading-relaxed overflow-hidden pointer-events-none select-none border border-transparent rounded"
+          className="absolute inset-0 px-2.5 py-1.5 font-mono text-label leading-relaxed overflow-hidden pointer-events-none select-none border border-transparent rounded-control"
           style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
           {value ? highlighted : null}
         </div>
@@ -866,8 +863,7 @@ function RQLBar({ value, onChange, onRun, error, columns, hasActiveFilters }: {
           onScroll={syncScroll}
           placeholder='EventID = "4624" AND Computer contains "DC" ...'
           rows={1}
-          className={`rql-input relative w-full resize-none font-mono text-[11px] leading-relaxed bg-transparent border rounded px-2.5 py-1.5 outline-none transition-colors placeholder:text-accent-muted/20 overflow-y-auto overflow-x-hidden
-            ${error ? 'border-red-500/40 text-transparent caret-red-400' : value ? 'border-accent-green/25 text-transparent caret-white' : 'border-white/8 text-white/80'}`}
+          className={`rql-input relative w-full resize-none font-mono text-label leading-relaxed bg-transparent border rounded-control px-2.5 py-1.5 outline-none transition-colors placeholder:text-fg-secondary/20 overflow-y-auto overflow-x-hidden ${error ? 'border-severity-critical/40 text-transparent caret-severity-critical' : value ? 'border-accent/25 text-transparent caret-white' : 'border-hairline text-fg/80'}`}
           style={{
             minHeight:    32,
             maxHeight:    RQL_MAX_HEIGHT,
@@ -880,11 +876,11 @@ function RQLBar({ value, onChange, onRun, error, columns, hasActiveFilters }: {
 
         {/* Autocomplete dropdown */}
         {autocomplete.length > 0 && (
-          <div className="absolute left-0 top-full mt-0.5 z-50 bg-bg-card border border-white/12 rounded-lg shadow-xl overflow-hidden min-w-[160px]">
+          <div className="absolute left-0 top-full mt-0.5 z-50 bg-panel border border-hairline shadow-xl overflow-hidden min-w-[160px]">
             {autocomplete.map((col, i) => (
               <button key={col} onClick={() => applyAutocomplete(col)}
-                className={`flex items-center gap-2 w-full px-3 py-1.5 text-left text-[11px] font-mono transition-colors ${i === acIndex ? 'bg-accent-green/10 text-accent-green' : 'text-white/70 hover:bg-white/5'}`}>
-                <span className="text-[8px] text-accent-muted/30 font-sans">col</span>
+                className={`flex items-center gap-2 w-full px-3 py-1.5 text-left text-label font-mono transition-colors ${i === acIndex ? 'bg-accent/10 text-accent' : 'text-fg/70 hover:bg-fg/5'}`}>
+                <span className="text-label text-fg-secondary/30 font-sans">col</span>
                 {col}
               </button>
             ))}
@@ -894,7 +890,7 @@ function RQLBar({ value, onChange, onRun, error, columns, hasActiveFilters }: {
 
       {/* Error */}
       {error && (
-        <div className="flex items-center gap-1.5 mx-3 mb-2 px-2 py-1 rounded bg-red-500/10 border border-red-500/20 text-[10px] text-red-400">
+        <div className="flex items-center gap-1.5 mx-3 mb-2 px-2 py-1 rounded-control bg-severity-critical/10 border border-severity-critical/20 text-label text-severity-critical">
           <AlertCircle size={10} className="shrink-0" />
           {error}
         </div>
@@ -902,7 +898,7 @@ function RQLBar({ value, onChange, onRun, error, columns, hasActiveFilters }: {
 
       {/* Warning: column filters + RQL are ANDed — can narrow OR results unexpectedly */}
       {value && hasActiveFilters && !error && (
-        <div className="flex items-center gap-1.5 mx-3 mb-2 px-2 py-1 rounded bg-yellow-500/8 border border-yellow-500/20 text-[10px] text-yellow-400/80">
+        <div className="flex items-center gap-1.5 mx-3 mb-2 px-2 py-1 rounded-control bg-severity-medium/8 border border-severity-medium/20 text-label text-severity-medium/80">
           <AlertCircle size={10} className="shrink-0" />
           Column filters are active and apply as AND alongside the RQL query - OR results may be narrowed.
         </div>
@@ -910,16 +906,16 @@ function RQLBar({ value, onChange, onRun, error, columns, hasActiveFilters }: {
 
       {/* Help / examples panel */}
       {showHelp && (
-        <div className="mx-3 mb-2 border border-white/8 rounded-lg overflow-hidden">
-          <div className="px-3 py-1.5 bg-white/[0.02] border-b border-white/5">
-            <p className="text-[9px] uppercase tracking-widest text-accent-muted/40">Query examples - click to insert</p>
+        <div className="mx-3 mb-2 border border-hairline overflow-hidden">
+          <div className="px-3 py-1.5 bg-white/[0.02] border-b border-hairline">
+            <p className="text-label uppercase tracking-widest text-fg-secondary/40">Query examples - click to insert</p>
           </div>
           <div className="grid grid-cols-2 gap-0 max-h-52 overflow-y-auto">
             {RQL_EXAMPLES.map(ex => (
               <button key={ex.q} onClick={() => { onChange(ex.q); onRun(ex.q); setShowHelp(false) }}
-                className="flex flex-col items-start px-3 py-2 hover:bg-white/[0.04] transition-colors border-b border-r border-white/[0.04] text-left">
-                <span className="text-[8px] text-accent-muted/40 uppercase tracking-wider">{ex.label}</span>
-                <span className="text-[9px] font-mono text-accent-green/70 mt-0.5 truncate w-full">{ex.q}</span>
+                className="flex flex-col items-start px-3 py-2 hover:bg-white/[0.04] transition-colors border-b border-r border-strong/[0.04] text-left">
+                <span className="text-label text-fg-secondary/40 uppercase tracking-wider">{ex.label}</span>
+                <span className="text-label font-mono text-accent/70 mt-0.5 truncate w-full">{ex.q}</span>
               </button>
             ))}
           </div>
@@ -951,19 +947,19 @@ function ArtifactRedirectView({ meta, caseId, type }: { meta: CsvArtifactMeta; c
   const dest   = isEvtx ? '/artifacts/filesystem' : '/artifacts/email'
   const label  = isEvtx ? 'Module Logs / EVTX' : 'Email Analysis'
   const icon   = isEvtx ? '🗂️' : '📧'
-  const color  = isEvtx ? 'text-orange-400 bg-orange-500/8 border-orange-500/20' : 'text-blue-400 bg-blue-500/8 border-blue-500/20'
+  const color  = isEvtx ? 'text-severity-high bg-severity-high/8 border-severity-high/20' : 'text-severity-low bg-severity-low/8 border-severity-low/20'
   const hint   = isEvtx
     ? 'This EVTX file was registered in the Logs module. Open the Logs page to review it and run Chainsaw.'
     : 'This EML file was registered in the Email Analysis module. Open the Email Analysis page to analyse it.'
   return (
     <div className="flex flex-col items-center justify-center h-full gap-6 px-8">
-      <div className="text-5xl opacity-60">{icon}</div>
-      <div className={`flex flex-col items-center gap-3 text-center max-w-md p-6 rounded-xl border ${color}`}>
-        <p className="text-sm font-medium">{meta.original_name}</p>
-        <p className="text-xs text-accent-muted/60 leading-relaxed">{hint}</p>
+      <div className="text-title opacity-60">{icon}</div>
+      <div className={`flex flex-col items-center gap-3 text-center max-w-md p-6 border ${color}`}>
+        <p className="text-ui font-medium">{meta.original_name}</p>
+        <p className="text-label text-fg-secondary/60 leading-relaxed">{hint}</p>
         <button
           onClick={() => { setCurrentCase({ id: caseId, title: '' }); navigate(dest) }}
-          className="mt-2 px-4 py-2 rounded-lg text-xs font-medium bg-white/[0.05] border border-white/15 hover:bg-white/[0.08] transition-colors"
+          className="mt-2 px-4 py-2 text-label font-medium bg-white/[0.05] border border-hairline hover:bg-white/[0.08] transition-colors"
         >
           Ouvrir {label} →
         </button>
@@ -991,29 +987,29 @@ function TextArtifactView({ meta, caseId }: { meta: CsvArtifactMeta; caseId: str
   }, [data?.content, search])
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-full text-accent-muted/30 text-sm animate-pulse">Loading...</div>
+    return <div className="flex items-center justify-center h-full text-fg-secondary/30 text-ui animate-pulse">Loading...</div>
   }
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex items-center gap-3 px-4 py-2.5 border-b border-white/5 shrink-0 bg-bg-secondary/30">
-        <FileText size={13} className="text-accent-muted/40" />
-        <span className="text-xs font-medium text-white/70 flex-1 truncate font-mono">{meta.original_name}</span>
+      <div className="flex items-center gap-3 px-4 py-2.5 border-b border-hairline shrink-0 bg-panel/30">
+        <FileText size={13} className="text-fg-secondary/40" />
+        <span className="text-label font-medium text-fg/70 flex-1 truncate font-mono">{meta.original_name}</span>
         <div className="relative">
-          <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-accent-muted/30" />
+          <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-fg-secondary/30" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Filter rows..."
-            className="bg-white/5 border border-white/10 rounded pl-6 pr-3 py-1 text-[11px] text-white placeholder:text-accent-muted/30 outline-none focus:border-white/20 w-52"
+            className="bg-fg/5 border border-hairline rounded-control pl-6 pr-3 py-1 text-label text-fg placeholder:text-fg-secondary/30 outline-none focus:border-strong w-52"
           />
         </div>
-        <span className="text-[10px] text-accent-muted/30 shrink-0">{lines.length.toLocaleString()} lignes</span>
+        <span className="text-label text-fg-secondary/30 shrink-0">{lines.length.toLocaleString()} lignes</span>
       </div>
-      <div className="flex-1 overflow-y-auto overflow-x-auto font-mono text-[11px] text-white/65 leading-5 px-4 py-3 bg-bg-primary">
+      <div className="flex-1 overflow-y-auto overflow-x-auto font-mono text-label text-fg/65 leading-5 px-4 py-3 bg-canvas">
         {lines.map((line, i) => (
-          <div key={i} className="flex gap-3 hover:bg-white/[0.02] rounded px-1 group">
-            <span className="text-accent-muted/20 select-none w-10 text-right shrink-0">{i + 1}</span>
+          <div key={i} className="flex gap-3 hover:bg-white/[0.02] rounded-control px-1 group">
+            <span className="text-fg-secondary/20 select-none w-10 text-right shrink-0">{i + 1}</span>
             <span className="break-all">{line || ' '}</span>
           </div>
         ))}
@@ -1026,29 +1022,29 @@ function TextArtifactView({ meta, caseId }: { meta: CsvArtifactMeta; caseId: str
 
 function JsonNode({ data, depth = 0 }: { data: unknown; depth?: number }) {
   const [open, setOpen] = useState(depth < 2)
-  if (data === null) return <span className="text-accent-muted/40">null</span>
-  if (typeof data === 'boolean') return <span className="text-purple-300">{String(data)}</span>
-  if (typeof data === 'number')  return <span className="text-blue-300">{String(data)}</span>
-  if (typeof data === 'string')  return <span className="text-accent-green/80">"{data}"</span>
+  if (data === null) return <span className="text-fg-secondary/40">null</span>
+  if (typeof data === 'boolean') return <span className="text-data-2">{String(data)}</span>
+  if (typeof data === 'number')  return <span className="text-severity-low">{String(data)}</span>
+  if (typeof data === 'string')  return <span className="text-accent/80">"{data}"</span>
 
   const isArr = Array.isArray(data)
   const entries = isArr
     ? (data as unknown[]).map((v, i) => [String(i), v] as [string, unknown])
     : Object.entries(data as Record<string, unknown>)
 
-  if (entries.length === 0) return <span className="text-accent-muted/30">{isArr ? '[]' : '{}'}</span>
+  if (entries.length === 0) return <span className="text-fg-secondary/30">{isArr ? '[]' : '{}'}</span>
 
   const bracket = isArr ? ['[', ']'] : ['{', '}']
   const indent  = depth * 16
 
   return (
     <span>
-      <button onClick={() => setOpen(o => !o)} className="text-accent-muted/40 hover:text-white transition-colors font-mono">
+      <button onClick={() => setOpen(o => !o)} className="text-fg-secondary/40 hover:text-fg transition-colors font-mono">
         {open ? '▾' : '▸'}
       </button>
-      <span className="text-accent-muted/30 ml-0.5">{bracket[0]}</span>
+      <span className="text-fg-secondary/30 ml-0.5">{bracket[0]}</span>
       {!open && (
-        <span className="text-accent-muted/30 cursor-pointer hover:text-white" onClick={() => setOpen(true)}>
+        <span className="text-fg-secondary/30 cursor-pointer hover:text-fg" onClick={() => setOpen(true)}>
           {' '}…{entries.length}{' '}
         </span>
       )}
@@ -1056,16 +1052,16 @@ function JsonNode({ data, depth = 0 }: { data: unknown; depth?: number }) {
         <span>
           {entries.map(([k, v]) => (
             <div key={k} style={{ paddingLeft: indent + 16 }}>
-              {!isArr && <span className="text-cyan-300/70">"{k}"</span>}
-              {!isArr && <span className="text-accent-muted/30">: </span>}
+              {!isArr && <span className="text-data-5/70">"{k}"</span>}
+              {!isArr && <span className="text-fg-secondary/30">: </span>}
               <JsonNode data={v} depth={depth + 1} />
-              <span className="text-accent-muted/20">,</span>
+              <span className="text-fg-secondary/20">,</span>
             </div>
           ))}
-          <div style={{ paddingLeft: indent }}><span className="text-accent-muted/30">{bracket[1]}</span></div>
+          <div style={{ paddingLeft: indent }}><span className="text-fg-secondary/30">{bracket[1]}</span></div>
         </span>
       )}
-      {!open && <span className="text-accent-muted/30">{bracket[1]}</span>}
+      {!open && <span className="text-fg-secondary/30">{bracket[1]}</span>}
     </span>
   )
 }
@@ -1094,40 +1090,40 @@ function JsonArtifactView({ meta, caseId }: { meta: CsvArtifactMeta; caseId: str
   }, [data?.content, search])
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-full text-accent-muted/30 text-sm animate-pulse">Loading...</div>
+    return <div className="flex items-center justify-center h-full text-fg-secondary/30 text-ui animate-pulse">Loading...</div>
   }
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex items-center gap-3 px-4 py-2.5 border-b border-white/5 shrink-0 bg-bg-secondary/30">
-        <FileText size={13} className="text-accent-muted/40" />
-        <span className="text-xs font-medium text-white/70 flex-1 truncate font-mono">{meta.original_name}</span>
+      <div className="flex items-center gap-3 px-4 py-2.5 border-b border-hairline shrink-0 bg-panel/30">
+        <FileText size={13} className="text-fg-secondary/40" />
+        <span className="text-label font-medium text-fg/70 flex-1 truncate font-mono">{meta.original_name}</span>
         {mode === 'raw' && (
           <div className="relative">
-            <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-accent-muted/30" />
+            <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-fg-secondary/30" />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Filter rows..."
-              className="bg-white/5 border border-white/10 rounded pl-6 pr-3 py-1 text-[11px] text-white placeholder:text-accent-muted/30 outline-none focus:border-white/20 w-52"
+              className="bg-fg/5 border border-hairline rounded-control pl-6 pr-3 py-1 text-label text-fg placeholder:text-fg-secondary/30 outline-none focus:border-strong w-52"
             />
           </div>
         )}
-        <div className="flex rounded border border-white/10 overflow-hidden">
-          <button onClick={() => setMode('tree')} className={`text-[10px] px-2 py-1 transition-colors ${mode === 'tree' ? 'bg-accent-green/10 text-accent-green' : 'text-accent-muted hover:text-white'}`}>Tree</button>
-          <button onClick={() => setMode('raw')}  className={`text-[10px] px-2 py-1 transition-colors ${mode === 'raw'  ? 'bg-accent-green/10 text-accent-green' : 'text-accent-muted hover:text-white'}`}>Raw</button>
+        <div className="flex rounded-control border border-hairline overflow-hidden">
+          <button onClick={() => setMode('tree')} className={`text-label px-2 py-1 transition-colors ${mode === 'tree' ? 'bg-accent/10 text-accent' : 'text-fg-secondary hover:text-fg'}`}>Tree</button>
+          <button onClick={() => setMode('raw')}  className={`text-label px-2 py-1 transition-colors ${mode === 'raw'  ? 'bg-accent/10 text-accent' : 'text-fg-secondary hover:text-fg'}`}>Raw</button>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto overflow-x-auto font-mono text-[11px] px-4 py-3 bg-bg-primary">
+      <div className="flex-1 overflow-y-auto overflow-x-auto font-mono text-label px-4 py-3 bg-canvas">
         {mode === 'tree' ? (
           parsed !== null
             ? <JsonNode data={parsed} depth={0} />
-            : <p className="text-red-400/60 text-xs">Invalid JSON - cannot parse the file.</p>
+            : <p className="text-severity-critical/60 text-label">Invalid JSON - cannot parse the file.</p>
         ) : (
           rawLines.map((line, i) => (
-            <div key={i} className="flex gap-3 hover:bg-white/[0.02] rounded px-1">
-              <span className="text-accent-muted/20 select-none w-10 text-right shrink-0">{i + 1}</span>
-              <span className="text-white/65 break-all">{line || ' '}</span>
+            <div key={i} className="flex gap-3 hover:bg-white/[0.02] rounded-control px-1">
+              <span className="text-fg-secondary/20 select-none w-10 text-right shrink-0">{i + 1}</span>
+              <span className="text-fg/65 break-all">{line || ' '}</span>
             </div>
           ))
         )}
@@ -1512,35 +1508,35 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, exp
       />
 
       {/* ── Toolbar ─────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-white/5 bg-bg-secondary/30 shrink-0 flex-wrap">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-hairline bg-panel/30 shrink-0 flex-wrap">
         <div className="relative flex-1 min-w-[160px] max-w-xs">
-          <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-accent-muted/30" />
+          <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-secondary/30" />
           <input value={localSearch} onChange={e => handleSearch(e.target.value)}
             placeholder="Search all columns…"
-            className="w-full bg-white/5 border border-white/8 rounded pl-7 pr-3 py-1.5 text-[11px] text-white placeholder:text-accent-muted/30 outline-none focus:border-accent-green/30 transition-colors" />
+            className="w-full bg-fg/5 border border-hairline rounded-control pl-7 pr-3 py-1.5 text-label text-fg placeholder:text-fg-secondary/30 outline-none focus:border-accent/30 transition-colors" />
           {localSearch && (
             <button onClick={() => { setLocalSearch(''); updateFilters({ q: undefined, page: 1 }) }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-accent-muted/40 hover:text-white"><X size={10} /></button>
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-fg-secondary/40 hover:text-fg"><X size={10} /></button>
           )}
         </div>
 
         {!groupActive && (
           <button onClick={() => updateFilters({ sort_dir: state.filters.sort_dir === 'asc' ? 'desc' : 'asc', page: 1 })}
-            className="flex items-center gap-1 px-2 py-1.5 rounded border border-white/8 text-[10px] text-accent-muted hover:text-white hover:border-white/20 transition-colors" title="Toggle sort direction">
+            className="flex items-center gap-1 px-2 py-1.5 rounded-control border border-hairline text-label text-fg-secondary hover:text-fg hover:border-strong transition-colors" title="Toggle sort direction">
             {state.filters.sort_dir === 'asc' ? <ArrowUp size={10} /> : <ArrowDown size={10} />}
             <span>{state.filters.sort_dir === 'asc' ? 'Oldest first' : 'Newest first'}</span>
           </button>
         )}
 
         <button onClick={() => setShowFilters(s => !s)}
-          className={`flex items-center gap-1 px-2 py-1.5 rounded border text-[10px] transition-colors ${activeTotal > 0 ? 'border-accent-green/30 text-accent-green bg-accent-green/5' : 'border-white/8 text-accent-muted hover:text-white hover:border-white/20'}`}>
+          className={`flex items-center gap-1 px-2 py-1.5 rounded-control border text-label transition-colors ${activeTotal > 0 ? 'border-accent/30 text-accent bg-accent/5' : 'border-hairline text-fg-secondary hover:text-fg hover:border-strong'}`}>
           <SlidersHorizontal size={10} />
           Filters {activeTotal > 0 && `(${activeTotal})`}
           <ChevronDown size={9} className={`transition-transform ${showFilters ? 'rotate-180' : ''}`} />
         </button>
 
         {activeTotal > 0 && (
-          <button onClick={handleReset} className="text-[10px] text-accent-muted/50 hover:text-severity-critical transition-colors">Reset</button>
+          <button onClick={handleReset} className="text-label text-fg-secondary/50 hover:text-severity-critical transition-colors">Reset</button>
         )}
 
         <ColumnToggler columns={allCols} hidden={state.hiddenCols}
@@ -1548,7 +1544,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, exp
 
         {groupActive && !groupLoading && (
           <button onClick={toggleAllGroups}
-            className="flex items-center gap-1 px-2 py-1.5 rounded border border-white/8 text-[10px] text-accent-muted hover:text-white hover:border-white/20 transition-colors">
+            className="flex items-center gap-1 px-2 py-1.5 rounded-control border border-hairline text-label text-fg-secondary hover:text-fg hover:border-strong transition-colors">
             {allExpanded
               ? <><ChevronsLeft size={10} className="rotate-90" /> Replier tout</>
               : <><ChevronsRight size={10} className="rotate-90" /> Expand all</>
@@ -1558,41 +1554,41 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, exp
 
         {state.colOrder?.length > 0 && (
           <button onClick={() => onStateChange({ colOrder: [] })}
-            className="text-[10px] text-accent-muted/40 hover:text-white border border-white/8 px-2 py-1.5 rounded transition-colors">
+            className="text-label text-fg-secondary/40 hover:text-fg border border-hairline px-2 py-1.5 rounded-control transition-colors">
             Reset order
           </button>
         )}
 
         <button onClick={handleExport} title="Export filtered CSV"
-          className="flex items-center gap-1 px-2 py-1.5 rounded border border-white/8 text-[10px] text-accent-muted hover:text-white hover:border-white/20 transition-colors">
+          className="flex items-center gap-1 px-2 py-1.5 rounded-control border border-hairline text-label text-fg-secondary hover:text-fg hover:border-strong transition-colors">
           <Download size={10} /> Export
         </button>
 
-        <div className="ml-auto text-[10px] text-accent-muted/40 whitespace-nowrap">
+        <div className="ml-auto text-label text-fg-secondary/40 whitespace-nowrap">
           {groupActive
-            ? <><span className="text-white/60">{(groupData?.total_groups ?? 0).toLocaleString()}</span> groupes · {meta.row_count.toLocaleString()} lignes</>
+            ? <><span className="text-fg/60">{(groupData?.total_groups ?? 0).toLocaleString()}</span> groupes · {meta.row_count.toLocaleString()} lignes</>
             : total < meta.row_count
-            ? <><span className="text-white/60">{total.toLocaleString()}</span> / {meta.row_count.toLocaleString()} rows</>
-            : <><span className="text-white/60">{total.toLocaleString()}</span> rows</>
+            ? <><span className="text-fg/60">{total.toLocaleString()}</span> / {meta.row_count.toLocaleString()} rows</>
+            : <><span className="text-fg/60">{total.toLocaleString()}</span> rows</>
           }
         </div>
       </div>
 
       {/* Refetch progress bar */}
       <div className={`h-0.5 shrink-0 overflow-hidden transition-opacity duration-150 ${isAnythingFetching && !isAnythingLoading ? 'opacity-100' : 'opacity-0'}`}>
-        <div className="h-full bg-accent-green/50 animate-[shimmer_1.4s_ease-in-out_infinite]"
+        <div className="h-full bg-accent/50 animate-[shimmer_1.4s_ease-in-out_infinite]"
           style={{ background: 'linear-gradient(90deg, transparent 0%, #2DD4BF 40%, #2DD4BF 60%, transparent 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite' }} />
       </div>
 
 
       {/* Table area */}
       <div className={`flex-1 overflow-auto relative transition-opacity duration-150 ${isAnythingFetching && !isAnythingLoading ? 'opacity-50' : 'opacity-100'}`}>
-        <table className="w-full border-collapse text-[11px]"
+        <table className="w-full border-collapse text-label"
           style={{ minWidth: Math.max(800, orderedCols.length * 160 + 32) + 'px' }}>
-          <thead className="sticky top-0 z-10 bg-bg-secondary">
+          <thead className="sticky top-0 z-10 bg-panel">
             {/* Column name row */}
-            <tr className="border-b border-white/8">
-              <th className="w-8 shrink-0 px-1 pt-2 pb-1 sticky left-0 z-[12] bg-bg-secondary after:content-[''] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-white/8" />
+            <tr className="border-b border-hairline">
+              <th className="w-8 shrink-0 px-1 pt-2 pb-1 sticky left-0 z-[12] bg-panel after:content-[''] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-fg/8" />
               {orderedCols.map(col => {
                 const isSort    = sortCol === col && !groupActive
                 const w         = colW(col)
@@ -1606,16 +1602,15 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, exp
                     onDrop={e => handleColDrop(e, col)}
                     onDragEnd={handleColDragEnd}
                     onClick={() => { if (!groupActive) handleSort(col) }}
-                    className={`relative px-3 pt-2 pb-1 text-left font-medium text-[9px] uppercase tracking-widest whitespace-nowrap transition-colors select-none
-                      ${groupActive ? 'cursor-grab active:cursor-grabbing text-accent-muted/40' : 'cursor-pointer hover:text-white/60 text-accent-muted/40'}
+                    className={`relative px-3 pt-2 pb-1 text-left font-medium text-label uppercase tracking-widest whitespace-nowrap transition-colors select-none ${groupActive ? 'cursor-grab active:cursor-grabbing text-fg-secondary/40' : 'cursor-pointer hover:text-fg/60 text-fg-secondary/40'}
                       ${isDragSrc ? 'opacity-40' : ''}
-                      ${isDragTgt ? 'border-l-2 border-l-accent-green/60' : ''}
+                      ${isDragTgt ? 'border-l-2 border-l-accent/60' : ''}
                     `}
                     style={{ width: w, minWidth: 60 }}>
                     <span className="flex items-center gap-1 pr-2">
-                      <GripVertical size={8} className="text-accent-muted/20 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <GripVertical size={8} className="text-fg-secondary/20 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
                       {col}
-                      {isSort && (state.filters.sort_dir === 'asc' ? <ArrowUp size={9} className="text-accent-green" /> : <ArrowDown size={9} className="text-accent-green" />)}
+                      {isSort && (state.filters.sort_dir === 'asc' ? <ArrowUp size={9} className="text-accent" /> : <ArrowDown size={9} className="text-accent" />)}
                     </span>
                     <ColResizeHandle col={col} onStart={startColResize} onReset={resetColWidth} />
                   </th>
@@ -1624,8 +1619,8 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, exp
             </tr>
             {/* Per-column filter row */}
             {showFilters && (
-              <tr className="border-b border-white/5 bg-bg-secondary/80">
-                <th className="w-8 shrink-0 px-1 py-1.5 sticky left-0 z-[12] bg-bg-secondary/80" />
+              <tr className="border-b border-hairline bg-panel/80">
+                <th className="w-8 shrink-0 px-1 py-1.5 sticky left-0 z-[12] bg-panel/80" />
                 {orderedCols.map(col => (
                   <th key={`${col}-f`} className="px-2 py-1.5" style={{ width: colW(col), minWidth: 60 }}>
                     <ColFilterInput colKey={col}
@@ -1640,11 +1635,11 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, exp
           <tbody>
             {/* Loading skeleton */}
             {isAnythingLoading && Array.from({ length: 8 }).map((_, i) => (
-              <tr key={i} className="border-b border-white/[0.04]">
-                <td className="w-8 px-1 py-2 sticky left-0 z-[4] bg-bg-primary" />
+              <tr key={i} className="border-b border-strong/[0.04]">
+                <td className="w-8 px-1 py-2 sticky left-0 z-[4] bg-canvas" />
                 {orderedCols.map(col => (
                   <td key={col} className="px-3 py-2">
-                    <div className="h-3 rounded bg-white/5 animate-pulse" style={{ width: `${45 + (i * 11) % 40}%` }} />
+                    <div className="h-3 rounded-control bg-fg/5 animate-pulse" style={{ width: `${45 + (i * 11) % 40}%` }} />
                   </td>
                 ))}
               </tr>
@@ -1653,7 +1648,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, exp
             {/* Empty state */}
             {!isAnythingLoading && !groupActive && rows.length === 0 && (
               <tr>
-                <td colSpan={orderedCols.length + 1} className="px-3 py-12 text-center text-[11px] text-accent-muted/30 italic">
+                <td colSpan={orderedCols.length + 1} className="px-3 py-12 text-center text-label text-fg-secondary/30 italic">
                   No rows match the current filters
                 </td>
               </tr>
@@ -1666,20 +1661,20 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, exp
                 return (
                   <tr key={`h:${item.key}`}
                     onClick={() => toggleGroup(item.key)}
-                    className="border-b border-white/[0.06] cursor-pointer select-none hover:bg-white/[0.03] transition-colors"
+                    className="border-b border-strong/[0.06] cursor-pointer select-none hover:bg-white/[0.03] transition-colors"
                     style={{ background: item.depth === 0 ? 'rgba(255,255,255,0.025)' : item.depth === 1 ? 'rgba(255,255,255,0.015)' : undefined }}>
                     <td className="w-8 px-1 py-1.5 text-center sticky left-0 z-[4] bg-inherit">
-                      <div className={`transition-transform duration-150 text-accent-muted/40 mx-auto w-fit ${item.isExpanded ? 'rotate-90' : ''}`}>
+                      <div className={`transition-transform duration-150 text-fg-secondary/40 mx-auto w-fit ${item.isExpanded ? 'rotate-90' : ''}`}>
                         <ChevronRightIcon size={12} />
                       </div>
                     </td>
                     <td colSpan={orderedCols.length} className="px-3 py-1.5">
                       <div className="flex items-center gap-2" style={{ paddingLeft: indent }}>
-                        <span className="text-[9px] text-accent-muted/30 font-mono">{item.groupCol}:</span>
-                        <span className={`text-[11px] font-medium ${item.depth === 0 ? 'text-white/80' : 'text-white/65'}`}>
-                          {item.groupVal === '' ? <span className="italic text-accent-muted/30">(empty)</span> : item.groupVal}
+                        <span className="text-label text-fg-secondary/30 font-mono">{item.groupCol}:</span>
+                        <span className={`text-label font-medium ${item.depth === 0 ? 'text-fg/80' : 'text-fg/65'}`}>
+                          {item.groupVal === '' ? <span className="italic text-fg-secondary/30">(empty)</span> : item.groupVal}
                         </span>
-                        <span className="text-[9px] px-1.5 py-0.5 rounded border border-accent-green/20 bg-accent-green/5 text-accent-green/70 ml-1">
+                        <span className="text-label px-1.5 py-0.5 rounded-control border border-accent/20 bg-accent/5 text-accent/70 ml-1">
                           {item.count.toLocaleString()}
                         </span>
                       </div>
@@ -1716,28 +1711,27 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, exp
                 <>
                   <tr key={idx}
                     onClick={() => setExpandedRow(r => r === rowKey ? null : rowKey)}
-                    className={`border-b cursor-pointer transition-colors group ${
-                      isPinned
-                        ? 'border-accent-green/20 bg-accent-green/[0.04] hover:bg-accent-green/[0.07]'
+                    className={`border-b cursor-pointer transition-colors group ${ isPinned
+                        ? 'border-accent/20 bg-accent/[0.04] hover:bg-accent/[0.07]'
                         : isExported
-                          ? 'border-blue-500/10 bg-blue-500/[0.02] hover:bg-blue-500/[0.04]'
+                          ? 'border-severity-low/10 bg-severity-low/[0.02] hover:bg-severity-low/[0.04]'
                           : expandedRow === rowKey
-                            ? 'border-white/[0.04] bg-accent-green/5'
-                            : 'border-white/[0.04] hover:bg-white/[0.025]'
+                            ? 'border-strong/[0.04] bg-accent/5'
+                            : 'border-strong/[0.04] hover:bg-white/[0.025]'
                     }`}>
-                    <td className={`w-8 shrink-0 px-1 py-1.5 text-center sticky left-0 z-[4] shadow-[1px_0_0_rgba(255,255,255,0.04)] ${isPinned ? 'bg-accent-green/[0.04]' : isExported ? 'bg-blue-500/[0.02]' : 'bg-bg-primary'}`}
+                    <td className={`w-8 shrink-0 px-1 py-1.5 text-center sticky left-0 z-[4] shadow-[1px_0_0_rgba(255,255,255,0.04)] ${isPinned ? 'bg-accent/[0.04]' : isExported ? 'bg-severity-low/[0.02]' : 'bg-canvas'}`}
                       onClick={e => { e.stopPropagation(); handlePin(row) }}
                       title={isExported && !isPinned ? 'Exported to the Timeline' : undefined}>
                       {isPinned
-                        ? <BookmarkCheck size={13} className="mx-auto text-accent-green/60" />
+                        ? <BookmarkCheck size={13} className="mx-auto text-accent/60" />
                         : isExported
-                          ? <BookmarkCheck size={13} className="mx-auto text-blue-400/50" />
-                          : <BookmarkPlus size={13} className="mx-auto text-accent-muted/20 group-hover:text-accent-muted/50 hover:!text-accent-green transition-colors" />
+                          ? <BookmarkCheck size={13} className="mx-auto text-severity-low/50" />
+                          : <BookmarkPlus size={13} className="mx-auto text-fg-secondary/20 group-hover:text-fg-secondary/50 hover:!text-accent transition-colors" />
                       }
                     </td>
                     {orderedCols.map(col => (
                       <td key={col}
-                        className={`px-3 py-1.5 truncate ${col === meta.date_column ? 'font-mono text-[10px] text-white/45 whitespace-nowrap' : 'text-white/65'}`}
+                        className={`px-3 py-1.5 truncate ${col === meta.date_column ? 'font-mono text-label text-fg/45 whitespace-nowrap' : 'text-fg/65'}`}
                         style={{ width: colW(col), minWidth: 60, maxWidth: colW(col) }}
                         title={row[col] ?? ''}>
                         {highlightCell(row[col] ?? '')}
@@ -1758,7 +1752,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, exp
             {/* Grouped empty state */}
             {!isAnythingLoading && groupActive && flatItems?.length === 0 && (
               <tr>
-                <td colSpan={orderedCols.length + 1} className="px-3 py-12 text-center text-[11px] text-accent-muted/30 italic">
+                <td colSpan={orderedCols.length + 1} className="px-3 py-12 text-center text-label text-fg-secondary/30 italic">
                   No rows match the current filters
                 </td>
               </tr>
@@ -1792,7 +1786,7 @@ function OmniSearchView({ caseId, query, regex, onOpenFile }: {
 
   if (query.length < 2) {
     return (
-      <div className="flex items-center justify-center h-full text-accent-muted/30 text-sm">
+      <div className="flex items-center justify-center h-full text-fg-secondary/30 text-ui">
         Type at least 2 characters to search across all CSV files
       </div>
     )
@@ -1800,7 +1794,7 @@ function OmniSearchView({ caseId, query, regex, onOpenFile }: {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full gap-2 text-accent-muted/40 text-sm">
+      <div className="flex items-center justify-center h-full gap-2 text-fg-secondary/40 text-ui">
         <Loader2 size={16} className="animate-spin" /> Searching all files…
       </div>
     )
@@ -1808,16 +1802,16 @@ function OmniSearchView({ caseId, query, regex, onOpenFile }: {
 
   if (!data || data.total_hits === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-accent-muted/30 text-sm">
-        No results for "<span className="font-mono text-white/40">{query}</span>"
+      <div className="flex items-center justify-center h-full text-fg-secondary/30 text-ui">
+        No results for "<span className="font-mono text-fg/40">{query}</span>"
       </div>
     )
   }
 
   return (
     <div className="p-4 space-y-4 overflow-y-auto h-full">
-      <p className="text-[11px] text-accent-muted/50">
-        <span className="text-white/70 font-semibold">{data.total_hits.toLocaleString()}</span> match{data.total_hits !== 1 ? 'es' : ''} in {data.files.length} file{data.files.length !== 1 ? 's' : ''} for "<span className="font-mono text-accent-green">{data.query}</span>"
+      <p className="text-label text-fg-secondary/50">
+        <span className="text-fg/70 font-semibold">{data.total_hits.toLocaleString()}</span> match{data.total_hits !== 1 ? 'es' : ''} in {data.files.length} file{data.files.length !== 1 ? 's' : ''} for "<span className="font-mono text-accent">{data.query}</span>"
       </p>
       {data.files.map((file: OmniSearchFile) => (
         <OmniFileGroup key={file.id} file={file} query={query} onOpen={() => onOpenFile(file.id)} />
@@ -1839,44 +1833,44 @@ function OmniFileGroup({ file, query, onOpen }: {
     return (
       <span>
         {text.slice(0, idx)}
-        <mark className="bg-accent-green/20 text-accent-green rounded px-0.5">{text.slice(idx, idx + ql.length)}</mark>
+        <mark className="bg-accent/20 text-accent rounded-control px-0.5">{text.slice(idx, idx + ql.length)}</mark>
         {text.slice(idx + ql.length)}
       </span>
     )
   }
 
   return (
-    <div className="rounded-xl border border-white/8 bg-bg-secondary overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-2.5 bg-white/[0.02] border-b border-white/5">
+    <div className=" border border-hairline bg-panel overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-2.5 bg-white/[0.02] border-b border-hairline">
         <div className="flex items-center gap-2">
-          <FileText size={13} className="text-accent-muted/40" />
-          <span className="text-[12px] font-medium text-white/80">{file.original_name}</span>
+          <FileText size={13} className="text-fg-secondary/40" />
+          <span className="text-ui font-medium text-fg/80">{file.original_name}</span>
           {file.ez_label && <EZBadge label={file.ez_label} />}
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-[10px] text-accent-green/70 bg-accent-green/8 border border-accent-green/20 px-2 py-0.5 rounded">
+          <span className="text-label text-accent/70 bg-accent/8 border border-accent/20 px-2 py-0.5 rounded-control">
             {file.hit_count.toLocaleString()} hit{file.hit_count !== 1 ? 's' : ''}
           </span>
           <button onClick={onOpen}
-            className="text-[10px] text-accent-muted hover:text-accent-green border border-white/10 hover:border-accent-green/30 px-2 py-0.5 rounded transition-colors">
+            className="text-label text-fg-secondary hover:text-accent border border-hairline hover:border-accent/30 px-2 py-0.5 rounded-control transition-colors">
             Open the file →
           </button>
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className="text-[10px]" style={{ minWidth: Math.max(600, file.columns.length * 140) + 'px' }}>
+        <table className="text-label" style={{ minWidth: Math.max(600, file.columns.length * 140) + 'px' }}>
           <thead>
-            <tr className="border-b border-white/5">
+            <tr className="border-b border-hairline">
               {file.columns.map(col => (
-                <th key={col} className="px-3 py-1.5 text-left font-medium text-accent-muted/30 uppercase tracking-widest whitespace-nowrap">{col}</th>
+                <th key={col} className="px-3 py-1.5 text-left font-medium text-fg-secondary/30 uppercase tracking-widest whitespace-nowrap">{col}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {displayRows.map((row, i) => (
-              <tr key={i} className={`border-b border-white/[0.03] ${i % 2 === 0 ? '' : 'bg-white/[0.015]'}`}>
+              <tr key={i} className={`border-b border-strong/[0.03] ${i % 2 === 0 ? '' : 'bg-white/[0.015]'}`}>
                 {file.columns.map(col => (
-                  <td key={col} className="px-3 py-1.5 text-white/60 font-mono truncate" style={{ maxWidth: 240 }}>
+                  <td key={col} className="px-3 py-1.5 text-fg/60 font-mono truncate" style={{ maxWidth: 240 }}>
                     {highlight(row[col] ?? '')}
                   </td>
                 ))}
@@ -1888,7 +1882,7 @@ function OmniFileGroup({ file, query, onOpen }: {
       {file.rows.length > 8 && (
         <button
           onClick={() => setExpanded(e => !e)}
-          className="w-full py-1.5 text-[10px] text-accent-muted/40 hover:text-accent-green/60 hover:bg-white/[0.01] transition-colors border-t border-white/5"
+          className="w-full py-1.5 text-label text-fg-secondary/40 hover:text-accent/60 hover:bg-white/[0.01] transition-colors border-t border-hairline"
         >
           {expanded
             ? 'Collapse'
@@ -1927,20 +1921,20 @@ function PinnedPanel({ pinned, onUnpin, onClear, onExport, onEdit, onReset, expo
   }), [pinned])
 
   return (
-    <div className="w-72 shrink-0 border-l border-white/5 bg-bg-card flex flex-col overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-3 border-b border-white/5 shrink-0">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-accent-muted/50 flex items-center gap-1.5">
+    <div className="w-72 shrink-0 border-l border-hairline bg-panel flex flex-col overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-3 border-b border-hairline shrink-0">
+        <p className="text-label font-semibold uppercase tracking-widest text-fg-secondary/50 flex items-center gap-1.5">
           <BookmarkCheck size={10} />
           Selection
           {pinned.length > 0 && (
-            <span className="ml-1 bg-accent-green/15 text-accent-green border border-accent-green/30 rounded px-1.5 py-0.5 text-[9px] font-bold">
+            <span className="ml-1 bg-accent/15 text-accent border border-accent/30 rounded-control px-1.5 py-0.5 text-label font-bold">
               {pinned.length}
             </span>
           )}
         </p>
         {pinned.length > 0 && (
           <button onClick={onClear} title="Clear all"
-            className="text-accent-muted/30 hover:text-severity-critical transition-colors">
+            className="text-fg-secondary/30 hover:text-severity-critical transition-colors">
             <X size={12} />
           </button>
         )}
@@ -1948,15 +1942,15 @@ function PinnedPanel({ pinned, onUnpin, onClear, onExport, onEdit, onReset, expo
 
       {pinned.length === 0 && (
         <div className="flex-1 flex flex-col items-center justify-center gap-2 px-4 text-center">
-          <BookmarkPlus size={22} className="text-accent-muted/15" />
-          <p className="text-[10px] text-accent-muted/30 leading-relaxed">
+          <BookmarkPlus size={22} className="text-fg-secondary/15" />
+          <p className="text-label text-fg-secondary/30 leading-relaxed">
             Click <BookmarkPlus size={9} className="inline" /> on a row to pin it here
           </p>
         </div>
       )}
 
       {pinned.length > 0 && (
-        <div className="flex-1 overflow-y-auto divide-y divide-white/[0.04]">
+        <div className="flex-1 overflow-y-auto divide-y divide-hairline/[0.04]">
           {sorted.map(item => {
             const ts     = item.dateColumn ? item.row[item.dateColumn] : null
             const isOpen = expanded.has(item.key)
@@ -1967,23 +1961,23 @@ function PinnedPanel({ pinned, onUnpin, onClear, onExport, onEdit, onReset, expo
                   <button
                     onClick={() => toggleExpanded(item.key)}
                     title={isOpen ? 'Replier' : 'Éditer titre et description'}
-                    className="mt-0.5 shrink-0 text-accent-muted/30 hover:text-accent-green transition-colors"
+                    className="mt-0.5 shrink-0 text-fg-secondary/30 hover:text-accent transition-colors"
                   >
                     <ChevronRightIcon size={11} className={`transition-transform ${isOpen ? 'rotate-90' : ''}`} />
                   </button>
                   <div className="flex-1 min-w-0">
                     {item.ezLabel
-                      ? <span className="text-[8px] font-semibold px-1.5 py-0.5 rounded border bg-blue-500/10 text-blue-400 border-blue-500/20">{item.ezLabel}</span>
-                      : <span className="text-[8px] text-accent-muted/30 font-mono truncate block">{item.artifactName}</span>
+                      ? <span className="text-label font-semibold px-1.5 py-0.5 rounded-control border bg-severity-low/10 text-severity-low border-severity-low/20">{item.ezLabel}</span>
+                      : <span className="text-label text-fg-secondary/30 font-mono truncate block">{item.artifactName}</span>
                     }
                     {ts && (
-                      <p className="text-[10px] font-mono text-white/50 mt-0.5 truncate">{ts}</p>
+                      <p className="text-label font-mono text-fg/50 mt-0.5 truncate">{ts}</p>
                     )}
-                    <p className="text-[10px] text-white/70 mt-0.5 leading-snug line-clamp-2">
-                      {item.title || <span className="text-accent-muted/30 italic">Sans titre</span>}
+                    <p className="text-label text-fg/70 mt-0.5 leading-snug line-clamp-2">
+                      {item.title || <span className="text-fg-secondary/30 italic">Sans titre</span>}
                     </p>
                     {!isOpen && item.description && (
-                      <p className="text-[9px] text-accent-muted/35 truncate leading-snug">
+                      <p className="text-label text-fg-secondary/35 truncate leading-snug">
                         {item.description.split('\n')[0]}
                       </p>
                     )}
@@ -1993,32 +1987,32 @@ function PinnedPanel({ pinned, onUnpin, onClear, onExport, onEdit, onReset, expo
                 {isOpen && (
                   <div className="mt-2 pl-[19px] space-y-1.5">
                     <div>
-                      <label className="text-[8px] uppercase tracking-widest text-accent-muted/40">Title</label>
+                      <label className="text-label uppercase tracking-widest text-fg-secondary/40">Title</label>
                       <input
                         value={item.title}
                         onChange={e => onEdit(item.key, { title: e.target.value })}
                         placeholder="Event title..."
-                        className="w-full mt-0.5 bg-black/30 border border-white/10 rounded px-1.5 py-1 text-[10px] text-white/90 focus:border-accent-green/40 focus:outline-none"
+                        className="w-full mt-0.5 bg-black/30 border border-hairline rounded-control px-1.5 py-1 text-label text-fg/90 focus:border-accent/40 focus:outline-none"
                       />
                     </div>
                     <div>
-                      <label className="text-[8px] uppercase tracking-widest text-accent-muted/40">Description</label>
+                      <label className="text-label uppercase tracking-widest text-fg-secondary/40">Description</label>
                       <textarea
                         value={item.description}
                         onChange={e => onEdit(item.key, { description: e.target.value })}
                         rows={4}
                         placeholder="Description…"
-                        className="w-full mt-0.5 bg-black/30 border border-white/10 rounded px-1.5 py-1 text-[10px] font-mono text-accent-muted resize-y focus:border-accent-green/40 focus:outline-none"
+                        className="w-full mt-0.5 bg-black/30 border border-hairline rounded-control px-1.5 py-1 text-label font-mono text-fg-secondary resize-y focus:border-accent/40 focus:outline-none"
                       />
                     </div>
                     <div className="flex items-center justify-between">
                       <button
                         onClick={() => onReset(item.key)}
-                        className="text-[9px] text-accent-muted/40 hover:text-accent-green transition-colors"
+                        className="text-label text-fg-secondary/40 hover:text-accent transition-colors"
                       >
                         Reset
                       </button>
-                      <span className="text-[8px] text-accent-muted/25">
+                      <span className="text-label text-fg-secondary/25">
                         {item.columns.length} fields kept
                       </span>
                     </div>
@@ -2026,7 +2020,7 @@ function PinnedPanel({ pinned, onUnpin, onClear, onExport, onEdit, onReset, expo
                 )}
 
                 <button onClick={() => onUnpin(item.key)}
-                  className="absolute right-2 top-2.5 opacity-0 group-hover:opacity-100 text-accent-muted/30 hover:text-severity-critical transition-all">
+                  className="absolute right-2 top-2.5 opacity-0 group-hover:opacity-100 text-fg-secondary/30 hover:text-severity-critical transition-all">
                   <X size={10} />
                 </button>
               </div>
@@ -2035,11 +2029,11 @@ function PinnedPanel({ pinned, onUnpin, onClear, onExport, onEdit, onReset, expo
         </div>
       )}
 
-      <div className="px-3 py-3 border-t border-white/5 shrink-0">
+      <div className="px-3 py-3 border-t border-hairline shrink-0">
         <button
           onClick={onExport}
           disabled={pinned.length === 0 || exporting}
-          className="w-full flex items-center justify-center gap-1.5 text-[11px] py-2 rounded border border-accent-green/30 text-accent-green bg-accent-green/5 hover:bg-accent-green/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          className="w-full flex items-center justify-center gap-1.5 text-label py-2 rounded-control border border-accent/30 text-accent bg-accent/5 hover:bg-accent/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
           {exporting
             ? <><Loader2 size={11} className="animate-spin" /> Envoi…</>
@@ -2047,7 +2041,7 @@ function PinnedPanel({ pinned, onUnpin, onClear, onExport, onEdit, onReset, expo
           }
         </button>
         {pinned.length > 0 && (
-          <p className="text-[9px] text-accent-muted/25 mt-1.5 text-center">
+          <p className="text-label text-fg-secondary/25 mt-1.5 text-center">
             {pinned.length} event{pinned.length > 1 ? 's' : ''}, sorted chronologically
           </p>
         )}
@@ -2069,25 +2063,25 @@ function FileSidebarRow({ meta, isOpen, onOpen, onDelete, onAddEvidence, addingE
   const hasEvidence = !!meta.evidence_id
   return (
     <div onClick={onOpen}
-      className={`group relative px-3 py-2.5 cursor-pointer border-l-2 transition-colors ${isOpen ? 'bg-accent-green/5 border-l-accent-green/40' : 'border-l-transparent hover:bg-white/[0.03]'}`}>
+      className={`group relative px-3 py-2.5 cursor-pointer border-l-2 transition-colors ${isOpen ? 'bg-accent/5 border-l-accent/40' : 'border-l-transparent hover:bg-white/[0.03]'}`}>
       <div className="flex items-start gap-2 pr-12">
-        <FileText size={12} className="mt-0.5 shrink-0 text-accent-muted/30" />
+        <FileText size={12} className="mt-0.5 shrink-0 text-fg-secondary/30" />
         <div className="flex-1 min-w-0">
-          <p className="text-[11px] text-white/80 truncate leading-snug font-mono">{meta.original_name}</p>
+          <p className="text-label text-fg/80 truncate leading-snug font-mono">{meta.original_name}</p>
           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
             {meta.ez_label
               ? <EZBadge label={meta.ez_label} />
-              : <span className="text-[8px] font-semibold px-1.5 py-0.5 rounded border bg-gray-500/10 text-gray-500 border-gray-500/20">unknown</span>
+              : <span className="text-label font-semibold px-1.5 py-0.5 rounded-control border bg-fg-muted/10 text-fg-muted border-fg-muted/20">unknown</span>
             }
             {meta.source_timezone && (
-              <span className="flex items-center gap-0.5 text-[8px] font-semibold px-1.5 py-0.5 rounded border border-blue-500/30 bg-blue-500/10 text-blue-400">
+              <span className="flex items-center gap-0.5 text-label font-semibold px-1.5 py-0.5 rounded-control border border-severity-low/30 bg-severity-low/10 text-severity-low">
                 <Globe size={7} />
                 {meta.source_timezone.split('/').pop()?.replace('_', ' ') ?? meta.source_timezone}
               </span>
             )}
-            <span className="text-[9px] text-accent-muted/40">{meta.row_count.toLocaleString()} rows</span>
+            <span className="text-label text-fg-secondary/40">{meta.row_count.toLocaleString()} rows</span>
           </div>
-          <p className="text-[9px] text-accent-muted/25 mt-0.5">{fmtRelative(meta.uploaded_at)}</p>
+          <p className="text-label text-fg-secondary/25 mt-0.5">{fmtRelative(meta.uploaded_at)}</p>
         </div>
       </div>
       {/* Add to Evidence button */}
@@ -2095,10 +2089,9 @@ function FileSidebarRow({ meta, isOpen, onOpen, onDelete, onAddEvidence, addingE
         onClick={e => { e.stopPropagation(); if (!hasEvidence) onAddEvidence() }}
         title={hasEvidence ? 'Linked to the chain of custody' : 'Add to the chain of custody'}
         disabled={addingEvidence}
-        className={`absolute right-7 top-2.5 transition-all ${
-          hasEvidence
-            ? 'opacity-100 text-blue-400/70 cursor-default'
-            : 'opacity-0 group-hover:opacity-100 text-accent-muted/40 hover:text-blue-400 cursor-pointer'
+        className={`absolute right-7 top-2.5 transition-all ${ hasEvidence
+            ? 'opacity-100 text-severity-low/70 cursor-default'
+            : 'opacity-0 group-hover:opacity-100 text-fg-secondary/40 hover:text-severity-low cursor-pointer'
         } disabled:opacity-40`}
       >
         {addingEvidence
@@ -2109,7 +2102,7 @@ function FileSidebarRow({ meta, isOpen, onOpen, onDelete, onAddEvidence, addingE
         }
       </button>
       <button onClick={e => { e.stopPropagation(); onDelete() }}
-        className="absolute right-2 top-2.5 opacity-0 group-hover:opacity-100 text-accent-muted/40 hover:text-severity-critical transition-all">
+        className="absolute right-2 top-2.5 opacity-0 group-hover:opacity-100 text-fg-secondary/40 hover:text-severity-critical transition-all">
         <Trash2 size={11} />
       </button>
     </div>
@@ -2407,10 +2400,10 @@ export default function ArtifactExplorer() {
   if (!caseId) {
     return (
       <div className="p-6 max-w-xl mx-auto mt-20 text-center space-y-4">
-        <Table2 size={40} className="mx-auto text-accent-muted/20" />
-        <h1 className="text-lg font-bold text-white">Artifact Explorer</h1>
-        <p className="text-accent-muted text-sm">No active case. Set a current case from the top bar to explore CSV artifacts.</p>
-        <div className="flex items-center gap-2 text-[11px] text-accent-muted/60 bg-white/[0.02] border border-white/8 rounded-lg px-3 py-2 justify-center">
+        <Table2 size={40} className="mx-auto text-fg-secondary/20" />
+        <h1 className="text-title font-bold text-fg">Artifact Explorer</h1>
+        <p className="text-fg-secondary text-ui">No active case. Set a current case from the top bar to explore CSV artifacts.</p>
+        <div className="flex items-center gap-2 text-label text-fg-secondary/60 bg-white/[0.02] border border-hairline px-3 py-2 justify-center">
           <Info size={12} /> Select a case to upload and browse EZ Tools CSV exports
         </div>
       </div>
@@ -2444,60 +2437,60 @@ export default function ArtifactExplorer() {
 
       {/* ── Left sidebar ─────────────────────────────────────────────────── */}
       <div
-        className="relative shrink-0 border-r border-white/5 bg-bg-card flex flex-col overflow-hidden"
+        className="relative shrink-0 border-r border-hairline bg-panel flex flex-col overflow-hidden"
         style={{ width: sidebarWidth }}
       >
-        <div className="px-3 py-3 border-b border-white/5 shrink-0">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-accent-muted/50 flex items-center gap-1.5">
+        <div className="px-3 py-3 border-b border-hairline shrink-0">
+          <p className="text-label font-semibold uppercase tracking-widest text-fg-secondary/50 flex items-center gap-1.5">
             <Table2 size={10} /> Artifact Explorer
           </p>
-          <p className="text-[9px] text-accent-muted/25 mt-0.5 truncate">{currentCase?.title}</p>
+          <p className="text-label text-fg-secondary/25 mt-0.5 truncate">{currentCase?.title}</p>
         </div>
 
-        <div className="px-3 py-2 border-b border-white/5 shrink-0">
+        <div className="px-3 py-2 border-b border-hairline shrink-0">
           <div className="relative">
-            <Globe size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-accent-muted/30" />
+            <Globe size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-secondary/30" />
             <input value={omniQuery} onChange={e => handleOmniChange(e.target.value)}
               placeholder="Omnisearch all files…"
-              className={`w-full bg-white/5 border rounded pl-7 pr-14 py-1.5 text-[11px] text-white placeholder:text-accent-muted/30 outline-none transition-colors ${omniQuery ? 'border-blue-400/30 bg-blue-500/5' : 'border-white/8 focus:border-white/20'}`} />
+              className={`w-full bg-fg/5 border rounded-control pl-7 pr-14 py-1.5 text-label text-fg placeholder:text-fg-secondary/30 outline-none transition-colors ${omniQuery ? 'border-severity-low/30 bg-severity-low/5' : 'border-hairline focus:border-strong'}`} />
             <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
               <button
                 onClick={() => setOmniRegex(r => !r)}
                 title={omniRegex ? 'Disable regex' : 'Enable regex'}
-                className={`px-1 py-0.5 rounded text-[9px] font-mono border transition-colors ${omniRegex ? 'border-accent-green/40 text-accent-green bg-accent-green/10' : 'border-white/10 text-accent-muted/40 hover:text-white hover:border-white/20'}`}
+                className={`px-1 py-0.5 rounded-control text-label font-mono border transition-colors ${omniRegex ? 'border-accent/40 text-accent bg-accent/10' : 'border-hairline text-fg-secondary/40 hover:text-fg hover:border-strong'}`}
               >.*</button>
               {omniQuery && (
                 <button onClick={() => { setOmniQuery(''); setOmniDebounced('') }}
-                  className="text-accent-muted/40 hover:text-white"><X size={10} /></button>
+                  className="text-fg-secondary/40 hover:text-fg"><X size={10} /></button>
               )}
             </div>
           </div>
         </div>
 
-        <div className="px-3 py-2 border-b border-white/5 shrink-0">
+        <div className="px-3 py-2 border-b border-hairline shrink-0">
           <input ref={fileRef} type="file" accept=".csv,.json,.txt,.log,text/csv,application/json" multiple className="sr-only"
             onChange={e => handleFiles(e.target.files)} />
           <button onClick={() => fileRef.current?.click()} disabled={uploading}
-            className="w-full flex items-center justify-center gap-1.5 text-[11px] py-1.5 rounded border border-dashed border-white/15 text-accent-muted hover:text-accent-green hover:border-accent-green/30 transition-colors disabled:opacity-40">
+            className="w-full flex items-center justify-center gap-1.5 text-label py-1.5 rounded-control border border-dashed border-hairline text-fg-secondary hover:text-accent hover:border-accent/30 transition-colors disabled:opacity-40">
             {uploading ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
             {uploading ? 'Uploading…' : 'Upload file…'}
           </button>
-          {uploadErr && <p className="text-[10px] text-severity-critical mt-1">{uploadErr}</p>}
+          {uploadErr && <p className="text-label text-severity-critical mt-1">{uploadErr}</p>}
         </div>
 
         {files.length > 3 && (
-          <div className="px-3 py-2 border-b border-white/5 shrink-0">
+          <div className="px-3 py-2 border-b border-hairline shrink-0">
             <div className="relative">
-              <Search size={10} className="absolute left-2 top-1/2 -translate-y-1/2 text-accent-muted/30" />
+              <Search size={10} className="absolute left-2 top-1/2 -translate-y-1/2 text-fg-secondary/30" />
               <input
                 value={fileSearch}
                 onChange={e => setFileSearch(e.target.value)}
                 placeholder="Filter files…"
-                className="w-full bg-white/5 border border-white/8 rounded pl-6 pr-5 py-1 text-[11px] text-white placeholder:text-accent-muted/30 outline-none focus:border-white/20 transition-colors"
+                className="w-full bg-fg/5 border border-hairline rounded-control pl-6 pr-5 py-1 text-label text-fg placeholder:text-fg-secondary/30 outline-none focus:border-strong transition-colors"
               />
               {fileSearch && (
                 <button onClick={() => setFileSearch('')}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-accent-muted/40 hover:text-white">
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-fg-secondary/40 hover:text-fg">
                   <X size={9} />
                 </button>
               )}
@@ -2508,16 +2501,16 @@ export default function ArtifactExplorer() {
         <div className="flex-1 overflow-y-auto">
           {filesLoading && (
             <div className="flex items-center justify-center py-8">
-              <Loader2 size={16} className="animate-spin text-accent-muted/30" />
+              <Loader2 size={16} className="animate-spin text-fg-secondary/30" />
             </div>
           )}
           {!filesLoading && files.length === 0 && (
-            <p className="text-[10px] text-accent-muted/30 text-center py-8 px-3">
+            <p className="text-label text-fg-secondary/30 text-center py-8 px-3">
               No CSV files yet.<br />Upload EZ Tools output files to start.
             </p>
           )}
           {!filesLoading && files.length > 0 && filteredSidebarFiles.length === 0 && (
-            <p className="text-[10px] text-accent-muted/30 text-center py-6 px-3 italic">
+            <p className="text-label text-fg-secondary/30 text-center py-6 px-3 italic">
               No files match "{fileSearch}"
             </p>
           )}
@@ -2536,7 +2529,7 @@ export default function ArtifactExplorer() {
           className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize z-10 group flex items-center justify-center"
           title="Drag to resize sidebar"
         >
-          <div className="w-0.5 h-12 rounded-full bg-white/10 group-hover:bg-accent-green/40 transition-colors" />
+          <div className="w-0.5 h-12 rounded-pill bg-fg/10 group-hover:bg-accent/40 transition-colors" />
         </div>
       </div>
 
@@ -2544,19 +2537,19 @@ export default function ArtifactExplorer() {
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {openTabs.length > 0 && (
-          <div className="flex items-center gap-0 border-b border-white/5 bg-bg-secondary/50 shrink-0 overflow-x-auto">
+          <div className="flex items-center gap-0 border-b border-hairline bg-panel/50 shrink-0 overflow-x-auto">
             {openTabs.map(tabId => {
               const f    = files.find(x => x.id === tabId)
               const name = f?.original_name ?? tabId
               const isActive = tabId === activeTab && !showOmni
               return (
                 <button key={tabId} onClick={() => { setActiveTab(tabId); setOmniQuery(''); setOmniDebounced('') }}
-                  className={`flex items-center gap-1.5 px-3 py-2.5 text-[11px] border-r border-white/5 shrink-0 transition-colors max-w-[200px] ${isActive ? 'bg-bg-primary text-white border-t-2 border-t-accent-green/50' : 'text-accent-muted hover:text-white hover:bg-white/[0.03]'}`}>
+                  className={`flex items-center gap-1.5 px-3 py-2.5 text-label border-r border-hairline shrink-0 transition-colors max-w-[200px] ${isActive ? 'bg-canvas text-fg border-t-2 border-t-accent/50' : 'text-fg-secondary hover:text-fg hover:bg-white/[0.03]'}`}>
                   <FileText size={11} className="shrink-0" />
                   <span className="truncate font-mono">{name}</span>
-                  {f?.ez_label && <span className="text-[8px] text-blue-400/60 border border-blue-400/20 px-1 rounded shrink-0">EZ</span>}
+                  {f?.ez_label && <span className="text-label text-severity-low/60 border border-severity-low/20 px-1 rounded-control shrink-0">EZ</span>}
                   <span onClick={e => closeTab(tabId, e)}
-                    className="ml-0.5 text-accent-muted/30 hover:text-severity-critical transition-colors shrink-0">
+                    className="ml-0.5 text-fg-secondary/30 hover:text-severity-critical transition-colors shrink-0">
                     <X size={10} />
                   </span>
                 </button>
@@ -2570,14 +2563,14 @@ export default function ArtifactExplorer() {
         ) : activeView ? (
           activeView
         ) : (
-          <div className={`flex-1 flex flex-col items-center justify-center gap-4 transition-colors ${dragging ? 'bg-accent-green/5' : ''}`}>
-            <Table2 size={48} className="text-accent-muted/15" />
+          <div className={`flex-1 flex flex-col items-center justify-center gap-4 transition-colors ${dragging ? 'bg-accent/5' : ''}`}>
+            <Table2 size={48} className="text-fg-secondary/15" />
             <div className="text-center">
-              <p className="text-white/40 text-sm">Select a file from the sidebar</p>
-              <p className="text-accent-muted/30 text-xs mt-1">or drop .csv / .json / .txt / .log files here to upload</p>
+              <p className="text-fg/40 text-ui">Select a file from the sidebar</p>
+              <p className="text-fg-secondary/30 text-label mt-1">or drop .csv / .json / .txt / .log files here to upload</p>
             </div>
             {dragging && (
-              <div className="border-2 border-dashed border-accent-green/40 rounded-xl px-12 py-6 text-accent-green/60 text-sm">
+              <div className="border-2 border-dashed border-accent/40 px-12 py-6 text-accent/60 text-ui">
                 Drop files to upload (.csv, .json, .txt, .log)
               </div>
             )}

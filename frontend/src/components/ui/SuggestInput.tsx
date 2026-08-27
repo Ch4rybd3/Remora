@@ -86,26 +86,24 @@ export default function SuggestInput({
       {showDropdown && (
         <ul
           ref={listRef}
-          className="absolute z-50 left-0 right-0 mt-1 max-h-56 overflow-y-auto
-                     bg-bg-card border border-white/10 rounded-lg shadow-xl py-1"
+          className="absolute z-50 left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-panel border border-hairline  shadow-xl py-1"
         >
           {filtered.map((s, i) => (
             <li
               key={s.value + i}
               onMouseDown={() => pick(s)}
-              className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors ${
-                i === activeIdx ? 'bg-accent-green/10' : 'hover:bg-white/5'
+              className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors ${ i === activeIdx ? 'bg-accent/10' : 'hover:bg-fg/5'
               }`}
             >
               {s.badge && (
-                <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0 ${s.badgeColor ?? 'bg-white/5 text-accent-muted border-white/10'}`}>
+                <span className={`text-label font-mono px-1.5 py-0.5 rounded-control border shrink-0 ${s.badgeColor ?? 'bg-fg/5 text-fg-secondary border-hairline'}`}>
                   {s.badge}
                 </span>
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-white truncate font-mono">{s.label}</p>
+                <p className="text-ui text-fg truncate font-mono">{s.label}</p>
                 {s.sublabel && (
-                  <p className="text-xs text-accent-muted/60 truncate">{s.sublabel}</p>
+                  <p className="text-label text-fg-secondary/60 truncate">{s.sublabel}</p>
                 )}
               </div>
             </li>

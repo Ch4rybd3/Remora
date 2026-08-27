@@ -30,7 +30,7 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-bg-primary flex items-center justify-center px-4">
+    <div className="min-h-screen bg-canvas flex items-center justify-center px-4">
       {/* Background grid */}
       <div
         className="absolute inset-0 opacity-[0.03]"
@@ -50,20 +50,20 @@ export default function Login() {
             style={{ filter: 'drop-shadow(0 0 12px rgba(45,212,191,0.35))' }}
             onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
           />
-          <h1 className="text-3xl font-bold text-accent-green font-mono tracking-tight">REMORA</h1>
-          <p className="text-accent-muted text-sm mt-1">DFIR Case Management</p>
+          <h1 className="text-title font-bold text-accent font-mono tracking-tight">REMORA</h1>
+          <p className="text-fg-secondary text-ui mt-1">DFIR Case Management</p>
         </div>
 
         {/* Card */}
-        <div className="card p-8 border-white/10">
-          <h2 className="text-white font-semibold text-sm uppercase tracking-wide mb-6">
+        <div className="card p-8 border-hairline">
+          <h2 className="text-fg font-semibold text-ui uppercase tracking-wide mb-6">
             Connexion
           </h2>
 
           {error && (
-            <div className="flex items-center gap-2 bg-severity-critical/10 border border-severity-critical/20 rounded-lg px-4 py-3 mb-5">
+            <div className="flex items-center gap-2 bg-severity-critical/10 border border-severity-critical/20 px-4 py-3 mb-5">
               <AlertCircle size={14} className="text-severity-critical shrink-0" />
-              <p className="text-xs text-severity-critical">{error}</p>
+              <p className="text-label text-severity-critical">{error}</p>
             </div>
           )}
 
@@ -94,7 +94,7 @@ export default function Login() {
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-accent-muted hover:text-white transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-secondary hover:text-fg transition-colors"
                   onClick={() => setShowPw(v => !v)}
                   tabIndex={-1}
                 >
@@ -106,14 +106,14 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading || !username || !password}
-              className="btn-primary w-full mt-2 py-2.5 text-sm"
+              className="btn-primary w-full mt-2 py-2.5 text-ui"
             >
               {loading ? 'Connexion…' : 'Se connecter'}
             </button>
           </form>
         </div>
 
-        <p className="text-center text-accent-muted/40 text-xs mt-6">
+        <p className="text-center text-fg-secondary/40 text-label mt-6">
           Sessions valides 24h
         </p>
       </div>

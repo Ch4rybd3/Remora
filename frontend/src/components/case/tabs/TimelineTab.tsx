@@ -24,32 +24,32 @@ const empty = (): Partial<TimelineEvent> => ({
 // ── Colors ──────────────────────────────────────────────────────────────────
 
 const IOC_COLORS: Record<string, string> = {
-  ip:          'bg-red-500/10 text-red-400 border-red-500/20',
-  domain:      'bg-orange-500/10 text-orange-400 border-orange-500/20',
-  url:         'bg-orange-400/10 text-orange-300 border-orange-400/20',
-  hash_md5:    'bg-purple-500/10 text-purple-400 border-purple-500/20',
-  hash_sha1:   'bg-purple-500/10 text-purple-400 border-purple-500/20',
-  hash_sha256: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-  email:       'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  filename:    'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
-  registry:    'bg-pink-500/10 text-pink-400 border-pink-500/20',
-  user_agent:  'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
-  other:       'bg-white/5 text-accent-muted border-white/10',
+  ip:          'bg-severity-critical/10 text-severity-critical border-severity-critical/20',
+  domain:      'bg-severity-high/10 text-severity-high border-severity-high/20',
+  url:         'bg-severity-high/10 text-severity-high border-severity-high/20',
+  hash_md5:    'bg-data-2/10 text-data-2 border-data-2/20',
+  hash_sha1:   'bg-data-2/10 text-data-2 border-data-2/20',
+  hash_sha256: 'bg-data-2/10 text-data-2 border-data-2/20',
+  email:       'bg-severity-low/10 text-severity-low border-severity-low/20',
+  filename:    'bg-severity-medium/10 text-severity-medium border-severity-medium/20',
+  registry:    'bg-data-3/10 text-data-3 border-data-3/20',
+  user_agent:  'bg-data-5/10 text-data-5 border-data-5/20',
+  other:       'bg-fg/5 text-fg-secondary border-hairline',
 }
 
 const ASSET_COLOR = (asset: Asset) =>
   asset.compromised
     ? 'bg-severity-critical/10 text-severity-critical border-severity-critical/20'
-    : 'bg-accent-green/10 text-accent-green/80 border-accent-green/20'
+    : 'bg-accent/10 text-accent/80 border-accent/20'
 
-const CUSTOM_COLOR = 'bg-white/5 text-accent-muted border-white/10'
+const CUSTOM_COLOR = 'bg-fg/5 text-fg-secondary border-hairline'
 
 /** Provenance badge — tells at a glance where an event came from. */
 const ORIGIN_META: Record<TimelineOrigin, { label: string; cls: string }> = {
-  manual:       { label: 'Manuel',       cls: 'bg-white/5 text-accent-muted border-white/10' },
-  incident_log: { label: 'Incident log', cls: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-  artifact:     { label: 'Artefact',     cls: 'bg-accent-green/10 text-accent-green/80 border-accent-green/20' },
-  ioc:          { label: 'IOC',          cls: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
+  manual:       { label: 'Manuel',       cls: 'bg-fg/5 text-fg-secondary border-hairline' },
+  incident_log: { label: 'Incident log', cls: 'bg-severity-low/10 text-severity-low border-severity-low/20' },
+  artifact:     { label: 'Artefact',     cls: 'bg-accent/10 text-accent/80 border-accent/20' },
+  ioc:          { label: 'IOC',          cls: 'bg-data-2/10 text-data-2 border-data-2/20' },
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -80,33 +80,33 @@ function RawPayloadPanel({ entries, source }: { entries: [string, string][]; sou
     <div className="mt-2">
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1 text-[11px] text-accent-muted/60 hover:text-accent-green transition-colors"
+        className="flex items-center gap-1 text-label text-fg-secondary/60 hover:text-accent transition-colors"
       >
         <ChevronRight size={11} className={`transition-transform ${open ? 'rotate-90' : ''}`} />
         Event brut
-        <span className="text-accent-muted/40">({entries.length} champs{source ? ` · ${source}` : ''})</span>
+        <span className="text-fg-secondary/40">({entries.length} champs{source ? ` · ${source}` : ''})</span>
       </button>
 
       {open && (
-        <div className="mt-1.5 rounded border border-white/5 bg-black/20 overflow-hidden">
+        <div className="mt-1.5 rounded-control border border-hairline bg-black/20 overflow-hidden">
           <div className="flex justify-end px-2 pt-1.5">
             <button
               onClick={() => navigator.clipboard.writeText(
                 entries.map(([k, v]) => `${k}: ${v}`).join('\n')
               )}
-              className="flex items-center gap-1 text-[10px] text-accent-muted/50 hover:text-accent-green transition-colors"
+              className="flex items-center gap-1 text-label text-fg-secondary/50 hover:text-accent transition-colors"
               title="Copy the raw event"
             >
               <Copy size={10} /> Copy
             </button>
           </div>
           <div className="max-h-72 overflow-auto">
-            <table className="w-full text-[11px] font-mono">
+            <table className="w-full text-label font-mono">
               <tbody>
                 {entries.map(([k, v]) => (
-                  <tr key={k} className="border-t border-white/5 align-top">
-                    <td className="px-2 py-1 text-accent-muted/70 whitespace-nowrap w-px">{k}</td>
-                    <td className="px-2 py-1 text-accent-muted break-all">{v || '—'}</td>
+                  <tr key={k} className="border-t border-hairline align-top">
+                    <td className="px-2 py-1 text-fg-secondary/70 whitespace-nowrap w-px">{k}</td>
+                    <td className="px-2 py-1 text-fg-secondary break-all">{v || '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -250,11 +250,11 @@ export default function TimelineTab({ caseId }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-accent-green font-semibold text-sm uppercase tracking-wide">
+        <h3 className="text-accent font-semibold text-ui uppercase tracking-wide">
           Timeline
-          <span className="ml-2 text-accent-muted font-normal normal-case">({events.length})</span>
+          <span className="ml-2 text-fg-secondary font-normal normal-case">({events.length})</span>
         </h3>
-        <button className="btn-primary text-xs flex items-center gap-1.5" onClick={openCreate}>
+        <button className="btn-primary text-label flex items-center gap-1.5" onClick={openCreate}>
           <Plus size={13} /> Add Event
         </button>
       </div>
@@ -267,7 +267,7 @@ export default function TimelineTab({ caseId }: Props) {
         />
       ) : (
         <div className="relative">
-          <div className="absolute left-[7px] top-0 bottom-0 w-px bg-white/5" />
+          <div className="absolute left-[7px] top-0 bottom-0 w-px bg-fg/5" />
           <div className="space-y-0">
             {events.map(ev => {
               const actors = stringToTags(ev.actor, iocs, assets)
@@ -275,30 +275,30 @@ export default function TimelineTab({ caseId }: Props) {
               const origin = ORIGIN_META[ev.origin] ?? ORIGIN_META.manual
               return (
                 <div key={ev.id} className="relative pl-8 pb-6 group">
-                  <div className="absolute left-0 top-1 w-3.5 h-3.5 rounded-full border-2 border-accent-green bg-bg-primary" />
-                  <div className="card p-4 hover:bg-bg-hover transition-colors">
+                  <div className="absolute left-0 top-1 w-3.5 h-3.5 rounded-pill border-2 border-accent bg-canvas" />
+                  <div className="card p-4 hover:bg-hover transition-colors">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <span className="text-xs font-mono text-accent-green shrink-0">
+                          <span className="text-label font-mono text-accent shrink-0">
                             {fmtDateTime(ev.event_ts)}
                           </span>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded border shrink-0 ${origin.cls}`}>
+                          <span className={`text-label px-1.5 py-0.5 rounded-control border shrink-0 ${origin.cls}`}>
                             {origin.label}
                           </span>
                           {ev.source && (
-                            <span className="text-xs text-accent-muted/60 shrink-0">via {ev.source}</span>
+                            <span className="text-label text-fg-secondary/60 shrink-0">via {ev.source}</span>
                           )}
                         </div>
 
-                        <p className="text-sm font-medium text-white mb-1.5">{ev.title}</p>
+                        <p className="text-ui font-medium text-fg mb-1.5">{ev.title}</p>
 
                         {actors.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 mb-1.5">
                             {actors.map((tag, i) => (
                               <span
                                 key={tag.value + i}
-                                className={`text-xs font-mono px-2 py-0.5 rounded border ${tag.badgeColor}`}
+                                className={`text-label font-mono px-2 py-0.5 rounded-control border ${tag.badgeColor}`}
                               >
                                 {tag.value}
                               </span>
@@ -307,7 +307,7 @@ export default function TimelineTab({ caseId }: Props) {
                         )}
 
                         {ev.description && (
-                          <p className="text-xs text-accent-muted mt-1 leading-relaxed whitespace-pre-wrap">{ev.description}</p>
+                          <p className="text-label text-fg-secondary mt-1 leading-relaxed whitespace-pre-wrap">{ev.description}</p>
                         )}
 
                         {raw && <RawPayloadPanel entries={raw} source={ev.raw_source} />}
@@ -315,14 +315,14 @@ export default function TimelineTab({ caseId }: Props) {
                       <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                         <button
                           onClick={() => openEdit(ev)}
-                          className="text-accent-muted/30 hover:text-accent-green transition-colors"
+                          className="text-fg-secondary/30 hover:text-accent transition-colors"
                           title="Edit event"
                         >
                           <Pencil size={12} />
                         </button>
                         <button
                           onClick={() => setDeleteTarget(ev.id)}
-                          className="text-accent-muted/30 hover:text-severity-critical transition-colors"
+                          className="text-fg-secondary/30 hover:text-severity-critical transition-colors"
                           title="Delete event"
                         >
                           <Trash2 size={13} />

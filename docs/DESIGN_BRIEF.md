@@ -180,3 +180,48 @@ Design against these five; they cover the whole surface.
 - Marketing site.
 - Report document styling (DOCX/Markdown export templates are a separate system).
 - Any change to information architecture or navigation structure.
+
+---
+
+## 8. Working with Claude Design
+
+There is a live bridge: the **DesignSync** tool reads and writes the
+`Remora Design System` project on claude.ai/design from the repository.
+
+```
+tokens.css (repo)   ──push──>   colors_and_type.css (design project)
+components (repo)   ──push──>   preview/*.html      (design project)
+```
+
+**The flow is one-directional on purpose.** The design project is where
+decisions are made and previewed; the repository is where they are enforced.
+Changes made in the design project are proposals — they reach users by being
+written into `frontend/src/styles/tokens.css`, passing `npm run check:design`,
+and going through a pull request. Two sources of truth would reproduce exactly
+the drift that S12 was spent eliminating, on colour instead of icons.
+
+Pushing the *real* components rather than mockups is the step that makes the
+loop worth having. Without it, Claude Design iterates on standalone HTML and
+someone re-translates the result by hand forever.
+
+### The enforcement that makes it stick
+
+`frontend/scripts/check-design-tokens.mjs`, wired into CI, rejects:
+
+- colour utilities naming a palette outside the token set
+- literal hex outside `styles/tokens.css`
+- arbitrary font sizes and anything off the four-step scale
+- radii outside `control` / `pill`
+
+This exists because Tailwind drops unrecognised classes **silently**. A renamed
+colour never fails a build; the element just renders unstyled. The check turns
+that into a hard error — it is what found `bg-orangeite-500/5`, a class naming a
+palette that has never existed, shipping without a background for months.
+
+### Literal colour debt
+
+18 files still hold literal hex. Each paints through canvas, an SVG attribute,
+or a ReactFlow style object — places needing a colour as a *value*, which
+Tailwind cannot reach. `src/styles/tokens.ts` provides that at runtime,
+resolving against the active theme. The files are listed by name in the checker.
+The list may shrink; nothing may be added to it.

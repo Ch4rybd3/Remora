@@ -115,15 +115,15 @@ const CATALOG: Record<string, PluginDef[]> = {
 
 function Chip({ status }: { status: string }) {
   const map: Record<string, { cls: string; icon: React.ElementType }> = {
-    pending: { cls: 'text-accent-muted/50 border-white/10',                         icon: Clock       },
-    running: { cls: 'text-yellow-400 border-yellow-400/30 bg-yellow-400/8',          icon: Loader2     },
-    done:    { cls: 'text-accent-green border-accent-green/30 bg-accent-green/8',    icon: CheckCircle2},
+    pending: { cls: 'text-fg-secondary/50 border-hairline',                         icon: Clock       },
+    running: { cls: 'text-severity-medium border-severity-medium/30 bg-severity-medium/8',          icon: Loader2     },
+    done:    { cls: 'text-accent border-accent/30 bg-accent/8',    icon: CheckCircle2},
     error:   { cls: 'text-severity-critical border-severity-critical/30 bg-severity-critical/8', icon: AlertCircle },
   }
   const th   = map[status] ?? map.pending
   const Icon = th.icon
   return (
-    <span className={`inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded border ${th.cls}`}>
+    <span className={`inline-flex items-center gap-1 text-label font-mono px-1.5 py-0.5 rounded-control border ${th.cls}`}>
       <Icon size={9} className={status === 'running' ? 'animate-spin' : ''} />
       {status}
     </span>
@@ -141,28 +141,27 @@ function HistoryCard({ p, caseId, dumpId }: { p: MemoryPluginResult; caseId: str
   })
 
   return (
-    <div className={`rounded-lg border transition-colors text-[11px] ${
-      p.status === 'done'  ? 'border-accent-green/15 bg-accent-green/3' :
+    <div className={` border transition-colors text-label ${ p.status === 'done'  ? 'border-accent/15 bg-accent/3' :
       p.status === 'error' ? 'border-severity-critical/15 bg-severity-critical/3' :
-      'border-white/8 bg-white/[0.02]'
+      'border-hairline bg-white/[0.02]'
     }`}>
       <div className="flex items-center gap-2.5 px-3 py-2">
         <Chip status={p.status} />
-        <span className="font-mono text-white/70 flex-1 truncate">{p.plugin_name}</span>
+        <span className="font-mono text-fg/70 flex-1 truncate">{p.plugin_name}</span>
         {p.plugin_args && Object.keys(p.plugin_args).length > 0 && (
-          <span className="text-[9px] text-accent-muted/40 font-mono truncate max-w-32">
+          <span className="text-label text-fg-secondary/40 font-mono truncate max-w-32">
             {Object.entries(p.plugin_args).map(([k, v]) => `--${k} ${v}`).join(' ')}
           </span>
         )}
         {p.completed_at && (
-          <span className="text-[9px] text-accent-muted/30 shrink-0">
+          <span className="text-label text-fg-secondary/30 shrink-0">
             {fmtRelative(p.completed_at)}
           </span>
         )}
         <button
           onClick={() => rerun.mutate()}
           disabled={rerun.isPending || p.status === 'running' || p.status === 'pending'}
-          className="p-1 rounded text-accent-muted/30 hover:text-white hover:bg-white/5 transition-colors disabled:opacity-30"
+          className="p-1 rounded-control text-fg-secondary/30 hover:text-fg hover:bg-fg/5 transition-colors disabled:opacity-30"
           title="Re-run"
         >
           <RotateCcw size={11} className={rerun.isPending ? 'animate-spin' : ''} />
@@ -170,21 +169,21 @@ function HistoryCard({ p, caseId, dumpId }: { p: MemoryPluginResult; caseId: str
         {(p.output || p.error) && (
           <button
             onClick={() => setOpen(v => !v)}
-            className="p-1 rounded text-accent-muted/30 hover:text-white hover:bg-white/5 transition-colors"
+            className="p-1 rounded-control text-fg-secondary/30 hover:text-fg hover:bg-fg/5 transition-colors"
           >
             {open ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
           </button>
         )}
       </div>
       {open && (
-        <div className="border-t border-white/5 px-3 py-2.5 space-y-2">
+        <div className="border-t border-hairline px-3 py-2.5 space-y-2">
           {p.output && (
-            <pre className="text-[10px] font-mono text-white/70 whitespace-pre-wrap break-all max-h-80 overflow-y-auto leading-relaxed bg-black/20 rounded p-2">
+            <pre className="text-label font-mono text-fg/70 whitespace-pre-wrap break-all max-h-80 overflow-y-auto leading-relaxed bg-black/20 rounded-control p-2">
               {p.output}
             </pre>
           )}
           {p.error && (
-            <div className="text-[10px] font-mono text-severity-critical/80 bg-severity-critical/5 rounded p-2 whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
+            <div className="text-label font-mono text-severity-critical/80 bg-severity-critical/5 rounded-control p-2 whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
               {p.error}
             </div>
           )}
@@ -264,7 +263,7 @@ export default function CustomCommandTab({ caseId, dumpId, osType }: Props) {
 
         {/* Category tabs */}
         <div>
-          <p className="text-[9px] font-semibold tracking-widest uppercase text-accent-muted/40 mb-2">
+          <p className="text-label font-semibold tracking-widest uppercase text-fg-secondary/40 mb-2">
             Category
           </p>
           <div className="flex flex-wrap gap-1">
@@ -272,10 +271,9 @@ export default function CustomCommandTab({ caseId, dumpId, osType }: Props) {
               <button
                 key={cat}
                 onClick={() => { setActiveCat(cat); setSelectedPlugin(null); setParamValues({}) }}
-                className={`text-[10px] px-2 py-1 rounded border transition-colors ${
-                  activeCat === cat
-                    ? 'bg-accent-green/10 border-accent-green/30 text-accent-green'
-                    : 'border-white/8 text-accent-muted hover:text-white hover:border-white/20'
+                className={`text-label px-2 py-1 rounded-control border transition-colors ${ activeCat === cat
+                    ? 'bg-accent/10 border-accent/30 text-accent'
+                    : 'border-hairline text-fg-secondary hover:text-fg hover:border-strong'
                 }`}
               >
                 {cat}
@@ -286,7 +284,7 @@ export default function CustomCommandTab({ caseId, dumpId, osType }: Props) {
 
         {/* Plugin list */}
         <div>
-          <p className="text-[9px] font-semibold tracking-widest uppercase text-accent-muted/40 mb-2">
+          <p className="text-label font-semibold tracking-widest uppercase text-fg-secondary/40 mb-2">
             Plugin
           </p>
           <div className="space-y-1">
@@ -294,10 +292,9 @@ export default function CustomCommandTab({ caseId, dumpId, osType }: Props) {
               <button
                 key={plugin.name}
                 onClick={() => selectPlugin(plugin)}
-                className={`w-full text-left text-[11px] px-2.5 py-2 rounded border transition-colors ${
-                  selectedPlugin?.name === plugin.name
-                    ? 'bg-accent-green/8 border-accent-green/25 text-accent-green'
-                    : 'border-transparent text-accent-muted hover:text-white hover:bg-white/5'
+                className={`w-full text-left text-label px-2.5 py-2 rounded-control border transition-colors ${ selectedPlugin?.name === plugin.name
+                    ? 'bg-accent/8 border-accent/25 text-accent'
+                    : 'border-transparent text-fg-secondary hover:text-fg hover:bg-fg/5'
                 }`}
               >
                 <span className="font-mono">{plugin.label}</span>
@@ -309,23 +306,22 @@ export default function CustomCommandTab({ caseId, dumpId, osType }: Props) {
         {/* Params */}
         {selectedPlugin && selectedPlugin.params.length > 0 && (
           <div>
-            <p className="text-[9px] font-semibold tracking-widest uppercase text-accent-muted/40 mb-2">
+            <p className="text-label font-semibold tracking-widest uppercase text-fg-secondary/40 mb-2">
               Parameters
             </p>
             <div className="space-y-2">
               {selectedPlugin.params.map(param => (
                 <div key={param.name}>
-                  <label className="text-[10px] text-accent-muted/60 mb-1 block">{param.label}</label>
+                  <label className="text-label text-fg-secondary/60 mb-1 block">{param.label}</label>
                   {param.type === 'flag' ? (
                     <div className="flex gap-1.5">
                       {['true', 'false'].map(v => (
                         <button
                           key={v}
                           onClick={() => setParamValues(pv => ({ ...pv, [param.name]: v }))}
-                          className={`flex-1 text-[10px] py-1 rounded border transition-colors ${
-                            (paramValues[param.name] ?? 'false') === v
-                              ? 'bg-accent-green/10 border-accent-green/30 text-accent-green'
-                              : 'border-white/8 text-accent-muted hover:text-white'
+                          className={`flex-1 text-label py-1 rounded-control border transition-colors ${ (paramValues[param.name] ?? 'false') === v
+                              ? 'bg-accent/10 border-accent/30 text-accent'
+                              : 'border-hairline text-fg-secondary hover:text-fg'
                           }`}
                         >
                           {v}
@@ -334,7 +330,7 @@ export default function CustomCommandTab({ caseId, dumpId, osType }: Props) {
                     </div>
                   ) : (
                     <input
-                      className="input text-xs py-1 w-full font-mono"
+                      className="input text-label py-1 w-full font-mono"
                       placeholder={param.placeholder}
                       value={paramValues[param.name] ?? ''}
                       onChange={e => setParamValues(pv => ({ ...pv, [param.name]: e.target.value }))}
@@ -349,12 +345,12 @@ export default function CustomCommandTab({ caseId, dumpId, osType }: Props) {
         {/* Command preview */}
         {preview && (
           <div>
-            <p className="text-[9px] font-semibold tracking-widest uppercase text-accent-muted/40 mb-1.5">
+            <p className="text-label font-semibold tracking-widest uppercase text-fg-secondary/40 mb-1.5">
               Preview
             </p>
-            <div className="bg-black/30 rounded border border-white/8 px-3 py-2 flex items-start gap-2">
-              <Terminal size={11} className="text-accent-green/50 shrink-0 mt-0.5" />
-              <code className="text-[10px] font-mono text-accent-green/80 break-all leading-relaxed">
+            <div className="bg-black/30 rounded-control border border-hairline px-3 py-2 flex items-start gap-2">
+              <Terminal size={11} className="text-accent/50 shrink-0 mt-0.5" />
+              <code className="text-label font-mono text-accent/80 break-all leading-relaxed">
                 {preview}
               </code>
             </div>
@@ -365,7 +361,7 @@ export default function CustomCommandTab({ caseId, dumpId, osType }: Props) {
         <button
           onClick={() => runPlugin.mutate()}
           disabled={!selectedPlugin || runPlugin.isPending}
-          className="btn-primary flex items-center justify-center gap-2 text-xs disabled:opacity-40"
+          className="btn-primary flex items-center justify-center gap-2 text-label disabled:opacity-40"
         >
           {runPlugin.isPending
             ? <><Loader2 size={13} className="animate-spin" /> Running…</>
@@ -374,7 +370,7 @@ export default function CustomCommandTab({ caseId, dumpId, osType }: Props) {
         </button>
 
         {runPlugin.isError && (
-          <p className="text-[10px] text-severity-critical">
+          <p className="text-label text-severity-critical">
             {(runPlugin.error as Error)?.message ?? 'Failed to run plugin'}
           </p>
         )}
@@ -382,14 +378,14 @@ export default function CustomCommandTab({ caseId, dumpId, osType }: Props) {
 
       {/* ── Right: history ────────────────────────────────────────────────── */}
       <div className="flex-1 min-w-0 overflow-y-auto">
-        <p className="text-[9px] font-semibold tracking-widest uppercase text-accent-muted/40 mb-3">
+        <p className="text-label font-semibold tracking-widest uppercase text-fg-secondary/40 mb-3">
           Run History ({customs.length})
         </p>
         {customs.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 gap-2 text-center">
-            <Terminal size={24} className="text-accent-muted/20" />
-            <p className="text-xs text-accent-muted/40">No custom runs yet</p>
-            <p className="text-[10px] text-accent-muted/25">
+            <Terminal size={24} className="text-fg-secondary/20" />
+            <p className="text-label text-fg-secondary/40">No custom runs yet</p>
+            <p className="text-label text-fg-secondary/25">
               Select a plugin and click Run to get started
             </p>
           </div>

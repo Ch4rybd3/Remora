@@ -278,9 +278,9 @@ export default function NoteGraph({ currentPath, onNodeClick }: Props) {
   if (!graph || graph.nodes.length === 0) {
     return (
       <div className="h-full flex items-center justify-center p-4">
-        <p className="text-[10px] text-accent-muted/30 italic text-center">
+        <p className="text-label text-fg-secondary/30 italic text-center">
           Create notes with{' '}
-          <code className="bg-white/5 px-1 rounded font-mono">[[wikilinks]]</code>
+          <code className="bg-fg/5 px-1 rounded-control font-mono">[[wikilinks]]</code>
           {' '}pour voir le graphe.
         </p>
       </div>

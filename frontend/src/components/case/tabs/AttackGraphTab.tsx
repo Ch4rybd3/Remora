@@ -25,15 +25,15 @@ interface Props { caseId: string }
 
 // ── IOC color map ─────────────────────────────────────────────────────────────
 const IOC_BADGE: Record<string, string> = {
-  ip:          'text-red-400',
-  domain:      'text-orange-400',
-  url:         'text-orange-300',
-  hash_md5:    'text-purple-400',
-  hash_sha1:   'text-purple-400',
-  hash_sha256: 'text-purple-400',
-  email:       'text-blue-400',
-  filename:    'text-yellow-400',
-  registry:    'text-pink-400',
+  ip:          'text-severity-critical',
+  domain:      'text-severity-high',
+  url:         'text-severity-high',
+  hash_md5:    'text-data-2',
+  hash_sha1:   'text-data-2',
+  hash_sha256: 'text-data-2',
+  email:       'text-severity-low',
+  filename:    'text-severity-medium',
+  registry:    'text-data-3',
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -53,7 +53,7 @@ function Section({ title, count, children }: {
     <div>
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1.5 w-full px-3 py-2 text-[10px] font-semibold uppercase tracking-widest text-accent-muted/50 hover:text-accent-muted transition-colors border-b border-white/5"
+        className="flex items-center gap-1.5 w-full px-3 py-2 text-label font-semibold uppercase tracking-widest text-fg-secondary/50 hover:text-fg-secondary transition-colors border-b border-hairline"
       >
         {open ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
         {title}
@@ -65,7 +65,7 @@ function Section({ title, count, children }: {
 }
 
 // ── Side-panel item with +ADD ─────────────────────────────────────────────────
-function SideItem({ icon: Icon, label, sub, textCls = 'text-white/80', onAdd }: {
+function SideItem({ icon: Icon, label, sub, textCls = 'text-fg/80', onAdd }: {
   icon: React.ElementType
   label: string
   sub?: string
@@ -74,14 +74,14 @@ function SideItem({ icon: Icon, label, sub, textCls = 'text-white/80', onAdd }: 
 }) {
   return (
     <div className="group flex items-start gap-2 px-3 py-2 hover:bg-white/[0.04] transition-colors">
-      <Icon size={12} className="text-accent-muted/50 mt-0.5 shrink-0" />
+      <Icon size={12} className="text-fg-secondary/50 mt-0.5 shrink-0" />
       <div className="flex-1 min-w-0">
-        <p className={`text-[11px] font-medium truncate leading-tight ${textCls}`}>{label}</p>
-        {sub && <p className="text-[10px] text-accent-muted/40 truncate mt-0.5">{sub}</p>}
+        <p className={`text-label font-medium truncate leading-tight ${textCls}`}>{label}</p>
+        {sub && <p className="text-label text-fg-secondary/40 truncate mt-0.5">{sub}</p>}
       </div>
       <button
         onClick={onAdd}
-        className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium text-accent-green border border-accent-green/40 hover:bg-accent-green/10 transition-all shrink-0"
+        className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 px-1.5 py-0.5 rounded-control text-label font-medium text-accent border border-accent/40 hover:bg-accent/10 transition-all shrink-0"
       >
         <Plus size={9} />ADD
       </button>
@@ -304,19 +304,19 @@ export default function AttackGraphTab({ caseId }: Props) {
     <div className="flex flex-col h-full overflow-hidden">
 
       {/* ── Toolbar ── proper header bar, same visual language as the rest ── */}
-      <div className="shrink-0 flex items-center gap-2 px-4 py-2 bg-bg-secondary border-b border-white/5">
+      <div className="shrink-0 flex items-center gap-2 px-4 py-2 bg-panel border-b border-hairline">
 
         {/* Left cluster: add free nodes */}
-        <span className="text-[10px] text-accent-muted/40 uppercase tracking-widest">Add</span>
+        <span className="text-label text-fg-secondary/40 uppercase tracking-widest">Add</span>
         <button
           onClick={addAttacker}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-severity-critical border border-severity-critical/30 hover:bg-severity-critical/10 transition-colors"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-control text-label text-severity-critical border border-severity-critical/30 hover:bg-severity-critical/10 transition-colors"
         >
           <Skull size={12} /> Attacker
         </button>
         <button
           onClick={addNote}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-accent-muted border border-white/10 hover:bg-white/5 hover:text-white transition-colors"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-control text-label text-fg-secondary border border-hairline hover:bg-fg/5 hover:text-fg transition-colors"
         >
           <StickyNote size={12} /> Note
         </button>
@@ -324,17 +324,17 @@ export default function AttackGraphTab({ caseId }: Props) {
         {/* Selected node actions */}
         {selected && (
           <>
-            <div className="h-5 w-px bg-white/10 mx-1" />
-            <span className="text-[10px] text-accent-muted/40 uppercase tracking-widest">Selected</span>
+            <div className="h-5 w-px bg-fg/10 mx-1" />
+            <span className="text-label text-fg-secondary/40 uppercase tracking-widest">Selected</span>
             <button
               onClick={() => openEdit(selected)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-white/70 border border-white/10 hover:bg-white/5 transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-control text-label text-fg/70 border border-hairline hover:bg-fg/5 transition-colors"
             >
               <Edit2 size={12} /> Edit
             </button>
             <button
               onClick={deleteSelected}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-severity-critical border border-severity-critical/20 hover:bg-severity-critical/10 transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-control text-label text-severity-critical border border-severity-critical/20 hover:bg-severity-critical/10 transition-colors"
             >
               <Trash2 size={12} /> Delete
             </button>
@@ -346,7 +346,7 @@ export default function AttackGraphTab({ caseId }: Props) {
           <button
             onClick={runLayout}
             disabled={laying || nodes.length === 0}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-white/10 text-xs text-accent-muted hover:text-white hover:border-white/25 disabled:opacity-40 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-control border border-hairline text-label text-fg-secondary hover:text-fg hover:border-strong disabled:opacity-40 transition-colors"
             title="Arrange nodes automatically with ELK layered layout"
           >
             <Wand2 size={12} />
@@ -355,10 +355,9 @@ export default function AttackGraphTab({ caseId }: Props) {
           <button
             onClick={doSave}
             disabled={saveState === 'saving'}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border transition-colors ${
-              saveState === 'saved'
-                ? 'bg-accent-green/10 text-accent-green border-accent-green/40'
-                : 'bg-accent-green/10 text-white border-accent-green/50 hover:bg-accent-green/20'
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-control text-label font-medium border transition-colors ${ saveState === 'saved'
+                ? 'bg-accent/10 text-accent border-accent/40'
+                : 'bg-accent/10 text-fg border-accent/50 hover:bg-accent/20'
             }`}
           >
             <Save size={12} />
@@ -371,23 +370,23 @@ export default function AttackGraphTab({ caseId }: Props) {
       <div className="flex flex-1 overflow-hidden">
 
         {/* Left panel — Assets & IOCs */}
-        <div className="w-52 shrink-0 flex flex-col overflow-hidden border-r border-white/5 bg-bg-secondary">
-          <div className="px-3 py-2.5 border-b border-white/5 shrink-0">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-accent-muted/70">
+        <div className="w-52 shrink-0 flex flex-col overflow-hidden border-r border-hairline bg-panel">
+          <div className="px-3 py-2.5 border-b border-hairline shrink-0">
+            <p className="text-label font-semibold uppercase tracking-widest text-fg-secondary/70">
               Assets &amp; IOCs
             </p>
           </div>
           <div className="flex-1 overflow-y-auto">
             <Section title="Assets" count={assets.length}>
               {assets.length === 0
-                ? <p className="px-3 py-2 text-[11px] italic text-accent-muted/30">No assets in this case</p>
+                ? <p className="px-3 py-2 text-label italic text-fg-secondary/30">No assets in this case</p>
                 : assets.map(a => (
                   <SideItem
                     key={a.id}
                     icon={Monitor}
                     label={a.name}
                     sub={[a.ip_address, a.hostname].filter(Boolean).join(' · ') || a.type}
-                    textCls={a.compromised ? 'text-severity-critical/80' : 'text-white/80'}
+                    textCls={a.compromised ? 'text-severity-critical/80' : 'text-fg/80'}
                     onAdd={() => addAsset(a)}
                   />
                 ))
@@ -395,14 +394,14 @@ export default function AttackGraphTab({ caseId }: Props) {
             </Section>
             <Section title="IOCs" count={iocs.length}>
               {iocs.length === 0
-                ? <p className="px-3 py-2 text-[11px] italic text-accent-muted/30">No IOCs in this case</p>
+                ? <p className="px-3 py-2 text-label italic text-fg-secondary/30">No IOCs in this case</p>
                 : iocs.map(ioc => (
                   <SideItem
                     key={ioc.id}
                     icon={Shield}
                     label={ioc.value.length > 28 ? ioc.value.slice(0, 28) + '…' : ioc.value}
                     sub={ioc.type.replace('hash_', '').toUpperCase()}
-                    textCls={IOC_BADGE[ioc.type] ?? 'text-accent-muted'}
+                    textCls={IOC_BADGE[ioc.type] ?? 'text-fg-secondary'}
                     onAdd={() => addIOC(ioc)}
                   />
                 ))
@@ -450,31 +449,31 @@ export default function AttackGraphTab({ caseId }: Props) {
         </div>
 
         {/* Right panel — Timeline */}
-        <div className="w-56 shrink-0 flex flex-col overflow-hidden border-l border-white/5 bg-bg-secondary">
-          <div className="px-3 py-2.5 border-b border-white/5 shrink-0">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-accent-muted/70">
+        <div className="w-56 shrink-0 flex flex-col overflow-hidden border-l border-hairline bg-panel">
+          <div className="px-3 py-2.5 border-b border-hairline shrink-0">
+            <p className="text-label font-semibold uppercase tracking-widest text-fg-secondary/70">
               Timeline
             </p>
           </div>
-          <div className="flex-1 overflow-y-auto divide-y divide-white/5">
+          <div className="flex-1 overflow-y-auto divide-y divide-hairline">
             {events.length === 0 && (
-              <p className="px-3 py-3 text-[11px] italic text-accent-muted/30">No timeline events</p>
+              <p className="px-3 py-3 text-label italic text-fg-secondary/30">No timeline events</p>
             )}
             {events.map(ev => (
               <div key={ev.id} className="group flex items-start gap-2 px-3 py-2.5 hover:bg-white/[0.04] transition-colors">
-                <Clock size={11} className="text-accent-green/50 mt-0.5 shrink-0" />
+                <Clock size={11} className="text-accent/50 mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-mono text-accent-green/60 mb-0.5 leading-none">
+                  <p className="text-label font-mono text-accent/60 mb-0.5 leading-none">
                     {fmtCompactShort(ev.event_ts)}
                   </p>
-                  <p className="text-[11px] font-medium text-white/90 leading-snug line-clamp-2">{ev.title}</p>
+                  <p className="text-label font-medium text-fg/90 leading-snug line-clamp-2">{ev.title}</p>
                   {ev.actor && (
-                    <p className="text-[10px] text-accent-muted/40 truncate mt-0.5">{ev.actor}</p>
+                    <p className="text-label text-fg-secondary/40 truncate mt-0.5">{ev.actor}</p>
                   )}
                 </div>
                 <button
                   onClick={() => addTimeline(ev)}
-                  className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium text-accent-green border border-accent-green/40 hover:bg-accent-green/10 transition-all shrink-0 mt-0.5"
+                  className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 px-1.5 py-0.5 rounded-control text-label font-medium text-accent border border-accent/40 hover:bg-accent/10 transition-all shrink-0 mt-0.5"
                 >
                   <Plus size={9} />ADD
                 </button>

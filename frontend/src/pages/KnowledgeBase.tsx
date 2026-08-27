@@ -67,25 +67,25 @@ const TYPE_LABELS: Record<VaultType, string> = {
 }
 
 const TYPE_COLORS: Record<VaultType, string> = {
-  obsidian:    'text-violet-400 bg-violet-500/10 border-violet-500/20',
-  pdf:         'text-red-400 bg-red-500/10 border-red-500/20',
-  image:       'text-blue-400 bg-blue-500/10 border-blue-500/20',
-  text:        'text-slate-400 bg-slate-500/10 border-slate-500/20',
-  spreadsheet: 'text-green-400 bg-green-500/10 border-green-500/20',
-  code:        'text-purple-400 bg-purple-500/10 border-purple-500/20',
-  docx:        'text-cyan-400 bg-cyan-500/10 border-cyan-500/20',
-  other:       'text-accent-muted bg-white/5 border-white/10',
+  obsidian:    'text-data-2 bg-data-2/10 border-data-2/20',
+  pdf:         'text-severity-critical bg-severity-critical/10 border-severity-critical/20',
+  image:       'text-severity-low bg-severity-low/10 border-severity-low/20',
+  text:        'text-fg-muted bg-fg-muted/10 border-fg-muted/20',
+  spreadsheet: 'text-accent bg-accent/10 border-accent/20',
+  code:        'text-data-2 bg-data-2/10 border-data-2/20',
+  docx:        'text-data-5 bg-data-5/10 border-data-5/20',
+  other:       'text-fg-secondary bg-fg/5 border-hairline',
 }
 
 const ICON_BG: Record<VaultType, string> = {
-  obsidian:    'bg-violet-500/10 border-violet-500/20 text-violet-400',
-  pdf:         'bg-red-500/10    border-red-500/20    text-red-400',
-  image:       'bg-blue-500/10   border-blue-500/20   text-blue-400',
-  text:        'bg-slate-500/10  border-slate-500/20  text-slate-400',
-  spreadsheet: 'bg-green-500/10  border-green-500/20  text-green-400',
-  code:        'bg-purple-500/10 border-purple-500/20 text-purple-400',
-  docx:        'bg-cyan-500/10   border-cyan-500/20   text-cyan-400',
-  other:       'bg-white/5       border-white/10      text-accent-muted',
+  obsidian:    'bg-data-2/10 border-data-2/20 text-data-2',
+  pdf:         'bg-severity-critical/10    border-severity-critical/20    text-severity-critical',
+  image:       'bg-severity-low/10   border-severity-low/20   text-severity-low',
+  text:        'bg-fg-muted/10  border-fg-muted/20  text-fg-muted',
+  spreadsheet: 'bg-accent/10  border-accent/20  text-accent',
+  code:        'bg-data-2/10 border-data-2/20 text-data-2',
+  docx:        'bg-data-5/10   border-data-5/20   text-data-5',
+  other:       'bg-fg/5       border-hairline      text-fg-secondary',
 }
 
 import { fmtBytes as fmtSize } from '../utils/formatUtils'
@@ -109,24 +109,23 @@ function VaultListItem({
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left px-3 py-2.5 flex items-start gap-2.5 transition-colors group
-        ${selected
-          ? 'bg-accent-green/5 border-l-2 border-l-accent-green/40 text-white'
-          : 'border-l-2 border-l-transparent text-accent-muted hover:text-white hover:bg-white/5'
+      className={`w-full text-left px-3 py-2.5 flex items-start gap-2.5 transition-colors group ${selected
+          ? 'bg-accent/5 border-l-2 border-l-accent/40 text-fg'
+          : 'border-l-2 border-l-transparent text-fg-secondary hover:text-fg hover:bg-fg/5'
         }`}
     >
-      <div className={`shrink-0 p-1.5 rounded border mt-0.5 ${ICON_BG[type]}`}>
+      <div className={`shrink-0 p-1.5 rounded-control border mt-0.5 ${ICON_BG[type]}`}>
         <TypeIcon type={type} size={12} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium truncate leading-snug">{vault.name}</p>
-        <p className={`text-[10px] font-mono mt-0.5 ${selected ? 'text-accent-muted' : 'text-accent-muted/50'}`}>
+        <p className="text-label font-medium truncate leading-snug">{vault.name}</p>
+        <p className={`text-label font-mono mt-0.5 ${selected ? 'text-fg-secondary' : 'text-fg-secondary/50'}`}>
           {fmtSize(vault.file_size)}
         </p>
         {tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1">
             {tags.slice(0, 3).map(t => (
-              <span key={t} className="text-[9px] font-mono px-1 py-0 rounded bg-white/5 text-accent-muted/50 border border-white/8">
+              <span key={t} className="text-label font-mono px-1 py-0 rounded-control bg-fg/5 text-fg-secondary/50 border border-hairline">
                 {t}
               </span>
             ))}
@@ -144,31 +143,31 @@ function VaultMetaHeader({ vault }: { vault: VaultEntry }) {
   const tags = parseTags(vault.tags)
   return (
     <div className="flex items-start gap-4 mb-6">
-      <div className={`p-3 rounded-xl border ${ICON_BG[type]}`}>
+      <div className={`p-3 border ${ICON_BG[type]}`}>
         <TypeIcon type={type} size={22} />
       </div>
       <div className="flex-1 min-w-0">
-        <h2 className="text-lg font-bold text-white leading-tight">{vault.name}</h2>
+        <h2 className="text-title font-bold text-fg leading-tight">{vault.name}</h2>
         <div className="flex items-center gap-2 mt-1 flex-wrap">
-          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${TYPE_COLORS[type]}`}>
+          <span className={`text-label font-mono px-1.5 py-0.5 rounded-control border ${TYPE_COLORS[type]}`}>
             {TYPE_LABELS[type]}
           </span>
-          <span className="text-xs text-accent-muted/50 font-mono">{fmtSize(vault.file_size)}</span>
-          <span className="text-xs text-accent-muted/30 font-mono">{vault.file_name}</span>
+          <span className="text-label text-fg-secondary/50 font-mono">{fmtSize(vault.file_size)}</span>
+          <span className="text-label text-fg-secondary/30 font-mono">{vault.file_name}</span>
         </div>
         {vault.description && (
-          <p className="text-sm text-accent-muted mt-2 leading-relaxed">{vault.description}</p>
+          <p className="text-ui text-fg-secondary mt-2 leading-relaxed">{vault.description}</p>
         )}
         {tags.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-2">
             {tags.map(t => (
-              <span key={t} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-accent-green/10 text-accent-green/70 border border-accent-green/20">
+              <span key={t} className="text-label font-mono px-1.5 py-0.5 rounded-control bg-accent/10 text-accent/70 border border-accent/20">
                 {t}
               </span>
             ))}
           </div>
         )}
-        <p className="text-[10px] text-accent-muted/30 mt-2">
+        <p className="text-label text-fg-secondary/30 mt-2">
           Imported by {vault.created_by ?? '-'} · {fmtDate(vault.created_at)}
         </p>
       </div>
@@ -181,7 +180,7 @@ function DownloadBtn({ vault }: { vault: VaultEntry }) {
     <a
       href={vaultApi.downloadUrl(vault.id)}
       download={vault.file_name}
-      className="btn-primary inline-flex items-center gap-2 text-sm"
+      className="btn-primary inline-flex items-center gap-2 text-ui"
     >
       <Download size={14} />
       Download {vault.file_name}
@@ -195,12 +194,12 @@ function ObsidianView({ vault }: { vault: VaultEntry }) {
   return (
     <div className="p-8 max-w-2xl mx-auto">
       <VaultMetaHeader vault={vault} />
-      <div className="card p-6 space-y-4 border-violet-500/20 bg-violet-500/5">
+      <div className="card p-6 space-y-4 border-data-2/20 bg-data-2/5">
         <div className="flex items-start gap-3">
-          <Archive size={20} className="text-violet-400 shrink-0 mt-0.5" />
+          <Archive size={20} className="text-data-2 shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-semibold text-white">Vault Obsidian</p>
-            <p className="text-xs text-accent-muted mt-1 leading-relaxed">
+            <p className="text-ui font-semibold text-fg">Vault Obsidian</p>
+            <p className="text-label text-fg-secondary mt-1 leading-relaxed">
               This vault holds Markdown notes in Obsidian format. Open the knowledge
               editor to browse, read and edit them, follow wikilinks and view the
               knowledge graph.
@@ -209,7 +208,7 @@ function ObsidianView({ vault }: { vault: VaultEntry }) {
         </div>
         <div className="flex gap-2 pt-2">
           <button
-            className="btn-primary flex items-center gap-2 text-sm"
+            className="btn-primary flex items-center gap-2 text-ui"
             onClick={() => navigate('/knowledge/editor')}
           >
             <ExternalLink size={14} />
@@ -218,7 +217,7 @@ function ObsidianView({ vault }: { vault: VaultEntry }) {
           <a
             href={vaultApi.downloadUrl(vault.id)}
             download={vault.file_name}
-            className="btn-secondary flex items-center gap-2 text-sm"
+            className="btn-secondary flex items-center gap-2 text-ui"
           >
             <Download size={13} />
             Download the ZIP
@@ -233,13 +232,13 @@ function ObsidianView({ vault }: { vault: VaultEntry }) {
 function PdfView({ vault }: { vault: VaultEntry }) {
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-4 py-2 border-b border-white/5 bg-bg-secondary/50 shrink-0">
-        <FileType size={13} className="text-red-400" />
-        <span className="text-xs text-accent-muted font-medium flex-1 truncate">{vault.name}</span>
+      <div className="flex items-center gap-3 px-4 py-2 border-b border-hairline bg-panel/50 shrink-0">
+        <FileType size={13} className="text-severity-critical" />
+        <span className="text-label text-fg-secondary font-medium flex-1 truncate">{vault.name}</span>
         <a
           href={vaultApi.downloadUrl(vault.id)}
           download={vault.file_name}
-          className="flex items-center gap-1 text-xs text-accent-muted/50 hover:text-white transition-colors"
+          className="flex items-center gap-1 text-label text-fg-secondary/50 hover:text-fg transition-colors"
         >
           <Download size={11} />
           Download
@@ -248,7 +247,7 @@ function PdfView({ vault }: { vault: VaultEntry }) {
           href={vaultApi.viewUrl(vault.id)}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1 text-xs text-accent-muted/50 hover:text-white transition-colors"
+          className="flex items-center gap-1 text-label text-fg-secondary/50 hover:text-fg transition-colors"
         >
           <Maximize2 size={11} />
           Full screen
@@ -272,31 +271,31 @@ function ImageView({ vault }: { vault: VaultEntry }) {
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="flex items-center gap-3 px-4 py-2 border-b border-white/5 bg-bg-secondary/50 shrink-0">
-        <ImageIcon size={13} className="text-blue-400" />
-        <span className="text-xs text-accent-muted font-medium flex-1 truncate">{vault.name}</span>
-        <span className="text-[10px] font-mono text-accent-muted/40">{fmtSize(vault.file_size)}</span>
+      <div className="flex items-center gap-3 px-4 py-2 border-b border-hairline bg-panel/50 shrink-0">
+        <ImageIcon size={13} className="text-severity-low" />
+        <span className="text-label text-fg-secondary font-medium flex-1 truncate">{vault.name}</span>
+        <span className="text-label font-mono text-fg-secondary/40">{fmtSize(vault.file_size)}</span>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setZoom(z => Math.max(0.25, +(z - 0.25).toFixed(2)))}
-            className="p-1 rounded text-accent-muted/40 hover:text-white hover:bg-white/5 transition-colors"
+            className="p-1 rounded-control text-fg-secondary/40 hover:text-fg hover:bg-fg/5 transition-colors"
             title="Zoom out"
           >
             <ZoomOut size={12} />
           </button>
-          <span className="text-[10px] font-mono text-accent-muted/50 w-10 text-center">
+          <span className="text-label font-mono text-fg-secondary/50 w-10 text-center">
             {Math.round(zoom * 100)}%
           </span>
           <button
             onClick={() => setZoom(z => Math.min(4, +(z + 0.25).toFixed(2)))}
-            className="p-1 rounded text-accent-muted/40 hover:text-white hover:bg-white/5 transition-colors"
+            className="p-1 rounded-control text-fg-secondary/40 hover:text-fg hover:bg-fg/5 transition-colors"
             title="Zoom in"
           >
             <ZoomIn size={12} />
           </button>
           <button
             onClick={() => setZoom(1)}
-            className="p-1 rounded text-accent-muted/40 hover:text-white hover:bg-white/5 transition-colors text-[10px] font-mono"
+            className="p-1 rounded-control text-fg-secondary/40 hover:text-fg hover:bg-fg/5 transition-colors text-label font-mono"
             title="Reset zoom"
           >
             1:1
@@ -305,7 +304,7 @@ function ImageView({ vault }: { vault: VaultEntry }) {
         <a
           href={vaultApi.downloadUrl(vault.id)}
           download={vault.file_name}
-          className="flex items-center gap-1 text-xs text-accent-muted/50 hover:text-white transition-colors"
+          className="flex items-center gap-1 text-label text-fg-secondary/50 hover:text-fg transition-colors"
         >
           <Download size={11} />
           Download
@@ -346,13 +345,13 @@ function TextView({ vault }: { vault: VaultEntry }) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-4 py-2 border-b border-white/5 bg-bg-secondary/50 shrink-0">
-        <FileText size={13} className="text-slate-400" />
-        <span className="text-xs text-accent-muted font-medium flex-1 truncate">{vault.name}</span>
+      <div className="flex items-center gap-3 px-4 py-2 border-b border-hairline bg-panel/50 shrink-0">
+        <FileText size={13} className="text-fg-muted" />
+        <span className="text-label text-fg-secondary font-medium flex-1 truncate">{vault.name}</span>
         <a
           href={vaultApi.downloadUrl(vault.id)}
           download={vault.file_name}
-          className="flex items-center gap-1 text-xs text-accent-muted/50 hover:text-white transition-colors"
+          className="flex items-center gap-1 text-label text-fg-secondary/50 hover:text-fg transition-colors"
         >
           <Download size={11} />
           Download
@@ -360,9 +359,9 @@ function TextView({ vault }: { vault: VaultEntry }) {
       </div>
       <div className="flex-1 overflow-auto p-6">
         {isLoading ? (
-          <p className="text-accent-muted text-sm animate-pulse">Loading...</p>
+          <p className="text-fg-secondary text-ui animate-pulse">Loading...</p>
         ) : (
-          <pre className="text-xs text-foreground/80 font-mono whitespace-pre-wrap leading-relaxed">
+          <pre className="text-label text-fg/80 font-mono whitespace-pre-wrap leading-relaxed">
             {data}
           </pre>
         )}
@@ -377,8 +376,8 @@ function DownloadOnlyView({ vault }: { vault: VaultEntry }) {
   return (
     <div className="p-8 max-w-2xl mx-auto">
       <VaultMetaHeader vault={vault} />
-      <div className="card p-6 space-y-3 border-white/10">
-        <p className="text-sm text-accent-muted">
+      <div className="card p-6 space-y-3 border-hairline">
+        <p className="text-ui text-fg-secondary">
           {type === 'docx'
             ? 'Word documents cannot be previewed directly in the browser.'
             : type === 'spreadsheet'
@@ -410,15 +409,15 @@ function NoVaultSelected() {
   const navigate = useNavigate()
   return (
     <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-8">
-      <Archive size={42} className="text-accent-muted/15" />
+      <Archive size={42} className="text-fg-secondary/15" />
       <div>
-        <p className="text-accent-muted text-sm font-medium">Select a vault</p>
-        <p className="text-accent-muted/40 text-xs mt-1 max-w-xs">
+        <p className="text-fg-secondary text-ui font-medium">Select a vault</p>
+        <p className="text-fg-secondary/40 text-label mt-1 max-w-xs">
           Pick a vault from the list on the left to preview or open it.
         </p>
       </div>
       <button
-        className="btn-secondary text-xs flex items-center gap-1.5 mt-2"
+        className="btn-secondary text-label flex items-center gap-1.5 mt-2"
         onClick={() => navigate('/config/vaults')}
       >
         <Settings size={12} />
@@ -432,15 +431,15 @@ function NoVaultsYet() {
   const navigate = useNavigate()
   return (
     <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-8">
-      <Package size={46} className="text-accent-muted/12" />
+      <Package size={46} className="text-fg-secondary/12" />
       <div>
-        <p className="text-accent-muted text-sm font-medium">No vault imported</p>
-        <p className="text-accent-muted/40 text-xs mt-1 max-w-xs leading-relaxed">
+        <p className="text-fg-secondary text-ui font-medium">No vault imported</p>
+        <p className="text-fg-secondary/40 text-label mt-1 max-w-xs leading-relaxed">
           Importe des vaults Obsidian, PDF, images ou documents depuis la page de gestion.
         </p>
       </div>
       <button
-        className="btn-primary text-xs flex items-center gap-1.5"
+        className="btn-primary text-label flex items-center gap-1.5"
         onClick={() => navigate('/config/vaults')}
       >
         <Upload size={12} />
@@ -493,18 +492,18 @@ export default function KnowledgeBase() {
     <div className="flex h-full overflow-hidden">
 
       {/* ── Left panel — vault list ──────────────────────────────────────── */}
-      <aside className="w-64 shrink-0 border-r border-white/5 bg-bg-secondary flex flex-col">
+      <aside className="w-64 shrink-0 border-r border-hairline bg-panel flex flex-col">
 
         {/* Header */}
-        <div className="px-3 py-3 border-b border-white/5 space-y-2">
+        <div className="px-3 py-3 border-b border-hairline space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Archive size={14} className="text-accent-green/70" />
-              <span className="text-xs font-semibold text-accent-green tracking-wide">Knowledge Vaults</span>
+              <Archive size={14} className="text-accent/70" />
+              <span className="text-label font-semibold text-accent tracking-wide">Knowledge Vaults</span>
             </div>
             <button
               onClick={() => navigate('/config/vaults')}
-              className="p-1 rounded text-accent-muted/30 hover:text-white hover:bg-white/5 transition-colors"
+              className="p-1 rounded-control text-fg-secondary/30 hover:text-fg hover:bg-fg/5 transition-colors"
               title="Manage vaults"
             >
               <Settings size={12} />
@@ -514,7 +513,7 @@ export default function KnowledgeBase() {
           {/* Search */}
           {vaults.length > 2 && (
             <input
-              className="input py-1 text-xs"
+              className="input py-1 text-label"
               placeholder="Search..."
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -528,10 +527,9 @@ export default function KnowledgeBase() {
                 <button
                   key={t}
                   onClick={() => setTypeFilter(t)}
-                  className={`text-[9px] font-mono px-1.5 py-0.5 rounded border transition-colors ${
-                    typeFilter === t
-                      ? 'bg-accent-green/15 text-accent-green border-accent-green/30'
-                      : 'bg-white/5 text-accent-muted/40 border-white/10 hover:text-white'
+                  className={`text-label font-mono px-1.5 py-0.5 rounded-control border transition-colors ${ typeFilter === t
+                      ? 'bg-accent/15 text-accent border-accent/30'
+                      : 'bg-fg/5 text-fg-secondary/40 border-hairline hover:text-fg'
                   }`}
                 >
                   {TYPE_FILTER_LABELS[t] ?? t}
@@ -547,16 +545,16 @@ export default function KnowledgeBase() {
             <div className="space-y-1 p-2">
               {[1, 2, 3].map(i => (
                 <div key={i} className="flex gap-2 px-2 py-2 animate-pulse">
-                  <div className="w-7 h-7 rounded bg-white/5 shrink-0" />
+                  <div className="w-7 h-7 rounded-control bg-fg/5 shrink-0" />
                   <div className="flex-1 space-y-1.5">
-                    <div className="h-3 bg-white/5 rounded w-28" />
-                    <div className="h-2 bg-white/5 rounded w-16" />
+                    <div className="h-3 bg-fg/5 rounded-control w-28" />
+                    <div className="h-2 bg-fg/5 rounded-control w-16" />
                   </div>
                 </div>
               ))}
             </div>
           ) : filtered.length === 0 ? (
-            <p className="text-[11px] text-accent-muted/30 italic text-center py-6 px-3">
+            <p className="text-label text-fg-secondary/30 italic text-center py-6 px-3">
               {search || typeFilter !== 'all' ? 'No vault found.' : 'No vault imported.'}
             </p>
           ) : (
@@ -575,10 +573,10 @@ export default function KnowledgeBase() {
 
         {/* Footer: count + manage link */}
         {vaults.length > 0 && (
-          <div className="px-3 py-2 border-t border-white/5">
+          <div className="px-3 py-2 border-t border-hairline">
             <button
               onClick={() => navigate('/config/vaults')}
-              className="flex items-center gap-1.5 text-[10px] text-accent-muted/30 hover:text-accent-green transition-colors w-full"
+              className="flex items-center gap-1.5 text-label text-fg-secondary/30 hover:text-accent transition-colors w-full"
             >
               <Settings size={10} />
               {vaults.length} vault{vaults.length !== 1 ? 's' : ''} · Manage →
@@ -591,7 +589,7 @@ export default function KnowledgeBase() {
       <main className="flex-1 overflow-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
-            <p className="text-accent-muted text-sm animate-pulse">Loading vaults...</p>
+            <p className="text-fg-secondary text-ui animate-pulse">Loading vaults...</p>
           </div>
         ) : vaults.length === 0 ? (
           <NoVaultsYet />

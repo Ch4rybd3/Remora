@@ -51,12 +51,12 @@ function makeBatches(files: File[]): File[][] {
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  pending: 'text-yellow-400',
-  processing: 'text-blue-400',
-  done: 'text-accent-green',
-  error: 'text-red-400',
-  imported: 'text-accent-green',
-  unsupported: 'text-gray-500',
+  pending: 'text-severity-medium',
+  processing: 'text-severity-low',
+  done: 'text-accent',
+  error: 'text-severity-critical',
+  imported: 'text-accent',
+  unsupported: 'text-fg-muted',
 }
 
 const CATEGORY_ICON: Record<string, string> = {
@@ -137,11 +137,11 @@ function mergeSession(cols: ImportedCollection[]): ImportedCollection & { _sourc
 function Progress({ val, total }: { val: number; total: number }) {
   const pct = total > 0 ? Math.round((val / total) * 100) : 0
   return (
-    <div className="flex items-center gap-2 text-xs">
-      <div className="flex-1 h-1.5 bg-[#1a2332] rounded-full overflow-hidden">
-        <div className="h-full bg-accent-green transition-all" style={{ width: `${pct}%` }} />
+    <div className="flex items-center gap-2 text-label">
+      <div className="flex-1 h-1.5 bg-[#1a2332] rounded-pill overflow-hidden">
+        <div className="h-full bg-accent transition-all" style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-gray-400 w-10 text-right">{pct}%</span>
+      <span className="text-fg-muted w-10 text-right">{pct}%</span>
     </div>
   )
 }
@@ -168,25 +168,24 @@ function TzPicker({ f, caseId }: { f: ImportedFile; caseId: string }) {
       <button
         onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
         title="Source timezone for this artifact's timestamps"
-        className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
-          isCustom
-            ? 'border-blue-500/40 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'
-            : 'border-white/10 bg-white/[0.03] text-gray-500 hover:text-gray-300 hover:border-white/20'
+        className={`flex items-center gap-1 text-label px-1.5 py-0.5 rounded-control border transition-colors ${ isCustom
+            ? 'border-severity-low/40 bg-severity-low/10 text-severity-low hover:bg-severity-low/20'
+            : 'border-hairline bg-white/[0.03] text-fg-muted hover:text-fg-muted hover:border-strong'
         }`}
       >
         <Globe size={9} />
         <span>{label}</span>
       </button>
       {open && (
-        <div className="absolute z-50 top-full left-0 mt-1 w-48 bg-[#0d1927] border border-white/15 rounded-lg shadow-xl text-xs overflow-hidden">
-          <div className="px-2 py-1.5 border-b border-white/10 text-[10px] text-gray-500 uppercase tracking-wide">
+        <div className="absolute z-50 top-full left-0 mt-1 w-48 bg-[#0d1927] border border-hairline shadow-xl text-label overflow-hidden">
+          <div className="px-2 py-1.5 border-b border-hairline text-label text-fg-muted uppercase tracking-wide">
             Timezone source
           </div>
           <div className="max-h-52 overflow-y-auto">
             {/* Reset to default */}
             <button
               onClick={() => setTz.mutate(null)}
-              className={`w-full text-left px-3 py-1.5 hover:bg-white/5 ${!isCustom ? 'text-accent-green' : 'text-gray-400'}`}
+              className={`w-full text-left px-3 py-1.5 hover:bg-fg/5 ${!isCustom ? 'text-accent' : 'text-fg-muted'}`}
             >
               UTC (default)
             </button>
@@ -194,10 +193,10 @@ function TzPicker({ f, caseId }: { f: ImportedFile; caseId: string }) {
               <button
                 key={o.value}
                 onClick={() => setTz.mutate(o.value)}
-                className={`w-full text-left px-3 py-1.5 hover:bg-white/5 ${f.source_timezone === o.value ? 'text-accent-green' : 'text-gray-400'}`}
+                className={`w-full text-left px-3 py-1.5 hover:bg-fg/5 ${f.source_timezone === o.value ? 'text-accent' : 'text-fg-muted'}`}
               >
                 {o.label}
-                <span className="text-gray-600 ml-1 text-[9px]">{o.region}</span>
+                <span className="text-fg-muted ml-1 text-label">{o.region}</span>
               </button>
             ))}
           </div>
@@ -208,28 +207,28 @@ function TzPicker({ f, caseId }: { f: ImportedFile; caseId: string }) {
 }
 
 function FileBadge({ f, caseId }: { f: ImportedFile; caseId: string }) {
-  const color = STATUS_COLOR[f.status] ?? 'text-gray-400'
+  const color = STATUS_COLOR[f.status] ?? 'text-fg-muted'
   const showTzPicker = f.status === 'imported' && !!f.csv_artifact_id
   return (
-    <tr className="border-b border-white/5 hover:bg-white/[0.02] text-xs">
-      <td className="py-2 pl-3 pr-2 font-mono text-gray-400 max-w-[280px] truncate">
+    <tr className="border-b border-hairline hover:bg-white/[0.02] text-label">
+      <td className="py-2 pl-3 pr-2 font-mono text-fg-muted max-w-[280px] truncate">
         {f.filename.split('/').pop()}
       </td>
       <td className="py-2 px-2">
         {f.category_label
-          ? <span className="text-gray-300">{f.category_label}</span>
-          : <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-gray-500/10 text-gray-500 border-gray-500/20">unknown</span>}
+          ? <span className="text-fg-muted">{f.category_label}</span>
+          : <span className="text-label font-semibold px-1.5 py-0.5 rounded-control border bg-fg-muted/10 text-fg-muted border-fg-muted/20">unknown</span>}
       </td>
       <td className={`py-2 px-2 font-semibold ${color}`}>{f.status}</td>
-      <td className="py-2 px-2 text-gray-400 text-right">{fmtNum(f.row_count)}</td>
+      <td className="py-2 px-2 text-fg-muted text-right">{fmtNum(f.row_count)}</td>
       <td className="py-2 px-2">
-        {showTzPicker ? <TzPicker f={f} caseId={caseId} /> : <span className="text-gray-600">—</span>}
+        {showTzPicker ? <TzPicker f={f} caseId={caseId} /> : <span className="text-fg-muted">—</span>}
       </td>
-      <td className="py-2 px-2 text-gray-400 text-right">{fmt(f.file_size)}</td>
-      <td className="py-2 pr-3 text-gray-500 text-right">
+      <td className="py-2 px-2 text-fg-muted text-right">{fmt(f.file_size)}</td>
+      <td className="py-2 pr-3 text-fg-muted text-right">
         {f.expires_at && !f.added_to_evidence
           ? new Date(f.expires_at).toLocaleDateString()
-          : f.added_to_evidence ? <span className="text-accent-green text-xs">∞</span> : '—'}
+          : f.added_to_evidence ? <span className="text-accent text-label">∞</span> : '—'}
       </td>
     </tr>
   )
@@ -242,10 +241,10 @@ function displayName(filename: string): string {
 }
 
 const STATUS_BADGE: Record<string, string> = {
-  done:       'text-accent-green border-accent-green/30 bg-accent-green/8',
-  processing: 'text-blue-400 border-blue-400/30 bg-blue-400/8',
-  error:      'text-red-400 border-red-400/30 bg-red-400/8',
-  pending:    'text-yellow-400 border-yellow-400/30 bg-yellow-400/8',
+  done:       'text-accent border-accent/30 bg-accent/8',
+  processing: 'text-severity-low border-severity-low/30 bg-severity-low/8',
+  error:      'text-severity-critical border-severity-critical/30 bg-severity-critical/8',
+  pending:    'text-severity-medium border-severity-medium/30 bg-severity-medium/8',
 }
 
 function CollectionCard({ cols, caseId }: { cols: ImportedCollection[]; caseId: string }) {
@@ -271,40 +270,40 @@ function CollectionCard({ cols, caseId }: { cols: ImportedCollection[]; caseId: 
   const unknownCount  = col.files.filter(f => !f.category_label && f.status === 'imported').length
 
   return (
-    <div className="border border-white/10 rounded-lg bg-[#0d1927] overflow-hidden">
+    <div className="border border-hairline bg-[#0d1927] overflow-hidden">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="px-4 py-3 border-b border-white/10">
+      <div className="px-4 py-3 border-b border-hairline">
         {/* Row 1: toggle + name + status + delete */}
         <div className="flex items-center gap-2">
-          <button className="text-gray-400 hover:text-white shrink-0" onClick={() => setExpanded(v => !v)}>
+          <button className="text-fg-muted hover:text-fg shrink-0" onClick={() => setExpanded(v => !v)}>
             {expanded ? '▾' : '▸'}
           </button>
-          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-white/10 text-gray-500 uppercase shrink-0">
+          <span className="text-label font-mono px-1.5 py-0.5 rounded-control border border-hairline text-fg-muted uppercase shrink-0">
             {isCsv ? 'csv' : colArchiveExt!.replace(/^\./, '')}
           </span>
-          <p className="text-sm font-medium text-white truncate flex-1 min-w-0" title={col.filename}>
+          <p className="text-ui font-medium text-fg truncate flex-1 min-w-0" title={col.filename}>
             {displayName(col.filename)}
           </p>
-          <span className={`text-[10px] font-bold shrink-0 px-2 py-0.5 rounded border ${STATUS_BADGE[col.status] ?? STATUS_BADGE.pending}`}>
+          <span className={`text-label font-bold shrink-0 px-2 py-0.5 rounded-control border ${STATUS_BADGE[col.status] ?? STATUS_BADGE.pending}`}>
             {col.status.toUpperCase()}
           </span>
           <button
-            className="text-gray-600 hover:text-red-400 text-xs ml-1 shrink-0"
+            className="text-fg-muted hover:text-severity-critical text-label ml-1 shrink-0"
             onClick={() => { if (confirm(col._sourceIds.length > 1 ? `Delete this session (${col._sourceIds.length} batches)?` : 'Delete this collection import?')) del.mutate() }}
           >✕</button>
         </div>
 
         {/* Row 2: meta */}
-        <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-600">
+        <div className="flex items-center gap-2 mt-1 text-label text-fg-muted">
           <span>{new Date(col.uploaded_at).toLocaleString()}</span>
           <span>·</span>
           <span>{fmt(col.file_size)}</span>
           <span>·</span>
-          <span className={importedCount === col.total_files ? 'text-accent-green/60' : ''}>
+          <span className={importedCount === col.total_files ? 'text-accent/60' : ''}>
             {importedCount}/{col.total_files} imported
           </span>
           {errorCount > 0 && (
-            <span className="text-red-400/70">{errorCount} error{errorCount > 1 ? 's' : ''}</span>
+            <span className="text-severity-critical/70">{errorCount} error{errorCount > 1 ? 's' : ''}</span>
           )}
         </div>
 
@@ -313,17 +312,17 @@ function CollectionCard({ cols, caseId }: { cols: ImportedCollection[]; caseId: 
           <div className="flex items-center gap-1 mt-2 flex-wrap">
             {knownGroups.map(g => (
               <span key={g.label}
-                className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-white/[0.03] border border-white/8 text-gray-400">
+                className="flex items-center gap-1 text-label px-1.5 py-0.5 rounded-control bg-white/[0.03] border border-hairline text-fg-muted">
                 <span className="leading-none">{CATEGORY_ICON[g.label] ?? '📁'}</span>
-                <span className="text-accent-green/80 font-mono font-semibold">{g.imported}</span>
-                <span className="text-gray-500 max-w-[90px] truncate">{g.label}</span>
+                <span className="text-accent/80 font-mono font-semibold">{g.imported}</span>
+                <span className="text-fg-muted max-w-[90px] truncate">{g.label}</span>
                 {g.total_rows > 0 && (
-                  <span className="text-gray-600 font-mono">{fmtNum(g.total_rows)}</span>
+                  <span className="text-fg-muted font-mono">{fmtNum(g.total_rows)}</span>
                 )}
               </span>
             ))}
             {unknownCount > 0 && (
-              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-gray-500/5 border border-gray-500/20 text-gray-600">
+              <span className="flex items-center gap-1 text-label px-1.5 py-0.5 rounded-control bg-fg-muted/5 border border-fg-muted/20 text-fg-muted">
                 ?&nbsp;<span className="font-mono">{unknownCount}</span>&nbsp;unknown
               </span>
             )}
@@ -333,14 +332,14 @@ function CollectionCard({ cols, caseId }: { cols: ImportedCollection[]; caseId: 
 
       {/* Progress bar when processing */}
       {col.status === 'processing' && (
-        <div className="px-4 py-2 border-b border-white/5">
+        <div className="px-4 py-2 border-b border-hairline">
           <Progress val={col.processed_files} total={col.total_files} />
         </div>
       )}
 
       {/* Artifact group detail — collapsible, shown when expanded */}
       {expanded && col.status === 'done' && groups.length > 0 && (
-        <div className="divide-y divide-white/5">
+        <div className="divide-y divide-hairline">
           {groups.map(g => {
             // Files in this group (join by filename)
             const groupFiles = col.files.filter(f => g.files.includes(f.filename))
@@ -349,17 +348,17 @@ function CollectionCard({ cols, caseId }: { cols: ImportedCollection[]; caseId: 
               <div key={g.label} className="px-4 py-3">
                 {/* Group header */}
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-base leading-none">{isUnknown ? '🔲' : (CATEGORY_ICON[g.label] ?? '📁')}</span>
-                  <span className="text-xs font-semibold text-white">
+                  <span className="text-prose leading-none">{isUnknown ? '🔲' : (CATEGORY_ICON[g.label] ?? '📁')}</span>
+                  <span className="text-label font-semibold text-fg">
                     {isUnknown ? 'Unsupported / Unknown' : g.label}
                   </span>
                   {g.total_rows > 0 && (
-                    <span className="text-xs text-accent-green font-mono">
+                    <span className="text-label text-accent font-mono">
                       {fmtNum(g.total_rows)} rows
                     </span>
                   )}
                   {g.error > 0 && (
-                    <span className="text-xs text-red-400">{g.error} error{g.error > 1 ? 's' : ''}</span>
+                    <span className="text-label text-severity-critical">{g.error} error{g.error > 1 ? 's' : ''}</span>
                   )}
                   <div className="flex-1" />
                 </div>
@@ -369,44 +368,44 @@ function CollectionCard({ cols, caseId }: { cols: ImportedCollection[]; caseId: 
                     const basename = f.filename.split('/').pop() ?? f.filename
                     const dest = resolveDestination(g.destination_page, basename)
                     return (
-                      <div key={f.id} className="flex items-center gap-1.5 text-xs group/row">
+                      <div key={f.id} className="flex items-center gap-1.5 text-label group/row">
                         {/* View button — left, primary action */}
                         <button
                           onClick={() => navigate(dest)}
                           disabled={f.status !== 'imported'}
                           title={f.status === 'imported' ? 'Open in the Artifact Explorer' : 'Not imported yet'}
-                          className="flex items-center gap-0.5 text-accent-green/60 hover:text-accent-green disabled:text-gray-700 disabled:cursor-default transition-colors shrink-0"
+                          className="flex items-center gap-0.5 text-accent/60 hover:text-accent disabled:text-fg-muted disabled:cursor-default transition-colors shrink-0"
                         >
                           <ChevronRight size={12} />
                         </button>
 
                         {/* Status dot */}
                         <span className={
-                          f.status === 'imported' ? 'text-accent-green' :
-                          f.status === 'error'    ? 'text-red-400' :
-                          f.status === 'pending'  ? 'text-yellow-400' : 'text-gray-600'
+                          f.status === 'imported' ? 'text-accent' :
+                          f.status === 'error'    ? 'text-severity-critical' :
+                          f.status === 'pending'  ? 'text-severity-medium' : 'text-fg-muted'
                         }>
                           {f.status === 'imported' ? '✓' : f.status === 'error' ? '✗' : f.status === 'pending' ? '◌' : '—'}
                         </span>
 
                         {/* Filename + Unknown badge */}
-                        <span className="font-mono text-gray-400 truncate flex-1 min-w-0">{basename}</span>
+                        <span className="font-mono text-fg-muted truncate flex-1 min-w-0">{basename}</span>
                         {!f.category_label && (
-                          <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-gray-500/10 text-gray-500 border-gray-500/20">
+                          <span className="shrink-0 text-label font-semibold px-1.5 py-0.5 rounded-control border bg-fg-muted/10 text-fg-muted border-fg-muted/20">
                             unknown
                           </span>
                         )}
 
                         {/* Error */}
                         {f.status === 'error' && f.error_message && (
-                          <span className="shrink-0 text-red-400/70 truncate max-w-[120px]" title={f.error_message}>
+                          <span className="shrink-0 text-severity-critical/70 truncate max-w-[120px]" title={f.error_message}>
                             {f.error_message.slice(0, 35)}…
                           </span>
                         )}
 
                         {/* Row count — right */}
                         {f.row_count != null && f.row_count > 0 && (
-                          <span className="shrink-0 text-gray-600 tabular-nums ml-auto pl-2">{fmtNum(f.row_count)} rows</span>
+                          <span className="shrink-0 text-fg-muted tabular-nums ml-auto pl-2">{fmtNum(f.row_count)} rows</span>
                         )}
                       </div>
                     )
@@ -421,9 +420,9 @@ function CollectionCard({ cols, caseId }: { cols: ImportedCollection[]; caseId: 
       {/* File detail table — raw view inside expanded card */}
       {expanded && (
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="w-full text-label">
             <thead>
-              <tr className="border-b border-white/10 text-gray-500 uppercase tracking-wide text-[10px]">
+              <tr className="border-b border-hairline text-fg-muted uppercase tracking-wide text-label">
                 <th className="py-2 pl-3 pr-2 text-left">File</th>
                 <th className="py-2 px-2 text-left">Category</th>
                 <th className="py-2 px-2 text-left">Status</th>
@@ -472,19 +471,19 @@ function DropZone({ onFiles }: { onFiles: (files: File[]) => void }) {
 
   return (
     <div
-      className={`border-2 border-dashed rounded-lg p-10 text-center transition-colors ${
+      className={`border-2 border-dashed p-10 text-center transition-colors ${
         dragging
-          ? 'border-accent-green/60 bg-accent-green/5'
-          : 'border-white/10 hover:border-white/20'
+          ? 'border-accent/60 bg-accent/5'
+          : 'border-hairline hover:border-strong'
       }`}
       onDragOver={e => { e.preventDefault(); setDragging(true) }}
       onDragLeave={() => setDragging(false)}
       onDrop={handleDrop}
     >
-      <p className="text-2xl mb-2">📂</p>
-      <p className="text-gray-400 text-sm">Drop files here</p>
-      <p className="text-gray-600 text-xs mt-1">
-        Archive (ZIP, 7z, RAR, TAR…) <span className="text-gray-700 mx-1">ou</span> un ou plusieurs fichiers CSV
+      <p className="text-title mb-2">📂</p>
+      <p className="text-fg-muted text-ui">Drop files here</p>
+      <p className="text-fg-muted text-label mt-1">
+        Archive (ZIP, 7z, RAR, TAR…) <span className="text-fg-muted mx-1">ou</span> un ou plusieurs fichiers CSV
       </p>
     </div>
   )
@@ -583,36 +582,36 @@ export default function CollectionImportTab({ caseId }: Props) {
       {/* Toolbar */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-accent-green font-semibold text-sm uppercase tracking-wide">
+          <h3 className="text-accent font-semibold text-ui uppercase tracking-wide">
             Artifact Collections
           </h3>
-          <p className="text-xs text-gray-500 mt-0.5">
+          <p className="text-label text-fg-muted mt-0.5">
             EZ Tools / KAPE import - an archive (ZIP, 7z, RAR, TAR...), individual CSVs, or a whole folder (recursive)
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {/* Folder */}
           <button
-            className="btn-secondary text-xs flex items-center gap-1.5"
+            className="btn-secondary text-label flex items-center gap-1.5"
             onClick={() => folderRef.current?.click()}
             disabled={busy}
             title="Select a KAPE output folder — all CSV files imported recursively. Files >300 MB are skipped (use their dedicated page)."
           >
             {busy && uploadState && uploadState.total > 0 ? (
               <>
-                <span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span className="inline-block w-3 h-3 border-2 border-strong border-t-strong rounded-pill animate-spin" />
                 Batch {uploadState.done + 1}/{uploadState.total}…
               </>
             ) : busy ? (
               <>
-                <span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span className="inline-block w-3 h-3 border-2 border-strong border-t-strong rounded-pill animate-spin" />
                 Scanning…
               </>
             ) : '📁 Import Folder'}
           </button>
           {/* CSV(s) */}
           <button
-            className="btn-secondary text-xs flex items-center gap-1.5"
+            className="btn-secondary text-label flex items-center gap-1.5"
             onClick={() => csvRef.current?.click()}
             disabled={busy}
             title="Pick one or more CSV files individually"
@@ -621,14 +620,14 @@ export default function CollectionImportTab({ caseId }: Props) {
           </button>
           {/* Archive */}
           <button
-            className="btn-primary text-xs flex items-center gap-1.5"
+            className="btn-primary text-label flex items-center gap-1.5"
             onClick={() => archiveRef.current?.click()}
             disabled={busy}
             title="Import an archive - ZIP, 7z, RAR, TAR/TGZ/TAR.XZ... (KAPE triage, EZ Tools output)"
           >
             {upload.isPending ? (
               <>
-                <span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span className="inline-block w-3 h-3 border-2 border-strong border-t-strong rounded-pill animate-spin" />
                 Uploading…
               </>
             ) : '🗜 Archive'}
@@ -657,13 +656,13 @@ export default function CollectionImportTab({ caseId }: Props) {
 
       {/* Skipped files notice */}
       {uploadState && uploadState.skipped.length > 0 && (
-        <div className="rounded border border-yellow-500/30 bg-yellow-500/5 px-3 py-2 text-xs text-yellow-400">
+        <div className="rounded-control border border-severity-medium/30 bg-severity-medium/5 px-3 py-2 text-label text-severity-medium">
           <p className="font-semibold mb-1">
             {uploadState.skipped.length} large file{uploadState.skipped.length > 1 ? 's' : ''} (
             &gt;500 MB) - imported into the Artifact Explorer,
             browsing may be slow. For best performance, use their dedicated pages (Logs, MFT/USN...).
           </p>
-          <ul className="space-y-0.5 text-yellow-500/80 font-mono">
+          <ul className="space-y-0.5 text-severity-medium/80 font-mono">
             {uploadState.skipped.map(s => <li key={s}>· {s}</li>)}
           </ul>
         </div>
@@ -673,14 +672,14 @@ export default function CollectionImportTab({ caseId }: Props) {
       <DropFolderPanel caseId={caseId} />
 
       {/* Supported tools legend */}
-      <div className="flex flex-wrap gap-2 text-xs text-gray-500 items-center">
-        <span className="text-gray-600">EZ Tools:</span>
+      <div className="flex flex-wrap gap-2 text-label text-fg-muted items-center">
+        <span className="text-fg-muted">EZ Tools:</span>
         {[
           'EvtxECmd', 'LECmd', 'JLECmd', 'SBECmd', 'RBCmd',
           'MFTECmd', 'AppCompatCacheParser', 'AmcacheParser',
           'SrumECmd', 'WxTCmd', 'RECmd',
         ].map(t => (
-          <span key={t} className="px-1.5 py-0.5 rounded bg-[#0d1927] border border-white/10 font-mono text-gray-400">
+          <span key={t} className="px-1.5 py-0.5 rounded-control bg-[#0d1927] border border-hairline font-mono text-fg-muted">
             {t}
           </span>
         ))}
@@ -688,7 +687,7 @@ export default function CollectionImportTab({ caseId }: Props) {
 
       {/* Collections list or empty drop zone */}
       {isLoading ? (
-        <p className="text-gray-500 text-sm">Loading…</p>
+        <p className="text-fg-muted text-ui">Loading…</p>
       ) : sessions.length === 0 ? (
         <DropZone onFiles={files => upload.mutate(files)} />
       ) : (
@@ -708,7 +707,7 @@ export default function CollectionImportTab({ caseId }: Props) {
       )}
 
       {/* Retention notice */}
-      <p className="text-xs text-gray-600 italic border-t border-white/5 pt-3">
+      <p className="text-label text-fg-muted italic border-t border-hairline pt-3">
         Files not linked to an evidence entry are automatically purged after 90 days.
         Files added to the chain of custody are kept indefinitely.
       </p>

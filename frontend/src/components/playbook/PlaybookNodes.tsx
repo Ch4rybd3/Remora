@@ -34,7 +34,7 @@ function AssigneeBadge({ assignee }: { assignee: NodeAssignee }) {
   const color = assignee.color || '#94a3b8'
   return (
     <span
-      className="inline-flex items-center max-w-full mt-1.5 px-1.5 h-4 rounded border text-[8px] font-medium truncate"
+      className="inline-flex items-center max-w-full mt-1.5 px-1.5 h-4 rounded-control border text-label font-medium truncate"
       style={{ color, borderColor: `${color}40`, backgroundColor: `${color}14` }}
       title={assignee.kind === 'external' ? `${assignee.label} (externe)` : assignee.label}
     >
@@ -49,12 +49,12 @@ export function StartNode({ data }: NodeProps) {
   const d   = data as NodeData
   const dir = useContext(LayoutDirContext)
   return (
-    <div className="px-4 py-2 rounded-full border-2 border-accent-green bg-accent-green/10 text-accent-green text-xs font-bold min-w-[80px] text-center shadow-lg">
+    <div className="px-4 py-2 rounded-pill border-2 border-accent bg-accent/10 text-accent text-label font-bold min-w-[80px] text-center shadow-lg">
       {d.label || 'Start'}
       <Handle
         type="source"
         position={dir === 'RIGHT' ? Position.Right : Position.Bottom}
-        className="!bg-accent-green !border-accent-green"
+        className="!bg-accent !border-accent"
       />
     </div>
   )
@@ -66,7 +66,7 @@ export function EndNode({ data }: NodeProps) {
   const d   = data as NodeData
   const dir = useContext(LayoutDirContext)
   return (
-    <div className="px-4 py-2 rounded-full border-2 border-severity-critical bg-severity-critical/10 text-severity-critical text-xs font-bold min-w-[80px] text-center shadow-lg">
+    <div className="px-4 py-2 rounded-pill border-2 border-severity-critical bg-severity-critical/10 text-severity-critical text-label font-bold min-w-[80px] text-center shadow-lg">
       <Handle
         type="target"
         position={dir === 'RIGHT' ? Position.Left : Position.Top}
@@ -84,12 +84,12 @@ export function StepNode({ data, selected }: NodeProps) {
   const dir = useContext(LayoutDirContext)
   const done = !!d.done
   return (
-    <div className={`relative px-4 py-3 rounded-lg border min-w-[120px] w-full h-full shadow-lg transition-colors ${
+    <div className={`relative px-4 py-3 border min-w-[120px] w-full h-full shadow-lg transition-colors ${
       done
-        ? 'border-accent-green/60 bg-accent-green/10'
+        ? 'border-accent/60 bg-accent/10'
         : selected
-          ? 'border-accent-green bg-bg-card'
-          : 'border-white/20 bg-bg-card'
+          ? 'border-accent bg-panel'
+          : 'border-strong bg-panel'
     }`}>
       <NodeResizer
         isVisible={selected && !done}
@@ -101,24 +101,24 @@ export function StepNode({ data, selected }: NodeProps) {
       <Handle
         type="target"
         position={dir === 'RIGHT' ? Position.Left : Position.Top}
-        className="!bg-white/40 !border-white/40"
+        className="!bg-fg/40 !border-strong"
       />
       {done && (
-        <span className="absolute top-1.5 right-1.5 text-accent-green">
+        <span className="absolute top-1.5 right-1.5 text-accent">
           <CheckCircle2 size={11} />
         </span>
       )}
-      <p className={`text-xs font-semibold leading-snug pr-4 ${done ? 'text-accent-green/80' : 'text-white'}`}>
+      <p className={`text-label font-semibold leading-snug pr-4 ${done ? 'text-accent/80' : 'text-fg'}`}>
         {d.label}
       </p>
       {d.description && !done && (
-        <p className="text-[10px] text-accent-muted mt-1 leading-snug">{d.description}</p>
+        <p className="text-label text-fg-secondary mt-1 leading-snug">{d.description}</p>
       )}
       {d.assignee && <AssigneeBadge assignee={d.assignee} />}
       <Handle
         type="source"
         position={dir === 'RIGHT' ? Position.Right : Position.Bottom}
-        className="!bg-white/40 !border-white/40"
+        className="!bg-fg/40 !border-strong"
       />
     </div>
   )
@@ -142,7 +142,7 @@ export function DecisionNode({ data, selected }: NodeProps) {
 
   const strokeColor = done ? '#2DD4BF' : selected ? '#FFAF00' : 'rgba(255,175,0,0.40)'
   const fillColor   = done ? 'rgba(45,212,191,0.10)' : 'rgba(255,175,0,0.07)'
-  const textColor   = done ? 'text-accent-green' : 'text-severity-medium'
+  const textColor   = done ? 'text-accent' : 'text-severity-medium'
 
   return (
     <div style={{ width: DIAMOND_W, height: DIAMOND_H }} className="relative">
@@ -158,12 +158,12 @@ export function DecisionNode({ data, selected }: NodeProps) {
       </svg>
 
       <div className="absolute inset-0 flex items-center justify-center px-8 pointer-events-none">
-        <p className={`text-[11px] font-semibold leading-snug text-center ${textColor}`}>
+        <p className={`text-label font-semibold leading-snug text-center ${textColor}`}>
           {d.label}
         </p>
       </div>
       {done && (
-        <span className="absolute top-1 right-4 pointer-events-none text-accent-green">
+        <span className="absolute top-1 right-4 pointer-events-none text-accent">
           <CheckCircle2 size={11} />
         </span>
       )}
@@ -178,7 +178,7 @@ export function DecisionNode({ data, selected }: NodeProps) {
         type="source"
         position={dir === 'RIGHT' ? Position.Right : Position.Bottom}
         id="yes"
-        className="!bg-accent-green !border-accent-green"
+        className="!bg-accent !border-accent"
         title="Yes"
       />
       {/* "No" — branch */}
@@ -200,12 +200,12 @@ export function RemediationNode({ data, selected }: NodeProps) {
   const dir = useContext(LayoutDirContext)
   const done = !!d.done
   return (
-    <div className={`relative px-4 py-3 rounded-lg border min-w-[120px] w-full h-full shadow-lg transition-colors ${
+    <div className={`relative px-4 py-3 border min-w-[120px] w-full h-full shadow-lg transition-colors ${
       done
-        ? 'border-blue-400/60 bg-blue-400/10'
+        ? 'border-severity-low/60 bg-severity-low/10'
         : selected
-          ? 'border-blue-400 bg-bg-card'
-          : 'border-blue-400/40 bg-bg-card'
+          ? 'border-severity-low bg-panel'
+          : 'border-severity-low/40 bg-panel'
     }`}>
       <NodeResizer
         isVisible={selected && !done}
@@ -217,27 +217,27 @@ export function RemediationNode({ data, selected }: NodeProps) {
       <Handle
         type="target"
         position={dir === 'RIGHT' ? Position.Left : Position.Top}
-        className="!bg-blue-400/40 !border-blue-400/40"
+        className="!bg-severity-low/40 !border-severity-low/40"
       />
-      <span className="absolute top-1.5 left-1.5 text-blue-400/50">
+      <span className="absolute top-1.5 left-1.5 text-severity-low/50">
         <ShieldCheck size={10} />
       </span>
       {done && (
-        <span className="absolute top-1.5 right-1.5 text-blue-400">
+        <span className="absolute top-1.5 right-1.5 text-severity-low">
           <CheckCircle2 size={11} />
         </span>
       )}
-      <p className={`text-xs font-semibold leading-snug pl-4 pr-4 ${done ? 'text-blue-400/80' : 'text-blue-300'}`}>
+      <p className={`text-label font-semibold leading-snug pl-4 pr-4 ${done ? 'text-severity-low/80' : 'text-severity-low'}`}>
         {d.label}
       </p>
       {d.description && !done && (
-        <p className="text-[10px] text-accent-muted mt-1 leading-snug pl-4">{d.description}</p>
+        <p className="text-label text-fg-secondary mt-1 leading-snug pl-4">{d.description}</p>
       )}
       {d.assignee && <span className="block pl-4"><AssigneeBadge assignee={d.assignee} /></span>}
       <Handle
         type="source"
         position={dir === 'RIGHT' ? Position.Right : Position.Bottom}
-        className="!bg-blue-400/40 !border-blue-400/40"
+        className="!bg-severity-low/40 !border-severity-low/40"
       />
     </div>
   )
@@ -254,12 +254,12 @@ export function PlaybookRefNode({ data, selected }: NodeProps) {
   const hasLink = !!(d.linked_playbook_id || d.linked_playbook_name)
 
   return (
-    <div className={`relative px-4 py-3 rounded-lg border min-w-[120px] w-full h-full shadow-lg transition-colors ${
+    <div className={`relative px-4 py-3 border min-w-[120px] w-full h-full shadow-lg transition-colors ${
       done
-        ? 'border-purple-400/60 bg-purple-400/10'
+        ? 'border-data-2/60 bg-data-2/10'
         : selected
-          ? 'border-purple-400 bg-bg-card'
-          : 'border-purple-400/40 bg-bg-card'
+          ? 'border-data-2 bg-panel'
+          : 'border-data-2/40 bg-panel'
     }`}>
       <NodeResizer
         isVisible={selected && !done}
@@ -271,37 +271,37 @@ export function PlaybookRefNode({ data, selected }: NodeProps) {
       <Handle
         type="target"
         position={dir === 'RIGHT' ? Position.Left : Position.Top}
-        className="!bg-purple-400/40 !border-purple-400/40"
+        className="!bg-data-2/40 !border-data-2/40"
       />
-      <span className="absolute top-1.5 left-1.5 text-purple-400/60">
+      <span className="absolute top-1.5 left-1.5 text-data-2/60">
         <GitBranch size={10} />
       </span>
       {done && (
-        <span className="absolute top-1.5 right-1.5 text-purple-400">
+        <span className="absolute top-1.5 right-1.5 text-data-2">
           <CheckCircle2 size={11} />
         </span>
       )}
       {!done && hasLink && (
-        <span className="absolute top-1.5 right-1.5 text-purple-400/50">
+        <span className="absolute top-1.5 right-1.5 text-data-2/50">
           <ExternalLink size={10} />
         </span>
       )}
-      <p className={`text-xs font-semibold leading-snug pl-4 pr-4 ${done ? 'text-purple-400/80' : 'text-purple-300'}`}>
+      <p className={`text-label font-semibold leading-snug pl-4 pr-4 ${done ? 'text-data-2/80' : 'text-data-2'}`}>
         {d.label || 'Playbook'}
       </p>
       {d.linked_playbook_name && !done && (
-        <p className="text-[9px] text-purple-400/50 mt-0.5 pl-4 truncate italic">
+        <p className="text-label text-data-2/50 mt-0.5 pl-4 truncate italic">
           → {d.linked_playbook_name}
         </p>
       )}
       {!hasLink && !done && (
-        <p className="text-[9px] text-purple-400/30 mt-0.5 pl-4 italic">not linked</p>
+        <p className="text-label text-data-2/30 mt-0.5 pl-4 italic">not linked</p>
       )}
       {d.assignee && <span className="block pl-4"><AssigneeBadge assignee={d.assignee} /></span>}
       <Handle
         type="source"
         position={dir === 'RIGHT' ? Position.Right : Position.Bottom}
-        className="!bg-purple-400/40 !border-purple-400/40"
+        className="!bg-data-2/40 !border-data-2/40"
       />
     </div>
   )
@@ -318,7 +318,7 @@ export function FrameNode({ data, selected }: NodeProps) {
 
   return (
     <div
-      className="w-full h-full rounded-xl"
+      className="w-full h-full "
       style={{
         backgroundColor: `${color}18`,
         border: `1.5px solid ${color}${selected ? '70' : '28'}`,
@@ -333,7 +333,7 @@ export function FrameNode({ data, selected }: NodeProps) {
         handleStyle={{ backgroundColor: color, borderColor: color, width: 8, height: 8, borderRadius: 2 }}
       />
       <span
-        className="absolute top-2.5 left-3.5 text-[11px] font-bold tracking-wider select-none pointer-events-none"
+        className="absolute top-2.5 left-3.5 text-label font-bold tracking-wider select-none pointer-events-none"
         style={{ color: `${color}cc` }}
       >
         {label}

@@ -73,7 +73,7 @@ function MarkdownPreview({
   return (
     <div
       ref={scrollRef}
-      className="md-preview prose prose-invert prose-sm max-w-none h-full overflow-auto px-6 py-5 text-white/80"
+      className="md-preview prose prose-invert prose-sm max-w-none h-full overflow-auto px-6 py-5 text-fg/80"
     >
       {content.trim() ? (
         <ReactMarkdown
@@ -91,7 +91,7 @@ function MarkdownPreview({
                 return (
                   <button
                     onClick={() => onWikilinkClick(note)}
-                    className="text-accent-green underline underline-offset-2 hover:text-accent-green/70 transition-colors cursor-pointer bg-transparent border-0 p-0 font-inherit text-inherit"
+                    className="text-accent underline underline-offset-2 hover:text-accent/70 transition-colors cursor-pointer bg-transparent border-0 p-0 font-inherit text-inherit"
                   >
                     {children}
                   </button>
@@ -102,7 +102,7 @@ function MarkdownPreview({
             img: ({ src, alt }) => (
               <img
                 src={src} alt={alt ?? ''}
-                className="max-w-full rounded border border-white/10 my-2 block"
+                className="max-w-full rounded-control border border-hairline my-2 block"
                 style={{ maxHeight: 500 }}
               />
             ),
@@ -110,7 +110,7 @@ function MarkdownPreview({
               className ? (
                 <code className={className}>{children}</code>
               ) : (
-                <code className="bg-white/10 px-1 py-0.5 rounded text-[11px] font-mono text-accent-green/80">
+                <code className="bg-fg/10 px-1 py-0.5 rounded-control text-label font-mono text-accent/80">
                   {children}
                 </code>
               ),
@@ -119,7 +119,7 @@ function MarkdownPreview({
           {processed}
         </ReactMarkdown>
       ) : (
-        <p className="text-accent-muted/30 italic text-sm">Start writing to see the preview…</p>
+        <p className="text-fg-secondary/30 italic text-ui">Start writing to see the preview…</p>
       )}
     </div>
   )
@@ -137,8 +137,7 @@ function ModeBtn({
   return (
     <button
       onClick={onClick}
-      className={`text-[10px] px-2.5 py-1 transition-colors ${
-        active ? 'bg-accent-green/10 text-accent-green' : 'text-accent-muted hover:text-white'
+      className={`text-label px-2.5 py-1 transition-colors ${ active ? 'bg-accent/10 text-accent' : 'text-fg-secondary hover:text-fg'
       }`}
     >
       {label}
@@ -303,10 +302,10 @@ export default function NoteEditor({ path, onNodeNavigate, onContentChange, scro
   if (!path) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-8">
-        <div className="text-5xl opacity-10">📝</div>
-        <p className="text-sm text-accent-muted/50">Select a note to start editing</p>
-        <p className="text-xs text-accent-muted/30">
-          Use <code className="bg-white/5 px-1 rounded">[[Note Name]]</code> to link between notes
+        <div className="text-title opacity-10">📝</div>
+        <p className="text-ui text-fg-secondary/50">Select a note to start editing</p>
+        <p className="text-label text-fg-secondary/30">
+          Use <code className="bg-fg/5 px-1 rounded-control">[[Note Name]]</code> to link between notes
         </p>
       </div>
     )
@@ -340,32 +339,32 @@ export default function NoteEditor({ path, onNodeNavigate, onContentChange, scro
   return (
     <div className="flex flex-col h-full">
       {/* ── Toolbar ─────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 px-4 py-2 border-b border-white/5 shrink-0">
-        <span className="flex-1 text-sm font-medium text-white/80 truncate">{filename}</span>
+      <div className="flex items-center gap-3 px-4 py-2 border-b border-hairline shrink-0">
+        <span className="flex-1 text-ui font-medium text-fg/80 truncate">{filename}</span>
 
         {/* Save / upload status */}
-        <span className="text-[10px] shrink-0">
+        <span className="text-label shrink-0">
           {uploading && (
-            <span className="text-accent-muted/50 flex items-center gap-1">
+            <span className="text-fg-secondary/50 flex items-center gap-1">
               <Loader2 size={10} className="animate-spin" /> Uploading…
             </span>
           )}
           {!uploading && saveState === 'saving' && (
-            <span className="text-accent-muted/50 flex items-center gap-1">
+            <span className="text-fg-secondary/50 flex items-center gap-1">
               <Loader2 size={10} className="animate-spin" /> Saving…
             </span>
           )}
-          {!uploading && saveState === 'saved'  && <span className="text-accent-green/60">Saved</span>}
+          {!uploading && saveState === 'saved'  && <span className="text-accent/60">Saved</span>}
           {!uploading && saveState === 'error'  && (
             <span className="text-severity-critical flex items-center gap-1">
               <AlertCircle size={10} /> Save error
             </span>
           )}
-          {!uploading && dirty && saveState === 'idle' && <span className="text-accent-muted/40">Unsaved</span>}
+          {!uploading && dirty && saveState === 'idle' && <span className="text-fg-secondary/40">Unsaved</span>}
         </span>
 
         {/* Mode toggle */}
-        <div className="flex rounded border border-white/10 overflow-hidden shrink-0">
+        <div className="flex rounded-control border border-hairline overflow-hidden shrink-0">
           <ModeBtn active={mode === 'live'}    onClick={() => setMode('live')}    label="Live" />
           <ModeBtn active={mode === 'split'}   onClick={() => setMode('split')}   label="Split" />
           <ModeBtn active={mode === 'preview'} onClick={() => setMode('preview')} label="Preview" />
@@ -380,7 +379,7 @@ export default function NoteEditor({ path, onNodeNavigate, onContentChange, scro
           }}
           disabled={!dirty || saveState === 'saving'}
           title="Save (auto-saves after 1.5s)"
-          className="p-1.5 rounded text-accent-muted/50 hover:text-accent-green hover:bg-accent-green/5 transition-colors disabled:opacity-30"
+          className="p-1.5 rounded-control text-fg-secondary/50 hover:text-accent hover:bg-accent/5 transition-colors disabled:opacity-30"
         >
           <Save size={13} />
         </button>
@@ -390,7 +389,7 @@ export default function NoteEditor({ path, onNodeNavigate, onContentChange, scro
       <div className="flex-1 overflow-hidden">
         {isLoading ? (
           <div className="h-full flex items-center justify-center">
-            <Loader2 size={20} className="animate-spin text-accent-muted/30" />
+            <Loader2 size={20} className="animate-spin text-fg-secondary/30" />
           </div>
         ) : mode === 'live' ? (
           liveEl
@@ -399,15 +398,15 @@ export default function NoteEditor({ path, onNodeNavigate, onContentChange, scro
         ) : (
           /* Split: live editor left + wikilink preview right */
           <div className="flex h-full">
-            <div className="flex-1 border-r border-white/5 overflow-hidden flex flex-col">
+            <div className="flex-1 border-r border-hairline overflow-hidden flex flex-col">
               <div className="px-4 pt-2 pb-0 shrink-0">
-                <span className="text-[9px] text-accent-muted/25 uppercase tracking-widest">Live</span>
+                <span className="text-label text-fg-secondary/25 uppercase tracking-widest">Live</span>
               </div>
               {liveEl}
             </div>
             <div className="flex-1 overflow-hidden flex flex-col">
               <div className="px-6 pt-2 pb-0 shrink-0">
-                <span className="text-[9px] text-accent-muted/25 uppercase tracking-widest">Preview</span>
+                <span className="text-label text-fg-secondary/25 uppercase tracking-widest">Preview</span>
               </div>
               {previewEl}
             </div>

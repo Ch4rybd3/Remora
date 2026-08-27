@@ -30,7 +30,7 @@ import ClientDetail from './pages/ClientDetail'
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth()
   const location = useLocation()
-  if (loading) return <div className="h-screen bg-bg-primary flex items-center justify-center text-accent-muted text-sm">Loading...</div>
+  if (loading) return <div className="h-screen bg-canvas flex items-center justify-center text-fg-secondary text-ui">Loading...</div>
   if (!token) return <Navigate to="/login" state={{ from: location }} replace />
   return children
 }

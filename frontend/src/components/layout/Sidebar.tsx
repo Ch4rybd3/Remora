@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ThemeSelector } from './ThemeSelector'
 import { VersionFooter } from './VersionFooter'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { NAV_ICON, LogOut, Clock, AlertTriangle, ChevronDown, Download } from '../../ui/icons'
@@ -7,8 +8,8 @@ import { useTimezone, TIMEZONE_OPTIONS, type TzOption } from '../../context/Time
 
 const ROLE_COLORS: Record<string, string> = {
   admin:   'bg-severity-critical/10 text-severity-critical border-severity-critical/20',
-  owner:   'bg-accent-green/10 text-accent-green border-accent-green/20',
-  analyst: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  owner:   'bg-accent/10 text-accent border-accent/20',
+  analyst: 'bg-severity-low/10 text-severity-low border-severity-low/20',
 }
 
 interface NavItem {
@@ -23,7 +24,7 @@ interface NavSection {
 
 function SectionHeading({ label }: { label: string }) {
   return (
-    <p className="px-3 pt-4 pb-1 text-[9px] font-semibold tracking-widest uppercase text-accent-muted/40 select-none">
+    <p className="px-3 pt-4 pb-1 text-label font-semibold tracking-widest uppercase text-fg-secondary/40 select-none">
       {label}
     </p>
   )
@@ -38,10 +39,10 @@ function NavItem({ to, label }: NavItem) {
       to={to}
       end={to === '/'}
       className={({ isActive }) =>
-        `flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
+        `flex items-center gap-3 px-3 py-2 rounded-control text-ui transition-colors ${
           isActive
-            ? 'bg-accent-green/10 text-accent-green'
-            : 'text-accent-muted hover:text-white hover:bg-white/5'
+            ? 'bg-accent/10 text-accent'
+            : 'text-fg-secondary hover:text-fg hover:bg-fg/5'
         }`
       }
     >
@@ -73,16 +74,15 @@ function TimezoneSelector() {
       {/* Trigger */}
       <button
         onClick={() => setOpen(v => !v)}
-        className={`flex items-center gap-1.5 w-full px-2 py-1.5 rounded-md text-[11px] transition-colors ${
-          isUTC
-            ? 'text-accent-muted hover:text-white hover:bg-white/5'
-            : 'text-orange-400 hover:bg-orange-400/5'
+        className={`flex items-center gap-1.5 w-full px-2 py-1.5 rounded-control text-label transition-colors ${ isUTC
+            ? 'text-fg-secondary hover:text-fg hover:bg-fg/5'
+            : 'text-severity-high hover:bg-severity-high/5'
         }`}
         title={isUTC ? 'Timezone (UTC recommended)' : 'UTC is recommended for forensic analysis'}
       >
         <Clock size={12} className="shrink-0" />
         <span className="flex-1 text-left truncate font-mono">{current?.label ?? timezone}</span>
-        {!isUTC && <AlertTriangle size={10} className="shrink-0 text-orange-400" />}
+        {!isUTC && <AlertTriangle size={10} className="shrink-0 text-severity-high" />}
         <ChevronDown size={10} className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
@@ -93,11 +93,11 @@ function TimezoneSelector() {
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
 
           {/* Menu — opens upward */}
-          <div className="absolute bottom-full left-0 right-0 mb-1 z-50 bg-bg-card border border-white/10 rounded-lg shadow-xl overflow-hidden max-h-80 overflow-y-auto">
+          <div className="absolute bottom-full left-0 right-0 mb-1 z-50 bg-panel border border-hairline shadow-xl overflow-hidden max-h-80 overflow-y-auto">
 
             {/* Warning banner when non-UTC */}
             {!isUTC && (
-              <div className="flex items-start gap-2 px-3 py-2 bg-orange-400/8 border-b border-orange-400/20 text-[10px] text-orange-300">
+              <div className="flex items-start gap-2 px-3 py-2 bg-severity-high/8 border-b border-severity-high/20 text-label text-severity-high">
                 <AlertTriangle size={11} className="shrink-0 mt-0.5" />
                 <span>UTC is recommended for forensic analysis. Changing the timezone can skew event correlation.</span>
               </div>
@@ -105,24 +105,23 @@ function TimezoneSelector() {
 
             {Object.entries(grouped).map(([region, opts]: [string, TzOption[]]) => (
               <div key={region}>
-                <p className="px-3 pt-2 pb-0.5 text-[9px] font-semibold tracking-widest uppercase text-accent-muted/40 select-none">
+                <p className="px-3 pt-2 pb-0.5 text-label font-semibold tracking-widest uppercase text-fg-secondary/40 select-none">
                   {region}
                 </p>
                 {opts.map(opt => (
                   <button
                     key={opt.value}
                     onClick={() => { setTz(opt.value); setOpen(false) }}
-                    className={`flex items-center gap-2 w-full px-3 py-1.5 text-[11px] text-left transition-colors ${
-                      opt.value === timezone
-                        ? 'text-accent-green bg-accent-green/8'
-                        : 'text-accent-muted hover:text-white hover:bg-white/5'
+                    className={`flex items-center gap-2 w-full px-3 py-1.5 text-label text-left transition-colors ${ opt.value === timezone
+                        ? 'text-accent bg-accent/8'
+                        : 'text-fg-secondary hover:text-fg hover:bg-fg/5'
                     }`}
                   >
                     {opt.value === 'UTC' && (
-                      <span className="text-[9px] text-accent-green/60 font-mono border border-accent-green/20 px-1 rounded">REC</span>
+                      <span className="text-label text-accent/60 font-mono border border-accent/20 px-1 rounded-control">REC</span>
                     )}
                     <span className={opt.value === 'UTC' ? 'font-medium' : ''}>{opt.label}</span>
-                    <span className="ml-auto text-[9px] font-mono text-accent-muted/30">{opt.value.split('/')[1] ?? opt.value}</span>
+                    <span className="ml-auto text-label font-mono text-fg-secondary/30">{opt.value.split('/')[1] ?? opt.value}</span>
                   </button>
                 ))}
               </div>
@@ -187,9 +186,9 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="w-56 shrink-0 bg-bg-secondary border-r border-white/5 flex flex-col">
+    <aside className="w-56 shrink-0 bg-panel border-r border-hairline flex flex-col">
       {/* Logo */}
-      <div className="px-5 py-5 border-b border-white/5">
+      <div className="px-5 py-5 border-b border-hairline">
         <div className="flex items-center gap-3">
           <img
             src="/logo.png"
@@ -197,11 +196,11 @@ export default function Sidebar() {
             className="h-8 w-auto object-contain"
             onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
           />
-          <span className="text-accent-green font-bold text-lg tracking-tight font-mono">
+          <span className="text-accent font-bold text-title tracking-tight font-mono">
             REMORA
           </span>
         </div>
-        <p className="text-accent-muted text-xs mt-0.5">DFIR Case Management</p>
+        <p className="text-fg-secondary text-label mt-0.5">DFIR Case Management</p>
       </div>
 
       {/* Nav sections */}
@@ -210,7 +209,7 @@ export default function Sidebar() {
           <div key={section.heading}>
             <SectionHeading label={section.heading} />
             {section.items.length === 0
-              ? <p className="px-3 py-1.5 text-[11px] italic text-accent-muted/30">Coming soon…</p>
+              ? <p className="px-3 py-1.5 text-label italic text-fg-secondary/30">Coming soon…</p>
               : (
                 <div className="space-y-0.5">
                   {section.items.map(item => (
@@ -224,7 +223,7 @@ export default function Sidebar() {
       </nav>
 
       {/* Backup */}
-      <div className="px-3 py-2 border-t border-white/5">
+      <div className="px-3 py-2 border-t border-hairline">
         <button
           onClick={async () => {
             try {
@@ -245,7 +244,7 @@ export default function Sidebar() {
               alert(`Backup failed: ${err}`)
             }
           }}
-          className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-accent-muted/50 hover:text-accent-green hover:bg-accent-green/5 transition-colors"
+          className="flex items-center gap-2 w-full px-2 py-1.5 rounded-control text-label text-fg-secondary/50 hover:text-accent hover:bg-accent/5 transition-colors"
           title="Download a SQLite backup of the database"
         >
           <Download size={12} />
@@ -254,25 +253,32 @@ export default function Sidebar() {
       </div>
 
       {/* Timezone selector */}
-      <div className="px-3 pb-1 border-t border-white/5 pt-2">
-        <p className="px-2 pb-0.5 text-[9px] font-semibold tracking-widest uppercase text-accent-muted/30 select-none">
+      <div className="px-3 pb-1 border-t border-hairline pt-2">
+        <p className="px-2 pb-0.5 text-label font-semibold tracking-widest uppercase text-fg-secondary/30 select-none">
           Timezone
         </p>
         <TimezoneSelector />
       </div>
 
+      <div className="px-3 pb-1">
+        <p className="px-2 pb-0.5 text-label font-mono uppercase tracking-label text-fg-muted select-none">
+          Theme
+        </p>
+        <ThemeSelector />
+      </div>
+
       {/* User info + logout */}
-      <div className="px-4 py-3 border-t border-white/5 space-y-3">
+      <div className="px-4 py-3 border-t border-hairline space-y-3">
         {user && (
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-accent-green/10 border border-accent-green/20 flex items-center justify-center shrink-0">
-              <span className="text-xs font-bold text-accent-green">
+            <div className="w-7 h-7 rounded-pill bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0">
+              <span className="text-label font-bold text-accent">
                 {user.username[0].toUpperCase()}
               </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-white truncate">{user.username}</p>
-              <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${ROLE_COLORS[user.role]}`}>
+              <p className="text-label font-medium text-fg truncate">{user.username}</p>
+              <span className={`text-label font-mono px-1.5 py-0.5 rounded-control border ${ROLE_COLORS[user.role]}`}>
                 {user.role}
               </span>
             </div>
@@ -280,7 +286,7 @@ export default function Sidebar() {
         )}
         <button
           onClick={handleLogout}
-          className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-accent-muted hover:text-severity-critical hover:bg-severity-critical/5 transition-colors"
+          className="flex items-center gap-2 w-full px-2 py-1.5 rounded-control text-label text-fg-secondary hover:text-severity-critical hover:bg-severity-critical/5 transition-colors"
         >
           <LogOut size={13} />
           Log out

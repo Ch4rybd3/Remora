@@ -1,0 +1,227 @@
+/**
+ * Remora design tokens.
+ *
+ * Every colour in the product resolves here. Nothing else may hold a literal
+ * value — see docs/CONVENTIONS.md section 5 and docs/DESIGN_BRIEF.md.
+ *
+ * Colours are stored as raw RGB channels rather than hex so Tailwind can apply
+ * its alpha modifiers to them: `rgb(var(--surface-panel) / <alpha-value>)`
+ * makes `bg-surface-panel/40` work exactly as it did with literal colours.
+ * In hand-written CSS, always wrap them: `color: rgb(var(--text-primary))`.
+ *
+ * Three colour roles, and they are not interchangeable:
+ *
+ *   accent    One colour, teal. Interaction only — active state, focus,
+ *             selection. Never a large fill, never decorative. Its scarcity is
+ *             what makes it readable.
+ *   severity  Fixed and semantic. Analysts read these as data. They may be
+ *             re-tinted for contrast on a light background; their hue and
+ *             ordering never change.
+ *   data      Categorical encoding for things that have kinds rather than
+ *             ranks — IOC types, MITRE tactics, protocols. Distinct from the
+ *             accent on purpose: "this is a hash" is information, not emphasis.
+ *
+ * Every token is defined in every theme. A component may not reference a colour
+ * that exists in only one of them.
+ */
+
+/* ─── Dark — the Remora identity, and the default ────────────────────────── */
+:root {
+  /* Two surfaces. No card-on-card: if you need a third level, the layout is
+     wrong. `overlay` is for genuinely floating layers only (modal, popover,
+     dropdown), which is also the only place a shadow is allowed. */
+  --surface-canvas:    11 18 31;      /* #0B121F */
+  --surface-panel:     14 22 34;      /* #0E1622 */
+  --surface-overlay:   19 28 43;      /* #131C2B */
+  --surface-hover:     20 30 46;      /* #141E2E */
+
+  --text-primary:      230 237 245;   /* #E6EDF5 — off-white; pure white glares on this canvas */
+  --text-secondary:    163 179 188;   /* #A3B3BC */
+  --text-muted:        107 124 137;   /* #6B7C89 */
+  --text-inverse:      4 18 26;       /* #04121A — on top of the accent */
+
+  --accent:            45 212 191;    /* #2DD4BF */
+  --accent-hover:      34 181 162;    /* #22B5A2 */
+  --accent-contrast:   4 18 26;
+
+  /* Panels are square and defined by a hairline, not by a fill or a shadow. */
+  --border-hairline:   27 38 53;      /* #1B2635 */
+  --border-strong:     42 54 72;      /* #2A3648 */
+  --border-focus:      45 212 191;
+
+  --severity-critical: 255 62 62;
+  --severity-high:     255 140 0;
+  --severity-medium:   255 215 0;
+  --severity-low:      0 191 255;
+  --severity-info:     163 179 188;
+
+  --status-open:        45 212 191;
+  --status-in-progress: 255 215 0;
+  --status-closed:      163 179 188;
+  --status-archived:    107 114 128;
+
+  --data-1: 122 162 247;   /* blue    */
+  --data-2: 187 154 247;   /* purple  */
+  --data-3: 247 118 142;   /* rose    */
+  --data-4: 224 175 104;   /* amber   */
+  --data-5: 125 207 255;   /* cyan    */
+  --data-6: 158 206 106;   /* green   */
+
+  --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.45);
+}
+
+/* ─── Light — re-derived, not inverted ───────────────────────────────────── */
+:root[data-theme='light'] {
+  --surface-canvas:    247 249 251;
+  --surface-panel:     255 255 255;
+  --surface-overlay:   255 255 255;
+  --surface-hover:     240 244 248;
+
+  --text-primary:      15 26 38;
+  --text-secondary:    75 92 106;
+  --text-muted:        122 138 150;
+  --text-inverse:      255 255 255;
+
+  /* Darkened so it reaches AA against a light surface. */
+  --accent:            13 148 136;
+  --accent-hover:      15 118 110;
+  --accent-contrast:   255 255 255;
+
+  --border-hairline:   223 230 237;
+  --border-strong:     198 209 220;
+  --border-focus:      13 148 136;
+
+  --severity-critical: 200 30 30;
+  --severity-high:     180 83 9;
+  --severity-medium:   161 98 7;
+  --severity-low:      3 105 161;
+  --severity-info:     87 100 111;
+
+  --status-open:        13 148 136;
+  --status-in-progress: 161 98 7;
+  --status-closed:      87 100 111;
+  --status-archived:    148 156 165;
+
+  --data-1: 40 86 190;
+  --data-2: 116 63 189;
+  --data-3: 190 45 75;
+  --data-4: 158 106 24;
+  --data-5: 20 116 168;
+  --data-6: 79 133 40;
+
+  --shadow-overlay: 0 8px 24px rgb(15 26 38 / 0.12);
+}
+
+/* ─── GitHub dark ────────────────────────────────────────────────────────── */
+:root[data-theme='github-dark'] {
+  --surface-canvas:    13 17 23;
+  --surface-panel:     22 27 34;
+  --surface-overlay:   28 33 40;
+  --surface-hover:     33 38 45;
+
+  --text-primary:      230 237 243;
+  --text-secondary:    139 148 158;
+  --text-muted:        110 118 129;
+  --text-inverse:      13 17 23;
+
+  --accent:            47 129 247;
+  --accent-hover:      88 166 255;
+  --accent-contrast:   255 255 255;
+
+  --border-hairline:   48 54 61;
+  --border-strong:     72 79 88;
+  --border-focus:      47 129 247;
+
+  --severity-critical: 248 81 73;
+  --severity-high:     219 109 40;
+  --severity-medium:   210 153 34;
+  --severity-low:      88 166 255;
+  --severity-info:     139 148 158;
+
+  --status-open:        63 185 80;
+  --status-in-progress: 210 153 34;
+  --status-closed:      139 148 158;
+  --status-archived:    110 118 129;
+
+  --data-1: 88 166 255;
+  --data-2: 188 140 255;
+  --data-3: 255 123 114;
+  --data-4: 210 153 34;
+  --data-5: 121 192 255;
+  --data-6: 86 211 100;
+
+  --shadow-overlay: 0 8px 24px rgb(1 4 9 / 0.6);
+}
+
+/* ─── GitHub light ───────────────────────────────────────────────────────── */
+:root[data-theme='github-light'] {
+  --surface-canvas:    255 255 255;
+  --surface-panel:     246 248 250;
+  --surface-overlay:   255 255 255;
+  --surface-hover:     234 238 242;
+
+  --text-primary:      31 35 40;
+  --text-secondary:    89 99 110;
+  --text-muted:        110 118 129;
+  --text-inverse:      255 255 255;
+
+  --accent:            9 105 218;
+  --accent-hover:      5 80 174;
+  --accent-contrast:   255 255 255;
+
+  --border-hairline:   216 222 228;
+  --border-strong:     193 200 208;
+  --border-focus:      9 105 218;
+
+  --severity-critical: 207 34 46;
+  --severity-high:     188 76 0;
+  --severity-medium:   154 103 0;
+  --severity-low:      9 105 218;
+  --severity-info:     89 99 110;
+
+  --status-open:        26 127 55;
+  --status-in-progress: 154 103 0;
+  --status-closed:      89 99 110;
+  --status-archived:    110 118 129;
+
+  --data-1: 9 105 218;
+  --data-2: 130 80 223;
+  --data-3: 207 34 46;
+  --data-4: 154 103 0;
+  --data-5: 5 80 174;
+  --data-6: 26 127 55;
+
+  --shadow-overlay: 0 8px 24px rgb(31 35 40 / 0.1);
+}
+
+/* ─── Type, radius, motion — theme-independent ───────────────────────────── */
+:root {
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
+
+  /* Four sizes. Not five, not nine. Before this scale the product used fifteen,
+     eight of them arbitrary pixel values below 12px, which is unreadable on a
+     14" panel and is most of what made the interface feel improvised.
+       label  11px  mono, uppercase, tracked — column headers, chips, meta
+       ui     13px  every control, table cell, nav item, form field
+       prose  15px  running text meant to be read: reports, notes, help
+       title  19px  page and section titles
+     `brand` is the wordmark only, and is the single documented exception. */
+  --text-label:  0.6875rem;   /* 11px */
+  --text-ui:     0.8125rem;   /* 13px */
+  --text-prose:  0.9375rem;   /* 15px */
+  --text-title:  1.1875rem;   /* 19px */
+  --text-brand:  1.375rem;    /* 22px — wordmark only */
+
+  --leading-label: 1.4;
+  --leading-ui:    1.5;
+  --leading-prose: 1.65;
+  --leading-title: 1.3;
+
+  --tracking-label: 0.08em;
+
+  /* One radius, on controls only. Panels are square and defined by a hairline;
+     `pill` is for things that are genuinely round — avatars, status dots. */
+  --radius-control: 2px;
+  --radius-pill:    9999px;
+}

@@ -38,8 +38,8 @@ export const CONNECTOR_META: Record<string, ConnectorMeta> = {
     description: 'Malware & reputation lookup for IPs, domains, hashes, and URLs via VirusTotal v3 API.',
     docsUrl:     'https://docs.virustotal.com/reference/overview',
     fields:      ['api_key'],
-    iconBg:      'bg-blue-500/10',
-    iconColor:   'text-blue-400',
+    iconBg:      'bg-severity-low/10',
+    iconColor:   'text-severity-low',
   },
   abuseipdb: {
     name:        'abuseipdb',
@@ -47,8 +47,8 @@ export const CONNECTOR_META: Record<string, ConnectorMeta> = {
     description: 'IP reputation and community abuse reports via AbuseIPDB v2 API.',
     docsUrl:     'https://docs.abuseipdb.com/',
     fields:      ['api_key'],
-    iconBg:      'bg-red-500/10',
-    iconColor:   'text-red-400',
+    iconBg:      'bg-severity-critical/10',
+    iconColor:   'text-severity-critical',
   },
   shodan: {
     name:        'shodan',
@@ -56,8 +56,8 @@ export const CONNECTOR_META: Record<string, ConnectorMeta> = {
     description: 'Internet-wide scan data — open ports, banners, CVEs, services. Free tier available.',
     docsUrl:     'https://developer.shodan.io/api',
     fields:      ['api_key'],
-    iconBg:      'bg-cyan-500/10',
-    iconColor:   'text-cyan-400',
+    iconBg:      'bg-data-5/10',
+    iconColor:   'text-data-5',
   },
   alienvault_otx: {
     name:        'alienvault_otx',
@@ -65,8 +65,8 @@ export const CONNECTOR_META: Record<string, ConnectorMeta> = {
     description: 'Open Threat Exchange — pulses, malware families, adversaries. Public data works without key.',
     docsUrl:     'https://otx.alienvault.com/api',
     fields:      ['api_key'],
-    iconBg:      'bg-yellow-500/10',
-    iconColor:   'text-yellow-400',
+    iconBg:      'bg-severity-medium/10',
+    iconColor:   'text-severity-medium',
   },
   urlscan: {
     name:        'urlscan',
@@ -74,8 +74,8 @@ export const CONNECTOR_META: Record<string, ConnectorMeta> = {
     description: 'URL and domain scanner — screenshots, verdicts, ASN analysis. Free tier available.',
     docsUrl:     'https://urlscan.io/docs/api/',
     fields:      ['api_key'],
-    iconBg:      'bg-indigo-500/10',
-    iconColor:   'text-indigo-400',
+    iconBg:      'bg-data-1/10',
+    iconColor:   'text-data-1',
   },
   misp: {
     name:        'misp',
@@ -83,8 +83,8 @@ export const CONNECTOR_META: Record<string, ConnectorMeta> = {
     description: 'Connect to a self-hosted MISP threat sharing platform for event correlation and export.',
     docsUrl:     'https://www.misp-project.org/openapi/',
     fields:      ['api_key', 'base_url'],
-    iconBg:      'bg-orange-500/10',
-    iconColor:   'text-orange-400',
+    iconBg:      'bg-severity-high/10',
+    iconColor:   'text-severity-high',
   },
 }
 

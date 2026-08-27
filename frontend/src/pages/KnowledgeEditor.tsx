@@ -45,42 +45,41 @@ export default function KnowledgeEditor() {
 
       {/* ── Left: File Tree ─────────────────────────────────────────────── */}
       {showTree && (
-        <div className="w-56 shrink-0 border-r border-white/5 bg-bg-secondary flex flex-col">
+        <div className="w-56 shrink-0 border-r border-hairline bg-panel flex flex-col">
           <FileTree nodes={tree} selected={selectedPath} onSelect={setSelectedPath} />
         </div>
       )}
 
       {/* ── Center: Editor ──────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-bg-primary">
+      <div className="flex-1 flex flex-col overflow-hidden bg-canvas">
 
         {/* Mini toolbar */}
-        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-white/5 shrink-0 bg-bg-secondary/50">
+        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-hairline shrink-0 bg-panel/50">
           <button
             onClick={() => navigate('/knowledge')}
             title="Back to vaults"
-            className="p-1 rounded text-accent-muted/40 hover:text-white hover:bg-white/5 transition-colors"
+            className="p-1 rounded-control text-fg-secondary/40 hover:text-fg hover:bg-fg/5 transition-colors"
           >
             <ArrowLeft size={13} />
           </button>
           <button
             onClick={() => setShowTree(t => !t)}
             title={showTree ? 'Masquer l\'arborescence' : 'Afficher l\'arborescence'}
-            className="p-1 rounded text-accent-muted/40 hover:text-white hover:bg-white/5 transition-colors"
+            className="p-1 rounded-control text-fg-secondary/40 hover:text-fg hover:bg-fg/5 transition-colors"
           >
             {showTree ? <ChevronLeft size={13} /> : <Menu size={13} />}
           </button>
-          <div className="flex items-center gap-1.5 text-accent-muted/30">
+          <div className="flex items-center gap-1.5 text-fg-secondary/30">
             <FileText size={12} />
-            <span className="text-[10px] font-semibold tracking-widest uppercase">Knowledge Editor</span>
+            <span className="text-label font-semibold tracking-widest uppercase">Knowledge Editor</span>
           </div>
           <div className="flex-1" />
           <button
             onClick={() => setShowGraph(g => !g)}
             title={showGraph ? 'Masquer le graphe' : 'Afficher le graphe'}
-            className={`p-1 rounded transition-colors text-[10px] flex items-center gap-1 ${
-              showGraph
-                ? 'text-accent-green bg-accent-green/5'
-                : 'text-accent-muted/40 hover:text-white hover:bg-white/5'
+            className={`p-1 rounded-control transition-colors text-label flex items-center gap-1 ${ showGraph
+                ? 'text-accent bg-accent/5'
+                : 'text-fg-secondary/40 hover:text-fg hover:bg-fg/5'
             }`}
           >
             <GitBranch size={12} />
@@ -101,16 +100,16 @@ export default function KnowledgeEditor() {
 
       {/* ── Right sidebar ─────────────────────────────────────────────────── */}
       {showGraph && (
-        <div className="w-80 shrink-0 border-l border-white/5 bg-bg-secondary flex flex-col">
+        <div className="w-80 shrink-0 border-l border-hairline bg-panel flex flex-col">
 
           {/* Note graph (square) */}
           <div className="w-full aspect-square shrink-0 flex flex-col">
-            <div className="px-3 py-2 border-b border-white/5 shrink-0 flex items-center gap-2">
-              <span className="text-[10px] font-semibold tracking-widest uppercase text-accent-muted/40">
+            <div className="px-3 py-2 border-b border-hairline shrink-0 flex items-center gap-2">
+              <span className="text-label font-semibold tracking-widest uppercase text-fg-secondary/40">
                 Note Graph
               </span>
               {selectedPath && (
-                <span className="text-[10px] text-accent-muted/25 truncate">
+                <span className="text-label text-fg-secondary/25 truncate">
                   — {selectedPath.split('/').pop()?.replace('.md', '')}
                 </span>
               )}
@@ -123,7 +122,7 @@ export default function KnowledgeEditor() {
             </div>
           </div>
 
-          <div className="border-t border-white/5 shrink-0" />
+          <div className="border-t border-hairline shrink-0" />
 
           {/* Note outline (TOC) */}
           <div className="flex-1 flex flex-col overflow-hidden">
