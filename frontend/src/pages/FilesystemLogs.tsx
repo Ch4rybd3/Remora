@@ -109,7 +109,7 @@ function WindowsTab({ caseId }: { caseId: string }) {
         [...latestSentIds.current],
       ).then(data => qc.setQueryData(['evtx-selection', caseId], data)).catch(() => {})
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [caseId])   // run cleanup only when caseId changes or on unmount
 
   const scheduleSave = useCallback((events: PinnedEvtxEvent[], ids: Set<number>) => {

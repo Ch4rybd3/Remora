@@ -49,6 +49,14 @@ WORKDIR /app/backend
 # All sub-directories (evidences, note_images, chainsaw, …) are created
 # automatically on first startup by main.py and the individual routers.
 
+# Build identity, surfaced by GET /api/v1/version. .git is excluded from the
+# build context, so the values have to be passed in:
+#   docker build --build-arg REMORA_COMMIT=$(git rev-parse --short HEAD) ...
+ARG REMORA_COMMIT=unknown
+ARG REMORA_BUILT_AT=unknown
+ENV REMORA_COMMIT=${REMORA_COMMIT} \
+    REMORA_BUILT_AT=${REMORA_BUILT_AT}
+
 EXPOSE 8000
 
 CMD ["uvicorn", "app.main:app", \

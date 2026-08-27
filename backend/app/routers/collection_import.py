@@ -279,7 +279,7 @@ def _run_pending(
 
             if ext == ".evtx":
                 # Route to EVTX module — parse runs asynchronously in daemon thread
-                evtx_rec = register_evtx_file(file_path, case_id, filename, db)
+                register_evtx_file(file_path, case_id, filename, db)
                 f.status    = "imported"
                 f.row_count = 0        # events counted after async parse
                 f.imported_at = datetime.utcnow()

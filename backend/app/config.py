@@ -1,7 +1,12 @@
 import secrets
 from typing import Any, Tuple, Type
 from pydantic import field_validator
-from pydantic_settings import BaseSettings, EnvSettingsSource, PydanticBaseSettingsSource
+from pydantic_settings import (
+    BaseSettings,
+    DotEnvSettingsSource,
+    EnvSettingsSource,
+    PydanticBaseSettingsSource,
+)
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -12,7 +17,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 # run, which crashes on plain comma-separated values like "http://a,http://b".
 # This subclass handles cors_origins by splitting on commas instead of JSON.
 
-class _CorsAwareEnvSource(EnvSettingsSource):
+class _CorsAwareMixin:
+    """Decode cors_origins from a comma-separated string.
+
+    Applied to both the environment and the dotenv source: a `.env` copied from
+    `.env.example` carries `CORS_ORIGINS=http://localhost`, which the stock
+    dotenv source hands to json.loads() and dies on. Patching only the env
+    source left every from-checkout run broken while Docker deployments — which
+    receive the value as a real environment variable — worked fine.
+    """
+
     def decode_complex_value(
         self, field_name: str, field_type: Any, value: str
     ) -> Any:
@@ -33,6 +47,14 @@ class _CorsAwareEnvSource(EnvSettingsSource):
         return super().decode_complex_value(field_name, field_type, value)
 
 
+class _CorsAwareEnvSource(_CorsAwareMixin, EnvSettingsSource):
+    pass
+
+
+class _CorsAwareDotEnvSource(_CorsAwareMixin, DotEnvSettingsSource):
+    pass
+
+
 # ── Settings ──────────────────────────────────────────────────────────────────
 
 class Settings(BaseSettings):
@@ -41,6 +63,11 @@ class Settings(BaseSettings):
     evidence_store_path: Path = BASE_DIR / "data" / "evidences"
     templates_path: Path = BASE_DIR / "templates"
     max_upload_size_mb: int = 500
+
+    # Skip provisioning of external tooling (Chainsaw download, CTI binary
+    # checks) at startup. Set in CI and in tests, which have no reason to pull
+    # a release from GitHub before running.
+    skip_tool_setup: bool = False
 
     # ── Drop folder ───────────────────────────────────────────────────────────
     # Watched directory with one sub-folder per case. Bind-mount it from the
@@ -89,6 +116,10 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        # `.env` is shared with docker-compose and carries variables the
+        # backend does not own (PORT, BIND_HOST, DROPZONE_HOST_PATH, …).
+        # Without this, loading the shipped .env.example fails outright.
+        extra = "ignore"
 
     @classmethod
     def settings_customise_sources(
@@ -103,7 +134,7 @@ class Settings(BaseSettings):
         return (
             init_settings,
             _CorsAwareEnvSource(settings_cls),
-            dotenv_settings,
+            _CorsAwareDotEnvSource(settings_cls),
             file_secret_settings,
         )
 

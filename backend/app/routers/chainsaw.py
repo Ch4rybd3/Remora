@@ -14,8 +14,6 @@ from __future__ import annotations
 import json
 import logging
 import math
-import re
-import shutil
 import subprocess
 import tempfile
 import uuid
@@ -473,7 +471,7 @@ def _scan_background(scan_id: str, file_path: str) -> None:
                             print(f"[chainsaw] Sigma parsed {len(parsed)} alerts from file", flush=True)
                             raw_alerts.extend(parsed)
                     else:
-                        print(f"[chainsaw] Sigma scan non-fatal error, skipping sigma results.", flush=True)
+                        print("[chainsaw] Sigma scan non-fatal error, skipping sigma results.", flush=True)
                 except subprocess.TimeoutExpired:
                     print("[chainsaw] Sigma scan timed out, skipping sigma results.", flush=True)
                 except Exception as exc:

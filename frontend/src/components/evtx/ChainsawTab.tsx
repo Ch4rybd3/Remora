@@ -5,9 +5,8 @@ import {
   ChevronDown, ChevronRight, BookmarkPlus, Trash2,
   Send, X, Clock, RefreshCw, Filter,
 } from 'lucide-react'
-import { evtxApi, type EvtxFile } from '../../api/evtx'
+import { evtxApi } from '../../api/evtx'
 import { chainsawApi, type ChainsawScan, type ChainsawAlert, type PinnedChainsawAlert } from '../../api/chainsaw'
-import { timelineApi } from '../../api/timeline'
 import { fmtDateTime, fmtDateTimeShort } from '../../utils/dateUtils'
 
 interface Props { caseId: string }
@@ -513,7 +512,7 @@ export default function ChainsawTab({ caseId }: Props) {
         [...latestSentIds.current],
       ).then(d => qc.setQueryData(['chainsaw-selection', caseId], d)).catch(() => {})
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [caseId])
 
   // ── Scans query ──────────────────────────────────────────────────────────
@@ -586,7 +585,8 @@ export default function ChainsawTab({ caseId }: Props) {
   const toggleLevel = (l: string) => {
     setLevelFilter(prev => {
       const next = new Set(prev)
-      next.has(l) ? next.delete(l) : next.add(l)
+      if (next.has(l)) next.delete(l)
+      else next.add(l)
       return next
     })
   }

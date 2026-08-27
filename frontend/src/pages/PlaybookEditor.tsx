@@ -13,7 +13,7 @@ function NodeInternalsSync({ trigger, nodeIds }: { trigger: number; nodeIds: str
   const updateNodeInternals = useUpdateNodeInternals()
   useEffect(() => {
     if (trigger > 0) requestAnimationFrame(() => updateNodeInternals(nodeIds))
-  }, [trigger]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [trigger])  
   return null
 }
 import { ArrowLeft, Save, Plus, Trash2, GitBranch, Wand2, Link2Off, ArrowDown, ArrowRight, ImageDown, SquareDashed, Spline } from 'lucide-react'
@@ -65,7 +65,7 @@ const NODE_PALETTE = [
  * set at runtime and must not be persisted — they confuse ReactFlow on reload.
  */
 function cleanNode(n: Node): Omit<Node, 'measured' | 'positionAbsolute' | 'selected' | 'dragging' | 'initialized'> {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   const { measured, positionAbsolute, selected, dragging, initialized, ...rest } = n as Node & {
     positionAbsolute?: unknown; initialized?: unknown
   }
@@ -78,7 +78,7 @@ function cleanNode(n: Node): Omit<Node, 'measured' | 'positionAbsolute' | 'selec
  * `data` (shape + waypoints) is authored content and is kept.
  */
 function cleanEdge(e: Edge): Omit<Edge, 'selected'> {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   const { selected, ...rest } = e
   return rest
 }
@@ -110,7 +110,6 @@ export default function PlaybookEditor() {
   const [selNodes,     setSelNodes]     = useState<Node[]>([])
   const [selEdges,     setSelEdges]     = useState<Edge[]>([])
   const selectedNode = selNodes.length === 1 ? selNodes[0] : null
-  const selectedEdge = selEdges.length === 1 ? selEdges[0] : null
 
   // ── Edit modal ────────────────────────────────────────────────────────────
   const [editNodeOpen, setEditNodeOpen] = useState(false)

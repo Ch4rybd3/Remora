@@ -345,9 +345,6 @@ function CollectionCard({ cols, caseId }: { cols: ImportedCollection[]; caseId: 
             // Files in this group (join by filename)
             const groupFiles = col.files.filter(f => g.files.includes(f.filename))
             const isUnknown = g.label === 'Unknown' || g.label === 'Unsupported'
-            // Point to Artifact Explorer, pre-selecting the first file of the group
-            const firstFile = groupFiles.find(f => f.status === 'imported')?.filename ?? g.files[0]
-            const dest = resolveDestination(g.destination_page, firstFile)
             return (
               <div key={g.label} className="px-4 py-3">
                 {/* Group header */}

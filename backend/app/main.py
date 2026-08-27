@@ -1,6 +1,8 @@
 import logging
 import sys
 from pathlib import Path
+from typing import Any
+
 from fastapi import FastAPI, Depends
 
 logging.basicConfig(
@@ -16,6 +18,8 @@ from sqlalchemy import text
 
 from .config import settings
 from .database import Base, engine, SessionLocal
+from .__version__ import __version__, build_info
+from .db_migrate import run_migrations
 from .models.user import User, UserRole
 from .services.auth_service import hash_password
 from .core.deps import get_current_user
@@ -64,7 +68,6 @@ from .models import csv_artifact as _csv_artifact_models  # ensure tables are re
 from .routers import case_emails as case_emails_router
 from .routers import csv_artifacts as csv_artifacts_router
 
-Base.metadata.create_all(bind=engine)
 settings.evidence_store_path.mkdir(parents=True, exist_ok=True)
 
 
@@ -79,7 +82,6 @@ def _setup_collection_imports() -> None:
             pass  # Column already exists
 
 
-_setup_collection_imports()
 
 
 def _setup_case_text_fields() -> None:
@@ -94,7 +96,6 @@ def _setup_case_text_fields() -> None:
                 pass  # Column already exists
 
 
-_setup_case_text_fields()
 
 
 def _setup_playbooks() -> None:
@@ -107,7 +108,6 @@ def _setup_playbooks() -> None:
             pass  # Column already exists
 
 
-_setup_playbooks()
 
 
 def _setup_report_sections() -> None:
@@ -123,7 +123,6 @@ def _setup_report_sections() -> None:
                 pass  # Column already exists
 
 
-_setup_report_sections()
 
 
 def _setup_binary() -> None:
@@ -136,7 +135,6 @@ def _setup_binary() -> None:
         pass
 
 
-_setup_binary()
 
 
 def _setup_chainsaw() -> None:
@@ -156,7 +154,6 @@ def _setup_chainsaw() -> None:
     settings.chainsaw_rules_path = rules_path
 
 
-_setup_chainsaw()
 
 
 def _setup_cti_tools() -> None:
@@ -164,7 +161,6 @@ def _setup_cti_tools() -> None:
     setup_cti_tools()
 
 
-_setup_cti_tools()
 
 
 def _setup_csv_artifact_evidence() -> None:
@@ -181,7 +177,6 @@ def _setup_csv_artifact_evidence() -> None:
             pass  # Column already exists
 
 
-_setup_csv_artifact_evidence()
 
 
 def _setup_case_type() -> None:
@@ -201,7 +196,6 @@ def _setup_case_type() -> None:
                 pass  # Column already exists
 
 
-_setup_case_type()
 
 
 def _setup_artifact_timezone() -> None:
@@ -221,7 +215,6 @@ def _setup_artifact_timezone() -> None:
                 pass  # Column already exists
 
 
-_setup_artifact_timezone()
 
 
 def _setup_case_client_id() -> None:
@@ -235,7 +228,6 @@ def _setup_case_client_id() -> None:
             pass  # Column already exists
 
 
-_setup_case_client_id()
 
 
 def _setup_timeline_provenance() -> None:
@@ -271,7 +263,6 @@ def _setup_timeline_provenance() -> None:
             pass  # incident_log_entries may not exist yet
 
 
-_setup_timeline_provenance()
 
 NOTE_IMAGES_DIR = settings.evidence_store_path.parent / "note_images"
 NOTE_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
@@ -294,7 +285,6 @@ def _seed_admin():
         db.close()
 
 
-_seed_admin()
 
 
 def _seed_default_client_and_backfill():
@@ -337,7 +327,6 @@ def _seed_default_client_and_backfill():
         db.close()
 
 
-_seed_default_client_and_backfill()
 
 
 def _seed_playbooks():
@@ -373,12 +362,65 @@ def _seed_playbooks():
         db.close()
 
 
-_seed_playbooks()
+
+
+# ─── Startup bootstrap ────────────────────────────────────────────────────────
+# These used to run at import time, which meant that merely importing this
+# module created a database, downloaded Chainsaw from GitHub and seeded rows.
+# That made the application impossible to import in a test, and made a failed
+# network call a hard import error. They now run once, at startup.
+
+def _bootstrap_schema() -> None:
+    """Bring the database to head, then run the legacy idempotent fixups."""
+    run_migrations()
+
+    # DEPRECATED — superseded by Alembic and scheduled for removal once
+    # deployed installations are confirmed to be on migrations. They are
+    # no-ops against a schema at head; kept for one release because silently
+    # dropping a fixup is exactly how an upgrade loses data.
+    for legacy in (
+        _setup_collection_imports,
+        _setup_case_text_fields,
+        _setup_playbooks,
+        _setup_report_sections,
+        _setup_csv_artifact_evidence,
+        _setup_case_type,
+        _setup_artifact_timezone,
+        _setup_case_client_id,
+        _setup_timeline_provenance,
+    ):
+        legacy()
+
+
+def _bootstrap_seeds() -> None:
+    _seed_admin()
+    _seed_default_client_and_backfill()
+    _seed_playbooks()
+
+
+def _bootstrap_tools() -> None:
+    """
+    Provision external tooling. Downloads from the network on first run, so it
+    is skippable: CI and tests have no reason to pull a Chainsaw release.
+    """
+    if settings.skip_tool_setup:
+        print("[remora] tool setup skipped (SKIP_TOOL_SETUP)", flush=True)
+        return
+    _setup_binary()
+    _setup_chainsaw()
+    _setup_cti_tools()
+
+
+def bootstrap() -> None:
+    _bootstrap_schema()
+    _bootstrap_seeds()
+    _bootstrap_tools()
+
 
 app = FastAPI(
     title="Remora API",
     description="DFIR Case Management Platform",
-    version="1.0.0",
+    version=__version__,
 )
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -394,7 +436,9 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/v1")
 
 # Protected — all routes below require a valid JWT
-_auth = {"dependencies": [Depends(get_current_user)]}
+# Annotated as Any because mypy cannot match a narrowly-inferred dict against
+# include_router's heterogeneous keyword signature when expanded with **.
+_auth: dict[str, Any] = {"dependencies": [Depends(get_current_user)]}
 
 app.include_router(cases.router, prefix="/api/v1", **_auth)
 app.include_router(iocs.router, prefix="/api/v1", **_auth)
@@ -432,14 +476,21 @@ app.include_router(backup_router.router,               prefix="/api/v1", **_auth
 
 
 @app.on_event("startup")
-def _start_dropzone_poller() -> None:
-    """Watch the drop folder for artifacts dropped outside the browser."""
+def _on_startup() -> None:
+    bootstrap()
+    # Watch the drop folder for artifacts dropped outside the browser.
     dropzone_router.start_poller()
 
 
 @app.get("/api/v1/health")
 def health():
     return {"status": "ok", "app": settings.app_name}
+
+
+@app.get("/api/v1/version")
+def version():
+    """Version, commit and build date. Displayed in the sidebar footer."""
+    return build_info()
 
 # Static files — no auth (UUID-based obscurity)
 app.mount("/note-images", StaticFiles(directory=str(NOTE_IMAGES_DIR)), name="note-images")

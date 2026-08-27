@@ -6,7 +6,7 @@ import {
   ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, SlidersHorizontal,
   BookmarkPlus, BookmarkCheck, Download, Columns3, Trash2, FileText,
   Loader2, Info, Table2, Globe, Layers, GripVertical, ChevronRight as ChevronRightIcon,
-  Terminal, HelpCircle, Play, AlertCircle, Shield, ShieldCheck,
+  Terminal, HelpCircle, AlertCircle, Shield, ShieldCheck,
 } from 'lucide-react'
 import { csvArtifactsApi, type CsvArtifactMeta, type ArtifactRowFilters, type OmniSearchFile, type GroupResult } from '../api/csvArtifacts'
 import { timelineApi } from '../api/timeline'
@@ -314,7 +314,7 @@ function EZBadge({ label }: { label: string }) {
 
 // ── ColFilterInput ─────────────────────────────────────────────────────────────
 
-function ColFilterInput({ colKey, filter, onChange }: {
+function ColFilterInput({ filter, onChange }: {
   colKey: string; filter: ColFilter; onChange: (f: ColFilter) => void
 }) {
   const cycleMode = (e: React.MouseEvent) => {
@@ -705,7 +705,7 @@ function GroupRowsFetcher({ caseId, meta, baseFilters, groupFilters, orderedCols
 
 const RQL_KW_BOOL    = new Set(['AND','OR','NOT'])
 const RQL_KW_OP      = new Set(['IN','BETWEEN','CONTAINS','STARTSWITH','ENDSWITH','REGEX','CIDR','LAST'])
-const RQL_TOK_RE     = /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\b(?:AND|OR|NOT|IN|BETWEEN|CONTAINS|STARTSWITH|ENDSWITH|REGEX|CIDR|LAST|NULL|TRUE|FALSE)\b|>=|<=|!=|[><=~()\*,.]+|\d+\.?\d*|[\w@][\w.\-@]*|\s+)/gi
+const RQL_TOK_RE     = /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\b(?:AND|OR|NOT|IN|BETWEEN|CONTAINS|STARTSWITH|ENDSWITH|REGEX|CIDR|LAST|NULL|TRUE|FALSE)\b|>=|<=|!=|[><=~()*,.]+|\d+\.?\d*|[\w@][\w.\-@]*|\s+)/gi
 
 function highlightRQL(q: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = []
@@ -1915,7 +1915,8 @@ function PinnedPanel({ pinned, onUnpin, onClear, onExport, onEdit, onReset, expo
 
   const toggleExpanded = (key: string) => setExpanded(prev => {
     const next = new Set(prev)
-    next.has(key) ? next.delete(key) : next.add(key)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
     return next
   })
 

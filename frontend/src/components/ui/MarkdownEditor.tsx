@@ -348,7 +348,7 @@ export function LiveEditor({
   useEffect(() => { onUploadEndRef.current   = onUploadEnd   }, [onUploadEnd])
 
   // Editor ref — needed because editorProps closures are created before useEditor returns
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const editorRef = useRef<any>(null)
 
   const editor = useEditor({

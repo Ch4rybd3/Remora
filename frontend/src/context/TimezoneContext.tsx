@@ -64,7 +64,7 @@ export function TimezoneProvider({ children }: { children: ReactNode }) {
   // Initialise the dateUtils module on first mount (state already read from localStorage)
   useEffect(() => {
     setTimezone(timezone)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [])
 
   const setTz = (tz: string) => {

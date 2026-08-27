@@ -130,7 +130,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
       })
     }, 1500)
     return () => clearTimeout(timer)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [draftNotes, autoSave, activeCp?.id])
 
   /* ── Ctrl+S — save all dirty steps ── */
@@ -149,7 +149,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [activeCp?.id])
 
   /* ── Detach confirmation ── */

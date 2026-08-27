@@ -12,7 +12,6 @@ import json
 import os
 import tempfile
 import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.request import Request, urlopen
@@ -228,7 +227,7 @@ def _build_compact_tree(stix_data: dict) -> dict[str, Any]:
 
 
 def _download_and_cache() -> None:
-    status_path = _status_path()
+
     compact_path = _compact_path()
 
     _write_status({"state": "downloading"})

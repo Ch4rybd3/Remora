@@ -1,0 +1,105 @@
+# Tooling configuration for the Python backend.
+# Runtime dependencies live in backend/requirements.txt.
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["backend/tests"]
+pythonpath = ["backend"]
+addopts = "-q --strict-markers --strict-config"
+filterwarnings = [
+    # FastAPI 0.115 still ships on_event; migrating to lifespan is separate work.
+    "ignore::DeprecationWarning:fastapi.*",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["backend"]
+exclude = [
+    "backend/alembic/versions",   # generated files
+    "frontend",
+    "data",
+]
+
+[tool.ruff.lint]
+# Blocking set: rules that catch defects, not style.
+#   F  — pyflakes: undefined names, unused imports and variables
+#   E9 — syntax and IO errors
+# The style rules (E, I, B, UP, C4) report ~730 further violations across code
+# written before linting existed. Turning them on here would land a red CI on
+# the very sprint whose point is that CI can be trusted. They are scheduled as
+# a single mechanical `ruff check --fix` pull request in S12; see docs/ROADMAP.md.
+select = ["F", "E9"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+# main.py imports models purely to register their tables, after runtime setup.
+"backend/app/main.py" = ["F401", "E402"]
+"backend/alembic/env.py" = ["E402"]
+"backend/tests/conftest.py" = ["E402"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["backend/app"]
+mypy_path = "backend"
+ignore_missing_imports = true
+follow_imports = "silent"
+# Deliberately permissive. The goal is to catch obvious type errors on new
+# code, not to retrofit annotations across 17k lines.
+check_untyped_defs = false
+disallow_untyped_defs = false
+warn_return_any = false
+
+# ── Type-checking ratchet ─────────────────────────────────────────────────────
+# 61 of 102 modules type-check cleanly today and are enforced. The modules below
+# predate type checking and are exempted individually rather than by disabling
+# mypy, so anything new is checked by default.
+#
+# The rule is one-directional: a module may be REMOVED from this list once it is
+# clean; nothing may ever be ADDED. If a change makes an exempt module clean,
+# delete its line in the same pull request.
+[[tool.mypy.overrides]]
+module = [
+    "app.config",
+    "app.core.deps",
+    "app.main",
+    "app.models.asset",
+    "app.models.case",
+    "app.models.evidence",
+    "app.models.ioc",
+    "app.models.user",
+    "app.routers.assets",
+    "app.routers.attack_graph",
+    "app.routers.auth",
+    "app.routers.binary",
+    "app.routers.case_emails",
+    "app.routers.cases",
+    "app.routers.chainsaw",
+    "app.routers.clients",
+    "app.routers.collection_import",
+    "app.routers.connectors",
+    "app.routers.csv_artifacts",
+    "app.routers.cti",
+    "app.routers.dashboard",
+    "app.routers.disk_images",
+    "app.routers.dropzone",
+    "app.routers.email_analysis",
+    "app.routers.evidences",
+    "app.routers.evtx",
+    "app.routers.incident_log",
+    "app.routers.iocs",
+    "app.routers.knowledge",
+    "app.routers.memory",
+    "app.routers.mitre",
+    "app.routers.playbooks",
+    "app.routers.report_doc_templates",
+    "app.routers.reports",
+    "app.routers.timeline",
+    "app.routers.users",
+    "app.routers.vault",
+    "app.schemas.browser",
+    "app.schemas.registry",
+    "app.services.archives",
+    "app.services.dropzone",
+]
+ignore_errors = true

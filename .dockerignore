@@ -5,6 +5,8 @@ backend/**/*.pyc
 backend/**/*.pyo
 backend/.pytest_cache
 backend/.mypy_cache
+backend/tests
+backend/requirements-dev.txt
 
 # ── Frontend ──────────────────────────────────────────────────────────────────
 frontend/node_modules

@@ -3,7 +3,6 @@ import re
 from email import policy
 from email.header import decode_header, make_header
 from email.parser import BytesParser
-from typing import Optional
 
 from fastapi import APIRouter, UploadFile, File
 

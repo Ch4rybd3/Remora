@@ -82,7 +82,6 @@ interface ColFilter {
 type ColFilters = Record<string, ColFilter>
 
 function ColFilterInput({
-  colKey,
   filter,
   onChange,
 }: {

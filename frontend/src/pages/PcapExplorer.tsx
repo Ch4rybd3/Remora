@@ -393,7 +393,10 @@ function PinnedPanel({ pinned, onUnpin, onClear, onEdit, onExport, exporting }: 
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const toggle = (k: string) => setExpanded(p => {
-    const n = new Set(p); n.has(k) ? n.delete(k) : n.add(k); return n
+    const n = new Set(p)
+    if (n.has(k)) n.delete(k)
+    else n.add(k)
+    return n
   })
 
   // Chronological, oldest first — the order they will land in the timeline
