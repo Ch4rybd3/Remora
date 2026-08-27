@@ -13,9 +13,9 @@ export default function BinaryAnalysis() {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center space-y-2">
-          <div className="text-5xl opacity-10">🔬</div>
-          <p className="text-sm text-accent-muted/50">No current case selected</p>
-          <p className="text-xs text-accent-muted/30">
+          <div className="text-title opacity-10">🔬</div>
+          <p className="text-ui text-fg-secondary/50">No current case selected</p>
+          <p className="text-label text-fg-secondary/30">
             Set a current case from the top bar to upload and analyse binary files
           </p>
         </div>
@@ -27,10 +27,10 @@ export default function BinaryAnalysis() {
     <div className="flex h-full overflow-hidden">
 
       {/* ── Left panel ──────────────────────────────────────────────── */}
-      <div className="w-64 shrink-0 border-r border-white/5 bg-bg-secondary flex flex-col">
-        <div className="px-3 py-2.5 border-b border-white/5 shrink-0 flex items-center gap-2">
-          <Lock size={11} className="text-accent-muted/40" />
-          <span className="text-[10px] font-semibold tracking-widest uppercase text-accent-muted/50">
+      <div className="w-64 shrink-0 border-r border-hairline bg-panel flex flex-col">
+        <div className="px-3 py-2.5 border-b border-hairline shrink-0 flex items-center gap-2">
+          <Lock size={11} className="text-fg-secondary/40" />
+          <span className="text-label font-semibold tracking-widest uppercase text-fg-secondary/50">
             Binary Files
           </span>
         </div>
@@ -44,7 +44,7 @@ export default function BinaryAnalysis() {
       </div>
 
       {/* ── Right: explorer ───────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-bg-primary min-w-0">
+      <div className="flex-1 flex flex-col overflow-hidden bg-canvas min-w-0">
         {selectedFile ? (
           <BinaryExplorer
             caseId={currentCase.id}
@@ -54,9 +54,9 @@ export default function BinaryAnalysis() {
         ) : (
           <div className="flex h-full items-center justify-center">
             <div className="text-center space-y-2">
-              <div className="text-5xl opacity-10">🔬</div>
-              <p className="text-sm text-accent-muted/50">Select a binary file to analyse</p>
-              <p className="text-xs text-accent-muted/30 max-w-xs">
+              <div className="text-title opacity-10">🔬</div>
+              <p className="text-ui text-fg-secondary/50">Select a binary file to analyse</p>
+              <p className="text-label text-fg-secondary/30 max-w-xs">
                 Upload a PE · ELF · Mach-O binary in the left panel.
                 Files are encrypted at rest and never executed server-side.
               </p>

@@ -50,26 +50,26 @@ function SelectedPanel({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="shrink-0 px-3 py-2.5 border-b border-white/5 flex items-center gap-2">
-        <Shield size={11} className="text-accent-green/70" />
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-accent-muted/60 flex-1">
+      <div className="shrink-0 px-3 py-2.5 border-b border-hairline flex items-center gap-2">
+        <Shield size={11} className="text-accent/70" />
+        <span className="text-label font-semibold uppercase tracking-widest text-fg-secondary/60 flex-1">
           Selected TTPs
         </span>
-        <span className="text-[10px] font-mono text-accent-green/70">
+        <span className="text-label font-mono text-accent/70">
           {selected.size}
         </span>
       </div>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto divide-y divide-white/5">
+      <div className="flex-1 overflow-y-auto divide-y divide-hairline">
         {selected.size === 0 && (
-          <p className="px-3 py-6 text-[11px] italic text-accent-muted/30 text-center">
+          <p className="px-3 py-6 text-label italic text-fg-secondary/30 text-center">
             Click any technique in the matrix to add it
           </p>
         )}
         {[...byTactic.entries()].map(([tacticName, entries]) => (
           <div key={tacticName}>
-            <p className="px-3 pt-2 pb-0.5 text-[8px] uppercase tracking-widest text-accent-muted/30 font-semibold">
+            <p className="px-3 pt-2 pb-0.5 text-label uppercase tracking-widest text-fg-secondary/30 font-semibold">
               {tacticName}
             </p>
             {entries.map(({ key, def }) => (
@@ -79,7 +79,7 @@ function SelectedPanel({
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[9px] font-mono text-accent-green/70 shrink-0">
+                    <span className="text-label font-mono text-accent/70 shrink-0">
                       {def.technique_id}
                     </span>
                     <a
@@ -91,13 +91,13 @@ function SelectedPanel({
                       <ExternalLink size={8} />
                     </a>
                   </div>
-                  <p className="text-[9px] text-white/60 truncate leading-tight">
+                  <p className="text-label text-fg/60 truncate leading-tight">
                     {def.technique_name}
                   </p>
                 </div>
                 <button
                   onClick={() => onRemove(key)}
-                  className="shrink-0 opacity-0 group-hover:opacity-100 text-white/20 hover:text-severity-critical transition-all"
+                  className="shrink-0 opacity-0 group-hover:opacity-100 text-fg/20 hover:text-severity-critical transition-all"
                 >
                   <X size={10} />
                 </button>
@@ -174,28 +174,28 @@ export default function TemplateTTPModal({ template, onClose, onSaved }: Props) 
 
   return (
     /* Full-screen overlay */
-    <div className="fixed inset-0 z-50 flex flex-col bg-bg-primary">
+    <div className="fixed inset-0 z-50 flex flex-col bg-canvas">
 
       {/* ── Modal header ──────────────────────────────────────────────────── */}
-      <div className="shrink-0 flex items-center gap-3 px-5 py-3.5 border-b border-white/8 bg-bg-secondary">
-        <Shield size={15} className="text-accent-green shrink-0" />
+      <div className="shrink-0 flex items-center gap-3 px-5 py-3.5 border-b border-hairline bg-panel">
+        <Shield size={15} className="text-accent shrink-0" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-white truncate">
+          <p className="text-ui font-semibold text-fg truncate">
             MITRE ATT&amp;CK — {template.name}
           </p>
-          <p className="text-[10px] text-accent-muted/40">
+          <p className="text-label text-fg-secondary/40">
             Select techniques to pre-populate when a case is created from this template
           </p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[10px] text-accent-muted/50 font-mono">
+          <span className="text-label text-fg-secondary/50 font-mono">
             {selectedMap.size} technique{selectedMap.size !== 1 ? 's' : ''}
           </span>
           <button
             onClick={() => saveMut.mutate()}
             disabled={saveMut.isPending}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-accent-green/40 text-accent-green text-xs font-medium hover:bg-accent-green/10 disabled:opacity-50 disabled:pointer-events-none transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-control border border-accent/40 text-accent text-label font-medium hover:bg-accent/10 disabled:opacity-50 disabled:pointer-events-none transition-colors"
           >
             {saveMut.isPending
               ? <><Loader2 size={12} className="animate-spin" /> Saving…</>
@@ -204,7 +204,7 @@ export default function TemplateTTPModal({ template, onClose, onSaved }: Props) 
           </button>
           <button
             onClick={onClose}
-            className="text-accent-muted/40 hover:text-white transition-colors p-1"
+            className="text-fg-secondary/40 hover:text-fg transition-colors p-1"
           >
             <X size={16} />
           </button>
@@ -223,7 +223,7 @@ export default function TemplateTTPModal({ template, onClose, onSaved }: Props) 
         </div>
 
         {/* Right panel */}
-        <div className="w-60 shrink-0 border-l border-white/5 bg-bg-secondary flex flex-col">
+        <div className="w-60 shrink-0 border-l border-hairline bg-panel flex flex-col">
           <SelectedPanel
             selected={selectedMap}
             onRemove={key =>
@@ -235,7 +235,7 @@ export default function TemplateTTPModal({ template, onClose, onSaved }: Props) 
 
       {/* ── Save error ────────────────────────────────────────────────────── */}
       {saveMut.isError && (
-        <div className="shrink-0 px-5 py-2.5 bg-severity-critical/10 border-t border-severity-critical/20 text-xs text-severity-critical font-mono">
+        <div className="shrink-0 px-5 py-2.5 bg-severity-critical/10 border-t border-severity-critical/20 text-label text-severity-critical font-mono">
           Save failed — {(saveMut.error as any)?.response?.data?.detail ?? 'Unknown error'}
         </div>
       )}

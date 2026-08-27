@@ -80,7 +80,7 @@ const BOX_META: BoxMeta[] = [
     icon:  <FlaskConical size={12} />,
     label: 'Technical Analysis',
     tag:   '{{report_analysis}}',
-    color: 'text-blue-400 border-blue-500/20 bg-blue-500/5',
+    color: 'text-severity-low border-severity-low/20 bg-severity-low/5',
     placeholder:
       '## Root Cause\n\n*Describe how the incident started...*\n\n' +
       '## Attack Chain\n\n*Describe how the attack progressed.*\n\n' +
@@ -90,7 +90,7 @@ const BOX_META: BoxMeta[] = [
     icon:  <Wrench size={12} />,
     label: 'Remediations',
     tag:   '{{report_remediation}}',
-    color: 'text-orange-400 border-orange-500/20 bg-orange-500/5',
+    color: 'text-severity-high border-severity-high/20 bg-severity-high/5',
     placeholder:
       '*Remediation actions completed or in progress.*\n\n' +
       '- [ ] Action 1\n- [ ] Action 2',
@@ -99,7 +99,7 @@ const BOX_META: BoxMeta[] = [
     icon:  <Flag size={12} />,
     label: 'Conclusion & Recommandations',
     tag:   '{{report_conclusion}}',
-    color: 'text-purple-300 border-purple-500/20 bg-purple-500/5',
+    color: 'text-data-2 border-data-2/20 bg-data-2/5',
     placeholder:
       '*Summary and long-term recommendations.*\n\n' +
       '- [ ] Recommandation 1\n- [ ] Recommandation 2',
@@ -123,24 +123,24 @@ function VersionCard({
   }
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/8 bg-white/[0.015] hover:border-white/15 transition-colors group">
-      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-accent-green/10 text-accent-green border border-accent-green/20 shrink-0">
+    <div className="flex items-center gap-2 px-3 py-2 border border-hairline bg-white/[0.015] hover:border-hairline transition-colors group">
+      <span className="text-label font-mono font-bold px-1.5 py-0.5 rounded-control bg-accent/10 text-accent border border-accent/20 shrink-0">
         v{v.version}
       </span>
-      <span className="text-[10px] text-white/60 flex-1 truncate" title={fmtDateTime(v.created_at)}>
+      <span className="text-label text-fg/60 flex-1 truncate" title={fmtDateTime(v.created_at)}>
         {fmtRelative(v.created_at)}
       </span>
       {v.created_by && (
-        <span className="flex items-center gap-1 text-[9px] text-accent-muted/40">
+        <span className="flex items-center gap-1 text-label text-fg-secondary/40">
           <User size={8} /> {v.created_by}
         </span>
       )}
-      <span className="flex items-center gap-1 text-[9px] text-accent-muted/30">
+      <span className="flex items-center gap-1 text-label text-fg-secondary/30">
         <Hash size={8} /> {v.line_count}
       </span>
       <button
         onClick={handleRestore} disabled={loading}
-        className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border border-accent-green/20 text-accent-green/70 hover:bg-accent-green/10 transition-all"
+        className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-label px-1.5 py-0.5 rounded-control border border-accent/20 text-accent/70 hover:bg-accent/10 transition-all"
       >
         <RotateCcw size={8} className={loading ? 'animate-spin' : ''} />
         Restaurer
@@ -164,10 +164,9 @@ function CopyBtn({ getText }: { getText: () => string }) {
     <button
       onClick={handleCopy}
       title="Copy this step's content"
-      className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors border ${
-        copied
-          ? 'text-accent-green bg-accent-green/10 border-accent-green/30'
-          : 'text-accent-muted hover:text-white bg-white/[0.03] hover:bg-white/8 border-white/10 hover:border-white/20'
+      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-control text-label font-medium transition-colors border ${ copied
+          ? 'text-accent bg-accent/10 border-accent/30'
+          : 'text-fg-secondary hover:text-fg bg-white/[0.03] hover:bg-fg/8 border-hairline hover:border-strong'
       }`}
     >
       {copied
@@ -204,13 +203,13 @@ function PlaybookStepEditor({
   })
 
   return (
-    <div className="border-b border-white/[0.05] last:border-b-0">
+    <div className="border-b border-strong/[0.05] last:border-b-0">
       <div className="flex items-start gap-2 px-3 pt-2.5 pb-1">
-        <span className={`mt-0.5 shrink-0 ${done ? 'text-accent-green' : 'text-accent-muted/25'}`}>
+        <span className={`mt-0.5 shrink-0 ${done ? 'text-accent' : 'text-fg-secondary/25'}`}>
           {done ? <CheckCircle2 size={12} /> : <Circle size={12} />}
         </span>
-        <p className={`text-[11px] font-medium leading-snug flex-1 min-w-0 break-words ${done ? 'text-accent-muted/40 line-through' : 'text-white/80'}`}>
-          <span className="text-accent-muted/20 font-mono mr-1">{String(idx + 1).padStart(2, '0')}.</span>
+        <p className={`text-label font-medium leading-snug flex-1 min-w-0 break-words ${done ? 'text-fg-secondary/40 line-through' : 'text-fg/80'}`}>
+          <span className="text-fg-secondary/20 font-mono mr-1">{String(idx + 1).padStart(2, '0')}.</span>
           {(node.data as any).label}
         </p>
         <div className="flex items-center gap-1 shrink-0">
@@ -218,7 +217,7 @@ function PlaybookStepEditor({
             <button
               onClick={() => save.mutate()}
               disabled={save.isPending}
-              className="text-[9px] px-1.5 py-0.5 rounded bg-accent-green/10 text-accent-green border border-accent-green/20 hover:bg-accent-green/20 transition-colors"
+              className="text-label px-1.5 py-0.5 rounded-control bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20 transition-colors"
             >
               <Save size={9} className="inline mr-0.5" />
               {save.isPending ? '…' : 'Sauv.'}
@@ -254,14 +253,14 @@ function PlaybookReference({ caseId }: { caseId: string }) {
   const activeCp = casePlaybooks.find(cp => cp.id === activeId) ?? casePlaybooks[0] ?? null
 
   if (isLoading) {
-    return <p className="text-xs text-accent-muted/30 italic text-center py-8 animate-pulse">Loading...</p>
+    return <p className="text-label text-fg-secondary/30 italic text-center py-8 animate-pulse">Loading...</p>
   }
   if (casePlaybooks.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6">
-        <StickyNote size={28} className="text-accent-muted/15" />
-        <p className="text-xs text-accent-muted/40">No playbook attached to this case.</p>
-        <p className="text-[10px] text-accent-muted/25">
+        <StickyNote size={28} className="text-fg-secondary/15" />
+        <p className="text-label text-fg-secondary/40">No playbook attached to this case.</p>
+        <p className="text-label text-fg-secondary/25">
           Attache un playbook depuis l'onglet Playbook pour voir tes notes ici.
         </p>
       </div>
@@ -270,32 +269,31 @@ function PlaybookReference({ caseId }: { caseId: string }) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="px-3 py-2 border-b border-white/5 flex items-center gap-2 shrink-0">
+      <div className="px-3 py-2 border-b border-hairline flex items-center gap-2 shrink-0">
         <div className="flex gap-1 flex-1 flex-wrap">
           {casePlaybooks.map(cp => (
             <button
               key={cp.id}
               onClick={() => setActiveId(cp.id)}
-              className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border transition-colors ${
-                activeCp?.id === cp.id
-                  ? 'bg-accent-green/10 text-accent-green border-accent-green/25'
-                  : 'text-accent-muted border-white/10 hover:text-white hover:bg-white/5'
+              className={`flex items-center gap-1 text-label px-2 py-0.5 rounded-control border transition-colors ${ activeCp?.id === cp.id
+                  ? 'bg-accent/10 text-accent border-accent/25'
+                  : 'text-fg-secondary border-hairline hover:text-fg hover:bg-fg/5'
               }`}
             >
               {cp.playbook.name}
-              <span className="opacity-40 text-[8px] font-mono">{doneCount(cp)}/{stepNodes(cp).length}</span>
+              <span className="opacity-40 text-label font-mono">{doneCount(cp)}/{stepNodes(cp).length}</span>
             </button>
           ))}
         </div>
-        <div className="flex rounded border border-white/10 overflow-hidden shrink-0">
+        <div className="flex rounded-control border border-hairline overflow-hidden shrink-0">
           <button
             onClick={() => setPanelView('steps')}
-            className={`flex items-center px-2 py-1 text-[10px] transition-colors ${panelView === 'steps' ? 'bg-accent-green/10 text-accent-green' : 'text-accent-muted hover:text-white'}`}
+            className={`flex items-center px-2 py-1 text-label transition-colors ${panelView === 'steps' ? 'bg-accent/10 text-accent' : 'text-fg-secondary hover:text-fg'}`}
           ><List size={10} /></button>
           <button
             onClick={() => setPanelView('graph')}
             disabled={!activeCp}
-            className={`flex items-center px-2 py-1 text-[10px] transition-colors ${panelView === 'graph' ? 'bg-accent-green/10 text-accent-green' : 'text-accent-muted hover:text-white disabled:opacity-30'}`}
+            className={`flex items-center px-2 py-1 text-label transition-colors ${panelView === 'graph' ? 'bg-accent/10 text-accent' : 'text-fg-secondary hover:text-fg disabled:opacity-30'}`}
           ><Network size={10} /></button>
         </div>
       </div>
@@ -325,7 +323,7 @@ function PlaybookReference({ caseId }: { caseId: string }) {
       {activeCp && panelView === 'steps' && (
         <div className="flex-1 overflow-y-auto">
           {stepNodes(activeCp).length === 0
-            ? <p className="text-[11px] text-accent-muted/30 italic text-center py-8">No steps.</p>
+            ? <p className="text-label text-fg-secondary/30 italic text-center py-8">No steps.</p>
             : stepNodes(activeCp).map((node, idx) => (
                 <PlaybookStepEditor
                   key={node.id}
@@ -504,23 +502,23 @@ export default function ReportTab({ case_ }: Props) {
     <div className="flex h-full overflow-hidden">
 
       {/* ══ LEFT — 3 report boxes ═══════════════════════════════════════════ */}
-      <div className="flex-[3] min-w-0 flex flex-col overflow-hidden border-r border-white/5">
+      <div className="flex-[3] min-w-0 flex flex-col overflow-hidden border-r border-hairline">
 
         {/* ── Toolbar ──────────────────────────────────────────────────────── */}
-        <div className="px-4 py-2.5 border-b border-white/5 bg-bg-secondary/40 shrink-0 space-y-2">
+        <div className="px-4 py-2.5 border-b border-hairline bg-panel/40 shrink-0 space-y-2">
 
           {/* Row 1 — title + badge */}
           <div className="flex items-center gap-2">
-            <BookOpen size={13} className="text-accent-green/60" />
-            <span className="text-xs font-semibold text-accent-green tracking-wide">Report</span>
+            <BookOpen size={13} className="text-accent/60" />
+            <span className="text-label font-semibold text-accent tracking-wide">Report</span>
             {hasTemplate ? (
-              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-accent-green/8 text-accent-green/60 border border-accent-green/15">
+              <span className="text-label font-mono px-1.5 py-0.5 rounded-control bg-accent/8 text-accent/60 border border-accent/15">
                 {dynamicSections
                   ? `${dynamicSections.length} sections dynamiques`
                   : `template: ${case_.template_id}`}
               </span>
             ) : (
-              <span className="flex items-center gap-1 text-[9px] text-accent-muted/30">
+              <span className="flex items-center gap-1 text-label text-fg-secondary/30">
                 <AlertCircle size={9} />
                 No case template - default structure
               </span>
@@ -532,7 +530,7 @@ export default function ReportTab({ case_ }: Props) {
 
             {/* Auto-generate */}
             <button
-              className="btn-secondary text-xs flex items-center gap-1.5"
+              className="btn-secondary text-label flex items-center gap-1.5"
               onClick={() => generate.mutate()}
               disabled={generate.isPending}
               title="Generate the three sections from the case template in one click"
@@ -543,7 +541,7 @@ export default function ReportTab({ case_ }: Props) {
 
             {/* Export MD */}
             <button
-              className="btn-secondary text-xs flex items-center gap-1.5"
+              className="btn-secondary text-label flex items-center gap-1.5"
               onClick={handleExportMd}
               title="Export the combined content as Markdown"
             >
@@ -557,19 +555,18 @@ export default function ReportTab({ case_ }: Props) {
                 <select
                   value={selectedTemplateId}
                   onChange={e => setSelectedTemplateId(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="appearance-none bg-bg-secondary border border-white/10 rounded-md
-                    text-xs text-accent-muted pl-2 pr-6 py-1.5 outline-none
-                    hover:border-white/20 focus:border-accent-green/40 transition-colors cursor-pointer"
+                  className="appearance-none bg-panel border border-hairline rounded-control text-label text-fg-secondary pl-2 pr-6 py-1.5 outline-none
+                    hover:border-strong focus:border-accent/40 transition-colors cursor-pointer"
                 >
                   <option value="">Report template…</option>
                   {docTemplates.map(t => (
                     <option key={t.id} value={t.id}>{t.name} ({t.format.toUpperCase()})</option>
                   ))}
                 </select>
-                <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-accent-muted/40 pointer-events-none" />
+                <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-fg-secondary/40 pointer-events-none" />
               </div>
               <button
-                className="btn-secondary text-xs flex items-center gap-1.5 disabled:opacity-40"
+                className="btn-secondary text-label flex items-center gap-1.5 disabled:opacity-40"
                 disabled={!selectedTemplateId || exporting}
                 onClick={handleExportDocx}
                 title="Generate and download the full report through the report template"
@@ -584,8 +581,7 @@ export default function ReportTab({ case_ }: Props) {
             {/* Versions toggle */}
             <button
               onClick={() => setVersionsOpen(o => !o)}
-              className={`flex items-center gap-1.5 text-xs transition-colors ${
-                versionsOpen ? 'text-accent-green' : 'text-accent-muted/50 hover:text-white'
+              className={`flex items-center gap-1.5 text-label transition-colors ${ versionsOpen ? 'text-accent' : 'text-fg-secondary/50 hover:text-fg'
               }`}
             >
               {versionsOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
@@ -595,7 +591,7 @@ export default function ReportTab({ case_ }: Props) {
 
             {/* Save */}
             <button
-              className={`text-xs flex items-center gap-1.5 ${dirty ? 'btn-primary' : 'btn-secondary opacity-50'}`}
+              className={`text-label flex items-center gap-1.5 ${dirty ? 'btn-primary' : 'btn-secondary opacity-50'}`}
               onClick={() => save.mutate()}
               disabled={save.isPending || !dirty}
             >
@@ -607,9 +603,9 @@ export default function ReportTab({ case_ }: Props) {
 
         {/* ── Version history ────────────────────────────────────────────────── */}
         {versionsOpen && (
-          <div className="shrink-0 border-b border-white/5 bg-bg-secondary/20 px-4 py-3">
+          <div className="shrink-0 border-b border-hairline bg-panel/20 px-4 py-3">
             {versions.length === 0 ? (
-              <p className="text-[10px] text-accent-muted/30 italic">
+              <p className="text-label text-fg-secondary/30 italic">
                 No version yet - save to create the first snapshot.
               </p>
             ) : (
@@ -625,7 +621,7 @@ export default function ReportTab({ case_ }: Props) {
               </div>
             )}
             {dirty && (
-              <p className="text-[9px] text-yellow-400/60 mt-2 flex items-center gap-1">
+              <p className="text-label text-severity-medium/60 mt-2 flex items-center gap-1">
                 <AlertCircle size={9} /> Unsaved changes - save to create a version.
               </p>
             )}
@@ -639,18 +635,18 @@ export default function ReportTab({ case_ }: Props) {
             dynamicSections.map((section) => {
               const slug = sectionSlug(section)
               const catColor =
-                (section.category || '').includes('anal') ? 'text-blue-400 border-blue-500/20 bg-blue-500/5' :
-                (section.category || '').includes('remed') ? 'text-orange-400 border-orange-500/20 bg-orange-500/5' :
-                (section.category || '').includes('concl') ? 'text-purple-300 border-purple-500/20 bg-purple-500/5' :
-                'text-accent-green/70 border-accent-green/20 bg-accent-green/5'
+                (section.category || '').includes('anal') ? 'text-severity-low border-severity-low/20 bg-severity-low/5' :
+                (section.category || '').includes('remed') ? 'text-severity-high border-severity-high/20 bg-severity-high/5' :
+                (section.category || '').includes('concl') ? 'text-data-2 border-data-2/20 bg-data-2/5' :
+                'text-accent/70 border-accent/20 bg-accent/5'
               return (
-                <div key={slug} className="border-b border-white/5 last:border-b-0">
-                  <div className={`flex items-center gap-2 px-4 py-2 border-b border-white/5 ${catColor}`}>
+                <div key={slug} className="border-b border-hairline last:border-b-0">
+                  <div className={`flex items-center gap-2 px-4 py-2 border-b border-hairline ${catColor}`}>
                     <FlaskConical size={12} className="shrink-0" />
-                    <span className="text-[11px] font-semibold tracking-wide truncate min-w-0" title={section.name}>
+                    <span className="text-label font-semibold tracking-wide truncate min-w-0" title={section.name}>
                       {section.name}
                     </span>
-                    <code className="ml-auto shrink-0 text-[9px] font-mono opacity-40">{`{{${slug}}}`}</code>
+                    <code className="ml-auto shrink-0 text-label font-mono opacity-40">{`{{${slug}}}`}</code>
                   </div>
                   <div className="p-3 min-w-0 overflow-hidden">
                     <MarkdownEditor
@@ -672,11 +668,11 @@ export default function ReportTab({ case_ }: Props) {
               { meta: BOX_META[1], value: remediation,  onChange: (v: string) => { setRemediation(v); markDirty() } },
               { meta: BOX_META[2], value: conclusion,   onChange: (v: string) => { setConclusion(v);  markDirty() } },
             ].map(({ meta, value, onChange }) => (
-              <div key={meta.tag} className="border-b border-white/5 last:border-b-0">
-                <div className={`flex items-center gap-2 px-4 py-2 border-b border-white/5 ${meta.color}`}>
+              <div key={meta.tag} className="border-b border-hairline last:border-b-0">
+                <div className={`flex items-center gap-2 px-4 py-2 border-b border-hairline ${meta.color}`}>
                   <span className="shrink-0">{meta.icon}</span>
-                  <span className="text-[11px] font-semibold tracking-wide truncate min-w-0">{meta.label}</span>
-                  <code className="ml-auto shrink-0 text-[9px] font-mono opacity-40">{meta.tag}</code>
+                  <span className="text-label font-semibold tracking-wide truncate min-w-0">{meta.label}</span>
+                  <code className="ml-auto shrink-0 text-label font-mono opacity-40">{meta.tag}</code>
                 </div>
                 <div className="p-3 min-w-0 overflow-hidden">
                   <MarkdownEditor
@@ -695,16 +691,15 @@ export default function ReportTab({ case_ }: Props) {
       </div>
 
       {/* ══ RIGHT - Summary + Playbook tabs ═════════════════════════════════ */}
-      <div className="flex-[2] min-w-0 flex flex-col overflow-hidden bg-bg-secondary/20">
+      <div className="flex-[2] min-w-0 flex flex-col overflow-hidden bg-panel/20">
 
         {/* Tab bar */}
-        <div className="flex items-center gap-0 border-b border-white/5 shrink-0">
+        <div className="flex items-center gap-0 border-b border-hairline shrink-0">
           <button
             onClick={() => setRightTab('summary')}
-            className={`flex items-center gap-1.5 px-3 py-2.5 text-[10px] font-medium border-b-2 transition-colors ${
-              rightTab === 'summary'
-                ? 'border-accent-green text-accent-green'
-                : 'border-transparent text-accent-muted/40 hover:text-white'
+            className={`flex items-center gap-1.5 px-3 py-2.5 text-label font-medium border-b-2 transition-colors ${ rightTab === 'summary'
+                ? 'border-accent text-accent'
+                : 'border-transparent text-fg-secondary/40 hover:text-fg'
             }`}
           >
             <AlignLeft size={11} />
@@ -712,10 +707,9 @@ export default function ReportTab({ case_ }: Props) {
           </button>
           <button
             onClick={() => setRightTab('playbook')}
-            className={`flex items-center gap-1.5 px-3 py-2.5 text-[10px] font-medium border-b-2 transition-colors ${
-              rightTab === 'playbook'
-                ? 'border-accent-green text-accent-green'
-                : 'border-transparent text-accent-muted/40 hover:text-white'
+            className={`flex items-center gap-1.5 px-3 py-2.5 text-label font-medium border-b-2 transition-colors ${ rightTab === 'playbook'
+                ? 'border-accent text-accent'
+                : 'border-transparent text-fg-secondary/40 hover:text-fg'
             }`}
           >
             <StickyNote size={11} />
@@ -725,7 +719,7 @@ export default function ReportTab({ case_ }: Props) {
             <button
               onClick={() => saveNotes.mutate()}
               disabled={saveNotes.isPending}
-              className="ml-auto mr-3 flex items-center gap-1 text-[10px] px-2 py-1 rounded bg-accent-green/10 text-accent-green border border-accent-green/25 hover:bg-accent-green/20 transition-colors"
+              className="ml-auto mr-3 flex items-center gap-1 text-label px-2 py-1 rounded-control bg-accent/10 text-accent border border-accent/25 hover:bg-accent/20 transition-colors"
             >
               <Save size={10} className={saveNotes.isPending ? 'animate-pulse' : ''} />
               {saveNotes.isPending ? '…' : 'Sauv.'}
@@ -738,11 +732,11 @@ export default function ReportTab({ case_ }: Props) {
           <div className="flex-1 overflow-y-auto">
 
             {/* Executive Summary */}
-            <div className="border-b border-white/5">
-              <div className="flex items-center gap-2 px-3 py-2 bg-accent-green/[0.04] border-b border-accent-green/10">
-                <FileText size={11} className="text-accent-green/60" />
-                <span className="text-[11px] font-semibold text-accent-green/80 tracking-wide">Executive Summary</span>
-                <code className="ml-auto text-[9px] font-mono text-accent-muted/30">case.executive_summary</code>
+            <div className="border-b border-hairline">
+              <div className="flex items-center gap-2 px-3 py-2 bg-accent/[0.04] border-b border-accent/10">
+                <FileText size={11} className="text-accent/60" />
+                <span className="text-label font-semibold text-accent/80 tracking-wide">Executive Summary</span>
+                <code className="ml-auto text-label font-mono text-fg-secondary/30">case.executive_summary</code>
               </div>
               <div className="p-3 min-w-0 overflow-hidden">
                 <MarkdownEditor
@@ -758,10 +752,10 @@ export default function ReportTab({ case_ }: Props) {
 
             {/* Quick Notes */}
             <div>
-              <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.02] border-b border-white/5">
-                <StickyNote size={11} className="text-accent-muted/50" />
-                <span className="text-[11px] font-semibold text-accent-muted/60 tracking-wide">Notes rapides</span>
-                <code className="ml-auto text-[9px] font-mono text-accent-muted/30">case.quick_notes</code>
+              <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.02] border-b border-hairline">
+                <StickyNote size={11} className="text-fg-secondary/50" />
+                <span className="text-label font-semibold text-fg-secondary/60 tracking-wide">Notes rapides</span>
+                <code className="ml-auto text-label font-mono text-fg-secondary/30">case.quick_notes</code>
               </div>
               <div className="p-3 min-w-0 overflow-hidden">
                 <MarkdownEditor
@@ -781,8 +775,8 @@ export default function ReportTab({ case_ }: Props) {
         {/* Playbook tab */}
         {rightTab === 'playbook' && (
           <div className="flex-1 overflow-hidden">
-            <div className="px-3 py-2 border-b border-white/5 shrink-0">
-              <p className="text-[9px] text-accent-muted/20">
+            <div className="px-3 py-2 border-b border-hairline shrink-0">
+              <p className="text-label text-fg-secondary/20">
                 Read-only - copy and paste into the editor on the left
               </p>
             </div>

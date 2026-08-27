@@ -11,11 +11,11 @@ import EmptyState from '../../ui/EmptyState'
 interface Props { caseId: string; caseTitle: string }
 
 const CATEGORY_META: Record<IncidentLogCategory, { label: string; color: string }> = {
-  remediation:   { label: 'Remediation',           color: 'bg-accent-green/10 text-accent-green border-accent-green/20' },
-  handover:      { label: 'Passation',             color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-  communication: { label: 'Communication client',  color: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
-  investigation: { label: 'Investigation',         color: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
-  other:         { label: 'Autre',                 color: 'bg-white/5 text-accent-muted border-white/10' },
+  remediation:   { label: 'Remediation',           color: 'bg-accent/10 text-accent border-accent/20' },
+  handover:      { label: 'Passation',             color: 'bg-severity-low/10 text-severity-low border-severity-low/20' },
+  communication: { label: 'Communication client',  color: 'bg-data-2/10 text-data-2 border-data-2/20' },
+  investigation: { label: 'Investigation',         color: 'bg-severity-high/10 text-severity-high border-severity-high/20' },
+  other:         { label: 'Autre',                 color: 'bg-fg/5 text-fg-secondary border-hairline' },
 }
 
 const empty = (): Partial<IncidentLogEntry> => ({
@@ -107,26 +107,26 @@ export default function IncidentLogTab({ caseId, caseTitle }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-accent-green font-semibold text-sm uppercase tracking-wide">
+        <h3 className="text-accent font-semibold text-ui uppercase tracking-wide">
           Incident log
-          <span className="ml-2 text-accent-muted font-normal normal-case">({entries.length})</span>
+          <span className="ml-2 text-fg-secondary font-normal normal-case">({entries.length})</span>
         </h3>
         <div className="flex items-center gap-2">
           <button
-            className="btn-secondary text-xs flex items-center gap-1.5 disabled:opacity-50"
+            className="btn-secondary text-label flex items-center gap-1.5 disabled:opacity-50"
             onClick={handleExport}
             disabled={exporting || entries.length === 0}
             title="Download the log as Markdown, ready to hand to the client"
           >
             <Download size={13} /> {exporting ? 'Exporting...' : 'Download (.md)'}
           </button>
-          <button className="btn-primary text-xs flex items-center gap-1.5" onClick={openCreate}>
+          <button className="btn-primary text-label flex items-center gap-1.5" onClick={openCreate}>
             <Plus size={13} /> Add an entry
           </button>
         </div>
       </div>
 
-      <p className="text-xs text-accent-muted/70 leading-relaxed">
+      <p className="text-label text-fg-secondary/70 leading-relaxed">
         Every entry is added both to the case's consolidated timeline and to this log,
         exportable en Markdown pour les points d'avancement avec le client.
       </p>
@@ -139,32 +139,32 @@ export default function IncidentLogTab({ caseId, caseTitle }: Props) {
         />
       ) : (
         <div className="relative">
-          <div className="absolute left-[7px] top-0 bottom-0 w-px bg-white/5" />
+          <div className="absolute left-[7px] top-0 bottom-0 w-px bg-fg/5" />
           <div className="space-y-0">
             {entries.map(e => {
               const meta = CATEGORY_META[e.category] ?? CATEGORY_META.other
               return (
                 <div key={e.id} className="relative pl-8 pb-6 group">
-                  <div className="absolute left-0 top-1 w-3.5 h-3.5 rounded-full border-2 border-accent-green bg-bg-primary" />
-                  <div className="card p-4 hover:bg-bg-hover transition-colors">
+                  <div className="absolute left-0 top-1 w-3.5 h-3.5 rounded-pill border-2 border-accent bg-canvas" />
+                  <div className="card p-4 hover:bg-hover transition-colors">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <span className="text-xs font-mono text-accent-green shrink-0">
+                          <span className="text-label font-mono text-accent shrink-0">
                             {fmtDateTime(e.event_ts)}
                           </span>
-                          <span className={`text-[10px] font-medium px-2 py-0.5 rounded border ${meta.color}`}>
+                          <span className={`text-label font-medium px-2 py-0.5 rounded-control border ${meta.color}`}>
                             {meta.label}
                           </span>
                           {e.actor && (
-                            <span className="text-xs text-accent-muted/60 shrink-0">par {e.actor}</span>
+                            <span className="text-label text-fg-secondary/60 shrink-0">par {e.actor}</span>
                           )}
                         </div>
 
-                        <p className="text-sm font-medium text-white mb-1.5">{e.title}</p>
+                        <p className="text-ui font-medium text-fg mb-1.5">{e.title}</p>
 
                         {e.description && (
-                          <p className="text-xs text-accent-muted mt-1 leading-relaxed whitespace-pre-line">
+                          <p className="text-label text-fg-secondary mt-1 leading-relaxed whitespace-pre-line">
                             {e.description}
                           </p>
                         )}
@@ -172,14 +172,14 @@ export default function IncidentLogTab({ caseId, caseTitle }: Props) {
                       <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                         <button
                           onClick={() => openEdit(e)}
-                          className="text-accent-muted/30 hover:text-accent-green transition-colors"
+                          className="text-fg-secondary/30 hover:text-accent transition-colors"
                           title="Edit the entry"
                         >
                           <Pencil size={12} />
                         </button>
                         <button
                           onClick={() => setDeleteTarget(e.id)}
-                          className="text-accent-muted/30 hover:text-severity-critical transition-colors"
+                          className="text-fg-secondary/30 hover:text-severity-critical transition-colors"
                           title="Delete the entry"
                         >
                           <Trash2 size={13} />
@@ -204,10 +204,9 @@ export default function IncidentLogTab({ caseId, caseTitle }: Props) {
                   key={cat}
                   type="button"
                   onClick={() => setForm(f => ({ ...f, category: cat }))}
-                  className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
-                    form.category === cat
+                  className={`text-label px-2.5 py-1 rounded-pill border transition-colors ${ form.category === cat
                       ? CATEGORY_META[cat].color
-                      : 'border-white/10 text-accent-muted/60 hover:text-white hover:border-white/20'
+                      : 'border-hairline text-fg-secondary/60 hover:text-fg hover:border-strong'
                   }`}
                 >
                   {CATEGORY_META[cat].label}
@@ -237,7 +236,7 @@ export default function IncidentLogTab({ caseId, caseTitle }: Props) {
           </div>
 
           <div>
-            <label className="label">Acteur <span className="text-accent-muted/50">(optionnel)</span></label>
+            <label className="label">Acteur <span className="text-fg-secondary/50">(optionnel)</span></label>
             <input
               className="input"
               placeholder="Analyste, client, tiers…"

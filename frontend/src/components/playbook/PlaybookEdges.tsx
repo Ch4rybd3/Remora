@@ -79,7 +79,7 @@ function unit(from: Waypoint, to: Waypoint): Waypoint {
   return d === 0 ? { x: 0, y: 0 } : { x: (to.x - from.x) / d, y: (to.y - from.y) / d }
 }
 
-/** Polyline with rounded corners — the "curve" shape once waypoints exist. */
+/** Polyline with rounded-control corners — the "curve" shape once waypoints exist. */
 export function roundedPolylinePath(pts: Waypoint[], r = CORNER_R): string {
   if (pts.length < 2) return ''
   let d = `M ${pts[0].x},${pts[0].y}`

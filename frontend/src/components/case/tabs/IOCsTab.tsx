@@ -49,22 +49,22 @@ const IOC_TYPE_MAP = Object.fromEntries(IOC_TYPE_DEFS.map(t => [t.value, t])) as
 // ── Badge colours ──────────────────────────────────────────────────────────
 
 const TYPE_COLORS: Record<IOCType, string> = {
-  ip:            'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  domain:        'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
-  url:           'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
-  asn:           'bg-teal-500/10 text-teal-400 border-teal-500/20',
-  hash_md5:      'bg-orange-500/10 text-orange-400 border-orange-500/20',
-  hash_sha1:     'bg-orange-400/10 text-orange-300 border-orange-400/20',
-  hash_sha256:   'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  filename:      'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
-  certificate:   'bg-violet-500/10 text-violet-400 border-violet-500/20',
-  email:         'bg-purple-500/10 text-purple-400 border-purple-500/20',
-  email_subject: 'bg-purple-400/10 text-purple-300 border-purple-400/20',
-  sender_name:   'bg-pink-500/10 text-pink-400 border-pink-500/20',
-  registry:      'bg-red-500/10 text-red-400 border-red-500/20',
-  user_agent:    'bg-slate-500/10 text-slate-400 border-slate-500/20',
-  phone:         'bg-green-500/10 text-green-400 border-green-500/20',
-  other:         'bg-white/5 text-accent-muted border-white/10',
+  ip:            'bg-severity-low/10 text-severity-low border-severity-low/20',
+  domain:        'bg-data-5/10 text-data-5 border-data-5/20',
+  url:           'bg-data-1/10 text-data-1 border-data-1/20',
+  asn:           'bg-accent/10 text-accent border-accent/20',
+  hash_md5:      'bg-severity-high/10 text-severity-high border-severity-high/20',
+  hash_sha1:     'bg-severity-high/10 text-severity-high border-severity-high/20',
+  hash_sha256:   'bg-severity-medium/10 text-severity-medium border-severity-medium/20',
+  filename:      'bg-severity-medium/10 text-severity-medium border-severity-medium/20',
+  certificate:   'bg-data-2/10 text-data-2 border-data-2/20',
+  email:         'bg-data-2/10 text-data-2 border-data-2/20',
+  email_subject: 'bg-data-2/10 text-data-2 border-data-2/20',
+  sender_name:   'bg-data-3/10 text-data-3 border-data-3/20',
+  registry:      'bg-severity-critical/10 text-severity-critical border-severity-critical/20',
+  user_agent:    'bg-fg-muted/10 text-fg-muted border-fg-muted/20',
+  phone:         'bg-accent/10 text-accent border-accent/20',
+  other:         'bg-fg/5 text-fg-secondary border-hairline',
 }
 
 // ── Defanging ──────────────────────────────────────────────────────────────
@@ -94,10 +94,9 @@ function CopyBtn({ text, label }: { text: string; label: string }) {
     <button
       onClick={handleClick}
       title={`Copy ${label}: ${text}`}
-      className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] border transition-colors ${
-        copied
-          ? 'border-accent-green/40 text-accent-green bg-accent-green/10'
-          : 'border-white/10 text-accent-muted hover:border-white/25 hover:text-white'
+      className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-control text-label border transition-colors ${ copied
+          ? 'border-accent/40 text-accent bg-accent/10'
+          : 'border-hairline text-fg-secondary hover:border-strong hover:text-fg'
       }`}
     >
       {copied ? <Check size={9} /> : <Copy size={9} />}
@@ -167,21 +166,21 @@ export default function IOCsTab({ caseId }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-accent-green font-semibold text-sm uppercase tracking-wide">
+        <h3 className="text-accent font-semibold text-ui uppercase tracking-wide">
           Indicators of Compromise
-          <span className="ml-2 text-accent-muted font-normal normal-case">({iocs.length})</span>
+          <span className="ml-2 text-fg-secondary font-normal normal-case">({iocs.length})</span>
         </h3>
         <div className="flex items-center gap-2">
           {iocs.length > 0 && (
             <button
-              className="btn-secondary text-xs flex items-center gap-1.5"
+              className="btn-secondary text-label flex items-center gap-1.5"
               onClick={handleExport}
               title="Export IOCs as CSV"
             >
               <Download size={13} /> CSV
             </button>
           )}
-          <button className="btn-primary text-xs flex items-center gap-1.5" onClick={() => setModalOpen(true)}>
+          <button className="btn-primary text-label flex items-center gap-1.5" onClick={() => setModalOpen(true)}>
             <Plus size={13} /> Add IOC
           </button>
         </div>
@@ -191,9 +190,9 @@ export default function IOCsTab({ caseId }: Props) {
         <EmptyState icon={Shield} message="No IOCs recorded yet" action={{ label: '+ Add IOC', onClick: () => setModalOpen(true) }} />
       ) : (
         <div className="card overflow-hidden">
-          <table className="w-full text-sm">
+          <table className="w-full text-ui">
             <thead>
-              <tr className="border-b border-white/5 text-accent-muted text-xs uppercase tracking-wide">
+              <tr className="border-b border-hairline text-fg-secondary text-label uppercase tracking-wide">
                 <th className="text-left px-4 py-3">Type</th>
                 <th className="text-left px-4 py-3">Value</th>
                 <th className="text-left px-4 py-3">Confidence</th>
@@ -204,15 +203,15 @@ export default function IOCsTab({ caseId }: Props) {
             </thead>
             <tbody>
               {iocs.map(ioc => (
-                <tr key={ioc.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+                <tr key={ioc.id} className="border-b border-hairline last:border-0 hover:bg-white/[0.02]">
                   <td className="px-4 py-3">
-                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${TYPE_COLORS[ioc.type] ?? TYPE_COLORS.other}`}>
+                    <span className={`text-label font-mono px-2 py-0.5 rounded-control border ${TYPE_COLORS[ioc.type] ?? TYPE_COLORS.other}`}>
                       {IOC_TYPE_MAP[ioc.type]?.label ?? ioc.type}
                     </span>
                   </td>
                   <td className="px-4 py-3 max-w-xs">
                     <div className="flex items-center gap-2 group/val">
-                      <span className="font-mono text-xs text-white truncate" title={ioc.value}>{ioc.value}</span>
+                      <span className="font-mono text-label text-fg truncate" title={ioc.value}>{ioc.value}</span>
                       {DEFANGABLE.has(ioc.type) && (
                         <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/val:opacity-100 transition-opacity">
                           <CopyBtn text={defang(ioc.value, ioc.type)} label="defanged" />
@@ -222,16 +221,16 @@ export default function IOCsTab({ caseId }: Props) {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`text-xs font-mono ${confidenceColor[ioc.confidence]}`}>
+                    <span className={`text-label font-mono ${confidenceColor[ioc.confidence]}`}>
                       {ioc.confidence}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-xs text-accent-muted">{ioc.tlp}</td>
-                  <td className="px-4 py-3 text-xs text-accent-muted max-w-xs truncate">{ioc.description}</td>
+                  <td className="px-4 py-3 text-label text-fg-secondary">{ioc.tlp}</td>
+                  <td className="px-4 py-3 text-label text-fg-secondary max-w-xs truncate">{ioc.description}</td>
                   <td className="px-4 py-3">
                     <button
                       onClick={() => setDeleteTarget(ioc.id)}
-                      className="text-accent-muted hover:text-severity-critical transition-colors"
+                      className="text-fg-secondary hover:text-severity-critical transition-colors"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -266,10 +265,10 @@ export default function IOCsTab({ caseId }: Props) {
               {/* Live badge preview */}
               {form.type && (
                 <div className="mt-1.5 flex items-center gap-1.5">
-                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${TYPE_COLORS[form.type as IOCType] ?? TYPE_COLORS.other}`}>
+                  <span className={`text-label font-mono px-2 py-0.5 rounded-control border ${TYPE_COLORS[form.type as IOCType] ?? TYPE_COLORS.other}`}>
                     {currentTypeDef?.label ?? form.type}
                   </span>
-                  <span className="text-[10px] italic text-accent-muted/50">
+                  <span className="text-label italic text-fg-secondary/50">
                     {currentTypeDef?.group}
                   </span>
                 </div>

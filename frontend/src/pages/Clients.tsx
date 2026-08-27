@@ -95,7 +95,7 @@ function TemplateEditor({ tpl, onSaved, onCancel }: {
   })
 
   return (
-    <div className="card p-5 space-y-4 border-accent-green/20">
+    <div className="card p-5 space-y-4 border-accent/20">
       <div>
         <label className="label">Template name *</label>
         <input className="input" autoFocus value={name} onChange={e => setName(e.target.value)}
@@ -112,20 +112,20 @@ function TemplateEditor({ tpl, onSaved, onCancel }: {
           {slots.map((s, i) => (
             <div key={i} className="flex items-start gap-2">
               <input
-                className="input text-sm flex-1"
+                className="input text-ui flex-1"
                 placeholder="Label - e.g. Network diagram"
                 value={s.label}
                 onChange={e => setSlots(prev => prev.map((p, pi) => pi === i ? { ...p, label: e.target.value } : p))}
               />
               <input
-                className="input text-sm flex-1"
+                className="input text-ui flex-1"
                 placeholder="Description (optional)"
                 value={s.description}
                 onChange={e => setSlots(prev => prev.map((p, pi) => pi === i ? { ...p, description: e.target.value } : p))}
               />
               <button
                 onClick={() => setSlots(prev => prev.filter((_, pi) => pi !== i))}
-                className="p-2 text-accent-muted/40 hover:text-severity-critical transition-colors shrink-0"
+                className="p-2 text-fg-secondary/40 hover:text-severity-critical transition-colors shrink-0"
                 title="Retirer"
               >
                 <Trash2 size={14} />
@@ -135,18 +135,18 @@ function TemplateEditor({ tpl, onSaved, onCancel }: {
         </div>
         <button
           onClick={() => setSlots(prev => [...prev, emptySlot()])}
-          className="mt-2 text-xs text-accent-green hover:underline flex items-center gap-1"
+          className="mt-2 text-label text-accent hover:underline flex items-center gap-1"
         >
           <Plus size={12} /> Ajouter un emplacement
         </button>
-        <p className="text-[11px] text-accent-muted/40 mt-1">
+        <p className="text-label text-fg-secondary/40 mt-1">
           e.g. Network diagram, RACI, Machine inventory, Country contacts...
         </p>
       </div>
       <div className="flex justify-end gap-2 pt-1">
-        <button className="btn-secondary text-xs" onClick={onCancel}>Cancel</button>
+        <button className="btn-secondary text-label" onClick={onCancel}>Cancel</button>
         <button
-          className="btn-primary text-xs flex items-center gap-1.5"
+          className="btn-primary text-label flex items-center gap-1.5"
           disabled={!name.trim() || save.isPending}
           onClick={() => save.mutate()}
         >
@@ -179,23 +179,23 @@ function TemplatesPanel({ onClose }: { onClose: () => void }) {
         ) : (
           <>
             <button
-              className="btn-secondary text-xs flex items-center gap-1.5"
+              className="btn-secondary text-label flex items-center gap-1.5"
               onClick={() => setEditing('new')}
             >
               <Plus size={12} /> New template
             </button>
             {templates.length === 0 ? (
-              <p className="text-sm text-accent-muted/50 py-6 text-center">No template defined.</p>
+              <p className="text-ui text-fg-secondary/50 py-6 text-center">No template defined.</p>
             ) : (
               <div className="space-y-2">
                 {templates.map(t => (
                   <div key={t.id} className="card p-3 flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-white">{t.name}</p>
-                      {t.description && <p className="text-xs text-accent-muted/60 mt-0.5">{t.description}</p>}
+                      <p className="text-ui font-medium text-fg">{t.name}</p>
+                      {t.description && <p className="text-label text-fg-secondary/60 mt-0.5">{t.description}</p>}
                       <div className="flex flex-wrap gap-1 mt-1.5">
                         {t.slots.map(s => (
-                          <span key={s.slug} className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-accent-muted/60">
+                          <span key={s.slug} className="text-label px-1.5 py-0.5 rounded-control border border-hairline text-fg-secondary/60">
                             {s.label}
                           </span>
                         ))}
@@ -204,13 +204,13 @@ function TemplatesPanel({ onClose }: { onClose: () => void }) {
                     <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => setEditing(t)}
-                        className="text-xs text-accent-muted/50 hover:text-accent-green transition-colors px-2 py-1"
+                        className="text-label text-fg-secondary/50 hover:text-accent transition-colors px-2 py-1"
                       >
                         Edit
                       </button>
                       <button
                         onClick={() => confirm(`Delete the template "${t.name}"?`) && remove.mutate(t.id)}
-                        className="p-1.5 text-accent-muted/40 hover:text-severity-critical transition-colors"
+                        className="p-1.5 text-fg-secondary/40 hover:text-severity-critical transition-colors"
                       >
                         <Trash2 size={13} />
                       </button>
@@ -232,21 +232,21 @@ function ClientCard({ client, onClick }: { client: ClientSummary; onClick: () =>
   return (
     <button
       onClick={onClick}
-      className="card p-5 text-left hover:bg-bg-hover hover:border-accent-green/20 transition-colors group"
+      className="card p-5 text-left hover:bg-hover hover:border-accent/20 transition-colors group"
     >
       <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="p-2 rounded-lg bg-accent-green/10 text-accent-green shrink-0">
+        <div className="p-2 bg-accent/10 text-accent shrink-0">
           <Building2 size={16} />
         </div>
         {client.is_default && (
-          <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-400">
+          <span className="flex items-center gap-1 text-label px-1.5 py-0.5 rounded-control border border-severity-medium/30 bg-severity-medium/10 text-severity-medium">
             <Star size={9} /> Default
           </span>
         )}
       </div>
-      <p className="font-semibold text-white group-hover:text-accent-green transition-colors truncate">{client.name}</p>
-      {client.industry && <p className="text-xs text-accent-muted/60 mt-0.5">{client.industry}</p>}
-      <div className="flex items-center gap-3 mt-3 pt-3 border-t border-white/5 text-[11px] text-accent-muted/50">
+      <p className="font-semibold text-fg group-hover:text-accent transition-colors truncate">{client.name}</p>
+      {client.industry && <p className="text-label text-fg-secondary/60 mt-0.5">{client.industry}</p>}
+      <div className="flex items-center gap-3 mt-3 pt-3 border-t border-hairline text-label text-fg-secondary/50">
         <span className="flex items-center gap-1"><FolderOpen size={11} /> {client.case_count} case{client.case_count !== 1 ? 's' : ''}</span>
         <span className="flex items-center gap-1"><FileText size={11} /> {client.document_count} doc{client.document_count !== 1 ? 's' : ''}</span>
       </div>
@@ -268,19 +268,19 @@ export default function Clients() {
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-accent-green flex items-center gap-2">
+          <h1 className="text-title font-bold text-accent flex items-center gap-2">
             <Building2 size={22} />
             Clients
           </h1>
-          <p className="text-accent-muted text-sm mt-1">
+          <p className="text-fg-secondary text-ui mt-1">
             Organisations selectable when creating a case, each with its own document knowledge base.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <button className="btn-secondary flex items-center gap-2 text-sm" onClick={() => setShowTemplates(true)}>
+          <button className="btn-secondary flex items-center gap-2 text-ui" onClick={() => setShowTemplates(true)}>
             <FileStack size={14} /> Templates
           </button>
-          <button className="btn-primary flex items-center gap-2 text-sm" onClick={() => setShowNew(true)}>
+          <button className="btn-primary flex items-center gap-2 text-ui" onClick={() => setShowNew(true)}>
             <Plus size={14} /> New client
           </button>
         </div>

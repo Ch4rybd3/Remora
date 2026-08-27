@@ -51,10 +51,10 @@ const INITIAL: FormState = {
 }
 
 const CATEGORY_COLORS: Record<SectionCategory, string> = {
-  analysis:    'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  analyse:     'bg-blue-500/10 text-blue-400 border-blue-500/20',   // legacy
-  remediation: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
-  conclusion:  'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  analysis:    'bg-severity-low/10 text-severity-low border-severity-low/20',
+  analyse:     'bg-severity-low/10 text-severity-low border-severity-low/20',   // legacy
+  remediation: 'bg-severity-high/10 text-severity-high border-severity-high/20',
+  conclusion:  'bg-data-2/10 text-data-2 border-data-2/20',
 }
 
 // ── YAML serializer ─────────────────────────────────────────────────────────────
@@ -112,29 +112,29 @@ function SectionRow({
   const [open, setOpen] = useState(idx < 3)
 
   return (
-    <div className="border border-white/8 rounded-lg overflow-hidden">
+    <div className="border border-hairline overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.02] cursor-pointer" onClick={() => setOpen(o => !o)}>
-        <GripVertical size={12} className="text-accent-muted/20 shrink-0" />
-        <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ${CATEGORY_COLORS[section.category]}`}>
+        <GripVertical size={12} className="text-fg-secondary/20 shrink-0" />
+        <span className={`text-label font-mono font-bold px-1.5 py-0.5 rounded-control border ${CATEGORY_COLORS[section.category]}`}>
           {section.category}
         </span>
-        <span className="text-xs text-white/70 flex-1 truncate">{section.name || <em className="text-accent-muted/40">Sans nom</em>}</span>
-        <ChevronDown size={12} className={`text-accent-muted/40 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <span className="text-label text-fg/70 flex-1 truncate">{section.name || <em className="text-fg-secondary/40">Sans nom</em>}</span>
+        <ChevronDown size={12} className={`text-fg-secondary/40 transition-transform ${open ? 'rotate-180' : ''}`} />
         <button
           onClick={e => { e.stopPropagation(); onDelete() }}
-          className="text-accent-muted/30 hover:text-severity-critical transition-colors p-0.5"
+          className="text-fg-secondary/30 hover:text-severity-critical transition-colors p-0.5"
         >
           <Trash2 size={11} />
         </button>
       </div>
 
       {open && (
-        <div className="px-3 pb-3 pt-2 space-y-2 border-t border-white/5">
+        <div className="px-3 pb-3 pt-2 space-y-2 border-t border-hairline">
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="label">Section name</label>
               <input
-                className="input text-xs"
+                className="input text-label"
                 value={section.name}
                 onChange={e => onChange({ ...section, name: e.target.value })}
                 placeholder="Technical Analysis"
@@ -143,7 +143,7 @@ function SectionRow({
             <div>
               <label className="label">Category</label>
               <select
-                className="input text-xs"
+                className="input text-label"
                 value={section.category}
                 onChange={e => onChange({ ...section, category: e.target.value as SectionCategory })}
               >
@@ -156,7 +156,7 @@ function SectionRow({
           <div>
             <label className="label">Contenu initial (Markdown)</label>
             <textarea
-              className="input font-mono text-xs resize-y"
+              className="input font-mono text-label resize-y"
               style={{ minHeight: 80 }}
               value={section.template}
               onChange={e => onChange({ ...section, template: e.target.value })}
@@ -206,15 +206,15 @@ export default function TemplateFormModal({ open, onClose, onSave, isSaving, err
       <div className="space-y-5 max-h-[72vh] overflow-y-auto pr-1">
 
         {error && (
-          <div className="flex items-start gap-2 bg-severity-critical/10 border border-severity-critical/20 rounded-lg px-4 py-3">
+          <div className="flex items-start gap-2 bg-severity-critical/10 border border-severity-critical/20 px-4 py-3">
             <AlertCircle size={14} className="text-severity-critical mt-0.5 shrink-0" />
-            <p className="text-xs text-severity-critical font-mono leading-relaxed">{error}</p>
+            <p className="text-label text-severity-critical font-mono leading-relaxed">{error}</p>
           </div>
         )}
 
         {/* -- Metadata ------------------------------------------------------- */}
         <div className="space-y-3">
-          <p className="text-[10px] font-semibold tracking-widest uppercase text-accent-muted/40">Metadata</p>
+          <p className="text-label font-semibold tracking-widest uppercase text-fg-secondary/40">Metadata</p>
 
           <div>
             <label className="label">Name *</label>
@@ -285,11 +285,11 @@ export default function TemplateFormModal({ open, onClose, onSave, isSaving, err
 
         {/* ── Executive Summary Template ────────────────────────────────────── */}
         <div className="space-y-2">
-          <p className="text-[10px] font-semibold tracking-widest uppercase text-accent-muted/40">
+          <p className="text-label font-semibold tracking-widest uppercase text-fg-secondary/40">
             Executive Summary - initial model
           </p>
           <textarea
-            className="input font-mono text-xs resize-y"
+            className="input font-mono text-label resize-y"
             style={{ minHeight: 80 }}
             value={form.executive_summary_template}
             onChange={e => setForm(f => ({ ...f, executive_summary_template: e.target.value }))}
@@ -300,13 +300,13 @@ export default function TemplateFormModal({ open, onClose, onSave, isSaving, err
         {/* ── Report sections ───────────────────────────────────────────────── */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-[10px] font-semibold tracking-widest uppercase text-accent-muted/40">
+            <p className="text-label font-semibold tracking-widest uppercase text-fg-secondary/40">
               Sections du rapport
-              <span className="ml-2 text-accent-green/60">{form.sections.length}</span>
+              <span className="ml-2 text-accent/60">{form.sections.length}</span>
             </p>
             <button
               onClick={addSection}
-              className="flex items-center gap-1 text-[10px] px-2 py-1 rounded border border-accent-green/20 text-accent-green/70 hover:bg-accent-green/10 transition-colors"
+              className="flex items-center gap-1 text-label px-2 py-1 rounded-control border border-accent/20 text-accent/70 hover:bg-accent/10 transition-colors"
             >
               <Plus size={10} /> Ajouter section
             </button>
@@ -322,7 +322,7 @@ export default function TemplateFormModal({ open, onClose, onSave, isSaving, err
               />
             ))}
             {form.sections.length === 0 && (
-              <p className="text-[10px] text-accent-muted/30 italic text-center py-4">
+              <p className="text-label text-fg-secondary/30 italic text-center py-4">
                 No section - the report will be empty by default.
               </p>
             )}
@@ -331,7 +331,7 @@ export default function TemplateFormModal({ open, onClose, onSave, isSaving, err
       </div>
 
       {/* ── Actions ───────────────────────────────────────────────────────────── */}
-      <div className="flex justify-end gap-3 pt-4 border-t border-white/5 mt-4">
+      <div className="flex justify-end gap-3 pt-4 border-t border-hairline mt-4">
         <button className="btn-secondary flex items-center gap-1.5" onClick={onClose}>
           <X size={13} /> Cancel
         </button>

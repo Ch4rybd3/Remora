@@ -129,6 +129,12 @@ jobs:
       - name: Lint (eslint)
         run: npm run lint
 
+      # Tailwind drops classes it does not recognise without a word, so a
+      # renamed colour never fails the build — the element just renders
+      # unstyled. This turns that silent failure into a loud one.
+      - name: Design tokens
+        run: npm run check:design
+
       - name: Type check (tsc)
         run: npm run typecheck
 

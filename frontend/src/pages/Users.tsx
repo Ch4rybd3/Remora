@@ -9,8 +9,8 @@ import { fmtDateTimeShort } from '../utils/dateUtils'
 
 const ROLE_COLORS: Record<string, string> = {
   admin:   'bg-severity-critical/10 text-severity-critical border-severity-critical/20',
-  owner:   'bg-accent-green/10 text-accent-green border-accent-green/20',
-  analyst: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  owner:   'bg-accent/10 text-accent border-accent/20',
+  analyst: 'bg-severity-low/10 text-severity-low border-severity-low/20',
 }
 
 const ROLE_RANK: Record<string, number> = { analyst: 0, admin: 1, owner: 2 }
@@ -65,10 +65,10 @@ export default function Users() {
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-accent-green flex items-center gap-2">
+          <h1 className="text-title font-bold text-accent flex items-center gap-2">
             <ShieldCheck size={22} /> Gestion des utilisateurs
           </h1>
-          <p className="text-accent-muted text-sm mt-1">{users.length} compte(s)</p>
+          <p className="text-fg-secondary text-ui mt-1">{users.length} compte(s)</p>
         </div>
         <button className="btn-primary flex items-center gap-2" onClick={() => setCreateOpen(true)}>
           <Plus size={15} /> New user
@@ -76,9 +76,9 @@ export default function Users() {
       </div>
 
       <div className="card overflow-hidden">
-        <table className="w-full text-sm">
+        <table className="w-full text-ui">
           <thead>
-            <tr className="border-b border-white/5 text-accent-muted text-xs uppercase tracking-wide">
+            <tr className="border-b border-hairline text-fg-secondary text-label uppercase tracking-wide">
               <th className="text-left px-4 py-3">Utilisateur</th>
               <th className="text-left px-4 py-3">Role</th>
               <th className="text-left px-4 py-3">Status</th>
@@ -88,16 +88,16 @@ export default function Users() {
           </thead>
           <tbody>
             {users.map(u => (
-              <tr key={u.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02] group">
+              <tr key={u.id} className="border-b border-hairline last:border-0 hover:bg-white/[0.02] group">
                 <td className="px-4 py-3">
                   <p className="font-medium">{u.username}</p>
-                  {u.email && <p className="text-xs text-accent-muted">{u.email}</p>}
+                  {u.email && <p className="text-label text-fg-secondary">{u.email}</p>}
                   {u.id === me?.id && (
-                    <span className="text-xs text-accent-green/60">(vous)</span>
+                    <span className="text-label text-accent/60">(vous)</span>
                   )}
                 </td>
                 <td className="px-4 py-3">
-                  <span className={`text-xs font-mono px-2 py-0.5 rounded border ${ROLE_COLORS[u.role]}`}>
+                  <span className={`text-label font-mono px-2 py-0.5 rounded-control border ${ROLE_COLORS[u.role]}`}>
                     {u.role}
                   </span>
                 </td>
@@ -105,16 +105,15 @@ export default function Users() {
                   <button
                     onClick={() => u.id !== me?.id && toggleActive.mutate({ id: u.id, is_active: !u.is_active })}
                     disabled={u.id === me?.id}
-                    className={`text-xs px-2 py-0.5 rounded border transition-colors ${
-                      u.is_active
-                        ? 'bg-accent-green/10 text-accent-green border-accent-green/20 hover:bg-accent-green/20'
-                        : 'bg-white/5 text-accent-muted border-white/10 hover:bg-white/10'
+                    className={`text-label px-2 py-0.5 rounded-control border transition-colors ${ u.is_active
+                        ? 'bg-accent/10 text-accent border-accent/20 hover:bg-accent/20'
+                        : 'bg-fg/5 text-fg-secondary border-hairline hover:bg-fg/10'
                     } disabled:cursor-default disabled:opacity-50`}
                   >
                     {u.is_active ? 'Actif' : 'Inactif'}
                   </button>
                 </td>
-                <td className="px-4 py-3 text-xs text-accent-muted">
+                <td className="px-4 py-3 text-label text-fg-secondary">
                   {fmtDateTimeShort(u.last_login)}
                 </td>
                 <td className="px-4 py-3">
@@ -122,7 +121,7 @@ export default function Users() {
                     {canManage(me, u) && (
                       <button
                         onClick={() => setEditTarget(u)}
-                        className="text-accent-muted hover:text-accent-green transition-colors"
+                        className="text-fg-secondary hover:text-accent transition-colors"
                         title="Change the role"
                       >
                         <Edit2 size={13} />
@@ -131,7 +130,7 @@ export default function Users() {
                     {(u.id === me?.id || canManage(me, u)) && (
                       <button
                         onClick={() => setPwTarget(u)}
-                        className="text-accent-muted hover:text-severity-medium transition-colors"
+                        className="text-fg-secondary hover:text-severity-medium transition-colors"
                         title="Reset the password"
                       >
                         <KeyRound size={13} />
@@ -140,7 +139,7 @@ export default function Users() {
                     {u.id !== me?.id && canManage(me, u) && (
                       <button
                         onClick={() => setDeleteTarget(u)}
-                        className="text-accent-muted hover:text-severity-critical transition-colors"
+                        className="text-fg-secondary hover:text-severity-critical transition-colors"
                         title="Delete"
                       >
                         <Trash2 size={13} />

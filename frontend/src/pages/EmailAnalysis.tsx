@@ -71,9 +71,9 @@ const WARNING_STYLES: Record<WarningLevel, { bar: string; icon: string; badge: s
     badge: 'bg-severity-critical/15 text-severity-critical border-severity-critical/30',
   },
   high: {
-    bar:   'border-orange-500/30 bg-orange-500/8',
-    icon:  'text-orange-400',
-    badge: 'bg-orange-500/15 text-orange-400 border-orange-500/30',
+    bar:   'border-severity-high/30 bg-severity-high/8',
+    icon:  'text-severity-high',
+    badge: 'bg-severity-high/15 text-severity-high border-severity-high/30',
   },
   medium: {
     bar:   'border-severity-medium/30 bg-severity-medium/8',
@@ -81,9 +81,9 @@ const WARNING_STYLES: Record<WarningLevel, { bar: string; icon: string; badge: s
     badge: 'bg-severity-medium/15 text-severity-medium border-severity-medium/30',
   },
   info: {
-    bar:   'border-blue-500/30 bg-blue-500/8',
-    icon:  'text-blue-400',
-    badge: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+    bar:   'border-severity-low/30 bg-severity-low/8',
+    icon:  'text-severity-low',
+    badge: 'bg-severity-low/15 text-severity-low border-severity-low/30',
   },
 }
 
@@ -97,7 +97,7 @@ const WARNING_ICONS: Record<WarningLevel, React.ElementType> = {
 function WarningBadge({ level }: { level: WarningLevel }) {
   const s = WARNING_STYLES[level]
   return (
-    <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${s.badge}`}>
+    <span className={`text-label font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-control border ${s.badge}`}>
       {level}
     </span>
   )
@@ -109,21 +109,21 @@ function WarningsSection({ warnings }: { warnings: EmailWarning[] }) {
   const sorted = [...warnings].sort((a, b) => order.indexOf(a.level) - order.indexOf(b.level))
   return (
     <div className="space-y-2">
-      <p className="text-[10px] font-semibold tracking-widest uppercase text-accent-muted/50">
+      <p className="text-label font-semibold tracking-widest uppercase text-fg-secondary/50">
         Security Alerts ({warnings.length})
       </p>
       {sorted.map((w, i) => {
         const s    = WARNING_STYLES[w.level]
         const Icon = WARNING_ICONS[w.level]
         return (
-          <div key={i} className={`flex items-start gap-3 rounded-lg border px-4 py-3 ${s.bar}`}>
+          <div key={i} className={`flex items-start gap-3 border px-4 py-3 ${s.bar}`}>
             <Icon size={15} className={`shrink-0 mt-0.5 ${s.icon}`} />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-0.5">
-                <span className="text-sm font-semibold text-white">{w.title}</span>
+                <span className="text-ui font-semibold text-fg">{w.title}</span>
                 <WarningBadge level={w.level} />
               </div>
-              <p className="text-[11px] text-white/60 leading-relaxed">{w.detail}</p>
+              <p className="text-label text-fg/60 leading-relaxed">{w.detail}</p>
             </div>
           </div>
         )
@@ -173,7 +173,7 @@ function IocButton({
     return (
       <span
         title="Set a current case to export IOCs"
-        className="inline-flex items-center gap-1 text-[10px] text-accent-muted/30 cursor-not-allowed select-none"
+        className="inline-flex items-center gap-1 text-label text-fg-secondary/30 cursor-not-allowed select-none"
       >
         <Plus size={10} /> {label ?? 'IOC'}
       </span>
@@ -182,7 +182,7 @@ function IocButton({
 
   if (alreadyAdded) {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] text-accent-green/70">
+      <span className="inline-flex items-center gap-1 text-label text-accent/70">
         <CheckCircle2 size={10} /> {label ? `${label} added` : 'Added'}
       </span>
     )
@@ -190,7 +190,7 @@ function IocButton({
 
   if (state === 'err') {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] text-severity-critical cursor-pointer" onClick={() => setState('idle')}>
+      <span className="inline-flex items-center gap-1 text-label text-severity-critical cursor-pointer" onClick={() => setState('idle')}>
         <AlertCircle size={10} /> Retry
       </span>
     )
@@ -201,9 +201,8 @@ function IocButton({
       onClick={handleAdd}
       disabled={state === 'loading'}
       title={`Add to case "${caseTitle}" as ${type} IOC`}
-      className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded
-                 text-accent-green/70 border border-accent-green/20 hover:bg-accent-green/10
-                 hover:text-accent-green hover:border-accent-green/40 transition-colors disabled:opacity-50"
+      className="inline-flex items-center gap-1 text-label px-1.5 py-0.5 rounded-control text-accent/70 border border-accent/20 hover:bg-accent/10
+                 hover:text-accent hover:border-accent/40 transition-colors disabled:opacity-50"
     >
       {state === 'loading' ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}
       {label ?? 'IOC'}
@@ -228,9 +227,9 @@ function SummaryCard({
 }) {
   const actions = iocActions?.filter(a => a.value.trim().length > 0) ?? []
   return (
-    <div className="group rounded-lg bg-bg-secondary border border-white/8 px-3 py-2.5 min-w-0">
+    <div className="group bg-panel border border-hairline px-3 py-2.5 min-w-0">
       <div className="flex items-center justify-between mb-0.5">
-        <p className="text-[9px] font-semibold tracking-widest uppercase text-accent-muted/50">{label}</p>
+        <p className="text-label font-semibold tracking-widest uppercase text-fg-secondary/50">{label}</p>
         {actions.length > 0 && (
           <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
             {actions.map((a, i) => (
@@ -246,7 +245,7 @@ function SummaryCard({
           </div>
         )}
       </div>
-      <p className="text-[11px] text-white/80 truncate font-mono" title={value}>{value || '—'}</p>
+      <p className="text-label text-fg/80 truncate font-mono" title={value}>{value || '—'}</p>
     </div>
   )
 }
@@ -261,16 +260,16 @@ function HeaderRow({
   const iocValue = iocType ? extractIocValue(h.name, h.value) : null
 
   return (
-    <div className="border-b border-white/5 last:border-0">
+    <div className="border-b border-hairline last:border-0">
       <div className="flex items-start gap-3 px-3 py-2 group hover:bg-white/[0.02] transition-colors">
-        <span className="text-[11px] font-mono text-accent-green/80 w-44 shrink-0 truncate pt-0.5">{h.name}</span>
-        <span className="flex-1 text-[11px] text-white/70 font-mono break-all leading-relaxed">{h.value}</span>
+        <span className="text-label font-mono text-accent/80 w-44 shrink-0 truncate pt-0.5">{h.name}</span>
+        <span className="flex-1 text-label text-fg/70 font-mono break-all leading-relaxed">{h.value}</span>
         <div className="flex items-center gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onClick={() => copyToClipboard(h.value)} title="Copy value" className="text-accent-muted/50 hover:text-white transition-colors">
+          <button onClick={() => copyToClipboard(h.value)} title="Copy value" className="text-fg-secondary/50 hover:text-fg transition-colors">
             <Copy size={11} />
           </button>
           {h.description && (
-            <button onClick={() => setOpen(o => !o)} title="Show description" className="text-accent-muted/50 hover:text-accent-green transition-colors">
+            <button onClick={() => setOpen(o => !o)} title="Show description" className="text-fg-secondary/50 hover:text-accent transition-colors">
               <Info size={11} />
             </button>
           )}
@@ -286,7 +285,7 @@ function HeaderRow({
       </div>
       {open && h.description && (
         <div className="px-3 pb-2 ml-[11.5rem]">
-          <p className="text-[10px] text-accent-muted/70 italic leading-relaxed bg-white/[0.02] rounded px-2 py-1.5 border border-white/5">
+          <p className="text-label text-fg-secondary/70 italic leading-relaxed bg-white/[0.02] rounded-control px-2 py-1.5 border border-hairline">
             {h.description}
           </p>
         </div>
@@ -308,17 +307,17 @@ function Section({
 }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="rounded-xl border border-white/8 bg-bg-secondary overflow-hidden">
+    <div className=" border border-hairline bg-panel overflow-hidden">
       <button
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors text-left"
       >
-        <Icon size={14} className="text-accent-green shrink-0" />
-        <span className="text-sm font-medium text-white flex-1">{title}</span>
-        {count > 0 && <span className="text-[10px] font-mono text-accent-muted/50 mr-2">{count}</span>}
-        {open ? <ChevronDown size={13} className="text-accent-muted/50" /> : <ChevronRight size={13} className="text-accent-muted/50" />}
+        <Icon size={14} className="text-accent shrink-0" />
+        <span className="text-ui font-medium text-fg flex-1">{title}</span>
+        {count > 0 && <span className="text-label font-mono text-fg-secondary/50 mr-2">{count}</span>}
+        {open ? <ChevronDown size={13} className="text-fg-secondary/50" /> : <ChevronRight size={13} className="text-fg-secondary/50" />}
       </button>
-      {open && <div className="border-t border-white/5">{children}</div>}
+      {open && <div className="border-t border-hairline">{children}</div>}
     </div>
   )
 }
@@ -331,17 +330,17 @@ function AttachmentRow({
   return (
     <div className="px-3 py-3 group hover:bg-white/[0.02] transition-colors">
       <div className="flex items-start gap-3">
-        <Paperclip size={13} className="text-accent-muted/40 mt-0.5 shrink-0" />
+        <Paperclip size={13} className="text-fg-secondary/40 mt-0.5 shrink-0" />
         <div className="flex-1 min-w-0 space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[12px] font-medium text-white/90 truncate">{att.filename}</span>
-            <span className="text-[10px] text-accent-muted/50 font-mono">{att.content_type}</span>
-            <span className="text-[10px] text-accent-muted/50">{formatBytes(att.size)}</span>
+            <span className="text-ui font-medium text-fg/90 truncate">{att.filename}</span>
+            <span className="text-label text-fg-secondary/50 font-mono">{att.content_type}</span>
+            <span className="text-label text-fg-secondary/50">{formatBytes(att.size)}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono text-white/40 break-all">{att.sha256}</span>
+            <span className="text-label font-mono text-fg/40 break-all">{att.sha256}</span>
             <div className="flex items-center gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button onClick={() => copyToClipboard(att.sha256)} title="Copy SHA256" className="text-accent-muted/50 hover:text-white transition-colors">
+              <button onClick={() => copyToClipboard(att.sha256)} title="Copy SHA256" className="text-fg-secondary/50 hover:text-fg transition-colors">
                 <Copy size={10} />
               </button>
               <IocButton
@@ -468,20 +467,20 @@ function SendEmailToTimeline({ result, caseId, filename }: {
   })
 
   return (
-    <div className="rounded-lg border border-white/8 bg-bg-secondary overflow-hidden">
+    <div className=" border border-hairline bg-panel overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2">
         <button onClick={() => setOpen(o => !o)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
-          <ChevronRight size={11} className={`text-accent-muted/40 transition-transform ${open ? 'rotate-90' : ''}`} />
-          <Clock size={12} className="text-accent-green shrink-0" />
-          <span className="text-[11px] font-semibold text-white">Add to the timeline</span>
-          <span className="text-[10px] text-accent-muted/40 truncate">
+          <ChevronRight size={11} className={`text-fg-secondary/40 transition-transform ${open ? 'rotate-90' : ''}`} />
+          <Clock size={12} className="text-accent shrink-0" />
+          <span className="text-label font-semibold text-fg">Add to the timeline</span>
+          <span className="text-label text-fg-secondary/40 truncate">
             {dateUnparsable
               ? 'email date unreadable - please correct'
               : `dated ${new Date(result.date).toLocaleString()}`}
           </span>
         </button>
         {sent && (
-          <span className="flex items-center gap-1 text-[10px] text-accent-green/70 shrink-0">
+          <span className="flex items-center gap-1 text-label text-accent/70 shrink-0">
             <CheckCircle2 size={10} /> sent
           </span>
         )}
@@ -489,7 +488,7 @@ function SendEmailToTimeline({ result, caseId, filename }: {
           <button
             onClick={() => send.mutate()}
             disabled={send.isPending}
-            className="flex items-center gap-1 text-[10px] px-2 py-1 rounded border border-accent-green/30 text-accent-green bg-accent-green/5 hover:bg-accent-green/10 transition-colors disabled:opacity-40 shrink-0"
+            className="flex items-center gap-1 text-label px-2 py-1 rounded-control border border-accent/30 text-accent bg-accent/5 hover:bg-accent/10 transition-colors disabled:opacity-40 shrink-0"
           >
             {send.isPending ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}
             Envoyer
@@ -498,38 +497,38 @@ function SendEmailToTimeline({ result, caseId, filename }: {
       </div>
 
       {open && (
-        <div className="px-3 pb-3 pt-1 border-t border-white/5 space-y-2">
+        <div className="px-3 pb-3 pt-1 border-t border-hairline space-y-2">
           {dateUnparsable && (
-            <p className="flex items-center gap-1.5 text-[10px] text-yellow-400/80">
+            <p className="flex items-center gap-1.5 text-label text-severity-medium/80">
               <AlertTriangle size={10} />
               The Date header could not be parsed ({result.date || 'empty'}) - the timestamp was
               set to now; correct it below.
             </p>
           )}
           <div>
-            <label className="text-[9px] uppercase tracking-widest text-accent-muted/40">Horodatage</label>
+            <label className="text-label uppercase tracking-widest text-fg-secondary/40">Horodatage</label>
             <input
               type="datetime-local"
               value={ts}
               onChange={e => setTs(e.target.value)}
-              className="w-full mt-0.5 bg-black/30 border border-white/10 rounded px-2 py-1 text-[11px] font-mono text-white/90 focus:border-accent-green/40 focus:outline-none"
+              className="w-full mt-0.5 bg-black/30 border border-hairline rounded-control px-2 py-1 text-label font-mono text-fg/90 focus:border-accent/40 focus:outline-none"
             />
           </div>
           <div>
-            <label className="text-[9px] uppercase tracking-widest text-accent-muted/40">Title</label>
+            <label className="text-label uppercase tracking-widest text-fg-secondary/40">Title</label>
             <input
               value={title}
               onChange={e => setTitle(e.target.value)}
-              className="w-full mt-0.5 bg-black/30 border border-white/10 rounded px-2 py-1 text-[11px] text-white/90 focus:border-accent-green/40 focus:outline-none"
+              className="w-full mt-0.5 bg-black/30 border border-hairline rounded-control px-2 py-1 text-label text-fg/90 focus:border-accent/40 focus:outline-none"
             />
           </div>
           <div>
-            <label className="text-[9px] uppercase tracking-widest text-accent-muted/40">Description</label>
+            <label className="text-label uppercase tracking-widest text-fg-secondary/40">Description</label>
             <textarea
               value={desc}
               onChange={e => setDesc(e.target.value)}
               rows={7}
-              className="w-full mt-0.5 bg-black/30 border border-white/10 rounded px-2 py-1 text-[10px] font-mono text-accent-muted resize-y focus:border-accent-green/40 focus:outline-none"
+              className="w-full mt-0.5 bg-black/30 border border-hairline rounded-control px-2 py-1 text-label font-mono text-fg-secondary resize-y focus:border-accent/40 focus:outline-none"
             />
           </div>
           <div className="flex items-center justify-between">
@@ -539,25 +538,25 @@ function SendEmailToTimeline({ result, caseId, filename }: {
                 setTitle(buildEmailTitle(result))
                 setDesc(buildEmailDescription(result))
               }}
-              className="text-[10px] text-accent-muted/40 hover:text-accent-green transition-colors"
+              className="text-label text-fg-secondary/40 hover:text-accent transition-colors"
             >
               Reset
             </button>
             <button
               onClick={() => send.mutate()}
               disabled={send.isPending}
-              className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded border border-accent-green/30 text-accent-green bg-accent-green/5 hover:bg-accent-green/10 transition-colors disabled:opacity-40"
+              className="flex items-center gap-1 text-label px-2.5 py-1 rounded-control border border-accent/30 text-accent bg-accent/5 hover:bg-accent/10 transition-colors disabled:opacity-40"
             >
               {send.isPending ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}
               Send to the timeline
             </button>
           </div>
-          <p className="text-[9px] text-accent-muted/30">
+          <p className="text-label text-fg-secondary/30">
             The full email (all headers, attachments, URLs, alerts) is attached to the
             event and can be expanded from a chevron in the timeline.
           </p>
           {send.isError && (
-            <p className="text-[10px] text-severity-critical">
+            <p className="text-label text-severity-critical">
               {(send.error as Error)?.message ?? 'Échec de l\'envoi'}
             </p>
           )}
@@ -622,31 +621,31 @@ function EmailResultView({
         return (
           <div className="grid grid-cols-2 gap-3">
             {result.reply_to && (
-              <div className={`rounded-lg border px-3 py-2.5 min-w-0 ${replyMismatch ? 'border-severity-critical/30 bg-severity-critical/5' : 'border-white/8 bg-bg-secondary'}`}>
+              <div className={` border px-3 py-2.5 min-w-0 ${replyMismatch ? 'border-severity-critical/30 bg-severity-critical/5' : 'border-hairline bg-panel'}`}>
                 <div className="flex items-center gap-1.5 mb-0.5">
-                  <p className="text-[9px] font-semibold tracking-widest uppercase text-accent-muted/50">Reply-To</p>
+                  <p className="text-label font-semibold tracking-widest uppercase text-fg-secondary/50">Reply-To</p>
                   {replyMismatch && (
-                    <span className="flex items-center gap-0.5 text-[9px] font-bold text-severity-critical bg-severity-critical/10 border border-severity-critical/30 px-1.5 py-0.5 rounded">
+                    <span className="flex items-center gap-0.5 text-label font-bold text-severity-critical bg-severity-critical/10 border border-severity-critical/30 px-1.5 py-0.5 rounded-control">
                       <AlertTriangle size={8} /> MISMATCH
                     </span>
                   )}
                 </div>
-                <p className={`text-[11px] font-mono truncate ${replyMismatch ? 'text-severity-critical/90' : 'text-white/80'}`} title={result.reply_to}>
+                <p className={`text-label font-mono truncate ${replyMismatch ? 'text-severity-critical/90' : 'text-fg/80'}`} title={result.reply_to}>
                   {result.reply_to || '—'}
                 </p>
               </div>
             )}
             {result.return_path && (
-              <div className={`rounded-lg border px-3 py-2.5 min-w-0 ${returnMismatch ? 'border-orange-500/30 bg-orange-500/5' : 'border-white/8 bg-bg-secondary'}`}>
+              <div className={` border px-3 py-2.5 min-w-0 ${returnMismatch ? 'border-severity-high/30 bg-severity-high/5' : 'border-hairline bg-panel'}`}>
                 <div className="flex items-center gap-1.5 mb-0.5">
-                  <p className="text-[9px] font-semibold tracking-widest uppercase text-accent-muted/50">Return-Path</p>
+                  <p className="text-label font-semibold tracking-widest uppercase text-fg-secondary/50">Return-Path</p>
                   {returnMismatch && (
-                    <span className="flex items-center gap-0.5 text-[9px] font-bold text-orange-400 bg-orange-500/10 border border-orange-500/30 px-1.5 py-0.5 rounded">
+                    <span className="flex items-center gap-0.5 text-label font-bold text-severity-high bg-severity-high/10 border border-severity-high/30 px-1.5 py-0.5 rounded-control">
                       <AlertTriangle size={8} /> DOMAIN MISMATCH
                     </span>
                   )}
                 </div>
-                <p className={`text-[11px] font-mono truncate ${returnMismatch ? 'text-orange-400/90' : 'text-white/80'}`} title={result.return_path}>
+                <p className={`text-label font-mono truncate ${returnMismatch ? 'text-severity-high/90' : 'text-fg/80'}`} title={result.return_path}>
                   {result.return_path || '—'}
                 </p>
               </div>
@@ -663,26 +662,26 @@ function EmailResultView({
 
       {(result.body_plain || result.body_html) && (
         <Section icon={FileText} title="Message Body" count={0}>
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-white/5">
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-hairline">
             {result.body_plain && (
-              <button onClick={() => setBodyView('plain')} className={`text-[10px] px-2.5 py-1 rounded transition-colors ${bodyView === 'plain' ? 'bg-accent-green/10 text-accent-green' : 'text-accent-muted hover:text-white'}`}>Plain text</button>
+              <button onClick={() => setBodyView('plain')} className={`text-label px-2.5 py-1 rounded-control transition-colors ${bodyView === 'plain' ? 'bg-accent/10 text-accent' : 'text-fg-secondary hover:text-fg'}`}>Plain text</button>
             )}
             {result.body_html && (
-              <button onClick={() => setBodyView('html')} className={`text-[10px] px-2.5 py-1 rounded transition-colors ${bodyView === 'html' ? 'bg-accent-green/10 text-accent-green' : 'text-accent-muted hover:text-white'}`}>HTML source</button>
+              <button onClick={() => setBodyView('html')} className={`text-label px-2.5 py-1 rounded-control transition-colors ${bodyView === 'html' ? 'bg-accent/10 text-accent' : 'text-fg-secondary hover:text-fg'}`}>HTML source</button>
             )}
           </div>
           {bodyView === 'plain' && result.body_plain && (
-            <pre className="px-4 py-3 text-[11px] font-mono text-white/70 whitespace-pre-wrap break-words leading-relaxed max-h-96 overflow-y-auto">{result.body_plain}</pre>
+            <pre className="px-4 py-3 text-label font-mono text-fg/70 whitespace-pre-wrap break-words leading-relaxed max-h-96 overflow-y-auto">{result.body_plain}</pre>
           )}
           {bodyView === 'html' && result.body_html && (
-            <pre className="px-4 py-3 text-[11px] font-mono text-white/70 whitespace-pre-wrap break-words leading-relaxed max-h-96 overflow-y-auto">{result.body_html}</pre>
+            <pre className="px-4 py-3 text-label font-mono text-fg/70 whitespace-pre-wrap break-words leading-relaxed max-h-96 overflow-y-auto">{result.body_html}</pre>
           )}
         </Section>
       )}
 
       <Section icon={Mail} title="Key Headers" count={result.key_headers.length}>
         {result.key_headers.length === 0
-          ? <p className="px-4 py-3 text-xs text-accent-muted/40 italic">No key headers found.</p>
+          ? <p className="px-4 py-3 text-label text-fg-secondary/40 italic">No key headers found.</p>
           : result.key_headers.map((h, i) => <HeaderRow key={i} h={h} {...iocProps} />)
         }
       </Section>
@@ -693,14 +692,14 @@ function EmailResultView({
 
       <Section icon={Link2} title="Extracted URLs" count={result.urls.length}>
         {result.urls.length === 0
-          ? <p className="px-4 py-3 text-xs text-accent-muted/40 italic">No URLs found.</p>
+          ? <p className="px-4 py-3 text-label text-fg-secondary/40 italic">No URLs found.</p>
           : (
-            <div className="divide-y divide-white/5">
+            <div className="divide-y divide-hairline">
               {result.urls.map((url, i) => (
                 <div key={i} className="flex items-center gap-3 px-3 py-2 group hover:bg-white/[0.02] transition-colors">
-                  <span className="flex-1 text-[11px] font-mono text-blue-400/80 break-all">{url}</span>
+                  <span className="flex-1 text-label font-mono text-severity-low/80 break-all">{url}</span>
                   <div className="flex items-center gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => copyToClipboard(url)} title="Copy URL" className="text-accent-muted/50 hover:text-white transition-colors"><Copy size={11} /></button>
+                    <button onClick={() => copyToClipboard(url)} title="Copy URL" className="text-fg-secondary/50 hover:text-fg transition-colors"><Copy size={11} /></button>
                     <IocButton type="url" value={url} description="Extracted from email body" {...iocProps} />
                   </div>
                 </div>
@@ -712,9 +711,9 @@ function EmailResultView({
 
       <Section icon={Paperclip} title="Attachments" count={result.attachments.length}>
         {result.attachments.length === 0
-          ? <p className="px-4 py-3 text-xs text-accent-muted/40 italic">No attachments found.</p>
+          ? <p className="px-4 py-3 text-label text-fg-secondary/40 italic">No attachments found.</p>
           : (
-            <div className="divide-y divide-white/5">
+            <div className="divide-y divide-hairline">
               {result.attachments.map((att, i) => <AttachmentRow key={i} att={att} {...iocProps} />)}
             </div>
           )
@@ -738,23 +737,22 @@ function EmailSidebarRow({
   return (
     <div
       onClick={onSelect}
-      className={`group relative px-3 py-2.5 cursor-pointer border-l-2 transition-colors ${
-        selected
-          ? 'bg-accent-green/5 border-l-accent-green/40'
+      className={`group relative px-3 py-2.5 cursor-pointer border-l-2 transition-colors ${ selected
+          ? 'bg-accent/5 border-l-accent/40'
           : 'border-l-transparent hover:bg-white/[0.03]'
       }`}
     >
       <div className="flex items-start gap-2 pr-5">
-        <Mail size={12} className={`mt-0.5 shrink-0 ${hasWarnings ? 'text-severity-critical' : 'text-accent-muted/40'}`} />
+        <Mail size={12} className={`mt-0.5 shrink-0 ${hasWarnings ? 'text-severity-critical' : 'text-fg-secondary/40'}`} />
         <div className="flex-1 min-w-0">
-          <p className="text-[11px] text-white/80 truncate leading-snug">{email.subject || '(no subject)'}</p>
-          <p className="text-[10px] text-accent-muted/50 truncate mt-0.5">{email.from_addr}</p>
+          <p className="text-label text-fg/80 truncate leading-snug">{email.subject || '(no subject)'}</p>
+          <p className="text-label text-fg-secondary/50 truncate mt-0.5">{email.from_addr}</p>
           <div className="flex items-center gap-2 mt-1">
-            <span className="flex items-center gap-0.5 text-[9px] text-accent-muted/30">
+            <span className="flex items-center gap-0.5 text-label text-fg-secondary/30">
               <Clock size={8} />{fmtRelative(email.uploaded_at)}
             </span>
             {hasWarnings && (
-              <span className="text-[9px] font-bold text-severity-critical bg-severity-critical/10 border border-severity-critical/20 px-1 py-0.5 rounded">
+              <span className="text-label font-bold text-severity-critical bg-severity-critical/10 border border-severity-critical/20 px-1 py-0.5 rounded-control">
                 {email.warning_count} alert{email.warning_count > 1 ? 's' : ''}
               </span>
             )}
@@ -763,7 +761,7 @@ function EmailSidebarRow({
       </div>
       <button
         onClick={e => { e.stopPropagation(); onDelete() }}
-        className="absolute right-2 top-2.5 opacity-0 group-hover:opacity-100 text-accent-muted/40 hover:text-severity-critical transition-all"
+        className="absolute right-2 top-2.5 opacity-0 group-hover:opacity-100 text-fg-secondary/40 hover:text-severity-critical transition-all"
         title="Delete"
       >
         <Trash2 size={11} />
@@ -872,20 +870,20 @@ export default function EmailAnalysis() {
       onDrop={handleDrop}
       onDragOver={e => { e.preventDefault(); setDragging(true) }}
       onDragLeave={() => setDragging(false)}
-      className={`flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed py-10 cursor-pointer transition-colors select-none
-        ${dragging ? 'border-accent-green/60 bg-accent-green/5' : 'border-white/10 hover:border-white/20 hover:bg-white/[0.015]'}
+      className={`flex flex-col items-center justify-center gap-3 border-2 border-dashed py-10 cursor-pointer transition-colors select-none
+        ${dragging ? 'border-accent/60 bg-accent/5' : 'border-hairline hover:border-strong hover:bg-white/[0.015]'}
         ${loading ? 'pointer-events-none opacity-60' : ''}
       `}
     >
       <input ref={fileRef} type="file" accept=".eml,message/rfc822" className="sr-only" onChange={handleFile} />
       {loading ? (
-        <><Loader2 size={28} className="animate-spin text-accent-green/50" /><span className="text-sm text-accent-muted">Analysing…</span></>
+        <><Loader2 size={28} className="animate-spin text-accent/50" /><span className="text-ui text-fg-secondary">Analysing…</span></>
       ) : (
         <>
-          <Upload size={24} className="text-accent-muted/40" />
+          <Upload size={24} className="text-fg-secondary/40" />
           <div className="text-center">
-            <p className="text-sm text-white/70">Drop a <span className="font-mono text-accent-green">.eml</span> file here</p>
-            <p className="text-xs text-accent-muted/50 mt-0.5">or click to browse</p>
+            <p className="text-ui text-fg/70">Drop a <span className="font-mono text-accent">.eml</span> file here</p>
+            <p className="text-label text-fg-secondary/50 mt-0.5">or click to browse</p>
           </div>
         </>
       )}
@@ -897,19 +895,19 @@ export default function EmailAnalysis() {
     return (
       <div className="flex h-full overflow-hidden">
         {/* Left sidebar — email list */}
-        <div className="w-64 shrink-0 border-r border-white/5 bg-bg-card flex flex-col overflow-hidden">
-          <div className="px-3 py-3 border-b border-white/5 shrink-0">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-accent-muted/50 flex items-center gap-1.5">
+        <div className="w-64 shrink-0 border-r border-hairline bg-panel flex flex-col overflow-hidden">
+          <div className="px-3 py-3 border-b border-hairline shrink-0">
+            <p className="text-label font-semibold uppercase tracking-widest text-fg-secondary/50 flex items-center gap-1.5">
               <Mail size={10} /> Emails — {currentCase?.title}
             </p>
           </div>
 
           {/* Upload button */}
-          <div className="px-3 py-2 border-b border-white/5 shrink-0">
+          <div className="px-3 py-2 border-b border-hairline shrink-0">
             <button
               onClick={() => fileRef.current?.click()}
               disabled={loading}
-              className="w-full flex items-center justify-center gap-1.5 text-[11px] py-1.5 rounded border border-dashed border-white/15 text-accent-muted hover:text-accent-green hover:border-accent-green/30 transition-colors disabled:opacity-40"
+              className="w-full flex items-center justify-center gap-1.5 text-label py-1.5 rounded-control border border-dashed border-hairline text-fg-secondary hover:text-accent hover:border-accent/30 transition-colors disabled:opacity-40"
             >
               {loading ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
               {loading ? 'Analysing…' : 'Upload .eml'}
@@ -920,7 +918,7 @@ export default function EmailAnalysis() {
           {/* Email list */}
           <div className="flex-1 overflow-y-auto">
             {storedEmails.length === 0 && !loading && (
-              <p className="text-[10px] text-accent-muted/30 text-center py-8 px-3">
+              <p className="text-label text-fg-secondary/30 text-center py-8 px-3">
                 No emails yet.<br />Upload a .eml file to start.
               </p>
             )}
@@ -939,18 +937,18 @@ export default function EmailAnalysis() {
         {/* Main content */}
         <div className="flex-1 overflow-y-auto">
           {error && (
-            <div className="m-4 flex items-center gap-2 text-sm text-severity-critical bg-severity-critical/10 border border-severity-critical/20 rounded-lg px-4 py-3">
+            <div className="m-4 flex items-center gap-2 text-ui text-severity-critical bg-severity-critical/10 border border-severity-critical/20 px-4 py-3">
               <AlertCircle size={14} />{error}
             </div>
           )}
 
           {!selectedEmailId && (
             <div className="p-6 space-y-4">
-              <div className="flex items-center gap-2 text-[11px] text-accent-green/70 bg-accent-green/5 border border-accent-green/15 rounded-lg px-3 py-2">
+              <div className="flex items-center gap-2 text-label text-accent/70 bg-accent/5 border border-accent/15 px-3 py-2">
                 <CheckCircle2 size={12} />
-                Emails uploaded here are saved to case <span className="font-semibold text-accent-green">{currentCase?.title}</span>
+                Emails uploaded here are saved to case <span className="font-semibold text-accent">{currentCase?.title}</span>
                 {existingIocs.length > 0 && (
-                  <span className="text-accent-muted/50 ml-1">— {existingIocs.length} IOC{existingIocs.length > 1 ? 's' : ''} already in case</span>
+                  <span className="text-fg-secondary/50 ml-1">— {existingIocs.length} IOC{existingIocs.length > 1 ? 's' : ''} already in case</span>
                 )}
               </div>
               {/* Drop zone in empty state */}
@@ -958,19 +956,19 @@ export default function EmailAnalysis() {
                 onDrop={handleDrop}
                 onDragOver={e => { e.preventDefault(); setDragging(true) }}
                 onDragLeave={() => setDragging(false)}
-                className={`flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed py-20 transition-colors
-                  ${dragging ? 'border-accent-green/60 bg-accent-green/5' : 'border-white/8'}
+                className={`flex flex-col items-center justify-center gap-3 border-2 border-dashed py-20 transition-colors
+                  ${dragging ? 'border-accent/60 bg-accent/5' : 'border-hairline'}
                 `}
               >
-                <Mail size={36} className="text-accent-muted/20" />
-                <p className="text-sm text-accent-muted/40">Select an email from the sidebar, or drop a .eml file here</p>
+                <Mail size={36} className="text-fg-secondary/20" />
+                <p className="text-ui text-fg-secondary/40">Select an email from the sidebar, or drop a .eml file here</p>
               </div>
             </div>
           )}
 
           {selectedEmailId && loadingStored && (
             <div className="flex items-center justify-center py-20">
-              <Loader2 size={24} className="animate-spin text-accent-green/40" />
+              <Loader2 size={24} className="animate-spin text-accent/40" />
             </div>
           )}
 
@@ -995,13 +993,13 @@ export default function EmailAnalysis() {
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-white flex items-center gap-2">
-          <Mail size={18} className="text-accent-green" /> Email Analysis
+        <h1 className="text-title font-bold text-fg flex items-center gap-2">
+          <Mail size={18} className="text-accent" /> Email Analysis
         </h1>
-        <p className="text-accent-muted text-sm mt-0.5">Upload a .eml file to parse headers, extract URLs and hash attachments.</p>
+        <p className="text-fg-secondary text-ui mt-0.5">Upload a .eml file to parse headers, extract URLs and hash attachments.</p>
       </div>
 
-      <div className="flex items-center gap-2 text-[11px] text-accent-muted/60 bg-white/[0.02] border border-white/8 rounded-lg px-3 py-2">
+      <div className="flex items-center gap-2 text-label text-fg-secondary/60 bg-white/[0.02] border border-hairline px-3 py-2">
         <Info size={12} />
         No current case selected — emails won't be saved. Set a current case from the top bar to enable persistent storage.
       </div>
@@ -1009,7 +1007,7 @@ export default function EmailAnalysis() {
       {dropZone}
 
       {error && (
-        <div className="flex items-center gap-2 text-sm text-severity-critical bg-severity-critical/10 border border-severity-critical/20 rounded-lg px-4 py-3">
+        <div className="flex items-center gap-2 text-ui text-severity-critical bg-severity-critical/10 border border-severity-critical/20 px-4 py-3">
           <AlertCircle size={14} />{error}
         </div>
       )}

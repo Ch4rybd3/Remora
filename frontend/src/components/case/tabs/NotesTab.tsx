@@ -50,26 +50,26 @@ export default function NotesTab({ case_ }: Props) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="px-4 py-2.5 border-b border-white/5 bg-bg-secondary/40 shrink-0 flex items-center gap-3">
-        <h3 className="text-accent-green font-semibold text-xs uppercase tracking-wide">
+      <div className="px-4 py-2.5 border-b border-hairline bg-panel/40 shrink-0 flex items-center gap-3">
+        <h3 className="text-accent font-semibold text-label uppercase tracking-wide">
           Quick Notes
         </h3>
-        <span className="text-[10px] text-accent-muted/30 flex-1">
+        <span className="text-label text-fg-secondary/30 flex-1">
           Scratchpad libre — non inclus dans le rapport final · autosave · Ctrl+S
         </span>
         {saved && (
-          <span className="text-[10px] text-accent-green/60 animate-pulse">Saved</span>
+          <span className="text-label text-accent/60 animate-pulse">Saved</span>
         )}
         {dirty && !save.isPending && (
           <button
-            className="btn-primary text-xs py-0.5 px-2"
+            className="btn-primary text-label py-0.5 px-2"
             onClick={() => doSave(value)}
           >
             Sauvegarder
           </button>
         )}
         {save.isPending && (
-          <span className="text-[10px] text-accent-muted/40 animate-pulse">Sauvegarde…</span>
+          <span className="text-label text-fg-secondary/40 animate-pulse">Sauvegarde…</span>
         )}
       </div>
       <div className="flex-1 overflow-hidden p-3">

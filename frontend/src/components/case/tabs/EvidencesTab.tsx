@@ -22,13 +22,13 @@ interface Props { caseId: string }
 const EVIDENCE_TYPES = [
   { value: 'malware',          label: 'Malware Sample',     icon: Bug,         color: 'text-severity-critical bg-severity-critical/10 border-severity-critical/20' },
   { value: 'artifact',         label: 'System Artifact',    icon: FileSearch,  color: 'text-severity-medium  bg-severity-medium/10  border-severity-medium/20' },
-  { value: 'log',              label: 'Log File',           icon: FileText,    color: 'text-blue-400         bg-blue-500/10         border-blue-500/20' },
-  { value: 'memory_dump',      label: 'Memory Dump',        icon: Cpu,         color: 'text-purple-400       bg-purple-500/10       border-purple-500/20' },
-  { value: 'disk_image',       label: 'Disk Image',         icon: HardDrive,   color: 'text-accent-muted     bg-white/5             border-white/10' },
-  { value: 'network_capture',  label: 'Network Capture',    icon: Wifi,        color: 'text-cyan-400         bg-cyan-500/10         border-cyan-500/20' },
-  { value: 'document',         label: 'Document',           icon: FileText,    color: 'text-accent-green     bg-accent-green/10     border-accent-green/20' },
-  { value: 'report',           label: 'Report',             icon: FileArchive, color: 'text-accent-green     bg-accent-green/10     border-accent-green/20' },
-  { value: 'other',            label: 'Other',              icon: File,        color: 'text-accent-muted     bg-white/5             border-white/10' },
+  { value: 'log',              label: 'Log File',           icon: FileText,    color: 'text-severity-low         bg-severity-low/10         border-severity-low/20' },
+  { value: 'memory_dump',      label: 'Memory Dump',        icon: Cpu,         color: 'text-data-2       bg-data-2/10       border-data-2/20' },
+  { value: 'disk_image',       label: 'Disk Image',         icon: HardDrive,   color: 'text-fg-secondary     bg-fg/5             border-hairline' },
+  { value: 'network_capture',  label: 'Network Capture',    icon: Wifi,        color: 'text-data-5         bg-data-5/10         border-data-5/20' },
+  { value: 'document',         label: 'Document',           icon: FileText,    color: 'text-accent     bg-accent/10     border-accent/20' },
+  { value: 'report',           label: 'Report',             icon: FileArchive, color: 'text-accent     bg-accent/10     border-accent/20' },
+  { value: 'other',            label: 'Other',              icon: File,        color: 'text-fg-secondary     bg-fg/5             border-hairline' },
 ] as const
 
 const ACQUISITION_METHODS = [
@@ -60,8 +60,8 @@ function CopyButton({ value }: { value: string }) {
     setTimeout(() => setCopied(false), 1500)
   }
   return (
-    <button onClick={copy} className="text-accent-muted hover:text-white transition-colors ml-1 shrink-0">
-      {copied ? <Check size={11} className="text-accent-green" /> : <Copy size={11} />}
+    <button onClick={copy} className="text-fg-secondary hover:text-fg transition-colors ml-1 shrink-0">
+      {copied ? <Check size={11} className="text-accent" /> : <Copy size={11} />}
     </button>
   )
 }
@@ -261,20 +261,20 @@ export default function EvidencesTab({ caseId }: Props) {
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="text-accent-green font-semibold text-sm uppercase tracking-wide flex items-center gap-2">
+        <h3 className="text-accent font-semibold text-ui uppercase tracking-wide flex items-center gap-2">
           <ShieldCheck size={15} /> Chain of Custody
-          <span className="text-accent-muted font-normal normal-case ml-1">({evidences.length})</span>
+          <span className="text-fg-secondary font-normal normal-case ml-1">({evidences.length})</span>
         </h3>
         <div className="flex gap-2">
           {evidences.length > 0 && (
             <button
-              className="btn-secondary text-xs flex items-center gap-1.5"
+              className="btn-secondary text-label flex items-center gap-1.5"
               onClick={() => exportMarkdown(case_?.title ?? caseId, caseId, case_?.assigned_to ?? '', evidences)}
             >
               <FileText size={12} /> Export CoC
             </button>
           )}
-          <button className="btn-primary text-xs flex items-center gap-1.5" onClick={openUpload}>
+          <button className="btn-primary text-label flex items-center gap-1.5" onClick={openUpload}>
             <Upload size={12} /> Add Evidence
           </button>
         </div>
@@ -282,21 +282,21 @@ export default function EvidencesTab({ caseId }: Props) {
 
       {/* Upload panel */}
       {uploadOpen && (
-        <div className="card p-5 space-y-4 border-accent-green/20">
-          <p className="text-xs font-semibold text-accent-green uppercase tracking-wide">New Evidence Item</p>
+        <div className="card p-5 space-y-4 border-accent/20">
+          <p className="text-label font-semibold text-accent uppercase tracking-wide">New Evidence Item</p>
 
           {/* Dropzone */}
           <div
             {...getRootProps()}
-            className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-              isDragActive ? 'border-accent-green bg-accent-green/5' : 'border-white/10 hover:border-white/20'
+            className={`border-2 border-dashed p-6 text-center cursor-pointer transition-colors ${
+              isDragActive ? 'border-accent bg-accent/5' : 'border-hairline hover:border-strong'
             }`}
           >
             <input {...getInputProps()} />
-            <Upload size={20} className="mx-auto mb-2 text-accent-muted" />
+            <Upload size={20} className="mx-auto mb-2 text-fg-secondary" />
             {pendingFile
-              ? <p className="text-sm text-white font-mono">{pendingFile.name} <span className="text-accent-muted">({formatBytes(pendingFile.size)})</span></p>
-              : <p className="text-sm text-accent-muted">Drop a file here, or click to browse</p>}
+              ? <p className="text-ui text-fg font-mono">{pendingFile.name} <span className="text-fg-secondary">({formatBytes(pendingFile.size)})</span></p>
+              : <p className="text-ui text-fg-secondary">Drop a file here, or click to browse</p>}
           </div>
 
           {pendingFile && (
@@ -336,8 +336,8 @@ export default function EvidencesTab({ caseId }: Props) {
                 </div>
               </div>
               <div className="flex justify-end gap-3">
-                <button className="btn-secondary text-xs" onClick={() => { setUploadOpen(false); setPendingFile(null) }}>Cancel</button>
-                <button className="btn-primary text-xs" onClick={doUpload} disabled={!meta.name || upload.isPending}>
+                <button className="btn-secondary text-label" onClick={() => { setUploadOpen(false); setPendingFile(null) }}>Cancel</button>
+                <button className="btn-primary text-label" onClick={doUpload} disabled={!meta.name || upload.isPending}>
                   {upload.isPending ? 'Uploading…' : 'Add to Chain of Custody'}
                 </button>
               </div>
@@ -361,17 +361,17 @@ export default function EvidencesTab({ caseId }: Props) {
             return (
               <div key={e.id} className="card overflow-hidden">
                 {/* Card header */}
-                <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5 bg-white/[0.02]">
-                  <span className="text-[11px] font-mono font-bold text-accent-muted/60 shrink-0 w-14">{cocId(i)}</span>
-                  <span className={`inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border shrink-0 ${type.color}`}>
+                <div className="flex items-center gap-3 px-4 py-3 border-b border-hairline bg-white/[0.02]">
+                  <span className="text-label font-mono font-bold text-fg-secondary/60 shrink-0 w-14">{cocId(i)}</span>
+                  <span className={`inline-flex items-center gap-1 text-label font-mono px-2 py-0.5 rounded-control border shrink-0 ${type.color}`}>
                     <TypeIcon size={10} />
                     {type.label}
                   </span>
-                  <p className="font-semibold text-sm text-white truncate flex-1">{e.name}</p>
+                  <p className="font-semibold text-ui text-fg truncate flex-1">{e.name}</p>
                   <div className="flex items-center gap-2 shrink-0">
                     {e.original_filename ? (
                       <button
-                        className="text-accent-muted hover:text-accent-green transition-colors"
+                        className="text-fg-secondary hover:text-accent transition-colors"
                         title={`Download ${e.original_filename}`}
                         onClick={() => {
                           const token = localStorage.getItem('remora_token')
@@ -391,25 +391,25 @@ export default function EvidencesTab({ caseId }: Props) {
                         <Download size={14} />
                       </button>
                     ) : (
-                      <span className="text-white/15 cursor-not-allowed" title="No file attached">
+                      <span className="text-fg/15 cursor-not-allowed" title="No file attached">
                         <Download size={14} />
                       </span>
                     )}
                     <button
                       onClick={() => editTarget === e.id ? setEditTarget(null) : openEdit(e)}
-                      className={`transition-colors ${editTarget === e.id ? 'text-accent-green' : 'text-accent-muted hover:text-white'}`}
+                      className={`transition-colors ${editTarget === e.id ? 'text-accent' : 'text-fg-secondary hover:text-fg'}`}
                       title="Edit evidence"
                     >
                       {editTarget === e.id ? <X size={14} /> : <Pencil size={14} />}
                     </button>
-                    <button onClick={() => setDeleteTarget(e.id)} className="text-accent-muted hover:text-severity-critical transition-colors" title="Delete">
+                    <button onClick={() => setDeleteTarget(e.id)} className="text-fg-secondary hover:text-severity-critical transition-colors" title="Delete">
                       <Trash2 size={14} />
                     </button>
                   </div>
                 </div>
 
                 {/* Card body */}
-                <div className="px-4 py-3 grid grid-cols-2 gap-x-8 gap-y-2 text-xs">
+                <div className="px-4 py-3 grid grid-cols-2 gap-x-8 gap-y-2 text-label">
                   {/* Left column */}
                   <div className="space-y-1.5">
                     <Row label="Original file" value={<span className="font-mono">{e.original_filename}</span>} />
@@ -422,13 +422,13 @@ export default function EvidencesTab({ caseId }: Props) {
                   </div>
                   {/* Right column — hashes */}
                   <div className="space-y-1.5">
-                    <p className="text-accent-muted/50 uppercase tracking-widest text-[9px] mb-2">Integrity</p>
+                    <p className="text-fg-secondary/50 uppercase tracking-widest text-label mb-2">Integrity</p>
                     <HashRow label="MD5" hash={e.md5_hash} />
                     <HashRow label="SHA-256" hash={e.sha256_hash} />
                     {e.description && (
-                      <div className="mt-3 pt-3 border-t border-white/5">
-                        <p className="text-accent-muted/50 uppercase tracking-widest text-[9px] mb-1">Notes</p>
-                        <p className="text-accent-muted leading-relaxed">{e.description}</p>
+                      <div className="mt-3 pt-3 border-t border-hairline">
+                        <p className="text-fg-secondary/50 uppercase tracking-widest text-label mb-1">Notes</p>
+                        <p className="text-fg-secondary leading-relaxed">{e.description}</p>
                       </div>
                     )}
                   </div>
@@ -436,16 +436,16 @@ export default function EvidencesTab({ caseId }: Props) {
 
                 {/* Custody history */}
                 {e.chain_of_custody && (
-                  <div className="px-4 py-2 border-t border-white/5 bg-white/[0.01]">
-                    <p className="text-[9px] uppercase tracking-widest text-accent-muted/40 mb-1">Custody History</p>
-                    <p className="text-xs text-accent-muted/70 whitespace-pre-wrap font-mono leading-relaxed">{e.chain_of_custody}</p>
+                  <div className="px-4 py-2 border-t border-hairline bg-white/[0.01]">
+                    <p className="text-label uppercase tracking-widest text-fg-secondary/40 mb-1">Custody History</p>
+                    <p className="text-label text-fg-secondary/70 whitespace-pre-wrap font-mono leading-relaxed">{e.chain_of_custody}</p>
                   </div>
                 )}
 
                 {/* Edit form */}
                 {editTarget === e.id && (
-                  <div className="px-4 py-4 border-t border-accent-green/20 bg-accent-green/[0.02] space-y-4">
-                    <p className="text-[10px] font-semibold text-accent-green uppercase tracking-widest">Edit Evidence Record</p>
+                  <div className="px-4 py-4 border-t border-accent/20 bg-accent/[0.02] space-y-4">
+                    <p className="text-label font-semibold text-accent uppercase tracking-widest">Edit Evidence Record</p>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="label">Name</label>
@@ -467,7 +467,7 @@ export default function EvidencesTab({ caseId }: Props) {
                       </div>
                       <div>
                         <label className="label">Source Location</label>
-                        <input className="input font-mono text-xs" value={editForm.source_location} onChange={e => setEditForm(f => ({ ...f, source_location: e.target.value }))} />
+                        <input className="input font-mono text-label" value={editForm.source_location} onChange={e => setEditForm(f => ({ ...f, source_location: e.target.value }))} />
                       </div>
                       <div>
                         <label className="label">Acquisition Method</label>
@@ -488,23 +488,23 @@ export default function EvidencesTab({ caseId }: Props) {
                     {/* Mandatory change note */}
                     <div>
                       <label className="label flex items-center gap-1">
-                        Change Note <span className="text-severity-critical text-[9px]">required</span>
+                        Change Note <span className="text-severity-critical text-label">required</span>
                       </label>
                       <textarea
-                        className={`input resize-none h-16 ${!editForm.note.trim() ? 'border-yellow-500/40' : 'border-accent-green/30'}`}
+                        className={`input resize-none h-16 ${!editForm.note.trim() ? 'border-severity-medium/40' : 'border-accent/30'}`}
                         placeholder="Explain why this record is being modified — will be appended to the custody history…"
                         value={editForm.note}
                         onChange={e => setEditForm(f => ({ ...f, note: e.target.value }))}
                       />
                       {!editForm.note.trim() && (
-                        <p className="text-[10px] text-yellow-400/60 mt-1">A change note is required to maintain chain of custody integrity.</p>
+                        <p className="text-label text-severity-medium/60 mt-1">A change note is required to maintain chain of custody integrity.</p>
                       )}
                     </div>
 
                     <div className="flex justify-end gap-2">
-                      <button className="btn-secondary text-xs" onClick={() => setEditTarget(null)}>Cancel</button>
+                      <button className="btn-secondary text-label" onClick={() => setEditTarget(null)}>Cancel</button>
                       <button
-                        className="btn-primary text-xs"
+                        className="btn-primary text-label"
                         onClick={() => update.mutate({ id: e.id, data: editForm })}
                         disabled={!editForm.note.trim() || update.isPending}
                       >
@@ -535,8 +535,8 @@ export default function EvidencesTab({ caseId }: Props) {
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex gap-2">
-      <span className="text-accent-muted/50 shrink-0 w-28">{label}</span>
-      <span className="text-white/80 min-w-0">{value}</span>
+      <span className="text-fg-secondary/50 shrink-0 w-28">{label}</span>
+      <span className="text-fg/80 min-w-0">{value}</span>
     </div>
   )
 }
@@ -544,8 +544,8 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 function HashRow({ label, hash }: { label: string; hash: string }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-accent-muted/50 shrink-0 w-14">{label}</span>
-      <span className="font-mono text-[10px] text-white/60 truncate flex-1">{hash || '—'}</span>
+      <span className="text-fg-secondary/50 shrink-0 w-14">{label}</span>
+      <span className="font-mono text-label text-fg/60 truncate flex-1">{hash || '—'}</span>
       {hash && <CopyButton value={hash} />}
     </div>
   )

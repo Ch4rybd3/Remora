@@ -21,7 +21,7 @@ export function VersionFooter() {
 
   return (
     <p
-      className="px-4 pb-2 text-[10px] font-mono text-accent-muted/40 select-none truncate"
+      className="px-4 pb-2 text-label font-mono text-fg-secondary/40 select-none truncate"
       title={`Remora ${data.version}${commit} — built ${data.built_at}`}
     >
       v{data.version}

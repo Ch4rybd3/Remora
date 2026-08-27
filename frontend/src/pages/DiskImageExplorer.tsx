@@ -51,17 +51,17 @@ function CopyableCommand({ label, command, hint }: {
   }
   return (
     <div>
-      <p className="text-[10px] text-accent-muted/60 mb-1">{label}</p>
-      <div className="flex items-start gap-2 rounded border border-white/8 bg-black/30 px-2 py-1.5">
-        <code className="flex-1 min-w-0 text-[10px] font-mono text-accent-green/80 break-all whitespace-pre-wrap">
+      <p className="text-label text-fg-secondary/60 mb-1">{label}</p>
+      <div className="flex items-start gap-2 rounded-control border border-hairline bg-black/30 px-2 py-1.5">
+        <code className="flex-1 min-w-0 text-label font-mono text-accent/80 break-all whitespace-pre-wrap">
           {command}
         </code>
         <button onClick={copy} title="Copy the command"
-          className="shrink-0 text-accent-muted/40 hover:text-accent-green transition-colors">
-          {copied ? <Check size={11} className="text-accent-green" /> : <Copy size={11} />}
+          className="shrink-0 text-fg-secondary/40 hover:text-accent transition-colors">
+          {copied ? <Check size={11} className="text-accent" /> : <Copy size={11} />}
         </button>
       </div>
-      {hint && <p className="text-[9px] text-accent-muted/35 mt-1 leading-relaxed">{hint}</p>}
+      {hint && <p className="text-label text-fg-secondary/35 mt-1 leading-relaxed">{hint}</p>}
     </div>
   )
 }
@@ -81,15 +81,15 @@ function TransferTips({ hostPath, configured }: { hostPath: string; configured: 
 
   return (
     <div className="space-y-3">
-      <p className="text-[10px] text-accent-muted/50 leading-relaxed">
-        Images are read <strong className="text-accent-muted/80">in place</strong>, never
+      <p className="text-label text-fg-secondary/50 leading-relaxed">
+        Images are read <strong className="text-fg-secondary/80">in place</strong>, never
         uploaded: a full acquisition routinely runs to several hundred GB. Copy them to{' '}
-        <code className="font-mono text-accent-green/70">{target}</code> on{' '}
-        <code className="font-mono text-accent-green/70">{host}</code> and they will appear here.
+        <code className="font-mono text-accent/70">{target}</code> on{' '}
+        <code className="font-mono text-accent/70">{host}</code> and they will appear here.
       </p>
 
       {!isAbsolute && (
-        <p className="flex items-start gap-1.5 text-[10px] text-yellow-400/80 bg-yellow-500/5 border border-yellow-500/20 rounded px-2 py-1.5 leading-relaxed">
+        <p className="flex items-start gap-1.5 text-label text-severity-medium/80 bg-severity-medium/5 border border-severity-medium/20 rounded-control px-2 py-1.5 leading-relaxed">
           <AlertCircle size={11} className="mt-0.5 shrink-0" />
           <span>
             <code className="font-mono">DISK_IMAGES_HOST_PATH</code> is{' '}
@@ -133,7 +133,7 @@ function TransferTips({ hostPath, configured }: { hostPath: string; configured: 
         />
       )}
 
-      <p className="text-[9px] text-accent-muted/35 leading-relaxed border-t border-white/5 pt-2">
+      <p className="text-label text-fg-secondary/35 leading-relaxed border-t border-hairline pt-2">
         The directory is mounted read-only: Remora can neither modify nor delete an
         acquisition. It lives on the host and survives restarts and container rebuilds alike.
         If it is a dedicated disk or network share, remember to add it to{' '}
@@ -154,24 +154,24 @@ function HexView({ hex }: { hex: string }) {
   }, [hex])
 
   if (bytes.length === 0) {
-    return <p className="p-3 text-[10px] text-accent-muted/30 italic">Empty file.</p>
+    return <p className="p-3 text-label text-fg-secondary/30 italic">Empty file.</p>
   }
 
   const rows: number[][] = []
   for (let i = 0; i < bytes.length; i += 16) rows.push(bytes.slice(i, i + 16))
 
   return (
-    <div className="p-2 font-mono text-[10px] leading-[1.45]">
+    <div className="p-2 font-mono text-label leading-[1.45]">
       {rows.map((row, r) => (
         <div key={r} className="flex gap-3 whitespace-pre">
-          <span className="text-accent-muted/30 shrink-0">
+          <span className="text-fg-secondary/30 shrink-0">
             {(r * 16).toString(16).padStart(8, '0')}
           </span>
-          <span className="text-white/60 shrink-0">
+          <span className="text-fg/60 shrink-0">
             {row.map((b, i) => b.toString(16).padStart(2, '0') + (i === 7 ? '  ' : ' ')).join('')}
             {row.length < 16 && ' '.repeat((16 - row.length) * 3 + (row.length <= 8 ? 1 : 0))}
           </span>
-          <span className="text-white/45 shrink-0">
+          <span className="text-fg/45 shrink-0">
             {row.map(b => (b >= 0x20 && b < 0x7f ? String.fromCharCode(b) : '.')).join('')}
           </span>
         </div>
@@ -206,17 +206,16 @@ function TreeDir({ image, partition, dirPath, name, depth, currentDir, onNavigat
     <div>
       <div
         onClick={() => { setOpen(o => !o); onNavigate(dirPath) }}
-        className={`flex items-center gap-1 px-1 py-[3px] text-[10px] cursor-pointer transition-colors ${
-          isCurrent ? 'bg-accent-green/10 text-accent-green' : 'text-white/70 hover:bg-white/5'
+        className={`flex items-center gap-1 px-1 py-[3px] text-label cursor-pointer transition-colors ${ isCurrent ? 'bg-accent/10 text-accent' : 'text-fg/70 hover:bg-fg/5'
         }`}
         style={{ paddingLeft: 4 + depth * 11 }}
       >
         <ChevronRight size={9}
-          className={`shrink-0 text-accent-muted/40 transition-transform ${open ? 'rotate-90' : ''}`} />
-        {open ? <FolderOpen size={10} className="shrink-0 text-accent-green/60" />
-              : <Folder size={10} className="shrink-0 text-accent-muted/50" />}
+          className={`shrink-0 text-fg-secondary/40 transition-transform ${open ? 'rotate-90' : ''}`} />
+        {open ? <FolderOpen size={10} className="shrink-0 text-accent/60" />
+              : <Folder size={10} className="shrink-0 text-fg-secondary/50" />}
         <span className="truncate font-mono">{name}</span>
-        {isFetching && <Loader2 size={8} className="animate-spin text-accent-muted/40 shrink-0" />}
+        {isFetching && <Loader2 size={8} className="animate-spin text-fg-secondary/40 shrink-0" />}
       </div>
 
       {open && subdirs.map(d => (
@@ -325,7 +324,7 @@ export default function DiskImageExplorer() {
   if (status && !status.available) {
     return (
       <div className="p-6">
-        <div className="flex items-center gap-2 text-sm text-yellow-400 bg-yellow-500/5 border border-yellow-500/20 rounded-lg px-4 py-3">
+        <div className="flex items-center gap-2 text-ui text-severity-medium bg-severity-medium/5 border border-severity-medium/20 px-4 py-3">
           <AlertCircle size={14} />
           dissect.target is not installed in the backend image - image exploration is disabled.
         </div>
@@ -336,17 +335,17 @@ export default function DiskImageExplorer() {
   if (status && !status.configured) {
     return (
       <div className="p-6 max-w-3xl space-y-4">
-        <div className="flex items-start gap-2 text-sm text-yellow-400 bg-yellow-500/5 border border-yellow-500/20 rounded-lg px-4 py-3">
+        <div className="flex items-start gap-2 text-ui text-severity-medium bg-severity-medium/5 border border-severity-medium/20 px-4 py-3">
           <AlertCircle size={14} className="mt-0.5 shrink-0" />
           <div>
             <p className="font-semibold">No image directory configured</p>
-            <p className="text-[11px] text-yellow-400/70 mt-1 leading-relaxed">
+            <p className="text-label text-severity-medium/70 mt-1 leading-relaxed">
               Renseignez <code className="font-mono">DISK_IMAGES_HOST_PATH</code> dans le{' '}
               <code className="font-mono">.env</code>, then restart the stack.
             </p>
           </div>
         </div>
-        <div className="rounded-lg border border-white/8 bg-bg-card p-4">
+        <div className=" border border-hairline bg-panel p-4">
           <TransferTips hostPath={status.host_path} configured={false} />
         </div>
       </div>
@@ -356,17 +355,16 @@ export default function DiskImageExplorer() {
   return (
     <div className="flex h-full overflow-hidden">
       {/* ── Evidence tree ────────────────────────────────────────────────── */}
-      <div className="w-72 shrink-0 border-r border-white/5 bg-bg-card flex flex-col overflow-hidden">
-        <div className="px-3 py-3 flex items-center gap-1.5 border-b border-white/5">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-accent-muted/50 flex items-center gap-1.5">
+      <div className="w-72 shrink-0 border-r border-hairline bg-panel flex flex-col overflow-hidden">
+        <div className="px-3 py-3 flex items-center gap-1.5 border-b border-hairline">
+          <p className="text-label font-semibold uppercase tracking-widest text-fg-secondary/50 flex items-center gap-1.5">
             <HardDrive size={11} /> Images
           </p>
-          {images.length > 0 && <span className="text-accent-muted/30 text-[10px]">{images.length}</span>}
+          {images.length > 0 && <span className="text-fg-secondary/30 text-label">{images.length}</span>}
           <button
             onClick={() => setTipsOpen(o => !o)}
             title="How to put an image on the server"
-            className={`ml-auto transition-colors ${
-              tipsOpen ? 'text-accent-green' : 'text-accent-muted/30 hover:text-accent-green'
+            className={`ml-auto transition-colors ${ tipsOpen ? 'text-accent' : 'text-fg-secondary/30 hover:text-accent'
             }`}
           >
             <HelpCircle size={12} />
@@ -374,25 +372,25 @@ export default function DiskImageExplorer() {
         </div>
 
         {tipsOpen && (
-          <div className="px-3 py-3 border-b border-white/5 bg-black/20 max-h-[60vh] overflow-y-auto">
+          <div className="px-3 py-3 border-b border-hairline bg-black/20 max-h-[60vh] overflow-y-auto">
             <TransferTips hostPath={status?.host_path ?? ''} configured />
           </div>
         )}
 
         <div className="flex-1 overflow-y-auto">
           {loadingImages && (
-            <div className="flex items-center gap-2 px-3 py-3 text-[10px] text-accent-muted/40">
+            <div className="flex items-center gap-2 px-3 py-3 text-label text-fg-secondary/40">
               <Loader2 size={10} className="animate-spin" /> Scanning the directory...
             </div>
           )}
           {!loadingImages && images.length === 0 && (
             <div className="px-3 py-6 text-center">
-              <p className="text-[10px] text-accent-muted/30 leading-relaxed">
+              <p className="text-label text-fg-secondary/30 leading-relaxed">
                 No image found in{' '}
                 <code className="font-mono">{status?.host_path || status?.roots.join(', ') || '—'}</code>.
               </p>
               <button onClick={() => setTipsOpen(true)}
-                className="mt-2 text-[10px] text-accent-green/70 hover:text-accent-green underline">
+                className="mt-2 text-label text-accent/70 hover:text-accent underline">
                 How do I add one?
               </button>
             </div>
@@ -402,28 +400,27 @@ export default function DiskImageExplorer() {
             <div key={img.path}>
               <div
                 onClick={() => selectImage(img)}
-                className={`px-2 py-1.5 cursor-pointer border-b border-white/[0.03] transition-colors ${
-                  image === img.path ? 'bg-accent-green/5' : 'hover:bg-white/[0.02]'
+                className={`px-2 py-1.5 cursor-pointer border-b border-strong/[0.03] transition-colors ${ image === img.path ? 'bg-accent/5' : 'hover:bg-white/[0.02]'
                 }`}
               >
                 <div className="flex items-center gap-1.5">
-                  <HardDrive size={10} className="shrink-0 text-accent-green/60" />
-                  <span className="text-[10px] font-mono text-white/80 truncate">{img.name}</span>
+                  <HardDrive size={10} className="shrink-0 text-accent/60" />
+                  <span className="text-label font-mono text-fg/80 truncate">{img.name}</span>
                 </div>
-                <p className="text-[9px] text-accent-muted/35 mt-0.5 pl-[18px]">
+                <p className="text-label text-fg-secondary/35 mt-0.5 pl-[18px]">
                   {img.format.toUpperCase()} · {fmtSize(img.size)}
                 </p>
               </div>
 
               {image === img.path && (
-                <div className="border-b border-white/[0.03]">
+                <div className="border-b border-strong/[0.03]">
                   {loadingParts && (
-                    <div className="flex items-center gap-2 px-4 py-2 text-[10px] text-accent-muted/40">
+                    <div className="flex items-center gap-2 px-4 py-2 text-label text-fg-secondary/40">
                       <Loader2 size={9} className="animate-spin" /> Ouverture…
                     </div>
                   )}
                   {partError && (
-                    <p className="px-4 py-2 text-[9px] text-severity-critical">
+                    <p className="px-4 py-2 text-label text-severity-critical">
                       {(partError as any)?.response?.data?.detail ?? 'Ouverture impossible.'}
                     </p>
                   )}
@@ -432,23 +429,22 @@ export default function DiskImageExplorer() {
                       <div
                         onClick={() => p.browsable && selectPartition(p)}
                         title={p.browsable ? undefined : 'Unrecognised filesystem'}
-                        className={`flex items-center gap-1.5 px-4 py-1.5 text-[10px] transition-colors ${
-                          !p.browsable ? 'text-accent-muted/25 cursor-not-allowed'
-                          : partition === p.number ? 'bg-accent-green/10 text-accent-green cursor-pointer'
-                          : 'text-white/65 hover:bg-white/5 cursor-pointer'
+                        className={`flex items-center gap-1.5 px-4 py-1.5 text-label transition-colors ${ !p.browsable ? 'text-fg-secondary/25 cursor-not-allowed'
+                          : partition === p.number ? 'bg-accent/10 text-accent cursor-pointer'
+                          : 'text-fg/65 hover:bg-fg/5 cursor-pointer'
                         }`}
                       >
                         <Layers size={9} className="shrink-0" />
                         <span className="font-mono truncate">
                           Partition {p.number}
-                          {p.fs_type && <span className="text-accent-muted/40"> · {p.fs_type}</span>}
-                          {p.label && <span className="text-accent-muted/40"> · {p.label}</span>}
+                          {p.fs_type && <span className="text-fg-secondary/40"> · {p.fs_type}</span>}
+                          {p.label && <span className="text-fg-secondary/40"> · {p.label}</span>}
                         </span>
-                        <span className="ml-auto text-accent-muted/25 shrink-0">{fmtSize(p.size)}</span>
+                        <span className="ml-auto text-fg-secondary/25 shrink-0">{fmtSize(p.size)}</span>
                       </div>
 
                       {partition === p.number && p.browsable && (
-                        <div className="border-t border-white/[0.03] py-1">
+                        <div className="border-t border-strong/[0.03] py-1">
                           <TreeDir image={img.path} partition={p.number} dirPath="/"
                                    name="/" depth={0} currentDir={dir} onNavigate={navigate} />
                         </div>
@@ -465,30 +461,30 @@ export default function DiskImageExplorer() {
       {/* ── Directory contents + file preview ────────────────────────────── */}
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-white/5 shrink-0">
-          <code className="text-[10px] font-mono text-accent-muted/60 truncate flex-1">
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-hairline shrink-0">
+          <code className="text-label font-mono text-fg-secondary/60 truncate flex-1">
             {image ? `${image.split('/').pop()} › partition ${partition ?? '—'} › ${dir}` : 'Select an image'}
           </code>
-          {loadingDir && <Loader2 size={11} className="animate-spin text-accent-green/50" />}
+          {loadingDir && <Loader2 size={11} className="animate-spin text-accent/50" />}
           {entries.length > 0 && (
-            <span className="text-[10px] text-accent-muted/35 shrink-0">{entries.length} entries</span>
+            <span className="text-label text-fg-secondary/35 shrink-0">{entries.length} entries</span>
           )}
         </div>
 
         {/* Contents */}
         <div className="flex-1 min-h-0 overflow-auto">
           {partition === null ? (
-            <p className="p-6 text-center text-[11px] text-accent-muted/30">
+            <p className="p-6 text-center text-label text-fg-secondary/30">
               Choisissez une image puis une partition pour explorer son contenu.
             </p>
           ) : dirError ? (
-            <p className="p-6 text-center text-[11px] text-severity-critical">
+            <p className="p-6 text-center text-label text-severity-critical">
               {(dirError as any)?.response?.data?.detail ?? 'Cannot read the directory.'}
             </p>
           ) : (
-            <table className="w-full text-[10px] font-mono border-collapse">
-              <thead className="sticky top-0 bg-bg-card z-10">
-                <tr className="text-accent-muted/40 text-left">
+            <table className="w-full text-label font-mono border-collapse">
+              <thead className="sticky top-0 bg-panel z-10">
+                <tr className="text-fg-secondary/40 text-left">
                   <th className="px-2 py-1.5">Name</th>
                   <th className="px-2 py-1.5 w-24">Taille</th>
                   <th className="px-2 py-1.5 w-40">Modified</th>
@@ -498,50 +494,49 @@ export default function DiskImageExplorer() {
               <tbody>
                 {dir !== '/' && (
                   <tr onClick={() => navigate(dir.split('/').slice(0, -1).join('/') || '/')}
-                      className="border-t border-white/[0.03] cursor-pointer hover:bg-white/[0.03]">
-                    <td colSpan={4} className="px-2 py-1 text-accent-muted/50">../</td>
+                      className="border-t border-strong/[0.03] cursor-pointer hover:bg-white/[0.03]">
+                    <td colSpan={4} className="px-2 py-1 text-fg-secondary/50">../</td>
                   </tr>
                 )}
                 {entries.map(e => (
                   <tr key={e.path}
                     onClick={() => e.is_dir ? navigate(e.path) : setSelected(e)}
-                    className={`border-t border-white/[0.03] cursor-pointer transition-colors ${
-                      selected?.path === e.path ? 'bg-accent-green/10' : 'hover:bg-white/[0.03]'
+                    className={`border-t border-strong/[0.03] cursor-pointer transition-colors ${ selected?.path === e.path ? 'bg-accent/10' : 'hover:bg-white/[0.03]'
                     }`}>
                     <td className="px-2 py-1">
                       <span className="flex items-center gap-1.5">
                         {e.is_dir
-                          ? <Folder size={10} className="shrink-0 text-accent-muted/50" />
-                          : <FileIcon size={10} className="shrink-0 text-accent-muted/30" />}
+                          ? <Folder size={10} className="shrink-0 text-fg-secondary/50" />
+                          : <FileIcon size={10} className="shrink-0 text-fg-secondary/30" />}
                         <span className={
                           e.error ? 'text-severity-critical/70'
-                          : isMetadata(e.name) ? 'text-purple-300/70'
-                          : e.is_dir ? 'text-white/80' : 'text-white/60'
+                          : isMetadata(e.name) ? 'text-data-2/70'
+                          : e.is_dir ? 'text-fg/80' : 'text-fg/60'
                         }>{e.name}</span>
                         {e.error && (
-                          <span className="text-[9px] text-severity-critical/60" title={e.error}>
+                          <span className="text-label text-severity-critical/60" title={e.error}>
                             illisible
                           </span>
                         )}
                       </span>
                     </td>
-                    <td className="px-2 py-1 text-accent-muted/40">{e.is_dir ? '' : fmtSize(e.size)}</td>
-                    <td className="px-2 py-1 text-accent-muted/40">{fmtDate(e.mtime)}</td>
-                    <td className="px-2 py-1 text-accent-muted/40">{fmtDate(e.btime)}</td>
+                    <td className="px-2 py-1 text-fg-secondary/40">{e.is_dir ? '' : fmtSize(e.size)}</td>
+                    <td className="px-2 py-1 text-fg-secondary/40">{fmtDate(e.mtime)}</td>
+                    <td className="px-2 py-1 text-fg-secondary/40">{fmtDate(e.btime)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
           {partition !== null && !loadingDir && entries.length === 0 && !dirError && (
-            <p className="p-6 text-center text-[11px] text-accent-muted/30">Empty directory.</p>
+            <p className="p-6 text-center text-label text-fg-secondary/30">Empty directory.</p>
           )}
         </div>
 
         {/* File preview */}
-        <div className="h-64 shrink-0 border-t border-white/8 flex flex-col overflow-hidden">
-          <div className="flex items-center gap-2 px-2 py-1 border-b border-white/5 shrink-0">
-            <p className="text-[9px] uppercase tracking-widest text-accent-muted/35 truncate">
+        <div className="h-64 shrink-0 border-t border-hairline flex flex-col overflow-hidden">
+          <div className="flex items-center gap-2 px-2 py-1 border-b border-hairline shrink-0">
+            <p className="text-label uppercase tracking-widest text-fg-secondary/35 truncate">
               {selected && !selected.is_dir
                 ? `${selected.name} — ${fmtSize(selected.size)}${preview && preview.total > preview.length ? ` (${fmtSize(preview.length)} shown)` : ''}`
                 : 'Preview'}
@@ -549,17 +544,17 @@ export default function DiskImageExplorer() {
             {selected && !selected.is_dir && (
               <div className="ml-auto flex items-center gap-1 shrink-0">
                 <button onClick={copyPath} title="Copy the path"
-                  className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border border-white/10 text-accent-muted hover:text-accent-green hover:border-accent-green/40 transition-colors">
-                  {copied ? <Check size={9} className="text-accent-green" /> : <Copy size={9} />} Chemin
+                  className="flex items-center gap-1 text-label px-1.5 py-0.5 rounded-control border border-hairline text-fg-secondary hover:text-accent hover:border-accent/40 transition-colors">
+                  {copied ? <Check size={9} className="text-accent" /> : <Copy size={9} />} Chemin
                 </button>
                 <button onClick={() => computeHash()} disabled={hashing}
                   title="Calculer MD5 et SHA-256"
-                  className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border border-white/10 text-accent-muted hover:text-accent-green hover:border-accent-green/40 transition-colors disabled:opacity-40">
+                  className="flex items-center gap-1 text-label px-1.5 py-0.5 rounded-control border border-hairline text-fg-secondary hover:text-accent hover:border-accent/40 transition-colors disabled:opacity-40">
                   {hashing ? <Loader2 size={9} className="animate-spin" /> : <Hash size={9} />} Hash
                 </button>
                 <button onClick={download} disabled={downloading}
                   title="Download the file"
-                  className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border border-white/10 text-accent-muted hover:text-accent-green hover:border-accent-green/40 transition-colors disabled:opacity-40">
+                  className="flex items-center gap-1 text-label px-1.5 py-0.5 rounded-control border border-hairline text-fg-secondary hover:text-accent hover:border-accent/40 transition-colors disabled:opacity-40">
                   {downloading ? <Loader2 size={9} className="animate-spin" /> : <Download size={9} />}
                   Download
                 </button>
@@ -569,7 +564,7 @@ export default function DiskImageExplorer() {
                   title={caseId
                     ? 'Extraire vers le drop folder du case courant'
                     : 'Select a current case to extract into'}
-                  className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border border-accent-green/25 text-accent-green/80 hover:bg-accent-green/10 transition-colors disabled:opacity-30">
+                  className="flex items-center gap-1 text-label px-1.5 py-0.5 rounded-control border border-accent/25 text-accent/80 hover:bg-accent/10 transition-colors disabled:opacity-30">
                   {extract.isPending ? <Loader2 size={9} className="animate-spin" /> : <FileOutput size={9} />}
                   Extraire vers le case
                 </button>
@@ -578,36 +573,36 @@ export default function DiskImageExplorer() {
           </div>
 
           {(hashes || extract.data || extract.isError || downloadError) && (
-            <div className="px-2 py-1 border-b border-white/5 shrink-0 space-y-0.5">
+            <div className="px-2 py-1 border-b border-hairline shrink-0 space-y-0.5">
               {hashes && (
-                <p className="text-[9px] font-mono text-accent-muted/60">
-                  MD5 <span className="text-white/70">{hashes.md5}</span>{'  '}
-                  SHA-256 <span className="text-white/70">{hashes.sha256}</span>
+                <p className="text-label font-mono text-fg-secondary/60">
+                  MD5 <span className="text-fg/70">{hashes.md5}</span>{'  '}
+                  SHA-256 <span className="text-fg/70">{hashes.sha256}</span>
                 </p>
               )}
               {extract.data && (
-                <p className="text-[9px] text-accent-green/70">
+                <p className="text-label text-accent/70">
                   Extrait : {extract.data.filename} ({fmtSize(extract.data.size)}) — {extract.data.message}
                 </p>
               )}
               {extract.isError && (
-                <p className="text-[9px] text-severity-critical">
+                <p className="text-label text-severity-critical">
                   {(extract.error as any)?.response?.data?.detail ?? 'Extraction impossible.'}
                 </p>
               )}
               {downloadError && (
-                <p className="text-[9px] text-severity-critical">Download failed: {downloadError}</p>
+                <p className="text-label text-severity-critical">Download failed: {downloadError}</p>
               )}
             </div>
           )}
 
           <div className="flex-1 overflow-auto">
             {!selected || selected.is_dir ? (
-              <p className="p-3 text-[10px] text-accent-muted/30 italic">
+              <p className="p-3 text-label text-fg-secondary/30 italic">
                 Select a file to display its bytes.
               </p>
             ) : loadingPreview ? (
-              <div className="flex items-center gap-2 p-3 text-[10px] text-accent-muted/40">
+              <div className="flex items-center gap-2 p-3 text-label text-fg-secondary/40">
                 <Loader2 size={11} className="animate-spin" /> Lecture…
               </div>
             ) : preview ? (

@@ -28,22 +28,22 @@ const ASSET_TYPES: { value: AssetType; label: string; group: string }[] = [
 ]
 
 const TYPE_COLORS: Record<AssetType, string> = {
-  workstation:       'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  server:            'bg-purple-500/10 text-purple-400 border-purple-500/20',
-  domain_controller: 'bg-purple-700/10 text-purple-300 border-purple-700/20',
-  mobile:            'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
-  network_device:    'bg-orange-500/10 text-orange-400 border-orange-500/20',
-  firewall:          'bg-red-500/10 text-red-400 border-red-500/20',
-  vpn:               'bg-orange-400/10 text-orange-300 border-orange-400/20',
-  application:       'bg-green-500/10 text-green-400 border-green-500/20',
-  database:          'bg-teal-500/10 text-teal-400 border-teal-500/20',
-  container:         'bg-sky-500/10 text-sky-400 border-sky-500/20',
-  user_account:      'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
-  service_account:   'bg-yellow-700/10 text-yellow-300 border-yellow-700/20',
-  cloud_resource:    'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
-  printer:           'bg-white/5 text-accent-muted border-white/10',
-  iot:               'bg-pink-500/10 text-pink-400 border-pink-500/20',
-  other:             'bg-white/5 text-accent-muted border-white/10',
+  workstation:       'bg-severity-low/10 text-severity-low border-severity-low/20',
+  server:            'bg-data-2/10 text-data-2 border-data-2/20',
+  domain_controller: 'bg-data-2/10 text-data-2 border-data-2/20',
+  mobile:            'bg-data-5/10 text-data-5 border-data-5/20',
+  network_device:    'bg-severity-high/10 text-severity-high border-severity-high/20',
+  firewall:          'bg-severity-critical/10 text-severity-critical border-severity-critical/20',
+  vpn:               'bg-severity-high/10 text-severity-high border-severity-high/20',
+  application:       'bg-accent/10 text-accent border-accent/20',
+  database:          'bg-accent/10 text-accent border-accent/20',
+  container:         'bg-severity-low/10 text-severity-low border-severity-low/20',
+  user_account:      'bg-severity-medium/10 text-severity-medium border-severity-medium/20',
+  service_account:   'bg-severity-medium/10 text-severity-medium border-severity-medium/20',
+  cloud_resource:    'bg-data-1/10 text-data-1 border-data-1/20',
+  printer:           'bg-fg/5 text-fg-secondary border-hairline',
+  iot:               'bg-data-3/10 text-data-3 border-data-3/20',
+  other:             'bg-fg/5 text-fg-secondary border-hairline',
 }
 
 const TYPE_LABELS: Record<AssetType, string> = Object.fromEntries(
@@ -157,7 +157,7 @@ function AssetForm({ form, setForm }: AssetFormProps) {
         />
       </div>
 
-      <div className="flex items-center gap-3 p-3 rounded-lg border border-severity-critical/20 bg-severity-critical/5">
+      <div className="flex items-center gap-3 p-3 border border-severity-critical/20 bg-severity-critical/5">
         <input
           type="checkbox"
           id="compromised"
@@ -165,7 +165,7 @@ function AssetForm({ form, setForm }: AssetFormProps) {
           checked={form.compromised}
           onChange={e => setForm(f => ({ ...f, compromised: e.target.checked }))}
         />
-        <label htmlFor="compromised" className="text-sm text-white cursor-pointer flex items-center gap-2">
+        <label htmlFor="compromised" className="text-ui text-fg cursor-pointer flex items-center gap-2">
           <AlertTriangle size={13} className="text-severity-critical" />
           Mark as compromised
         </label>
@@ -253,21 +253,21 @@ export default function AssetsTab({ caseId }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-accent-green font-semibold text-sm uppercase tracking-wide">
+        <h3 className="text-accent font-semibold text-ui uppercase tracking-wide">
           Assets
-          <span className="ml-2 text-accent-muted font-normal normal-case">({assets.length})</span>
+          <span className="ml-2 text-fg-secondary font-normal normal-case">({assets.length})</span>
         </h3>
         <div className="flex items-center gap-2">
           {assets.length > 0 && (
             <button
-              className="btn-secondary text-xs flex items-center gap-1.5"
+              className="btn-secondary text-label flex items-center gap-1.5"
               onClick={handleExport}
               title="Export assets as CSV"
             >
               <Download size={13} /> CSV
             </button>
           )}
-          <button className="btn-primary text-xs flex items-center gap-1.5" onClick={openCreate}>
+          <button className="btn-primary text-label flex items-center gap-1.5" onClick={openCreate}>
             <Plus size={13} /> Add Asset
           </button>
         </div>
@@ -281,9 +281,9 @@ export default function AssetsTab({ caseId }: Props) {
         />
       ) : (
         <div className="card overflow-hidden">
-          <table className="w-full text-sm">
+          <table className="w-full text-ui">
             <thead>
-              <tr className="border-b border-white/5 text-accent-muted text-xs uppercase tracking-wide">
+              <tr className="border-b border-hairline text-fg-secondary text-label uppercase tracking-wide">
                 <th className="text-left px-4 py-3">Name</th>
                 <th className="text-left px-4 py-3">Type</th>
                 <th className="text-left px-4 py-3">IP / Hostname</th>
@@ -296,41 +296,41 @@ export default function AssetsTab({ caseId }: Props) {
               {assets.map(a => (
                 <tr
                   key={a.id}
-                  className="border-b border-white/5 last:border-0 hover:bg-white/[0.02] group"
+                  className="border-b border-hairline last:border-0 hover:bg-white/[0.02] group"
                 >
                   <td className="px-4 py-3">
                     <p className="font-medium">{a.name}</p>
                     {a.tags && (
-                      <p className="text-xs text-accent-muted/60 font-mono mt-0.5">{a.tags}</p>
+                      <p className="text-label text-fg-secondary/60 font-mono mt-0.5">{a.tags}</p>
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`text-xs font-mono px-2 py-0.5 rounded border ${TYPE_COLORS[a.type]}`}>
+                    <span className={`text-label font-mono px-2 py-0.5 rounded-control border ${TYPE_COLORS[a.type]}`}>
                       {TYPE_LABELS[a.type]}
                     </span>
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-accent-muted">
+                  <td className="px-4 py-3 font-mono text-label text-fg-secondary">
                     {[a.ip_address, a.hostname].filter(Boolean).join(' / ') || '—'}
                   </td>
-                  <td className="px-4 py-3 text-xs text-accent-muted">{a.os || '—'}</td>
+                  <td className="px-4 py-3 text-label text-fg-secondary">{a.os || '—'}</td>
                   <td className="px-4 py-3">
                     {a.compromised
-                      ? <span className="flex items-center gap-1 text-xs text-severity-critical">
+                      ? <span className="flex items-center gap-1 text-label text-severity-critical">
                           <AlertTriangle size={12} /> Compromised
                         </span>
-                      : <span className="text-xs text-accent-muted/50">—</span>}
+                      : <span className="text-label text-fg-secondary/50">—</span>}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => openEdit(a)}
-                        className="text-accent-muted hover:text-accent-green transition-colors"
+                        className="text-fg-secondary hover:text-accent transition-colors"
                       >
                         <Edit2 size={13} />
                       </button>
                       <button
                         onClick={() => setDeleteTarget(a.id)}
-                        className="text-accent-muted hover:text-severity-critical transition-colors"
+                        className="text-fg-secondary hover:text-severity-critical transition-colors"
                       >
                         <Trash2 size={13} />
                       </button>

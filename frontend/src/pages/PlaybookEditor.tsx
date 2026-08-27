@@ -51,11 +51,11 @@ const NODE_DEFAULT_WIDTH: Partial<Record<string, number>> = {
 }
 
 const NODE_PALETTE = [
-  { type: 'start',        label: 'Start',        color: 'text-accent-green' },
-  { type: 'step',         label: 'Analyse',      color: 'text-white' },
+  { type: 'start',        label: 'Start',        color: 'text-accent' },
+  { type: 'step',         label: 'Analyse',      color: 'text-fg' },
   { type: 'decision',     label: 'Decision',     color: 'text-severity-medium' },
-  { type: 'remediation',  label: 'Remediation',  color: 'text-blue-400' },
-  { type: 'playbook_ref', label: 'Playbook →',   color: 'text-purple-400' },
+  { type: 'remediation',  label: 'Remediation',  color: 'text-severity-low' },
+  { type: 'playbook_ref', label: 'Playbook →',   color: 'text-data-2' },
   { type: 'end',          label: 'End',          color: 'text-severity-critical' },
 ] as const
 
@@ -487,19 +487,19 @@ export default function PlaybookEditor() {
   return (
     <div className="flex flex-col h-full">
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="border-b border-white/5 px-6 py-3 flex items-center gap-4">
-        <button onClick={() => navigate('/playbooks')} className="text-accent-muted hover:text-white transition-colors">
+      <div className="border-b border-hairline px-6 py-3 flex items-center gap-4">
+        <button onClick={() => navigate('/playbooks')} className="text-fg-secondary hover:text-fg transition-colors">
           <ArrowLeft size={18} />
         </button>
-        <GitBranch size={16} className="text-accent-green" />
+        <GitBranch size={16} className="text-accent" />
         <input
-          className="input text-sm font-semibold flex-1 max-w-xs"
+          className="input text-ui font-semibold flex-1 max-w-xs"
           placeholder="Playbook name…"
           value={name}
           onChange={e => setName(e.target.value)}
         />
         <input
-          className="input text-xs flex-1 max-w-sm"
+          className="input text-label flex-1 max-w-sm"
           placeholder="Description (optional)"
           value={description}
           onChange={e => setDescription(e.target.value)}
@@ -511,21 +511,21 @@ export default function PlaybookEditor() {
             onClick={exportPng}
             disabled={exporting || nodes.length === 0}
             title="Export playbook as PNG image"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-white/10 text-xs text-accent-muted hover:text-white hover:border-white/25 disabled:opacity-40 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-control border border-hairline text-label text-fg-secondary hover:text-fg hover:border-strong disabled:opacity-40 transition-colors"
           >
             <ImageDown size={12} />
             {exporting ? 'Exporting…' : 'Export PNG'}
           </button>
 
           {/* ── Frame zone controls ─────────────────────────────────────── */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-white/10 bg-white/[0.02]">
-            <SquareDashed size={11} className="text-accent-muted shrink-0" />
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-control border border-hairline bg-white/[0.02]">
+            <SquareDashed size={11} className="text-fg-secondary shrink-0" />
             {FRAME_COLORS.map(c => (
               <button
                 key={c}
                 onClick={() => setFrameColor(c)}
                 title={c}
-                className="w-3.5 h-3.5 rounded-sm transition-all"
+                className="w-3.5 h-3.5 rounded-control transition-all"
                 style={{
                   backgroundColor: c,
                   outline: frameColor === c ? `2px solid ${c}` : '2px solid transparent',
@@ -535,45 +535,43 @@ export default function PlaybookEditor() {
             ))}
             <button
               onClick={() => addNode('frame', { color: frameColor })}
-              className="ml-1 text-[10px] text-accent-muted hover:text-white border border-white/10 hover:border-white/30 px-2 py-0.5 rounded transition-colors"
+              className="ml-1 text-label text-fg-secondary hover:text-fg border border-hairline hover:border-strong px-2 py-0.5 rounded-control transition-colors"
             >
               + Cadre
             </button>
           </div>
 
           {/* Layout direction toggle + apply */}
-          <div className="flex items-center rounded border border-white/10 overflow-hidden">
+          <div className="flex items-center rounded-control border border-hairline overflow-hidden">
             <button
               onClick={() => switchLayout('DOWN')}
               disabled={laying || nodes.length === 0}
               title="Vertical layout (top → bottom)"
-              className={`flex items-center gap-1 px-2.5 py-1.5 text-xs transition-colors disabled:opacity-40 ${
-                layoutDir === 'DOWN'
-                  ? 'bg-accent-green/10 text-accent-green'
-                  : 'text-accent-muted hover:text-white hover:bg-white/5'
+              className={`flex items-center gap-1 px-2.5 py-1.5 text-label transition-colors disabled:opacity-40 ${ layoutDir === 'DOWN'
+                  ? 'bg-accent/10 text-accent'
+                  : 'text-fg-secondary hover:text-fg hover:bg-fg/5'
               }`}
             >
               <ArrowDown size={12} />
             </button>
-            <div className="w-px h-4 bg-white/10" />
+            <div className="w-px h-4 bg-fg/10" />
             <button
               onClick={() => switchLayout('RIGHT')}
               disabled={laying || nodes.length === 0}
               title="Horizontal layout (left → right)"
-              className={`flex items-center gap-1 px-2.5 py-1.5 text-xs transition-colors disabled:opacity-40 ${
-                layoutDir === 'RIGHT'
-                  ? 'bg-accent-green/10 text-accent-green'
-                  : 'text-accent-muted hover:text-white hover:bg-white/5'
+              className={`flex items-center gap-1 px-2.5 py-1.5 text-label transition-colors disabled:opacity-40 ${ layoutDir === 'RIGHT'
+                  ? 'bg-accent/10 text-accent'
+                  : 'text-fg-secondary hover:text-fg hover:bg-fg/5'
               }`}
             >
               <ArrowRight size={12} />
             </button>
-            <div className="w-px h-4 bg-white/10" />
+            <div className="w-px h-4 bg-fg/10" />
             <button
               onClick={() => runLayout()}
               disabled={laying || nodes.length === 0}
               title="Re-apply the automatic layout (edge waypoints are reset)"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-accent-muted hover:text-white hover:bg-white/5 transition-colors disabled:opacity-40"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-label text-fg-secondary hover:text-fg hover:bg-fg/5 transition-colors disabled:opacity-40"
             >
               <Wand2 size={12} />
               {laying ? 'Laying out…' : 'Auto layout'}
@@ -583,7 +581,7 @@ export default function PlaybookEditor() {
           {/* ── Selection-aware action buttons ─────────────────────────── */}
           {selectedNode && selNodeCount === 1 && (
             <button
-              className="btn-secondary text-xs flex items-center gap-1"
+              className="btn-secondary text-label flex items-center gap-1"
               onClick={() => openEditNode(selectedNode)}
             >
               Edit node
@@ -591,7 +589,7 @@ export default function PlaybookEditor() {
           )}
           {selNodeCount > 0 && (
             <button
-              className="btn-danger text-xs flex items-center gap-1"
+              className="btn-danger text-label flex items-center gap-1"
               onClick={deleteSelected}
             >
               <Trash2 size={12} />
@@ -601,19 +599,18 @@ export default function PlaybookEditor() {
           {/* ── Link shape ─────────────────────────────────────────────── */}
           {selEdgeCount > 0 && (
             <div
-              className="flex items-center gap-1 px-2 py-1 rounded border border-white/10 bg-white/[0.02]"
+              className="flex items-center gap-1 px-2 py-1 rounded-control border border-hairline bg-white/[0.02]"
               title="Double-click an edge to add a waypoint, then drag it to route around a node"
             >
-              <Spline size={11} className="text-accent-muted shrink-0" />
+              <Spline size={11} className="text-fg-secondary shrink-0" />
               {EDGE_SHAPES.map(sh => (
                 <button
                   key={sh.value}
                   onClick={() => applyEdgeShape(sh.value)}
                   title={sh.hint}
-                  className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
-                    currentShape === sh.value
-                      ? 'bg-accent-green/10 text-accent-green'
-                      : 'text-accent-muted hover:text-white hover:bg-white/5'
+                  className={`text-label px-1.5 py-0.5 rounded-control transition-colors ${ currentShape === sh.value
+                      ? 'bg-accent/10 text-accent'
+                      : 'text-fg-secondary hover:text-fg hover:bg-fg/5'
                   }`}
                 >
                   {sh.label}
@@ -623,7 +620,7 @@ export default function PlaybookEditor() {
                 <button
                   onClick={resetEdgeShape}
                   title="Remove every waypoint from the selected edges"
-                  className="text-[10px] px-1.5 py-0.5 rounded text-accent-muted hover:text-white hover:bg-white/5 transition-colors border-l border-white/10 ml-0.5 pl-2"
+                  className="text-label px-1.5 py-0.5 rounded-control text-fg-secondary hover:text-fg hover:bg-fg/5 transition-colors border-l border-hairline ml-0.5 pl-2"
                 >
                   ✕ {selWaypointCount} pt{selWaypointCount > 1 ? 's' : ''}
                 </button>
@@ -632,7 +629,7 @@ export default function PlaybookEditor() {
           )}
           {selEdgeCount > 0 && (
             <button
-              className="btn-danger text-xs flex items-center gap-1"
+              className="btn-danger text-label flex items-center gap-1"
               onClick={deleteEdges}
             >
               <Link2Off size={12} />
@@ -641,7 +638,7 @@ export default function PlaybookEditor() {
           )}
 
           <button
-            className="btn-primary text-xs flex items-center gap-1.5"
+            className="btn-primary text-label flex items-center gap-1.5"
             onClick={() => save.mutate()}
             disabled={!name || save.isPending}
           >
@@ -652,13 +649,13 @@ export default function PlaybookEditor() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* ── Palette ─────────────────────────────────────────────────── */}
-        <div className="w-36 border-r border-white/5 bg-bg-card p-3 flex flex-col gap-2 shrink-0">
-          <p className="text-[10px] uppercase tracking-widest text-accent-muted mb-1">Add node</p>
+        <div className="w-36 border-r border-hairline bg-panel p-3 flex flex-col gap-2 shrink-0">
+          <p className="text-label uppercase tracking-widest text-fg-secondary mb-1">Add node</p>
           {NODE_PALETTE.map(n => (
             <button
               key={n.type}
               onClick={() => addNode(n.type)}
-              className={`flex items-center gap-2 text-xs px-3 py-2 rounded border border-white/10 hover:border-white/30 bg-white/5 hover:bg-white/10 transition-colors ${n.color}`}
+              className={`flex items-center gap-2 text-label px-3 py-2 rounded-control border border-hairline hover:border-strong bg-fg/5 hover:bg-fg/10 transition-colors ${n.color}`}
             >
               <Plus size={11} /> {n.label}
             </button>
@@ -666,7 +663,7 @@ export default function PlaybookEditor() {
         </div>
 
         {/* ── Canvas ──────────────────────────────────────────────────── */}
-        <div ref={canvasRef} className="flex-1 bg-bg-primary">
+        <div ref={canvasRef} className="flex-1 bg-canvas">
           <LayoutDirContext.Provider value={layoutDir}>
           <PlaybookEdgeEditContext.Provider value={edgeEditApi}>
           <ReactFlow
@@ -733,7 +730,7 @@ export default function PlaybookEditor() {
                   <button
                     key={c}
                     onClick={() => setNodeForm(f => ({ ...f, color: c }))}
-                    className="w-6 h-6 rounded transition-all"
+                    className="w-6 h-6 rounded-control transition-all"
                     style={{
                       backgroundColor: c,
                       outline: nodeForm.color === c ? `2px solid ${c}` : '2px solid transparent',
@@ -747,14 +744,14 @@ export default function PlaybookEditor() {
 
           {/* Playbook link — for playbook_ref nodes */}
           {selectedNode?.type === 'playbook_ref' && (
-            <div className="space-y-3 border border-purple-400/20 rounded-lg p-3 bg-purple-400/5">
-              <p className="text-[10px] text-purple-300/70 uppercase tracking-widest font-semibold">Lien vers un playbook</p>
+            <div className="space-y-3 border border-data-2/20 p-3 bg-data-2/5">
+              <p className="text-label text-data-2/70 uppercase tracking-widest font-semibold">Lien vers un playbook</p>
 
               {/* Picker: existing playbooks */}
               <div>
                 <label className="label">Playbook existant</label>
                 <select
-                  className="input text-xs"
+                  className="input text-label"
                   value={nodeForm.linked_playbook_id}
                   onChange={e => {
                     const pb = allPlaybooks.find(p => p.id === e.target.value)
@@ -781,12 +778,12 @@ export default function PlaybookEditor() {
                 <div>
                   <label className="label">Ou nom d'un futur playbook</label>
                   <input
-                    className="input text-xs"
+                    className="input text-label"
                     placeholder="ex: Compromission de compte"
                     value={nodeForm.linked_playbook_name}
                     onChange={e => setNodeForm(f => ({ ...f, linked_playbook_name: e.target.value }))}
                   />
-                  <p className="text-[9px] text-purple-400/40 mt-1">
+                  <p className="text-label text-data-2/40 mt-1">
                     The link becomes usable once that playbook is created and selected here.
                   </p>
                 </div>
@@ -794,7 +791,7 @@ export default function PlaybookEditor() {
 
               {nodeForm.linked_playbook_id && (
                 <button
-                  className="text-[9px] text-purple-400/50 hover:text-purple-300 transition-colors"
+                  className="text-label text-data-2/50 hover:text-data-2 transition-colors"
                   onClick={() => setNodeForm(f => ({ ...f, linked_playbook_id: '', linked_playbook_name: '' }))}
                 >
                   ✕ Retirer le lien
