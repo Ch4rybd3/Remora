@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     templates_path: Path = BASE_DIR / "templates"
     max_upload_size_mb: int = 500
 
+    # Skip provisioning of external tooling (Chainsaw download, CTI binary
+    # checks) at startup. Set in CI and in tests, which have no reason to pull
+    # a release from GitHub before running.
+    skip_tool_setup: bool = False
+
     # ── Drop folder ───────────────────────────────────────────────────────────
     # Watched directory with one sub-folder per case. Bind-mount it from the
     # host (see docker-compose.yml) to drop artifacts without going through

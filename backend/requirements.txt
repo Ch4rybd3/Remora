@@ -25,3 +25,6 @@ rarfile>=4.2
 
 # Disk image forensics (E01/EWF, VMDK, VHDX, raw) + NTFS/FAT/ExtFS — pure Python
 dissect.target>=3.15
+
+# ── Schema migrations (docs/CONVENTIONS.md section 4) ────────────────────────
+alembic>=1.14
