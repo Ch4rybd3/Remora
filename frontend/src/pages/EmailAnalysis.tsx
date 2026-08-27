@@ -38,7 +38,7 @@ function headerIocType(headerName: string): string | null {
 function extractIocValue(headerName: string, raw: string): string {
   const n = headerName.toLowerCase()
   if (['from', 'reply-to', 'return-path', 'to', 'cc'].includes(n)) {
-    const match = raw.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/)
+    const match = raw.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)
     return match ? match[0] : raw.trim()
   }
   if (n === 'x-originating-ip') {
@@ -49,7 +49,7 @@ function extractIocValue(headerName: string, raw: string): string {
 }
 
 function extractEmailAddress(raw: string): string {
-  const match = raw.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/)
+  const match = raw.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)
   return match ? match[0] : raw.trim()
 }
 

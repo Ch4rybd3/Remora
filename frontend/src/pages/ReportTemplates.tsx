@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  FileText, FileOutput, Upload, Trash2, Tag, Info,
+  FileOutput, Upload, Trash2, Tag, Info,
   ChevronDown, ChevronUp, X, Check, AlertCircle,
 } from 'lucide-react'
 import { reportDocTemplatesApi, type ReportDocTemplate } from '../api/reportDocTemplates'

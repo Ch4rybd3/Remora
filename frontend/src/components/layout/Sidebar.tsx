@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { VersionFooter } from './VersionFooter'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { LayoutDashboard, FolderOpen, FileText, Users, LogOut, GitBranch, Mail, HardDrive, Shield, Cpu, Binary, FileOutput, Swords, Archive, Clock, AlertTriangle, ChevronDown, Plug, Table2, Download, Building2, Network } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
@@ -283,6 +284,8 @@ export default function Sidebar() {
           Déconnexion
         </button>
       </div>
+
+      <VersionFooter />
     </aside>
   )
 }

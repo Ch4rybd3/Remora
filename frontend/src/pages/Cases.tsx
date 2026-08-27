@@ -34,10 +34,6 @@ function CaseTypeBadge({ type }: { type: CaseType }) {
   )
 }
 
-function toAssigneeTags(str: string): InputTag[] {
-  return str.split(',').map(s => s.trim()).filter(Boolean).map(v => ({ value: v, badgeColor: USER_BADGE }))
-}
-
 function fromAssigneeTags(tags: InputTag[]): string {
   return tags.map(t => t.value).join(', ')
 }

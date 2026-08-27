@@ -25,7 +25,7 @@ function canManage(actor: AuthUser | null, target: AuthUser): boolean {
 export default function Users() {
   const { user: me } = useAuth()
   const qc = useQueryClient()
-  const { data: users = [], isLoading } = useQuery({ queryKey: ['users'], queryFn: usersApi.list })
+  const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: usersApi.list })
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<AuthUser | null>(null)

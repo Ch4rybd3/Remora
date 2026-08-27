@@ -56,7 +56,7 @@ function TreeNode({
 
   useEffect(() => {
     if (foldSignal.tick > 0) setOpen(foldSignal.open)
-  }, [foldSignal.tick]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [foldSignal.tick])  
   const [creating, setCreating] = useState<'file' | 'folder' | null>(null)
   const [hovered, setHovered] = useState(false)
   const qc = useQueryClient()

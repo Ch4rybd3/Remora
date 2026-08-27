@@ -146,7 +146,7 @@ function ActivityChart({ weeks }: { weeks: KVCount[] }) {
 
 // ── Status / Severity donut-style summary ──────────────────────────────────────
 
-function StatusDonut({ items, colors }: { items: KVCount[]; colors: Record<string, string> }) {
+function StatusDonut({ items }: { items: KVCount[]; colors: Record<string, string> }) {
   const total = items.reduce((a, b) => a + b.count, 0)
   if (total === 0) return <p className="text-accent-muted/40 text-xs py-2 text-center">No data</p>
 

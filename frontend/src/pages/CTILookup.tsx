@@ -6,8 +6,7 @@ import {
   Hash, Link2, Cpu, AlertTriangle, CheckCircle2, Info,
   Loader2, ChevronDown, ChevronUp, Zap, Radio,
   Activity, Server, Eye, AlertOctagon, Terminal, Play,
-  MapPin, Wifi, X as XIcon,
-} from 'lucide-react'
+  MapPin, Wifi, } from 'lucide-react'
 import { ctiApi, type LookupResult, type GeoPoint, type IOCType, type CommandResult } from '../api/cti'
 import { iocsApi } from '../api/iocs'
 import { useCurrentCase } from '../context/CurrentCaseContext'
@@ -1079,7 +1078,6 @@ export default function CTILookup() {
             // Helper: platform result is absent because auto was off & it's never been queried
             const isPending  = (p: string) => !isAutoQuery(p) && !qp.has(p) && !isAnalyzing && !isRunning(p)
             // Helper: was queried but returned null (no key)
-            const hasNoKey   = (p: string) => qp.has(p) && !(r as any)?.[p === 'otx' ? 'otx' : p] && !r?.errors?.[p]
 
             const wProps = (p: Platform) => ({
               result:        r,

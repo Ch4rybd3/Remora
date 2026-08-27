@@ -12,37 +12,6 @@ import ConfirmDialog from '../components/ui/ConfirmDialog'
 import TemplateTTPModal from '../components/mitre/TemplateTTPModal'
 import TemplateFormModal from '../components/templates/TemplateFormModal'
 
-const NEW_TEMPLATE_YAML = `name: "New Template"
-description: "Description of this template"
-version: "1.0"
-tags:
-  - incident
-severity: medium
-tlp: "TLP:AMBER"
-metadata:
-  category: generic
-
-executive_summary_template: |
-  On [DATE], [ORGANIZATION] identified a security incident...
-
-report_sections:
-  - name: "Incident Overview"
-    template: |
-      Describe the incident...
-
-  - name: "Technical Analysis"
-    template: |
-      Detail the technical findings...
-
-  - name: "Containment & Remediation"
-    template: |
-      Describe containment actions...
-
-  - name: "Recommendations"
-    template: |
-      List actionable recommendations...
-`
-
 interface EditorModalProps {
   open:        boolean
   onClose:     () => void

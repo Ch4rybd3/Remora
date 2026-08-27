@@ -289,7 +289,7 @@ export default function NoteEditor({ path, onNodeNavigate, onContentChange, scro
         previewRef.current.scrollTo({ top: Math.max(0, el.offsetTop - 24), behavior: 'smooth' })
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [scrollRequest?.tick])
 
   // Wikilink navigation

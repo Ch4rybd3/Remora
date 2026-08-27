@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { auditApi, type AuditFilters, type AuditLogEntry } from '../api/audit'
 import { fmtDateTime } from '../utils/dateUtils'
