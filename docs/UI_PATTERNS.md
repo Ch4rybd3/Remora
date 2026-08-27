@@ -77,3 +77,18 @@ every read is wrapped — a private window throws rather than returning null.
 This is also the responsive answer: the rail is the sensible default on a
 14-inch laptop, and the pane costs nothing on an ultrawide.
 
+### The gallery
+
+`/design` renders every token and every primitive live, reading through the same
+utilities the product uses — so it cannot drift from what ships. Admin-only, in
+the sidebar under Config.
+
+Its *Compare themes* control renders each specimen once per theme, side by side.
+That is why the theme blocks in `tokens.css` are scoped by attribute rather than
+to `:root`: any element can carry `data-theme` and re-resolve every token for its
+subtree. Checking that a panel still works on GitHub light is one glance instead
+of switching the whole application.
+
+Add a specimen here whenever you add a primitive. A primitive that only exists
+inside the page that needed it is how the next round of drift starts.
+
