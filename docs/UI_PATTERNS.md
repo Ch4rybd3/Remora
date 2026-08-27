@@ -37,3 +37,43 @@ When a page has a left file-list sidebar (like Logs, Chainsaw, MFT, USN):
 
 ---
 
+---
+
+## Primitives
+
+They live in `frontend/src/ui/`, alongside the icon registry — that directory is
+the design system. `frontend/src/components/ui/` holds older composite widgets
+(Modal, MarkdownEditor, TagInput) that predate it and move as they are reworked.
+
+| Primitive | Contract |
+|---|---|
+| `Panel` / `PanelHeader` | A surface: square, hairline, no fill shift, no shadow. Panels do not nest. |
+| `Toolbar` / `ToolbarGroup` / `ToolbarSpacer` / `ToolbarLabel` | A row with hierarchy. Everything that is not the primary action is `.btn-ghost`; related controls sit in a group separated by a hairline. |
+| `SectionRail` | A numbered list that doubles as a filter. |
+| `SidePanel` / `SidePanelBlock` | A right panel that collapses to a rail. Blocks are labelled by a rule, never boxed. |
+| `HelpPopover` / `HelpExample` | The `?` every page carries. |
+
+### Section rail
+
+Selecting a section shows **only** that section. Selecting it again clears the
+filter and brings the whole document back — the same toggle-to-deselect
+behaviour as the file sidebars above.
+
+This is what makes a long document writable: one thing on screen, full width,
+nothing competing. Sections carry a mono numeral and never a colour; a hue
+invented per section means nothing and fights the single accent.
+
+### Collapsible side panel
+
+Expanded it is a real pane: tabs across the top, blocks separated by hairlines,
+no boxes. Collapsed it is a narrow rail of vertical labels, and clicking a label
+opens the panel straight onto that tab.
+
+The collapse state is stored per panel via its `storageKey`, so two panels on
+different pages do not share one setting. It is a per-viewer convenience whose
+loss is harmless, which is why `localStorage` is the right home for it and why
+every read is wrapped — a private window throws rather than returning null.
+
+This is also the responsive answer: the rail is the sensible default on a
+14-inch laptop, and the pane costs nothing on an ultrawide.
+
