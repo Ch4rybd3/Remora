@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Pencil, ScrollText, Download } from 'lucide-react'
+import { Plus, Trash2, Pencil, ScrollText, Download } from '../../../ui/icons'
 import { incidentLogApi } from '../../../api/incidentLog'
 import type { IncidentLogEntry, IncidentLogCategory } from '../../../types'
 import { fmtDateTime } from '../../../utils/dateUtils'
@@ -11,7 +11,7 @@ import EmptyState from '../../ui/EmptyState'
 interface Props { caseId: string; caseTitle: string }
 
 const CATEGORY_META: Record<IncidentLogCategory, { label: string; color: string }> = {
-  remediation:   { label: 'Remédiation',           color: 'bg-accent-green/10 text-accent-green border-accent-green/20' },
+  remediation:   { label: 'Remediation',           color: 'bg-accent-green/10 text-accent-green border-accent-green/20' },
   handover:      { label: 'Passation',             color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
   communication: { label: 'Communication client',  color: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
   investigation: { label: 'Investigation',         color: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
@@ -116,26 +116,26 @@ export default function IncidentLogTab({ caseId, caseTitle }: Props) {
             className="btn-secondary text-xs flex items-center gap-1.5 disabled:opacity-50"
             onClick={handleExport}
             disabled={exporting || entries.length === 0}
-            title="Télécharger le journal au format Markdown, à transmettre au client"
+            title="Download the log as Markdown, ready to hand to the client"
           >
-            <Download size={13} /> {exporting ? 'Export…' : 'Télécharger (.md)'}
+            <Download size={13} /> {exporting ? 'Exporting...' : 'Download (.md)'}
           </button>
           <button className="btn-primary text-xs flex items-center gap-1.5" onClick={openCreate}>
-            <Plus size={13} /> Ajouter une entrée
+            <Plus size={13} /> Add an entry
           </button>
         </div>
       </div>
 
       <p className="text-xs text-accent-muted/70 leading-relaxed">
-        Chaque entrée est ajoutée à la fois à la timeline consolidée du case et à ce journal,
+        Every entry is added both to the case's consolidated timeline and to this log,
         exportable en Markdown pour les points d'avancement avec le client.
       </p>
 
       {entries.length === 0 ? (
         <EmptyState
           icon={ScrollText}
-          message="Aucune entrée dans l'incident log"
-          action={{ label: '+ Ajouter une entrée', onClick: openCreate }}
+          message="No entry in the incident log"
+          action={{ label: '+ Add an entry', onClick: openCreate }}
         />
       ) : (
         <div className="relative">
@@ -173,14 +173,14 @@ export default function IncidentLogTab({ caseId, caseTitle }: Props) {
                         <button
                           onClick={() => openEdit(e)}
                           className="text-accent-muted/30 hover:text-accent-green transition-colors"
-                          title="Modifier l'entrée"
+                          title="Edit the entry"
                         >
                           <Pencil size={12} />
                         </button>
                         <button
                           onClick={() => setDeleteTarget(e.id)}
                           className="text-accent-muted/30 hover:text-severity-critical transition-colors"
-                          title="Supprimer l'entrée"
+                          title="Delete the entry"
                         >
                           <Trash2 size={13} />
                         </button>
@@ -194,10 +194,10 @@ export default function IncidentLogTab({ caseId, caseTitle }: Props) {
         </div>
       )}
 
-      <Modal open={modalOpen} onClose={closeModal} title={isEditing ? "Modifier l'entrée" : "Ajouter à l'incident log"} size="md">
+      <Modal open={modalOpen} onClose={closeModal} title={isEditing ? "Edit the entry" : "Add to the incident log"} size="md">
         <div className="space-y-4">
           <div>
-            <label className="label">Catégorie</label>
+            <label className="label">Category</label>
             <div className="flex flex-wrap gap-1.5">
               {(Object.keys(CATEGORY_META) as IncidentLogCategory[]).map(cat => (
                 <button
@@ -227,10 +227,10 @@ export default function IncidentLogTab({ caseId, caseTitle }: Props) {
           </div>
 
           <div>
-            <label className="label">Titre</label>
+            <label className="label">Title</label>
             <input
               className="input"
-              placeholder="Ex: Compte compromis réinitialisé"
+              placeholder="e.g. Compromised account reset"
               value={form.title ?? ''}
               onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
             />
@@ -250,22 +250,22 @@ export default function IncidentLogTab({ caseId, caseTitle }: Props) {
             <label className="label">Description</label>
             <textarea
               className="input resize-none h-24"
-              placeholder="Détails de l'action…"
+              placeholder="Details of the action..."
               value={form.description ?? ''}
               onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
             />
           </div>
 
           <div className="flex justify-end gap-3 pt-2">
-            <button className="btn-secondary" onClick={closeModal}>Annuler</button>
+            <button className="btn-secondary" onClick={closeModal}>Cancel</button>
             <button
               className="btn-primary"
               onClick={() => isEditing ? update.mutate() : create.mutate()}
               disabled={!form.title || !form.event_ts || create.isPending || update.isPending}
             >
               {create.isPending || update.isPending
-                ? (isEditing ? 'Enregistrement…' : 'Ajout…')
-                : (isEditing ? 'Enregistrer' : 'Ajouter')
+                ? (isEditing ? 'Saving...' : 'Adding...')
+                : (isEditing ? 'Save' : 'Add')
               }
             </button>
           </div>
@@ -276,8 +276,8 @@ export default function IncidentLogTab({ caseId, caseTitle }: Props) {
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => deleteTarget && remove.mutate(deleteTarget)}
-        title="Supprimer l'entrée"
-        message="Cette entrée sera retirée de l'incident log et de la timeline consolidée."
+        title="Delete the entry"
+        message="This entry will be removed from the incident log and from the consolidated timeline."
       />
     </div>
   )

@@ -32,7 +32,7 @@ structural data blocks.
 
 **Markdown**: replaced with the raw markdown string from `case.report` as-is.
 
-**When empty**: replaced with `_[Aucun contenu de rapport rédigé.]_` (MD) or a blank paragraph (DOCX).
+**When empty**: replaced with `_[No report content written.]_` (MD) or a blank paragraph (DOCX).
 
 **Typical report template structure using all tags:**
 ```

@@ -1,14 +1,14 @@
+
 import yaml
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import List
 
+from ..core.deps import get_current_user
 from ..database import get_db
 from ..models.user import User
-from ..services.template_service import TemplateService
 from ..services.audit_service import audit_log
-from ..core.deps import get_current_user
+from ..services.template_service import TemplateService
 
 router = APIRouter(prefix="/templates", tags=["templates"])
 _svc = TemplateService()
@@ -31,7 +31,7 @@ class TemplateTTPsPayload(BaseModel):
 
 
 @router.get("/")
-def list_templates() -> List[dict]:
+def list_templates() -> list[dict]:
     return _svc.list_templates()
 
 

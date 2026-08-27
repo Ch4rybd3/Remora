@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   Cpu, ChevronLeft, Menu, CheckCircle2, Info, List, Terminal,
-} from 'lucide-react'
+} from '../ui/icons'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import MemoryDumpList from '../components/memory/MemoryDumpList'
 import DefaultPluginsTab from '../components/memory/DefaultPluginsTab'

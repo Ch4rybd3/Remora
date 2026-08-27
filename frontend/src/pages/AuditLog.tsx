@@ -5,7 +5,7 @@ import { fmtDateTime } from '../utils/dateUtils'
 import {
   Search, ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
   Filter, X, RefreshCw, Shield,
-} from 'lucide-react'
+} from '../ui/icons'
 
 // ── Action badge colours ─────────────────────────────────────────────────────
 
@@ -35,7 +35,7 @@ function DetailPanel({ entry, onClose }: { entry: AuditLogEntry; onClose: () => 
     <div className="border-t border-white/5 bg-bg-secondary/50 px-6 py-4 text-xs space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-accent-muted font-medium uppercase tracking-wider text-[10px]">
-          Détail de l'événement #{entry.id}
+          Event detail #{entry.id}
         </span>
         <button onClick={onClose} className="text-accent-muted hover:text-white transition-colors">
           <X size={13} />
@@ -45,11 +45,11 @@ function DetailPanel({ entry, onClose }: { entry: AuditLogEntry; onClose: () => 
         {[
           ['Timestamp',      fmtDateTime(entry.timestamp)],
           ['Utilisateur',    entry.username ?? '—'],
-          ['Rôle',           entry.user_role ?? '—'],
+          ['Role',           entry.user_role ?? '-'],
           ['Action',         entry.action],
           ['Type ressource', entry.resource_type ?? '—'],
           ['ID ressource',   entry.resource_id ?? '—'],
-          ['Nom ressource',  entry.resource_name ?? '—'],
+          ['Resource name',  entry.resource_name ?? '—'],
           ['Case ID',        entry.case_id ?? '—'],
           ['Case titre',     entry.case_title ?? '—'],
           ['IP',             entry.ip_address ?? '—'],
@@ -62,7 +62,7 @@ function DetailPanel({ entry, onClose }: { entry: AuditLogEntry; onClose: () => 
       </div>
       {entry.details && (
         <div>
-          <p className="text-accent-muted/60 mb-1">Détails JSON</p>
+          <p className="text-accent-muted/60 mb-1">JSON details</p>
           <pre className="bg-bg-primary rounded p-3 text-[11px] text-white/70 overflow-x-auto leading-relaxed">
             {JSON.stringify(entry.details, null, 2)}
           </pre>
@@ -158,7 +158,7 @@ export default function AuditLog() {
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-accent-muted pointer-events-none" />
             <input
               type="text"
-              placeholder="Rechercher utilisateur, action, ressource…"
+              placeholder="Search user, action, resource..."
               value={search}
               onChange={e => handleSearch(e.target.value)}
               className="w-full bg-bg-secondary border border-white/10 rounded-md pl-9 pr-3 py-1.5 text-xs text-white placeholder:text-accent-muted/50 focus:outline-none focus:border-accent-green/50"
@@ -197,13 +197,13 @@ export default function AuditLog() {
               onClick={clearFilters}
               className="px-2 py-1.5 text-xs text-accent-muted hover:text-white transition-colors"
             >
-              Réinitialiser
+              Reset
             </button>
           )}
 
           {/* Page size */}
           <div className="ml-auto flex items-center gap-2">
-            <span className="text-accent-muted text-xs">{total.toLocaleString()} entrées</span>
+            <span className="text-accent-muted text-xs">{total.toLocaleString()} entries</span>
             <select
               value={filters.page_size}
               onChange={e => setFilters(prev => ({ ...prev, page_size: Number(e.target.value), page: 1 }))}
@@ -234,7 +234,7 @@ export default function AuditLog() {
 
             {/* Action prefix */}
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] text-accent-muted uppercase tracking-wider">Catégorie action</label>
+              <label className="text-[10px] text-accent-muted uppercase tracking-wider">Action category</label>
               <select
                 value={filters.action ?? ''}
                 onChange={e => setFilter('action', e.target.value)}
@@ -275,7 +275,7 @@ export default function AuditLog() {
 
             {/* Date from */}
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] text-accent-muted uppercase tracking-wider">Date début</label>
+              <label className="text-[10px] text-accent-muted uppercase tracking-wider">Start date</label>
               <input
                 type="datetime-local"
                 value={filters.date_from ?? ''}
@@ -327,7 +327,7 @@ export default function AuditLog() {
             {!data?.items.length && (
               <tr>
                 <td colSpan={6} className="text-center py-16 text-accent-muted/50">
-                  {isFetching ? 'Chargement…' : 'Aucune entrée'}
+                  {isFetching ? 'Loading...' : 'No entry'}
                 </td>
               </tr>
             )}
@@ -346,7 +346,7 @@ export default function AuditLog() {
                     {fmtDateTime(entry.timestamp)}
                   </td>
                   <td className="px-4 py-2 text-white whitespace-nowrap">
-                    {entry.username ?? <span className="text-accent-muted/40 italic">système</span>}
+                    {entry.username ?? <span className="text-accent-muted/40 italic">system</span>}
                     {entry.user_role && (
                       <span className="ml-1.5 text-[10px] text-accent-muted/60">({entry.user_role})</span>
                     )}
@@ -396,7 +396,7 @@ export default function AuditLog() {
       {pages > 1 && (
         <div className="px-6 py-3 border-t border-white/5 flex items-center justify-between shrink-0">
           <span className="text-xs text-accent-muted">
-            Page {page} / {pages} — {total.toLocaleString()} entrées
+            Page {page} / {pages} - {total.toLocaleString()} entries
           </span>
           <div className="flex items-center gap-1">
             <button

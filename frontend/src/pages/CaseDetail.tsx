@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Edit2, Save, X, Trash2 } from 'lucide-react'
+import { ArrowLeft, Edit2, Save, X, Trash2 } from '../ui/icons'
 import { casesApi } from '../api/cases'
 import { usersApi } from '../api/auth'
 import type { Case, CaseSeverity, CaseStatus } from '../types'
@@ -63,7 +63,7 @@ export default function CaseDetail() {
     enabled: !!id,
   })
 
-  // Définit ce case comme "case courant" dès qu'on le charge
+  // Mark this case as the "current case" as soon as it loads
   useEffect(() => {
     if (case_) setCurrentCase({ id: case_.id, title: case_.title, client_id: case_.client_id })
   }, [case_?.id, case_?.title])

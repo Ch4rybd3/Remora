@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Shield, Copy, Check, Download } from 'lucide-react'
+import { Plus, Trash2, Shield, Copy, Check, Download } from '../../../ui/icons'
 import { iocsApi } from '../../../api/iocs'
 import type { IOC, IOCType, IOCConfidence } from '../../../types'
 import Modal from '../../ui/Modal'

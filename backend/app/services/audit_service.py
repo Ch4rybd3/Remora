@@ -23,13 +23,14 @@ from ..models.audit import AuditLog
 
 if TYPE_CHECKING:
     from fastapi import Request
+
     from ..models.user import User
 
 
 def audit_log(
     db: Session,
     *,
-    user: "User",
+    user: User,
     action: str,
     resource_type: str | None = None,
     resource_id:   str | None = None,
@@ -37,7 +38,7 @@ def audit_log(
     case_id:       str | None = None,
     case_title:    str | None = None,
     details:       dict[str, Any] | None = None,
-    request:       "Request | None" = None,
+    request:       Request | None = None,
 ) -> None:
     """
     Append an audit entry to the current DB session.

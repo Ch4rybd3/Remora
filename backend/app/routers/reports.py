@@ -1,19 +1,18 @@
 from __future__ import annotations
 
-from typing import Optional
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from ..core.deps import get_current_user
 from ..database import get_db
 from ..models.case import Case
 from ..models.report_version import ReportVersion
 from ..models.user import User
 from ..services.report_service import ReportService
 from ..services.template_service import TemplateService
-from ..core.deps import get_current_user
 
 router = APIRouter(prefix="/cases/{case_id}/report", tags=["report"])
 
@@ -26,7 +25,7 @@ class ReportVersionMeta(BaseModel):
     id:         int
     version:    int
     line_count: int
-    created_by: Optional[str]
+    created_by: str | None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -38,10 +37,10 @@ class ReportVersionFull(ReportVersionMeta):
 
 class SaveReportPayload(BaseModel):
     content:              str = ""       # legacy combined field (kept for backward compat)
-    analysis:             Optional[str] = None
-    remediation:          Optional[str] = None
-    conclusion:           Optional[str] = None
-    sections_data:        Optional[dict] = None   # {slug: markdown_text} for dynamic sections
+    analysis:             str | None = None
+    remediation:          str | None = None
+    conclusion:           str | None = None
+    sections_data:        dict | None = None   # {slug: markdown_text} for dynamic sections
 
 
 class GenerateResponse(BaseModel):
@@ -166,7 +165,7 @@ def save_report(
         content    = snapshot_content,
         line_count = len(snapshot_content.splitlines()),
         created_by = current_user.username,
-        created_at = datetime.now(timezone.utc),
+        created_at = datetime.now(UTC),
     )
     db.add(version)
     db.flush()

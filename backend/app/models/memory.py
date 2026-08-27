@@ -1,9 +1,19 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 from sqlalchemy import (
-    Column, String, DateTime, Integer, Text, JSON, Boolean, ForeignKey, Index,
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
 )
 from sqlalchemy.orm import relationship
+
 from app.database import Base
 
 
@@ -20,7 +30,7 @@ class MemoryDump(Base):
     file_size    = Column(Integer,  nullable=True)
     status       = Column(String(32), default="uploaded") # uploaded | analyzing | done | error
     error_msg    = Column(Text,     nullable=True)
-    uploaded_at  = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    uploaded_at  = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
 
     plugins = relationship(
         "MemoryPluginResult",

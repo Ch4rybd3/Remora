@@ -5,17 +5,16 @@ from __future__ import annotations
 
 import math
 from datetime import datetime
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from ..database import get_db
 from ..core.deps import require_admin
+from ..database import get_db
 from ..models.audit import AuditLog
 from ..models.user import User
-from ..schemas.audit import AuditPage, AuditLogOut
+from ..schemas.audit import AuditLogOut, AuditPage
 
 router = APIRouter(prefix="/audit", tags=["audit"])
 
@@ -24,15 +23,15 @@ router = APIRouter(prefix="/audit", tags=["audit"])
 def list_audit(
     page:          int           = Query(1, ge=1),
     page_size:     int           = Query(50, ge=1, le=200),
-    search:        Optional[str] = Query(None),           # free-text across username/action/resource_name
-    username:      Optional[str] = Query(None),
-    action:        Optional[str] = Query(None),           # exact or prefix, e.g. "case"
-    resource_type: Optional[str] = Query(None),
-    case_id:       Optional[str] = Query(None),
-    date_from:     Optional[str] = Query(None),           # ISO datetime
-    date_to:       Optional[str] = Query(None),
+    search:        str | None = Query(None),           # free-text across username/action/resource_name
+    username:      str | None = Query(None),
+    action:        str | None = Query(None),           # exact or prefix, e.g. "case"
+    resource_type: str | None = Query(None),
+    case_id:       str | None = Query(None),
+    date_from:     str | None = Query(None),           # ISO datetime
+    date_to:       str | None = Query(None),
     db:            Session       = Depends(get_db),
-    _current:      "User"        = Depends(require_admin),
+    _current:      User        = Depends(require_admin),
 ):
     q = db.query(AuditLog)
 
@@ -93,7 +92,7 @@ def list_audit(
 @router.get("/meta", response_model=dict)
 def audit_meta(
     db:       Session = Depends(get_db),
-    _current: "User"  = Depends(require_admin),
+    _current: User  = Depends(require_admin),
 ):
     """Return distinct values for filter dropdowns."""
     from sqlalchemy import distinct

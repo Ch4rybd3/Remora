@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Play, RotateCcw, ChevronDown, ChevronUp, Terminal, AlertCircle, Loader2, CheckCircle2, Clock } from 'lucide-react'
+import { Play, RotateCcw, ChevronDown, ChevronUp, Terminal, AlertCircle, Loader2, CheckCircle2, Clock } from '../../ui/icons'
 import { memoryApi, type MemoryPluginResult } from '../../api/memory'
 import { fmtRelative } from '../../utils/dateUtils'
 

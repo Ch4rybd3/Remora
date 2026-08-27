@@ -1,7 +1,8 @@
-from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
-from ..models.case import CaseStatus, CaseSeverity, CaseType
+
+from pydantic import BaseModel
+
+from ..models.case import CaseSeverity, CaseStatus, CaseType
 
 
 class CaseBase(BaseModel):
@@ -10,12 +11,12 @@ class CaseBase(BaseModel):
     status: CaseStatus = CaseStatus.open
     severity: CaseSeverity = CaseSeverity.medium
     tags: str = ""
-    template_id: Optional[str] = None
+    template_id: str | None = None
     assigned_to: str = ""
     tlp: str = "TLP:AMBER"
     case_type: CaseType = CaseType.ir
     client_name: str = ""
-    client_id: Optional[str] = None
+    client_id: str | None = None
     executive_summary: str = ""
     quick_notes: str = ""
     report: str = ""
@@ -30,30 +31,30 @@ class CaseCreate(CaseBase):
 
 
 class CaseUpdate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    status: Optional[CaseStatus] = None
-    severity: Optional[CaseSeverity] = None
-    tags: Optional[str] = None
-    assigned_to: Optional[str] = None
-    tlp: Optional[str] = None
-    case_type: Optional[CaseType] = None
-    client_name: Optional[str] = None
-    client_id: Optional[str] = None
-    executive_summary: Optional[str] = None
-    quick_notes: Optional[str] = None
-    report: Optional[str] = None
-    report_analysis: Optional[str] = None
-    report_remediation: Optional[str] = None
-    report_conclusion: Optional[str] = None
-    report_sections_data: Optional[str] = None
+    title: str | None = None
+    description: str | None = None
+    status: CaseStatus | None = None
+    severity: CaseSeverity | None = None
+    tags: str | None = None
+    assigned_to: str | None = None
+    tlp: str | None = None
+    case_type: CaseType | None = None
+    client_name: str | None = None
+    client_id: str | None = None
+    executive_summary: str | None = None
+    quick_notes: str | None = None
+    report: str | None = None
+    report_analysis: str | None = None
+    report_remediation: str | None = None
+    report_conclusion: str | None = None
+    report_sections_data: str | None = None
 
 
 class CaseRead(CaseBase):
     id: str
     created_at: datetime
     updated_at: datetime
-    closed_at: Optional[datetime] = None
+    closed_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -68,7 +69,7 @@ class CaseSummary(BaseModel):
     tlp: str
     case_type: CaseType = CaseType.ir
     client_name: str = ""
-    client_id: Optional[str] = None
+    client_id: str | None = None
     created_at: datetime
     updated_at: datetime
     ioc_count: int = 0

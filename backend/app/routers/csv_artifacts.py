@@ -11,18 +11,17 @@ import os
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 import duckdb
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
-from ..database import get_db
-from ..models.csv_artifact import CsvArtifactFile
-from ..models.case import Case
-from ..models.user import User
-from ..core.deps import get_current_user
 from ..config import settings
+from ..core.deps import get_current_user
+from ..database import get_db
+from ..models.case import Case
+from ..models.csv_artifact import CsvArtifactFile
+from ..models.user import User
 
 router = APIRouter(tags=["csv-artifacts"])
 
@@ -38,7 +37,7 @@ def _artifacts_dir(case_id: str) -> Path:
 def _get_case_or_404(case_id: str, db: Session) -> Case:
     c = db.query(Case).filter(Case.id == case_id).first()
     if not c:
-        raise HTTPException(status_code=404, detail="Case introuvable")
+        raise HTTPException(status_code=404, detail="Case not found")
     return c
 
 
@@ -48,7 +47,7 @@ def _get_artifact_or_404(artifact_id: str, case_id: str, db: Session) -> CsvArti
         CsvArtifactFile.case_id == case_id,
     ).first()
     if not a:
-        raise HTTPException(status_code=404, detail="Artifact CSV introuvable")
+        raise HTTPException(status_code=404, detail="CSV artifact not found")
     return a
 
 
@@ -66,7 +65,7 @@ _DATE_HINTS = [
 ]
 
 
-def _detect_date_column(columns: list[str]) -> Optional[str]:
+def _detect_date_column(columns: list[str]) -> str | None:
     for col in columns:
         clean = col.lower().replace(" ", "").replace("_", "").replace("-", "").replace("/", "")
         for hint in _DATE_HINTS:
@@ -82,8 +81,8 @@ def _convert_to_flat_csv(raw: bytes, filename: str) -> bytes:
     Convert .txt/.log (line-per-row) or .json (array-of-objects / JSONL) to CSV.
     Returns UTF-8 encoded CSV bytes.
     """
-    import io
     import csv as _csv
+    import io
     import json as _json
 
     ext = Path(filename).suffix.lower()
@@ -124,7 +123,7 @@ def _convert_to_flat_csv(raw: bytes, filename: str) -> bytes:
                     if isinstance(obj, dict):
                         w2.writerow({k: str(obj.get(k, '')) for k in all_keys})
                     else:
-                        w2.writerow({k: '' for k in all_keys})
+                        w2.writerow(dict.fromkeys(all_keys, ''))
                 return buf.getvalue().encode('utf-8')
             else:
                 buf = io.StringIO()
@@ -187,12 +186,12 @@ def _load_normalized(conn, file_path: str) -> None:
 
 def _build_where(
     columns:    list[str],
-    q:          Optional[str],
-    col_filters: Optional[dict],
-    rql:        Optional[str] = None,
+    q:          str | None,
+    col_filters: dict | None,
+    rql:        str | None = None,
 ) -> tuple[str, list]:
     """Build a SQL WHERE clause and parameter list from filter inputs."""
-    from ..services.rql_parser import parse_rql, RQLSyntaxError
+    from ..services.rql_parser import RQLSyntaxError, parse_rql
     parts:  list[str] = []
     params: list      = []
 
@@ -259,14 +258,14 @@ def _build_where(
 def _query_rows(
     file_path:   str,
     columns:     list[str],
-    q:           Optional[str],
-    col_filters: Optional[dict],
-    sort_col:    Optional[str],
+    q:           str | None,
+    col_filters: dict | None,
+    sort_col:    str | None,
     sort_dir:    str,
-    date_column: Optional[str],
+    date_column: str | None,
     page:        int,
     page_size:   int,
-    rql:         Optional[str] = None,
+    rql:         str | None = None,
 ) -> tuple[int, int, list[dict]]:
     """
     Query a CSV file via DuckDB.
@@ -291,7 +290,7 @@ def _query_rows(
             params,
         ).fetchall()
 
-        rows = [dict(zip(columns, row)) for row in rows_raw]
+        rows = [dict(zip(columns, row, strict=True)) for row in rows_raw]
         return total, pages, rows
     finally:
         conn.close()
@@ -301,9 +300,9 @@ def _query_groups(
     file_path:   str,
     columns:     list[str],
     group_by:    list[str],
-    q:           Optional[str],
-    col_filters: Optional[dict],
-    rql:         Optional[str] = None,
+    q:           str | None,
+    col_filters: dict | None,
+    rql:         str | None = None,
 ) -> list[dict]:
     """
     Return GROUP BY aggregation using DuckDB — no row limit, runs natively in-engine.
@@ -333,7 +332,7 @@ def _query_groups(
         ).fetchall()
 
         return [
-            {"values": dict(zip(group_cols, row[: len(group_cols)])), "count": row[len(group_cols)]}
+            {"values": dict(zip(group_cols, row[: len(group_cols)], strict=True)), "count": row[len(group_cols)]}
             for row in rows_raw
         ]
     finally:
@@ -365,7 +364,7 @@ def _omni_query(file_path: str, columns: list[str], q: str, limit: int, regex: b
             params_fp,
         ).fetchall()
 
-        return count, [dict(zip(columns, row)) for row in rows_raw]
+        return count, [dict(zip(columns, row, strict=True)) for row in rows_raw]
     except Exception:
         return 0, []
     finally:
@@ -457,7 +456,7 @@ async def upload_artifact(
     if ext not in SUPPORTED:
         raise HTTPException(
             status_code=400,
-            detail=f"Type de fichier '{ext}' non supporté. Formats acceptés : {', '.join(sorted(SUPPORTED))}",
+            detail=f"Unsupported file type '{ext}'. Accepted formats: {', '.join(sorted(SUPPORTED))}",
         )
 
     raw = await file.read()
@@ -509,11 +508,11 @@ def get_rows(
     artifact_id: str,
     page:        int           = Query(1, ge=1),
     page_size:   int           = Query(100, ge=1, le=5000),
-    sort_col:    Optional[str] = Query(None),
+    sort_col:    str | None = Query(None),
     sort_dir:    str           = Query("asc"),
-    q:           Optional[str] = Query(None),
-    col_filters: Optional[str] = Query(None),
-    rql:         Optional[str] = Query(None, description="RQL query string"),
+    q:           str | None = Query(None),
+    col_filters: str | None = Query(None),
+    rql:         str | None = Query(None, description="RQL query string"),
     db:          Session       = Depends(get_db),
 ) -> dict:
     from ..services.rql_parser import RQLSyntaxError
@@ -552,9 +551,9 @@ def get_groups(
     case_id:     str,
     artifact_id: str,
     group_by:    str           = Query(..., description="Comma-separated column names"),
-    q:           Optional[str] = Query(None),
-    col_filters: Optional[str] = Query(None),
-    rql:         Optional[str] = Query(None, description="RQL query string"),
+    q:           str | None = Query(None),
+    col_filters: str | None = Query(None),
+    rql:         str | None = Query(None, description="RQL query string"),
     db:          Session       = Depends(get_db),
 ) -> dict:
     """
@@ -599,7 +598,7 @@ def add_evidence_for_artifact(
     Create an Evidence record from this artifact and link it for Chain of Custody tracking.
     Idempotent — returns existing evidence if already linked.
     """
-    from ..models.evidence import Evidence, EvidenceType, AcquisitionMethod
+    from ..models.evidence import AcquisitionMethod, Evidence, EvidenceType
 
     a = _get_artifact_or_404(artifact_id, case_id, db)
 
@@ -619,8 +618,8 @@ def add_evidence_for_artifact(
 
     now_str = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     coc_entry = (
-        f"[{now_str}] Enregistré dans Artifact Explorer par {current_user.username}.\n"
-        f"  Fichier: {a.original_name} — {a.row_count} lignes\n"
+        f"[{now_str}] Registered in the Artifact Explorer by {current_user.username}.\n"
+        f"  File: {a.original_name} - {a.row_count} rows\n"
     )
 
     ev = Evidence(
@@ -634,7 +633,7 @@ def add_evidence_for_artifact(
         collected_at       = a.uploaded_at,
         collected_by       = current_user.username,
         chain_of_custody   = coc_entry,
-        description        = f"Artefact importé via Artifact Explorer. {a.row_count} lignes.",
+        description        = f"Artifact imported through the Artifact Explorer. {a.row_count} rows.",
         tags               = a.ez_category or "",
     )
     db.add(ev)
@@ -660,11 +659,11 @@ def append_coc_note(
 
     a = _get_artifact_or_404(artifact_id, case_id, db)
     if not a.evidence_id:
-        raise HTTPException(status_code=404, detail="Aucune pièce à conviction liée à cet artefact")
+        raise HTTPException(status_code=404, detail="No evidence item linked to this artifact")
 
     ev = db.query(Evidence).filter(Evidence.id == a.evidence_id).first()
     if not ev:
-        raise HTTPException(status_code=404, detail="Pièce à conviction introuvable")
+        raise HTTPException(status_code=404, detail="Evidence item not found")
 
     note    = str(body.get("note", "")).strip()
     now_str = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -745,7 +744,7 @@ def register_csv_artifact(
     file_path: Path,
     case_id:   str,
     db:        Session,
-) -> Optional[CsvArtifactFile]:
+) -> CsvArtifactFile | None:
     """
     Register an existing CSV file (e.g. from a collection import) in the
     Artifact Explorer without copying it.  Idempotent — skips if already registered.

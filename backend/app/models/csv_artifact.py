@@ -1,6 +1,7 @@
-from sqlalchemy import Column, String, Text, DateTime, Integer, ForeignKey
-from datetime import datetime, timezone
 import uuid
+from datetime import UTC, datetime
+
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 
 from ..database import Base
 
@@ -18,5 +19,5 @@ class CsvArtifactFile(Base):
     ez_label        = Column(String(100), nullable=True)           # e.g. "Shimcache (AppCompatCache)"
     ez_category     = Column(String(100), nullable=True)           # internal category key
     source_timezone = Column(String(100), nullable=True)           # IANA tz of raw timestamps (null = UTC)
-    uploaded_at     = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    uploaded_at     = Column(DateTime, default=lambda: datetime.now(UTC))
     evidence_id     = Column(String, ForeignKey("evidences.id", ondelete="SET NULL"), nullable=True)

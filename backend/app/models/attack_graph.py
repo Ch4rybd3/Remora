@@ -1,5 +1,7 @@
-from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime, JSON, ForeignKey
+from datetime import UTC, datetime
+
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, String
+
 from app.database import Base
 
 
@@ -12,7 +14,7 @@ class AttackGraph(Base):
     edges      = Column(JSON, nullable=False, default=list)
     updated_at = Column(
         DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
         nullable=False,
     )

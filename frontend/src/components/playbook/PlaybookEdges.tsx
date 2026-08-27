@@ -37,8 +37,8 @@ export interface PlaybookEdgeData {
 }
 
 export const EDGE_SHAPES: { value: EdgeShape; label: string; hint: string }[] = [
-  { value: 'curve',    label: 'Courbe',       hint: 'Liaison arrondie (par défaut)' },
-  { value: 'step',     label: 'Angles',       hint: 'Tracé orthogonal — contourne proprement les nœuds' },
+  { value: 'curve',    label: 'Curve',        hint: 'Rounded link (default)' },
+  { value: 'step',     label: 'Angles',       hint: 'Orthogonal routing - cleanly routes around nodes' },
   { value: 'straight', label: 'Droite',       hint: 'Segments rectilignes entre les points' },
 ]
 
@@ -306,7 +306,7 @@ export function ReshapableEdge({
                 setWaypoints(next)
               }}
             >
-              <title>Cliquer pour ajouter un point de passage</title>
+              <title>Click to add a waypoint</title>
             </circle>
           ))}
 
@@ -322,7 +322,7 @@ export function ReshapableEdge({
               onPointerDown={e => startDrag(e, i)}
               onDoubleClick={e => removeWaypoint(e, i)}
             >
-              <title>Glisser pour déplacer · double-clic pour supprimer</title>
+              <title>Drag to move - double-click to delete</title>
             </circle>
           ))}
         </g>

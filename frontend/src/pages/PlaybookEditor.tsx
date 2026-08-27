@@ -16,7 +16,7 @@ function NodeInternalsSync({ trigger, nodeIds }: { trigger: number; nodeIds: str
   }, [trigger])  
   return null
 }
-import { ArrowLeft, Save, Plus, Trash2, GitBranch, Wand2, Link2Off, ArrowDown, ArrowRight, ImageDown, SquareDashed, Spline } from 'lucide-react'
+import { ArrowLeft, Save, Plus, Trash2, GitBranch, Wand2, Link2Off, ArrowDown, ArrowRight, ImageDown, SquareDashed, Spline } from '../ui/icons'
 import { playbooksApi, type PlaybookNode, type PlaybookEdge } from '../api/playbooks'
 import { NODE_TYPES, LayoutDirContext } from '../components/playbook/PlaybookNodes'
 import {
@@ -267,11 +267,11 @@ export default function PlaybookEditor() {
     const defaults: Record<string, { label: string; description?: string; linked_playbook_id?: string; linked_playbook_name?: string }> = {
       start:        { label: 'Start' },
       end:          { label: 'End' },
-      step:         { label: 'Nouvelle analyse', description: 'Décrivez cette étape…' },
+      step:         { label: 'New analysis', description: 'Describe this step...' },
       decision:     { label: 'Decision?' },
       remediation:  { label: 'New Remediation', description: 'Describe the remediation action…' },
       frame:        { label: 'Zone' },
-      playbook_ref: { label: 'Playbook lié', linked_playbook_id: undefined, linked_playbook_name: '' },
+      playbook_ref: { label: 'Linked playbook', linked_playbook_id: undefined, linked_playbook_name: '' },
     }
     const center = getViewportCenter()
     const isFrame = type === 'frame'
@@ -572,7 +572,7 @@ export default function PlaybookEditor() {
             <button
               onClick={() => runLayout()}
               disabled={laying || nodes.length === 0}
-              title="Ré-appliquer la mise en page automatique (les points de passage des liens sont réinitialisés)"
+              title="Re-apply the automatic layout (edge waypoints are reset)"
               className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-accent-muted hover:text-white hover:bg-white/5 transition-colors disabled:opacity-40"
             >
               <Wand2 size={12} />
@@ -602,7 +602,7 @@ export default function PlaybookEditor() {
           {selEdgeCount > 0 && (
             <div
               className="flex items-center gap-1 px-2 py-1 rounded border border-white/10 bg-white/[0.02]"
-              title="Double-cliquez sur un lien pour y ajouter un point de passage, puis glissez-le pour contourner un nœud"
+              title="Double-click an edge to add a waypoint, then drag it to route around a node"
             >
               <Spline size={11} className="text-accent-muted shrink-0" />
               {EDGE_SHAPES.map(sh => (
@@ -622,7 +622,7 @@ export default function PlaybookEditor() {
               {selWaypointCount > 0 && (
                 <button
                   onClick={resetEdgeShape}
-                  title="Supprimer tous les points de passage des liens sélectionnés"
+                  title="Remove every waypoint from the selected edges"
                   className="text-[10px] px-1.5 py-0.5 rounded text-accent-muted hover:text-white hover:bg-white/5 transition-colors border-l border-white/10 ml-0.5 pl-2"
                 >
                   ✕ {selWaypointCount} pt{selWaypointCount > 1 ? 's' : ''}
@@ -762,11 +762,11 @@ export default function PlaybookEditor() {
                       ...f,
                       linked_playbook_id:   e.target.value,
                       linked_playbook_name: pb?.name ?? f.linked_playbook_name,
-                      label: f.label === 'Playbook lié' || f.label === '' ? (pb?.name ?? f.label) : f.label,
+                      label: f.label === 'Linked playbook' || f.label === '' ? (pb?.name ?? f.label) : f.label,
                     }))
                   }}
                 >
-                  <option value="">— Sélectionner un playbook —</option>
+                  <option value="">-- Select a playbook --</option>
                   {allPlaybooks
                     .filter(pb => !id || pb.id !== id)  // exclude current playbook
                     .map(pb => (
@@ -787,7 +787,7 @@ export default function PlaybookEditor() {
                     onChange={e => setNodeForm(f => ({ ...f, linked_playbook_name: e.target.value }))}
                   />
                   <p className="text-[9px] text-purple-400/40 mt-1">
-                    Le lien sera activable dès que ce playbook sera créé et sélectionné ici.
+                    The link becomes usable once that playbook is created and selected here.
                   </p>
                 </div>
               )}

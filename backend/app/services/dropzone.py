@@ -34,8 +34,8 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..models.case import Case
 from ..models.ez_artifacts import ImportedCollection, ImportedFile
-from ..services.ez_detection import detect
 from ..services.archives import ARCHIVE_EXTS, ArchiveError, extract_all, is_archive
+from ..services.ez_detection import detect
 
 # Folder holding files already ingested, inside each case folder
 PROCESSED_DIRNAME = ".processed"

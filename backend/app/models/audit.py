@@ -1,5 +1,7 @@
-from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, DateTime, JSON, Index
+from datetime import UTC, datetime
+
+from sqlalchemy import JSON, Column, DateTime, Index, Integer, String
+
 from app.database import Base
 
 
@@ -7,7 +9,7 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id            = Column(Integer, primary_key=True, autoincrement=True)
-    timestamp     = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    timestamp     = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
 
     # Who
     username      = Column(String(255), nullable=True)   # None only for system-level events

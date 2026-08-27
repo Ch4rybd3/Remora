@@ -1,13 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FolderOpen, X, ChevronRight, Plus, Clock, Building2 } from 'lucide-react'
+import { FolderOpen, X, ChevronRight, Plus, Clock, Building2 } from '../../ui/icons'
 import { useCurrentCase } from '../../context/CurrentCaseContext'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { incidentLogApi } from '../../api/incidentLog'
 import type { IncidentLogCategory } from '../../types'
 
 const CATEGORY_OPTIONS: { value: IncidentLogCategory; label: string }[] = [
-  { value: 'remediation',   label: 'Remédiation' },
+  { value: 'remediation',   label: 'Remediation' },
   { value: 'handover',      label: 'Passation' },
   { value: 'communication', label: 'Communication client' },
   { value: 'investigation', label: 'Investigation' },
@@ -66,7 +66,7 @@ function QuickTimelineModal({ caseId, onClose }: { caseId: string; onClose: () =
         {/* Header */}
         <div className="flex items-center gap-2 mb-4">
           <Clock size={14} className="text-accent-green shrink-0" />
-          <h3 className="text-sm font-semibold text-white flex-1">Incident log — Nouvel événement</h3>
+          <h3 className="text-sm font-semibold text-white flex-1">Incident log - new event</h3>
           <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors p-1">
             <X size={14} />
           </button>
@@ -76,7 +76,7 @@ function QuickTimelineModal({ caseId, onClose }: { caseId: string; onClose: () =
           {/* Category */}
           <div>
             <label className="block text-[10px] text-gray-500 uppercase tracking-wide mb-1">
-              Catégorie
+              Category
             </label>
             <div className="flex flex-wrap gap-1.5">
               {CATEGORY_OPTIONS.map(opt => (
@@ -107,7 +107,7 @@ function QuickTimelineModal({ caseId, onClose }: { caseId: string; onClose: () =
               value={title}
               onChange={e => setTitle(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && title.trim()) create.mutate() }}
-              placeholder="Ex: Remediation — compte compromis réinitialisé"
+              placeholder="e.g. Remediation - compromised account reset"
               className="w-full bg-[#0a1120] border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-accent-green/50"
             />
           </div>
@@ -148,7 +148,7 @@ function QuickTimelineModal({ caseId, onClose }: { caseId: string; onClose: () =
               value={desc}
               onChange={e => setDesc(e.target.value)}
               rows={2}
-              placeholder="Détails de l'action…"
+              placeholder="Details of the action..."
               className="w-full bg-[#0a1120] border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-accent-green/50 resize-none"
             />
           </div>
@@ -160,7 +160,7 @@ function QuickTimelineModal({ caseId, onClose }: { caseId: string; onClose: () =
             onClick={onClose}
             className="px-3 py-1.5 text-xs text-gray-400 hover:text-white transition-colors"
           >
-            Annuler
+            Cancel
           </button>
           <button
             onClick={() => create.mutate()}
@@ -172,7 +172,7 @@ function QuickTimelineModal({ caseId, onClose }: { caseId: string; onClose: () =
             ) : (
               <Plus size={12} />
             )}
-            Ajouter à l'incident log
+            Add to the incident log
           </button>
         </div>
 
@@ -216,7 +216,7 @@ export default function TopBar() {
           {currentCase.client_id && (
             <button
               onClick={() => navigate(`/config/clients/${currentCase.client_id}`)}
-              title="Aller à la documentation du client de ce case"
+              title="Go to this case's client documentation"
               className="flex items-center gap-1 text-[11px] text-accent-muted/50 hover:text-accent-green transition-colors px-1.5 py-1 rounded hover:bg-accent-green/5"
             >
               <Building2 size={12} />
@@ -225,7 +225,7 @@ export default function TopBar() {
           )}
           <button
             onClick={() => setShowModal(true)}
-            title="Ajouter un événement à l'incident log (dual-écrit dans la timeline)"
+            title="Add an event to the incident log (dual-written to the timeline)"
             className="flex items-center gap-1 text-[11px] text-accent-muted/50 hover:text-accent-green transition-colors px-1.5 py-1 rounded hover:bg-accent-green/5"
           >
             <Plus size={12} />

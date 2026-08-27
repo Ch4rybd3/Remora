@@ -21,7 +21,7 @@ import {
   FileSpreadsheet, Code2, ExternalLink, Download,
   Settings, Upload, ZoomIn, ZoomOut, Maximize2,
   BookOpen, Package, FileType,
-} from 'lucide-react'
+} from '../ui/icons'
 import { vaultApi, type VaultEntry } from '../api/vault'
 import { fmtDate } from '../utils/dateUtils'
 
@@ -169,7 +169,7 @@ function VaultMetaHeader({ vault }: { vault: VaultEntry }) {
           </div>
         )}
         <p className="text-[10px] text-accent-muted/30 mt-2">
-          Importé par {vault.created_by ?? '—'} · {fmtDate(vault.created_at)}
+          Imported by {vault.created_by ?? '-'} · {fmtDate(vault.created_at)}
         </p>
       </div>
     </div>
@@ -184,7 +184,7 @@ function DownloadBtn({ vault }: { vault: VaultEntry }) {
       className="btn-primary inline-flex items-center gap-2 text-sm"
     >
       <Download size={14} />
-      Télécharger {vault.file_name}
+      Download {vault.file_name}
     </a>
   )
 }
@@ -201,9 +201,9 @@ function ObsidianView({ vault }: { vault: VaultEntry }) {
           <div>
             <p className="text-sm font-semibold text-white">Vault Obsidian</p>
             <p className="text-xs text-accent-muted mt-1 leading-relaxed">
-              Ce vault contient des notes Markdown au format Obsidian. Ouvre l'éditeur
-              de connaissances pour naviguer, lire et éditer tes notes, suivre les
-              wikiliens et visualiser le graphe de connaissances.
+              This vault holds Markdown notes in Obsidian format. Open the knowledge
+              editor to browse, read and edit them, follow wikilinks and view the
+              knowledge graph.
             </p>
           </div>
         </div>
@@ -213,7 +213,7 @@ function ObsidianView({ vault }: { vault: VaultEntry }) {
             onClick={() => navigate('/knowledge/editor')}
           >
             <ExternalLink size={14} />
-            Ouvrir dans l'éditeur de connaissances
+            Open in the knowledge editor
           </button>
           <a
             href={vaultApi.downloadUrl(vault.id)}
@@ -221,7 +221,7 @@ function ObsidianView({ vault }: { vault: VaultEntry }) {
             className="btn-secondary flex items-center gap-2 text-sm"
           >
             <Download size={13} />
-            Télécharger le ZIP
+            Download the ZIP
           </a>
         </div>
       </div>
@@ -242,7 +242,7 @@ function PdfView({ vault }: { vault: VaultEntry }) {
           className="flex items-center gap-1 text-xs text-accent-muted/50 hover:text-white transition-colors"
         >
           <Download size={11} />
-          Télécharger
+          Download
         </a>
         <a
           href={vaultApi.viewUrl(vault.id)}
@@ -251,7 +251,7 @@ function PdfView({ vault }: { vault: VaultEntry }) {
           className="flex items-center gap-1 text-xs text-accent-muted/50 hover:text-white transition-colors"
         >
           <Maximize2 size={11} />
-          Plein écran
+          Full screen
         </a>
       </div>
       <iframe
@@ -308,7 +308,7 @@ function ImageView({ vault }: { vault: VaultEntry }) {
           className="flex items-center gap-1 text-xs text-accent-muted/50 hover:text-white transition-colors"
         >
           <Download size={11} />
-          Télécharger
+          Download
         </a>
       </div>
 
@@ -355,12 +355,12 @@ function TextView({ vault }: { vault: VaultEntry }) {
           className="flex items-center gap-1 text-xs text-accent-muted/50 hover:text-white transition-colors"
         >
           <Download size={11} />
-          Télécharger
+          Download
         </a>
       </div>
       <div className="flex-1 overflow-auto p-6">
         {isLoading ? (
-          <p className="text-accent-muted text-sm animate-pulse">Chargement…</p>
+          <p className="text-accent-muted text-sm animate-pulse">Loading...</p>
         ) : (
           <pre className="text-xs text-foreground/80 font-mono whitespace-pre-wrap leading-relaxed">
             {data}
@@ -380,10 +380,10 @@ function DownloadOnlyView({ vault }: { vault: VaultEntry }) {
       <div className="card p-6 space-y-3 border-white/10">
         <p className="text-sm text-accent-muted">
           {type === 'docx'
-            ? 'Les documents Word ne peuvent pas être prévisualisés directement dans le navigateur.'
+            ? 'Word documents cannot be previewed directly in the browser.'
             : type === 'spreadsheet'
-            ? 'Les fichiers tableur ne peuvent pas être prévisualisés directement dans le navigateur.'
-            : 'Ce type de fichier ne peut pas être prévisualisé dans le navigateur.'}
+            ? 'Spreadsheet files cannot be previewed directly in the browser.'
+            : 'This file type cannot be previewed in the browser.'}
         </p>
         <DownloadBtn vault={vault} />
       </div>
@@ -412,9 +412,9 @@ function NoVaultSelected() {
     <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-8">
       <Archive size={42} className="text-accent-muted/15" />
       <div>
-        <p className="text-accent-muted text-sm font-medium">Sélectionne un vault</p>
+        <p className="text-accent-muted text-sm font-medium">Select a vault</p>
         <p className="text-accent-muted/40 text-xs mt-1 max-w-xs">
-          Choisis un vault dans la liste à gauche pour le prévisualiser ou l'ouvrir.
+          Pick a vault from the list on the left to preview or open it.
         </p>
       </div>
       <button
@@ -422,7 +422,7 @@ function NoVaultSelected() {
         onClick={() => navigate('/config/vaults')}
       >
         <Settings size={12} />
-        Gérer les vaults
+        Manage vaults
       </button>
     </div>
   )
@@ -434,7 +434,7 @@ function NoVaultsYet() {
     <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-8">
       <Package size={46} className="text-accent-muted/12" />
       <div>
-        <p className="text-accent-muted text-sm font-medium">Aucun vault importé</p>
+        <p className="text-accent-muted text-sm font-medium">No vault imported</p>
         <p className="text-accent-muted/40 text-xs mt-1 max-w-xs leading-relaxed">
           Importe des vaults Obsidian, PDF, images ou documents depuis la page de gestion.
         </p>
@@ -444,7 +444,7 @@ function NoVaultsYet() {
         onClick={() => navigate('/config/vaults')}
       >
         <Upload size={12} />
-        Importer un vault
+        Import a vault
       </button>
     </div>
   )
@@ -505,7 +505,7 @@ export default function KnowledgeBase() {
             <button
               onClick={() => navigate('/config/vaults')}
               className="p-1 rounded text-accent-muted/30 hover:text-white hover:bg-white/5 transition-colors"
-              title="Gérer les vaults"
+              title="Manage vaults"
             >
               <Settings size={12} />
             </button>
@@ -515,7 +515,7 @@ export default function KnowledgeBase() {
           {vaults.length > 2 && (
             <input
               className="input py-1 text-xs"
-              placeholder="Rechercher…"
+              placeholder="Search..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -557,7 +557,7 @@ export default function KnowledgeBase() {
             </div>
           ) : filtered.length === 0 ? (
             <p className="text-[11px] text-accent-muted/30 italic text-center py-6 px-3">
-              {search || typeFilter !== 'all' ? 'Aucun vault trouvé.' : 'Aucun vault importé.'}
+              {search || typeFilter !== 'all' ? 'No vault found.' : 'No vault imported.'}
             </p>
           ) : (
             <div className="space-y-0 py-1">
@@ -581,7 +581,7 @@ export default function KnowledgeBase() {
               className="flex items-center gap-1.5 text-[10px] text-accent-muted/30 hover:text-accent-green transition-colors w-full"
             >
               <Settings size={10} />
-              {vaults.length} vault{vaults.length !== 1 ? 's' : ''} · Gérer →
+              {vaults.length} vault{vaults.length !== 1 ? 's' : ''} · Manage →
             </button>
           </div>
         )}
@@ -591,7 +591,7 @@ export default function KnowledgeBase() {
       <main className="flex-1 overflow-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
-            <p className="text-accent-muted text-sm animate-pulse">Chargement des vaults…</p>
+            <p className="text-accent-muted text-sm animate-pulse">Loading vaults...</p>
           </div>
         ) : vaults.length === 0 ? (
           <NoVaultsYet />

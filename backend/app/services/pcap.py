@@ -13,6 +13,7 @@ from __future__ import annotations
 import csv
 import shutil
 import subprocess
+from datetime import UTC
 from pathlib import Path
 
 PCAP_EXTS = {".pcap", ".pcapng", ".cap"}
@@ -63,7 +64,7 @@ def tshark_path() -> str:
     path = shutil.which("tshark")
     if not path:
         raise TsharkUnavailable(
-            "tshark introuvable — le parsing PCAP nécessite tshark dans l'image backend"
+            "tshark not found - PCAP parsing requires tshark in the backend image"
         )
     return path
 
@@ -109,7 +110,7 @@ def convert_to_csv(pcap_path: Path, out_csv: Path | None = None,
     if proc.returncode != 0:
         err = (proc.stderr or "").strip()[:400]
         out_csv.unlink(missing_ok=True)
-        raise RuntimeError(f"tshark a échoué sur {pcap_path.name}: {err}")
+        raise RuntimeError(f"tshark failed on {pcap_path.name}: {err}")
 
     rows = _postprocess(out_csv)
     print(f"[pcap] {pcap_path.name}: {rows} paquet(s)", flush=True)
@@ -125,7 +126,7 @@ def _postprocess(csv_path: Path) -> int:
     Returns the number of data rows. Streamed via a sibling temp file so a huge
     capture is never held in memory.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     headers = [h for _, h in _FIELDS]
     tmp = csv_path.with_suffix(csv_path.suffix + ".tmp")
@@ -147,15 +148,15 @@ def _postprocess(csv_path: Path) -> int:
 
         aligned = len(actual) == len(headers)
         if not aligned:
-            print(f"[pcap] {len(actual)} colonnes pour {len(headers)} attendues — "
-                  f"en-tête tshark conservé, horodatage laissé en epoch", flush=True)
+            print(f"[pcap] {len(actual)} columns for {len(headers)} expected - "
+                  f"keeping the tshark header, timestamps left as epoch", flush=True)
         writer.writerow(headers if aligned else actual)
 
         for row in reader:
             if aligned and len(row) == len(headers) and row[ts_idx]:
                 try:
                     row[ts_idx] = datetime.fromtimestamp(
-                        float(row[ts_idx]), tz=timezone.utc
+                        float(row[ts_idx]), tz=UTC
                     ).isoformat(timespec="microseconds").replace("+00:00", "Z")
                 except (ValueError, OSError, OverflowError):
                     pass  # keep the raw value rather than dropping the packet
@@ -201,7 +202,7 @@ def follow_stream(pcap_path: Path, stream_index: int, protocol: str = "tcp") -> 
         ===================================================================
     """
     if protocol not in ("tcp", "udp"):
-        raise ValueError("protocol doit être 'tcp' ou 'udp'")
+        raise ValueError("protocol must be 'tcp' or 'udp'")
 
     binary = tshark_path()
     cmd = [binary, "-r", str(pcap_path), "-q",

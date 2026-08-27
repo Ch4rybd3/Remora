@@ -4,7 +4,7 @@ import {
   Archive, Upload, Trash2, Download, Pencil, X, Check,
   FileText, FileArchive, FileSpreadsheet, File, Code2,
   AlertCircle, Tag, Package,
-} from 'lucide-react'
+} from '../ui/icons'
 import { vaultApi, type VaultEntry, type VaultPatch } from '../api/vault'
 import { fmtDateTimeShort } from '../utils/dateUtils'
 import { fmtBytes as fmtSize } from '../utils/formatUtils'
@@ -145,7 +145,7 @@ function VaultCard({
           <p className="text-[10px] text-accent-muted/30 mt-1">
             {vault.file_name}
             {' · '}
-            Importé le {fmtDateTimeShort(vault.created_at)}
+            Imported on {fmtDateTimeShort(vault.created_at)}
             {vault.created_by ? ` par ${vault.created_by}` : ''}
           </p>
         </div>
@@ -158,14 +158,14 @@ function VaultCard({
                 onClick={handleSave}
                 disabled={!editName.trim()}
                 className="p-1.5 rounded text-accent-green hover:bg-accent-green/10 transition-colors disabled:opacity-40"
-                title="Enregistrer"
+                title="Save"
               >
                 <Check size={14} />
               </button>
               <button
                 onClick={handleCancel}
                 className="p-1.5 rounded text-accent-muted/60 hover:text-white hover:bg-white/5 transition-colors"
-                title="Annuler"
+                title="Cancel"
               >
                 <X size={14} />
               </button>
@@ -176,21 +176,21 @@ function VaultCard({
                 href={vaultApi.downloadUrl(vault.id)}
                 download={vault.file_name}
                 className="p-1.5 rounded text-accent-muted/40 hover:text-accent-green hover:bg-accent-green/5 transition-colors"
-                title="Télécharger"
+                title="Download"
               >
                 <Download size={14} />
               </a>
               <button
                 onClick={() => setEditing(true)}
                 className="p-1.5 rounded text-accent-muted/40 hover:text-white hover:bg-white/5 transition-colors opacity-0 group-hover:opacity-100 transition-opacity"
-                title="Modifier"
+                title="Edit"
               >
                 <Pencil size={13} />
               </button>
               <button
                 onClick={() => onDelete(vault.id)}
                 className="p-1.5 rounded text-accent-muted/40 hover:text-severity-critical hover:bg-severity-critical/5 transition-colors"
-                title="Supprimer"
+                title="Delete"
               >
                 <Trash2 size={14} />
               </button>
@@ -204,7 +204,7 @@ function VaultCard({
         <div>
           <label className="label text-[10px] flex items-center gap-1">
             <Tag size={10} />
-            Tags <span className="text-accent-muted/40">(séparés par des virgules)</span>
+            Tags <span className="text-accent-muted/40">(comma-separated)</span>
           </label>
           <input
             className="input text-xs"
@@ -264,7 +264,7 @@ function UploadForm({ onDone }: { onDone: () => void }) {
     <div className="card p-6 space-y-4 border-accent-green/20">
       <h3 className="text-sm font-semibold text-accent-green flex items-center gap-2">
         <Upload size={14} />
-        Importer un vault
+        Import a vault
       </h3>
 
       {error && (
@@ -301,9 +301,9 @@ function UploadForm({ onDone }: { onDone: () => void }) {
         ) : (
           <>
             <FileArchive size={28} className="mx-auto mb-2 text-accent-muted/30" />
-            <p className="text-sm text-accent-muted/60">Glissez-déposez un fichier ici</p>
+            <p className="text-sm text-accent-muted/60">Drag and drop a file here</p>
             <p className="text-xs text-accent-muted/30 mt-1">
-              ZIP, PDF, DOCX, CSV, scripts, ou tout autre fichier · cliquez pour parcourir
+              ZIP, PDF, DOCX, CSV, scripts, or any other file - click to browse
             </p>
           </>
         )}
@@ -346,7 +346,7 @@ function UploadForm({ onDone }: { onDone: () => void }) {
           <label className="label flex items-center gap-1">
             <Tag size={11} />
             Tags
-            <span className="text-accent-muted/40 font-normal">(séparés par des virgules)</span>
+            <span className="text-accent-muted/40 font-normal">(comma-separated)</span>
           </label>
           <input
             className="input"
@@ -359,7 +359,7 @@ function UploadForm({ onDone }: { onDone: () => void }) {
 
       <div className="flex justify-end gap-2 pt-1">
         <button className="btn-secondary text-xs flex items-center gap-1.5" onClick={onDone}>
-          <X size={12} /> Annuler
+          <X size={12} /> Cancel
         </button>
         <button
           className="btn-primary text-xs flex items-center gap-1.5"
@@ -369,7 +369,7 @@ function UploadForm({ onDone }: { onDone: () => void }) {
           {upload.isPending ? (
             <><span className="animate-spin inline-block">⟳</span> Import en cours…</>
           ) : (
-            <><Check size={12} /> Importer</>
+            <><Check size={12} /> Import</>
           )}
         </button>
       </div>
@@ -384,15 +384,15 @@ function EmptyState({ onUpload }: { onUpload: () => void }) {
     <div className="card p-12 text-center space-y-4">
       <Archive size={42} className="mx-auto text-accent-muted/15" />
       <div>
-        <p className="text-accent-muted text-sm font-medium">Aucun vault importé</p>
+        <p className="text-accent-muted text-sm font-medium">No vault imported</p>
         <p className="text-accent-muted/50 text-xs mt-1 max-w-sm mx-auto">
-          Importez des fichiers de référence — kits d'outils, listes d'IOCs, scripts,
-          playbooks, règles de détection — accessibles à tous les analystes.
+          Import reference files - tool kits, IOC lists, scripts,
+          playbooks, detection rules - available to every analyst.
         </p>
       </div>
       <button className="btn-primary text-xs" onClick={onUpload}>
         <Upload size={12} className="inline mr-1.5" />
-        Importer le premier vault
+        Import the first vault
       </button>
     </div>
   )
@@ -409,7 +409,7 @@ function FilterBar({
     <div className="flex items-center gap-3">
       <input
         className="input text-sm py-1.5 flex-1 max-w-xs"
-        placeholder="Rechercher par nom, tag…"
+        placeholder="Search by name, tag..."
         value={search}
         onChange={e => onSearch(e.target.value)}
       />
@@ -441,7 +441,7 @@ export default function VaultManagement() {
   })
 
   const handleDelete = (id: number) => {
-    if (confirm('Supprimer ce vault ? Cette action est irréversible.')) {
+    if (confirm('Delete this vault? This cannot be undone.')) {
       deleteMut.mutate(id)
     }
   }
@@ -473,7 +473,7 @@ export default function VaultManagement() {
             Vault Management
           </h1>
           <p className="text-accent-muted text-sm mt-1">
-            Bibliothèque de fichiers de référence partagés — outils, IOCs, scripts, règles, playbooks.
+            Shared reference file library - tools, IOCs, scripts, rules, playbooks.
           </p>
         </div>
         <button
@@ -481,7 +481,7 @@ export default function VaultManagement() {
           onClick={() => setShowUpload(u => !u)}
         >
           <Upload size={14} />
-          Importer un vault
+          Import a vault
         </button>
       </div>
 
@@ -515,7 +515,7 @@ export default function VaultManagement() {
         <EmptyState onUpload={() => setShowUpload(true)} />
       ) : filtered.length === 0 ? (
         <div className="card p-8 text-center">
-          <p className="text-accent-muted text-sm">Aucun vault ne correspond à « {search} »</p>
+          <p className="text-accent-muted text-sm">No vault matches "{search}"</p>
           <button className="text-xs text-accent-green mt-2 hover:underline" onClick={() => setSearch('')}>
             Effacer la recherche
           </button>

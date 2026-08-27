@@ -11,18 +11,17 @@ Keys are stored in plaintext in the DB — secure your DB at the infra level.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from ..core.deps import get_current_user
 from ..database import get_db
 from ..models.connector import ConnectorConfig
 from ..models.user import User
-from ..core.deps import get_current_user
 
 router = APIRouter(prefix="/connectors", tags=["connectors"])
 
@@ -80,18 +79,18 @@ KNOWN_CONNECTORS: dict[str, dict] = {
 
 class ConnectorOut(BaseModel):
     name:        str
-    api_key:     Optional[str]   # masked
-    base_url:    Optional[str]
+    api_key:     str | None   # masked
+    base_url:    str | None
     enabled:     bool
-    updated_at:  Optional[datetime]
-    updated_by:  Optional[str]
+    updated_at:  datetime | None
+    updated_by:  str | None
 
     model_config = {"from_attributes": True}
 
 
 class ConnectorUpsert(BaseModel):
-    api_key:  Optional[str] = None
-    base_url: Optional[str] = None
+    api_key:  str | None = None
+    base_url: str | None = None
     enabled:  bool          = True
 
 
@@ -102,7 +101,7 @@ class TestResult(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _mask(key: Optional[str]) -> Optional[str]:
+def _mask(key: str | None) -> str | None:
     """Show only the last 4 chars of an API key."""
     if not key:
         return None
@@ -175,7 +174,7 @@ def upsert_connector(
         c.base_url = body.base_url.strip() or None
 
     c.enabled    = body.enabled
-    c.updated_at = datetime.now(timezone.utc)
+    c.updated_at = datetime.now(UTC)
     c.updated_by = current_user.username
     db.commit()
     db.refresh(c)
@@ -202,7 +201,7 @@ def clear_api_key(
     c = _get_or_create(name, db)
     c.api_key    = None
     c.enabled    = False
-    c.updated_at = datetime.now(timezone.utc)
+    c.updated_at = datetime.now(UTC)
     c.updated_by = current_user.username
     db.commit()
     db.refresh(c)
@@ -283,7 +282,7 @@ def _test_abuseipdb(api_key: str) -> TestResult:
         return TestResult(ok=False, message="Request timed out")
 
 
-def _test_misp(api_key: str, base_url: Optional[str]) -> TestResult:
+def _test_misp(api_key: str, base_url: str | None) -> TestResult:
     if not base_url:
         return TestResult(ok=False, message="No base URL configured for MISP")
     url = base_url.rstrip("/") + "/users/view/me.json"

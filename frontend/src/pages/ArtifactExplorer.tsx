@@ -7,7 +7,7 @@ import {
   BookmarkPlus, BookmarkCheck, Download, Columns3, Trash2, FileText,
   Loader2, Info, Table2, Globe, Layers, GripVertical, ChevronRight as ChevronRightIcon,
   Terminal, HelpCircle, AlertCircle, Shield, ShieldCheck,
-} from 'lucide-react'
+} from '../ui/icons'
 import { csvArtifactsApi, type CsvArtifactMeta, type ArtifactRowFilters, type OmniSearchFile, type GroupResult } from '../api/csvArtifacts'
 import { timelineApi } from '../api/timeline'
 import { useCurrentCase } from '../context/CurrentCaseContext'
@@ -569,10 +569,10 @@ function GroupByBar({ groupByCols, onRemove, onAdd, onClear, isDragging }: {
         isOver ? 'text-accent-green/60' : isDragging ? 'text-accent-green/40' : 'text-accent-muted/20'
       }`}>
         {isOver
-          ? 'Relâchez pour grouper'
+          ? 'Release to group'
           : isDragging
-          ? hasGroups ? '+ ajouter au groupe' : '← déposez ici pour grouper'
-          : hasGroups ? '' : 'glissez un en-tête de colonne ici'}
+          ? hasGroups ? '+ add to group' : '<- drop here to group'
+          : hasGroups ? '' : 'drag a column header here'}
       </span>
 
       {hasGroups && (
@@ -637,7 +637,7 @@ function GroupRowsFetcher({ caseId, meta, baseFilters, groupFilters, orderedCols
       <td colSpan={colSpanAll} className="px-3 py-2">
         <div className="flex items-center gap-1.5" style={{ paddingLeft: indent }}>
           <Loader2 size={10} className="animate-spin text-accent-muted/30" />
-          <span className="text-[10px] text-accent-muted/30">Chargement…</span>
+          <span className="text-[10px] text-accent-muted/30">Loading...</span>
         </div>
       </td>
     </tr>
@@ -660,7 +660,7 @@ function GroupRowsFetcher({ caseId, meta, baseFilters, groupFilters, orderedCols
             }`}>
             <td className={`w-8 shrink-0 px-1 py-1 text-center sticky left-0 z-[4] shadow-[1px_0_0_rgba(255,255,255,0.04)] ${isPinned ? 'bg-accent-green/[0.04]' : isExported ? 'bg-blue-500/[0.02]' : 'bg-bg-primary'}`}
               onClick={e => { e.stopPropagation(); onPinToggle(key, row) }}
-              title={isExported && !isPinned ? 'Exporté vers la Timeline' : undefined}>
+              title={isExported && !isPinned ? 'Exported to the Timeline' : undefined}>
               {isPinned
                 ? <BookmarkCheck size={12} className="mx-auto text-accent-green/60" />
                 : isExported
@@ -730,13 +730,13 @@ function highlightRQL(q: string): React.ReactNode[] {
 }
 
 const RQL_EXAMPLES = [
-  { label: 'Égalité',        q: 'EventID = "4624"' },
+  { label: 'Equality',       q: 'EventID = "4624"' },
   { label: 'ET / OU',        q: 'EventID = "4624" AND Channel = "Security"' },
   { label: 'Contient',       q: 'Computer contains "DC" AND CommandLine contains "powershell"' },
   { label: 'Liste IN',       q: 'EventID IN ("4624", "4625", "4648", "4768")' },
   { label: 'NOT IN',         q: 'EventID NOT IN ("4634", "4647")' },
   { label: 'Wildcard',       q: 'Computer = "DC-*" AND User = "adm?n"' },
-  { label: 'Plage numérique',q: 'EventID BETWEEN 4600 AND 4700' },
+  { label: 'Numeric range',  q: 'EventID BETWEEN 4600 AND 4700' },
   { label: 'Comparaison',    q: 'ProcessId > 1000 AND ProcessId <= 9999' },
   { label: 'Regex',          q: 'CommandLine REGEX "powershell.*-enc.*"' },
   { label: 'CIDR',           q: 'IpAddress CIDR "10.0.0.0/8"' },
@@ -744,7 +744,7 @@ const RQL_EXAMPLES = [
   { label: 'Full-text',      q: '~ "mimikatz"' },
   { label: 'Wildcard col',  q: '* contains "mimikatz"' },
   { label: 'Wildcard REGEX',q: '* REGEX "^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$"' },
-  { label: 'Groupé',        q: '(EventID = "4624" OR EventID = "4625") AND NOT Computer = "WORKSTATION01"' },
+  { label: 'Grouped',       q: '(EventID = "4624" OR EventID = "4625") AND NOT Computer = "WORKSTATION01"' },
 ]
 
 /** Tallest the query box grows before it starts scrolling (≈6 lines). */
@@ -829,7 +829,7 @@ function RQLBar({ value, onChange, onRun, error, columns, hasActiveFilters }: {
       <div className="flex items-center gap-2 px-3 pt-2 pb-1">
         <Terminal size={10} className="text-accent-green/60 shrink-0" />
         <span className="text-[9px] font-semibold uppercase tracking-widest text-accent-green/60">RQL Query</span>
-        <span className="text-[8px] text-accent-muted/25 ml-1">↵ Entrée pour exécuter · Tab pour compléter</span>
+        <span className="text-[8px] text-accent-muted/25 ml-1">Enter to run - Tab to complete</span>
         <div className="ml-auto flex items-center gap-1">
           {value && (
             <button onClick={() => { onChange(''); onRun('') }}
@@ -904,7 +904,7 @@ function RQLBar({ value, onChange, onRun, error, columns, hasActiveFilters }: {
       {value && hasActiveFilters && !error && (
         <div className="flex items-center gap-1.5 mx-3 mb-2 px-2 py-1 rounded bg-yellow-500/8 border border-yellow-500/20 text-[10px] text-yellow-400/80">
           <AlertCircle size={10} className="shrink-0" />
-          Des filtres de colonnes sont actifs et s'appliquent en AND avec la requête RQL — les résultats OR peuvent être réduits.
+          Column filters are active and apply as AND alongside the RQL query - OR results may be narrowed.
         </div>
       )}
 
@@ -912,7 +912,7 @@ function RQLBar({ value, onChange, onRun, error, columns, hasActiveFilters }: {
       {showHelp && (
         <div className="mx-3 mb-2 border border-white/8 rounded-lg overflow-hidden">
           <div className="px-3 py-1.5 bg-white/[0.02] border-b border-white/5">
-            <p className="text-[9px] uppercase tracking-widest text-accent-muted/40">Exemples de requêtes — cliquer pour insérer</p>
+            <p className="text-[9px] uppercase tracking-widest text-accent-muted/40">Query examples - click to insert</p>
           </div>
           <div className="grid grid-cols-2 gap-0 max-h-52 overflow-y-auto">
             {RQL_EXAMPLES.map(ex => (
@@ -953,8 +953,8 @@ function ArtifactRedirectView({ meta, caseId, type }: { meta: CsvArtifactMeta; c
   const icon   = isEvtx ? '🗂️' : '📧'
   const color  = isEvtx ? 'text-orange-400 bg-orange-500/8 border-orange-500/20' : 'text-blue-400 bg-blue-500/8 border-blue-500/20'
   const hint   = isEvtx
-    ? 'Ce fichier EVTX a été enregistré dans le module Logs. Rendez-vous sur la page Logs pour le consulter et lancer Chainsaw.'
-    : 'Ce fichier EML a été enregistré dans le module Email Analysis. Rendez-vous sur la page Email Analysis pour l\'analyser.'
+    ? 'This EVTX file was registered in the Logs module. Open the Logs page to review it and run Chainsaw.'
+    : 'This EML file was registered in the Email Analysis module. Open the Email Analysis page to analyse it.'
   return (
     <div className="flex flex-col items-center justify-center h-full gap-6 px-8">
       <div className="text-5xl opacity-60">{icon}</div>
@@ -991,7 +991,7 @@ function TextArtifactView({ meta, caseId }: { meta: CsvArtifactMeta; caseId: str
   }, [data?.content, search])
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-full text-accent-muted/30 text-sm animate-pulse">Chargement…</div>
+    return <div className="flex items-center justify-center h-full text-accent-muted/30 text-sm animate-pulse">Loading...</div>
   }
 
   return (
@@ -1004,7 +1004,7 @@ function TextArtifactView({ meta, caseId }: { meta: CsvArtifactMeta; caseId: str
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Filtrer les lignes…"
+            placeholder="Filter rows..."
             className="bg-white/5 border border-white/10 rounded pl-6 pr-3 py-1 text-[11px] text-white placeholder:text-accent-muted/30 outline-none focus:border-white/20 w-52"
           />
         </div>
@@ -1094,7 +1094,7 @@ function JsonArtifactView({ meta, caseId }: { meta: CsvArtifactMeta; caseId: str
   }, [data?.content, search])
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-full text-accent-muted/30 text-sm animate-pulse">Chargement…</div>
+    return <div className="flex items-center justify-center h-full text-accent-muted/30 text-sm animate-pulse">Loading...</div>
   }
 
   return (
@@ -1108,7 +1108,7 @@ function JsonArtifactView({ meta, caseId }: { meta: CsvArtifactMeta; caseId: str
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Filtrer les lignes…"
+              placeholder="Filter rows..."
               className="bg-white/5 border border-white/10 rounded pl-6 pr-3 py-1 text-[11px] text-white placeholder:text-accent-muted/30 outline-none focus:border-white/20 w-52"
             />
           </div>
@@ -1122,7 +1122,7 @@ function JsonArtifactView({ meta, caseId }: { meta: CsvArtifactMeta; caseId: str
         {mode === 'tree' ? (
           parsed !== null
             ? <JsonNode data={parsed} depth={0} />
-            : <p className="text-red-400/60 text-xs">JSON invalide — impossible de parser le fichier.</p>
+            : <p className="text-red-400/60 text-xs">Invalid JSON - cannot parse the file.</p>
         ) : (
           rawLines.map((line, i) => (
             <div key={i} className="flex gap-3 hover:bg-white/[0.02] rounded px-1">
@@ -1551,7 +1551,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, exp
             className="flex items-center gap-1 px-2 py-1.5 rounded border border-white/8 text-[10px] text-accent-muted hover:text-white hover:border-white/20 transition-colors">
             {allExpanded
               ? <><ChevronsLeft size={10} className="rotate-90" /> Replier tout</>
-              : <><ChevronsRight size={10} className="rotate-90" /> Développer tout</>
+              : <><ChevronsRight size={10} className="rotate-90" /> Expand all</>
             }
           </button>
         )}
@@ -1677,7 +1677,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, exp
                       <div className="flex items-center gap-2" style={{ paddingLeft: indent }}>
                         <span className="text-[9px] text-accent-muted/30 font-mono">{item.groupCol}:</span>
                         <span className={`text-[11px] font-medium ${item.depth === 0 ? 'text-white/80' : 'text-white/65'}`}>
-                          {item.groupVal === '' ? <span className="italic text-accent-muted/30">(vide)</span> : item.groupVal}
+                          {item.groupVal === '' ? <span className="italic text-accent-muted/30">(empty)</span> : item.groupVal}
                         </span>
                         <span className="text-[9px] px-1.5 py-0.5 rounded border border-accent-green/20 bg-accent-green/5 text-accent-green/70 ml-1">
                           {item.count.toLocaleString()}
@@ -1727,7 +1727,7 @@ function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, exp
                     }`}>
                     <td className={`w-8 shrink-0 px-1 py-1.5 text-center sticky left-0 z-[4] shadow-[1px_0_0_rgba(255,255,255,0.04)] ${isPinned ? 'bg-accent-green/[0.04]' : isExported ? 'bg-blue-500/[0.02]' : 'bg-bg-primary'}`}
                       onClick={e => { e.stopPropagation(); handlePin(row) }}
-                      title={isExported && !isPinned ? 'Exporté vers la Timeline' : undefined}>
+                      title={isExported && !isPinned ? 'Exported to the Timeline' : undefined}>
                       {isPinned
                         ? <BookmarkCheck size={13} className="mx-auto text-accent-green/60" />
                         : isExported
@@ -1859,7 +1859,7 @@ function OmniFileGroup({ file, query, onOpen }: {
           </span>
           <button onClick={onOpen}
             className="text-[10px] text-accent-muted hover:text-accent-green border border-white/10 hover:border-accent-green/30 px-2 py-0.5 rounded transition-colors">
-            Ouvrir le fichier →
+            Open the file →
           </button>
         </div>
       </div>
@@ -1891,7 +1891,7 @@ function OmniFileGroup({ file, query, onOpen }: {
           className="w-full py-1.5 text-[10px] text-accent-muted/40 hover:text-accent-green/60 hover:bg-white/[0.01] transition-colors border-t border-white/5"
         >
           {expanded
-            ? '▲ Réduire'
+            ? 'Collapse'
             : `▼ Voir ${file.rows.length - 8} ligne${file.rows.length - 8 > 1 ? 's' : ''} de plus (${file.rows.length} au total)`
           }
         </button>
@@ -1931,7 +1931,7 @@ function PinnedPanel({ pinned, onUnpin, onClear, onExport, onEdit, onReset, expo
       <div className="flex items-center justify-between px-3 py-3 border-b border-white/5 shrink-0">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-accent-muted/50 flex items-center gap-1.5">
           <BookmarkCheck size={10} />
-          Sélection
+          Selection
           {pinned.length > 0 && (
             <span className="ml-1 bg-accent-green/15 text-accent-green border border-accent-green/30 rounded px-1.5 py-0.5 text-[9px] font-bold">
               {pinned.length}
@@ -1950,7 +1950,7 @@ function PinnedPanel({ pinned, onUnpin, onClear, onExport, onEdit, onReset, expo
         <div className="flex-1 flex flex-col items-center justify-center gap-2 px-4 text-center">
           <BookmarkPlus size={22} className="text-accent-muted/15" />
           <p className="text-[10px] text-accent-muted/30 leading-relaxed">
-            Cliquez sur <BookmarkPlus size={9} className="inline" /> dans une ligne pour l'épingler ici
+            Click <BookmarkPlus size={9} className="inline" /> on a row to pin it here
           </p>
         </div>
       )}
@@ -1993,11 +1993,11 @@ function PinnedPanel({ pinned, onUnpin, onClear, onExport, onEdit, onReset, expo
                 {isOpen && (
                   <div className="mt-2 pl-[19px] space-y-1.5">
                     <div>
-                      <label className="text-[8px] uppercase tracking-widest text-accent-muted/40">Titre</label>
+                      <label className="text-[8px] uppercase tracking-widest text-accent-muted/40">Title</label>
                       <input
                         value={item.title}
                         onChange={e => onEdit(item.key, { title: e.target.value })}
-                        placeholder="Titre de l'événement…"
+                        placeholder="Event title..."
                         className="w-full mt-0.5 bg-black/30 border border-white/10 rounded px-1.5 py-1 text-[10px] text-white/90 focus:border-accent-green/40 focus:outline-none"
                       />
                     </div>
@@ -2016,10 +2016,10 @@ function PinnedPanel({ pinned, onUnpin, onClear, onExport, onEdit, onReset, expo
                         onClick={() => onReset(item.key)}
                         className="text-[9px] text-accent-muted/40 hover:text-accent-green transition-colors"
                       >
-                        Réinitialiser
+                        Reset
                       </button>
                       <span className="text-[8px] text-accent-muted/25">
-                        {item.columns.length} champs conservés
+                        {item.columns.length} fields kept
                       </span>
                     </div>
                   </div>
@@ -2048,7 +2048,7 @@ function PinnedPanel({ pinned, onUnpin, onClear, onExport, onEdit, onReset, expo
         </button>
         {pinned.length > 0 && (
           <p className="text-[9px] text-accent-muted/25 mt-1.5 text-center">
-            {pinned.length} événement{pinned.length > 1 ? 's' : ''} trié{pinned.length > 1 ? 's' : ''} chronologiquement
+            {pinned.length} event{pinned.length > 1 ? 's' : ''}, sorted chronologically
           </p>
         )}
       </div>
@@ -2093,7 +2093,7 @@ function FileSidebarRow({ meta, isOpen, onOpen, onDelete, onAddEvidence, addingE
       {/* Add to Evidence button */}
       <button
         onClick={e => { e.stopPropagation(); if (!hasEvidence) onAddEvidence() }}
-        title={hasEvidence ? 'Lié à la chaîne de conservation' : 'Ajouter à la chaîne de conservation'}
+        title={hasEvidence ? 'Linked to the chain of custody' : 'Add to the chain of custody'}
         disabled={addingEvidence}
         className={`absolute right-7 top-2.5 transition-all ${
           hasEvidence
@@ -2257,7 +2257,7 @@ export default function ArtifactExplorer() {
     for (const file of Array.from(fileList)) {
       const ext = '.' + (file.name.split('.').pop() ?? '').toLowerCase()
       if (!SUPPORTED_EXTS.includes(ext)) {
-        setUploadErr(`Type non supporté: ${ext}. Acceptés: ${SUPPORTED_EXTS.join(', ')}`)
+        setUploadErr(`Unsupported type: ${ext}. Accepted: ${SUPPORTED_EXTS.join(', ')}`)
         continue
       }
       try {
@@ -2377,7 +2377,7 @@ export default function ArtifactExplorer() {
       await Promise.allSettled(
         Object.entries(countByArtifact).map(([artifactId, count]) =>
           csvArtifactsApi.cocNote(caseId, artifactId,
-            `${count} événement(s) exporté(s) vers Timeline`
+            `${count} event(s) exported to the Timeline`
           )
         )
       )
@@ -2463,7 +2463,7 @@ export default function ArtifactExplorer() {
             <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
               <button
                 onClick={() => setOmniRegex(r => !r)}
-                title={omniRegex ? 'Désactiver regex' : 'Activer regex'}
+                title={omniRegex ? 'Disable regex' : 'Enable regex'}
                 className={`px-1 py-0.5 rounded text-[9px] font-mono border transition-colors ${omniRegex ? 'border-accent-green/40 text-accent-green bg-accent-green/10' : 'border-white/10 text-accent-muted/40 hover:text-white hover:border-white/20'}`}
               >.*</button>
               {omniQuery && (

@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, FolderOpen, Building2 } from 'lucide-react'
+import { Plus, Search, FolderOpen, Building2 } from '../ui/icons'
 import { casesApi } from '../api/cases'
 import { templatesApi } from '../api/templates'
 import { usersApi } from '../api/auth'
@@ -13,7 +13,7 @@ import { SeverityBadge, StatusBadge, TLPBadge, Tag } from '../components/ui/Badg
 import Modal from '../components/ui/Modal'
 import EmptyState from '../components/ui/EmptyState'
 import TagInput, { type InputTag } from '../components/ui/TagInput'
-import { GitBranch } from 'lucide-react'
+import { GitBranch } from '../ui/icons'
 import { fmtDate } from '../utils/dateUtils'
 
 const USER_BADGE = 'bg-blue-500/10 text-blue-400 border-blue-500/20'
@@ -257,8 +257,8 @@ export default function Cases() {
             <div>
               <label className="label flex items-center gap-1.5"><Building2 size={11} /> Client / Organisation</label>
               <select className="input" value={form.client_id ?? ''} onChange={e => setForm(f => ({ ...f, client_id: e.target.value || null }))}>
-                <option value="">— Aucun (client par défaut) —</option>
-                {clients.map(c => <option key={c.id} value={c.id}>{c.name}{c.is_default ? ' (défaut)' : ''}</option>)}
+                <option value="">-- None (default client) --</option>
+                {clients.map(c => <option key={c.id} value={c.id}>{c.name}{c.is_default ? ' (default)' : ''}</option>)}
               </select>
             </div>
           </div>

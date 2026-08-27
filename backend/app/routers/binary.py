@@ -30,35 +30,39 @@ import stat
 import uuid
 from base64 import urlsafe_b64encode
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..core.deps import get_current_user
-from ..database import get_db, SessionLocal
+from ..database import SessionLocal, get_db
 from ..models.binary import BinaryFile
 from ..models.case import Case
-from ..models.evidence import Evidence, EvidenceType, AcquisitionMethod
+from ..models.evidence import AcquisitionMethod, Evidence, EvidenceType
 from ..models.user import User
 from ..schemas.binary import (
-    BinaryFileOut, BinaryAnalysisOut,
-    SectionInfo, ImportLib, StringEntry, DisassemblyLine,
+    BinaryAnalysisOut,
+    BinaryFileOut,
+    DisassemblyLine,
+    ImportLib,
+    SectionInfo,
+    StringEntry,
 )
 from ..services.audit_service import audit_log
 
 # ── Optional heavy deps ───────────────────────────────────────────────────────
 
 try:
-    import lief          # type: ignore
+    import lief  # type: ignore
     HAS_LIEF = True
 except ImportError:
     HAS_LIEF = False
 
 try:
-    import capstone      # type: ignore
+    import capstone  # type: ignore
     HAS_CAPSTONE = True
 except ImportError:
     HAS_CAPSTONE = False
@@ -363,7 +367,7 @@ def _analyse_in_background(file_id: str, raw: bytes) -> None:
         f.binary_type   = analysis.get("binary_type", "unknown")
         f.analysis_json = json.dumps(analysis)
         f.status        = "ready"
-        f.analysed_at   = datetime.now(timezone.utc)
+        f.analysed_at   = datetime.now(UTC)
         db.commit()
     except Exception as exc:
         db.rollback()
@@ -571,7 +575,7 @@ def add_evidence(
     except Exception:
         pass
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     evidence = Evidence(
         id                 = str(uuid.uuid4()),
         case_id            = case_id,

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { X, Download, AlertCircle, FileQuestion } from 'lucide-react'
+import { X, Download, AlertCircle, FileQuestion } from '../../ui/icons'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 import { clientsApi } from '../../api/clients'
@@ -22,7 +22,7 @@ const MAX_PREVIEW_ROWS = 500
 
 function SpreadsheetTable({ rows }: { rows: string[][] }) {
   if (rows.length === 0) {
-    return <p className="text-sm text-accent-muted p-6">Fichier vide.</p>
+    return <p className="text-sm text-accent-muted p-6">Empty file.</p>
   }
   const [header, ...body] = rows
   const truncated = body.length > MAX_PREVIEW_ROWS
@@ -51,7 +51,7 @@ function SpreadsheetTable({ rows }: { rows: string[][] }) {
       </table>
       {truncated && (
         <p className="text-[11px] text-accent-muted/50 px-3 py-2">
-          Aperçu limité aux {MAX_PREVIEW_ROWS} premières lignes sur {body.length}. Téléchargez le fichier pour la version complète.
+          Preview limited to the first {MAX_PREVIEW_ROWS} rows of {body.length}. Download the file for the full version.
         </p>
       )}
     </div>
@@ -72,7 +72,7 @@ function XlsxPreview({ blob }: { blob: Blob }) {
         setWorkbook(wb)
         setSheet(wb.SheetNames[0] ?? '')
       } catch {
-        setError('Impossible de lire ce fichier Excel.')
+        setError('Cannot read this Excel file.')
       }
     })
     return () => { cancelled = true }
@@ -84,7 +84,7 @@ function XlsxPreview({ blob }: { blob: Blob }) {
   }, [workbook, sheet])
 
   if (error) return <p className="text-sm text-severity-critical p-6">{error}</p>
-  if (!workbook) return <p className="text-sm text-accent-muted p-6">Chargement…</p>
+  if (!workbook) return <p className="text-sm text-accent-muted p-6">Loading...</p>
 
   return (
     <div className="flex flex-col h-full">
@@ -120,7 +120,7 @@ function CsvPreview({ blob }: { blob: Blob }) {
       if (cancelled) return
       const parsed = Papa.parse<string[]>(text, { skipEmptyLines: true })
       if (parsed.errors.length && parsed.data.length === 0) {
-        setError('Impossible de lire ce fichier CSV.')
+        setError('Cannot read this CSV file.')
       } else {
         setRows(parsed.data)
       }
@@ -129,7 +129,7 @@ function CsvPreview({ blob }: { blob: Blob }) {
   }, [blob])
 
   if (error) return <p className="text-sm text-severity-critical p-6">{error}</p>
-  if (!rows) return <p className="text-sm text-accent-muted p-6">Chargement…</p>
+  if (!rows) return <p className="text-sm text-accent-muted p-6">Loading...</p>
   return <SpreadsheetTable rows={rows} />
 }
 
@@ -148,7 +148,7 @@ export default function DocumentPreview({ clientId, doc, onClose }: Props) {
     let cancelled = false
     clientsApi.documentContent(clientId, doc.id)
       .then(b => { if (!cancelled) setBlob(b) })
-      .catch(() => { if (!cancelled) setError("Impossible de charger l'aperçu de ce document.") })
+      .catch(() => { if (!cancelled) setError("Cannot load the preview for this document.") })
     return () => { cancelled = true }
   }, [clientId, doc.id])
 
@@ -193,7 +193,7 @@ export default function DocumentPreview({ clientId, doc, onClose }: Props) {
             disabled={!blob}
             className="flex items-center gap-1.5 text-xs text-accent-muted/60 hover:text-white transition-colors disabled:opacity-30"
           >
-            <Download size={13} /> Télécharger
+            <Download size={13} /> Download
           </button>
           <button onClick={onClose} className="text-accent-muted hover:text-white transition-colors p-1">
             <X size={16} />
@@ -208,7 +208,7 @@ export default function DocumentPreview({ clientId, doc, onClose }: Props) {
               <p className="text-sm">{error}</p>
             </div>
           ) : !blob ? (
-            <div className="flex items-center justify-center h-full text-accent-muted text-sm">Chargement…</div>
+            <div className="flex items-center justify-center h-full text-accent-muted text-sm">Loading...</div>
           ) : isPdf && blobUrl ? (
             <iframe src={blobUrl} className="w-full h-full border-none bg-white" title={doc.name} />
           ) : isImage && blobUrl ? (
@@ -222,9 +222,9 @@ export default function DocumentPreview({ clientId, doc, onClose }: Props) {
           ) : (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-accent-muted">
               <FileQuestion size={32} className="text-accent-muted/30" />
-              <p className="text-sm">Aperçu non disponible pour ce type de fichier.</p>
+              <p className="text-sm">Preview not available for this file type.</p>
               <button onClick={handleDownload} className="btn-secondary text-xs flex items-center gap-1.5">
-                <Download size={12} /> Télécharger
+                <Download size={12} /> Download
               </button>
             </div>
           )}

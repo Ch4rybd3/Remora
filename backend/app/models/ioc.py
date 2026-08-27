@@ -1,8 +1,10 @@
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum as SAEnum
-from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
-import uuid
 import enum
+import uuid
+from datetime import UTC, datetime
+
+from sqlalchemy import Column, DateTime, ForeignKey, String, Text
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy.orm import relationship
 
 from ..database import Base
 
@@ -51,6 +53,6 @@ class IOC(Base):
     tlp = Column(String(20), default="TLP:AMBER")
     first_seen = Column(DateTime, nullable=True)
     last_seen = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
 
     case = relationship("Case", back_populates="iocs")

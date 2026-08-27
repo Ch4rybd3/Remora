@@ -1,6 +1,6 @@
-from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
+
+from pydantic import BaseModel
 
 
 class TimelineEventBase(BaseModel):
@@ -12,7 +12,7 @@ class TimelineEventBase(BaseModel):
     tags: str = ""
     origin: str = "manual"
     # Full source record as a JSON string; rendered under a chevron in the UI
-    raw_payload: Optional[str] = None
+    raw_payload: str | None = None
     raw_source: str = ""
 
 
@@ -21,15 +21,15 @@ class TimelineEventCreate(TimelineEventBase):
 
 
 class TimelineEventUpdate(BaseModel):
-    event_ts: Optional[datetime] = None
-    title: Optional[str] = None
-    description: Optional[str] = None
-    actor: Optional[str] = None
-    source: Optional[str] = None
-    tags: Optional[str] = None
-    origin: Optional[str] = None
-    raw_payload: Optional[str] = None
-    raw_source: Optional[str] = None
+    event_ts: datetime | None = None
+    title: str | None = None
+    description: str | None = None
+    actor: str | None = None
+    source: str | None = None
+    tags: str | None = None
+    origin: str | None = None
+    raw_payload: str | None = None
+    raw_source: str | None = None
 
 
 class TimelineEventRead(TimelineEventBase):

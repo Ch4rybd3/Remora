@@ -1,6 +1,8 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+
 import bcrypt
 from jose import jwt
+
 from ..config import settings
 
 ALGORITHM = "HS256"
@@ -16,7 +18,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 def create_access_token(user_id: str, role: str) -> str:
-    expires = datetime.now(timezone.utc) + timedelta(hours=TOKEN_EXPIRE_HOURS)
+    expires = datetime.now(UTC) + timedelta(hours=TOKEN_EXPIRE_HOURS)
     return jwt.encode(
         {"sub": user_id, "role": role, "exp": expires},
         settings.secret_key,

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { AlertCircle, Eye, EyeOff } from '../ui/icons'
 
 export default function Login() {
   const { login } = useAuth()
@@ -69,7 +69,7 @@ export default function Login() {
 
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="label">Nom d'utilisateur</label>
+              <label className="label">Username</label>
               <input
                 className="input"
                 autoComplete="username"

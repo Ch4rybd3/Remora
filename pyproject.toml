@@ -22,21 +22,57 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-# Blocking set: rules that catch defects, not style.
-#   F  — pyflakes: undefined names, unused imports and variables
-#   E9 — syntax and IO errors
-# The style rules (E, I, B, UP, C4) report ~730 further violations across code
-# written before linting existed. Turning them on here would land a red CI on
-# the very sprint whose point is that CI can be trusted. They are scheduled as
-# a single mechanical `ruff check --fix` pull request in S12; see docs/ROADMAP.md.
-select = ["F", "E9"]
-ignore = []
+# Rules are chosen to make the codebase consistent, not to impose a house style
+# on code that already has one. Three deliberate exclusions are documented below.
+select = [
+    "F",    # pyflakes — undefined names, unused imports and variables
+    "E4",   # import placement
+    "E7",   # statement-level defects
+    "E9",   # syntax and IO errors
+    "I",    # import sorting
+    "UP",   # pyupgrade — modern Python 3.12 idioms
+    "C4",   # comprehensions
+    "B",    # bugbear
+]
+ignore = [
+    "E501",  # line length — not enforced on prose or aligned tables
+
+    # ── Style this codebase owns, and ruff should not relitigate ─────────────
+    # Assignments are deliberately column-aligned (`f.status    = "imported"`)
+    # and short statements are deliberately compact. Reformatting 77 sites
+    # would be pure churn against a consistent authorial style. This is also
+    # why there is no `ruff format`: Black-style formatting collapses those
+    # alignments, which would be a downgrade here, not an improvement.
+    "E701",  # multiple statements on one line (colon)
+    "E702",  # multiple statements on one line (semicolon)
+
+    # ── Framework idioms ────────────────────────────────────────────────────
+    "B008",  # Depends()/Query() in a default argument IS the FastAPI idiom
+             # (319 sites; flagging them would make the rule useless)
+    "E402",  # deliberate deferred imports — heavy optional dependencies are
+             # imported inside the functions that need them
+
+    # ── Changes with semantics, not style ───────────────────────────────────
+    # UP042 rewrites `class X(str, Enum)` to `StrEnum`. Those differ: str(X.a)
+    # returns "X.a" for the former and "a" for the latter. Role and status
+    # values are serialised, so this is a behaviour change disguised as a
+    # lint fix. It needs its own change with its own tests.
+    "UP042",
+
+    # B904 (`raise ... from`) is worth doing across the 33 sites that need it,
+    # but each one is a judgement call between `from exc` and `from None`.
+    # Tracked as follow-up work rather than done blind.
+    "B904",
+]
 
 [tool.ruff.lint.per-file-ignores]
 # main.py imports models purely to register their tables, after runtime setup.
 "backend/app/main.py" = ["F401", "E402"]
 "backend/alembic/env.py" = ["E402"]
 "backend/tests/conftest.py" = ["E402"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
 
 [tool.mypy]
 python_version = "3.12"

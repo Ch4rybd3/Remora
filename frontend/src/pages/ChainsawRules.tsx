@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Swords, Search, Upload, Trash2, CheckCircle2, Loader2,
   Download, Info, ShieldCheck, AlertCircle,
-} from 'lucide-react'
+} from '../ui/icons'
 import { chainsawRulesApi, type RuleInfo, type SigmaStatus } from '../api/chainsaw'
 
 // ── Level badge ───────────────────────────────────────────────────────────────

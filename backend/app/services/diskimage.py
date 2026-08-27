@@ -14,10 +14,11 @@ from __future__ import annotations
 
 import hashlib
 import threading
+from collections.abc import Iterator
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from ..config import settings
 
@@ -74,19 +75,19 @@ def resolve_image_path(raw_path: str) -> Path:
     must not grant access to it.
     """
     if not raw_path:
-        raise DiskImageError("Chemin d'image manquant")
+        raise DiskImageError("Missing image path")
 
     roots = allowed_roots()
     if not roots:
         raise DiskImageError(
-            "Aucun répertoire d'images configuré — définissez DISK_IMAGE_PATHS "
-            "et montez le volume correspondant"
+            "No image directory configured - set DISK_IMAGE_PATHS and mount the "
+            "matching volume"
         )
 
     try:
         candidate = Path(raw_path).resolve()
     except OSError as e:
-        raise DiskImageError(f"Chemin invalide: {e}")
+        raise DiskImageError(f"Invalid path: {e}")
 
     for root in roots:
         try:
@@ -94,10 +95,10 @@ def resolve_image_path(raw_path: str) -> Path:
         except ValueError:
             continue
         if not candidate.is_file():
-            raise DiskImageError("Image introuvable")
+            raise DiskImageError("Image not found")
         return candidate
 
-    raise DiskImageError("Chemin hors des répertoires autorisés")
+    raise DiskImageError("Path outside the allowed directories")
 
 
 def list_images() -> list[dict]:
@@ -117,7 +118,7 @@ def list_images() -> list[dict]:
                 "root":     str(root),
                 "rel_path": str(p.relative_to(root)),
                 "size":     st.st_size,
-                "modified": datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat(),
+                "modified": datetime.fromtimestamp(st.st_mtime, tz=UTC).isoformat(),
                 "format":   p.suffix.lower().lstrip("."),
             })
     return out
@@ -231,8 +232,8 @@ def _get_fs(path: Path, partition: int):
     fs = img.filesystems.get(partition)
     if fs is None:
         raise DiskImageError(
-            f"Partition {partition} non exploitable "
-            f"(système de fichiers non reconnu ou espace non alloué)"
+            f"Partition {partition} is not readable "
+            f"(unrecognised filesystem or unallocated space)"
         )
     return fs
 
@@ -255,7 +256,7 @@ def _entry_times(entry: Any) -> dict:
         try:
             val = getattr(st, attr, None)
             if val:
-                out[key] = datetime.fromtimestamp(float(val), tz=timezone.utc).isoformat()
+                out[key] = datetime.fromtimestamp(float(val), tz=UTC).isoformat()
         except Exception:
             pass
     return out
@@ -275,13 +276,13 @@ def list_dir(path: Path, partition: int, dir_path: str = "/") -> list[dict]:
     try:
         target = fs.get(dir_path)
     except Exception as e:
-        raise DiskImageError(f"Répertoire introuvable: {e}")
+        raise DiskImageError(f"Directory not found: {e}")
 
     entries: list[dict] = []
     try:
         listing = list(target.scandir())
     except Exception as e:
-        raise DiskImageError(f"Lecture du répertoire impossible: {e}")
+        raise DiskImageError(f"Cannot read directory: {e}")
 
     for entry in listing:
         if entry.name in (".", ".."):
@@ -318,9 +319,9 @@ def read_file(path: Path, partition: int, file_path: str,
     try:
         entry = fs.get(file_path)
     except Exception as e:
-        raise DiskImageError(f"Fichier introuvable: {e}")
+        raise DiskImageError(f"File not found: {e}")
     if entry.is_dir():
-        raise DiskImageError("Ce chemin est un répertoire")
+        raise DiskImageError("This path is a directory")
 
     try:
         total = int(entry.stat().st_size)
@@ -333,7 +334,7 @@ def read_file(path: Path, partition: int, file_path: str,
             fh.seek(max(0, int(offset)))
             return fh.read(length), total
     except Exception as e:
-        raise DiskImageError(f"Lecture impossible: {e}")
+        raise DiskImageError(f"Cannot read: {e}")
 
 
 def stream_file(path: Path, partition: int, file_path: str) -> Iterator[bytes]:
@@ -343,7 +344,7 @@ def stream_file(path: Path, partition: int, file_path: str) -> Iterator[bytes]:
         entry = fs.get(file_path)
         fh = entry.open()
     except Exception as e:
-        raise DiskImageError(f"Lecture impossible: {e}")
+        raise DiskImageError(f"Cannot read: {e}")
 
     def _gen() -> Iterator[bytes]:
         try:
@@ -368,12 +369,12 @@ def hash_file(path: Path, partition: int, file_path: str) -> dict:
         entry = fs.get(file_path)
         size = int(entry.stat().st_size)
     except Exception as e:
-        raise DiskImageError(f"Fichier introuvable: {e}")
+        raise DiskImageError(f"File not found: {e}")
 
     if size > MAX_HASH_BYTES:
         raise DiskImageError(
-            f"Fichier trop volumineux pour un hachage synchrone "
-            f"({size / 1024 ** 3:.1f} Go, limite {MAX_HASH_BYTES / 1024 ** 3:.0f} Go)"
+            f"File too large to hash synchronously "
+            f"({size / 1024 ** 3:.1f} GB, limit {MAX_HASH_BYTES / 1024 ** 3:.0f} GB)"
         )
 
     md5, sha256 = hashlib.md5(), hashlib.sha256()
@@ -386,7 +387,7 @@ def hash_file(path: Path, partition: int, file_path: str) -> dict:
                 md5.update(chunk)
                 sha256.update(chunk)
     except Exception as e:
-        raise DiskImageError(f"Lecture impossible: {e}")
+        raise DiskImageError(f"Cannot read: {e}")
 
     return {"size": size, "md5": md5.hexdigest(), "sha256": sha256.hexdigest()}
 
@@ -402,15 +403,15 @@ def extract_to(path: Path, partition: int, file_path: str, dest_dir: Path) -> di
     try:
         entry = fs.get(file_path)
     except Exception as e:
-        raise DiskImageError(f"Fichier introuvable: {e}")
+        raise DiskImageError(f"File not found: {e}")
     if entry.is_dir():
-        raise DiskImageError("Impossible d'extraire un répertoire")
+        raise DiskImageError("Cannot extract a directory")
 
     dest_dir.mkdir(parents=True, exist_ok=True)
     name = Path(file_path).name or "extrait.bin"
     dest = dest_dir / name
     if dest.exists():
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+        stamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
         dest = dest_dir / f"{Path(name).stem}_{stamp}{Path(name).suffix}"
 
     md5, sha256 = hashlib.md5(), hashlib.sha256()
@@ -427,7 +428,7 @@ def extract_to(path: Path, partition: int, file_path: str, dest_dir: Path) -> di
                 written += len(chunk)
     except Exception as e:
         dest.unlink(missing_ok=True)
-        raise DiskImageError(f"Extraction impossible: {e}")
+        raise DiskImageError(f"Extraction failed: {e}")
 
     print(f"[diskimage] extrait {file_path} → {dest} ({written} o)", flush=True)
     return {

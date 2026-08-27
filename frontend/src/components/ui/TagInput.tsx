@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { X } from 'lucide-react'
+import { X } from '../../ui/icons'
 import type { Suggestion } from './SuggestInput'
 
 export interface InputTag {
@@ -154,7 +154,7 @@ export default function TagInput({ tags, onChange, suggestions, placeholder }: P
       )}
 
       <p className="text-xs text-accent-muted/40 mt-1">
-        Entrée ou virgule pour valider · Suppr pour effacer
+        Enter or comma to confirm - Backspace to remove
       </p>
     </div>
   )

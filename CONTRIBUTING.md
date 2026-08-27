@@ -64,7 +64,7 @@ lazy release note.
 | Rule | Check |
 |---|---|
 | New source is English | Lines added by the pull request must not contain accented characters. Pre-existing French is being converted in S12; do not add more. |
-| Model changes ship a migration | A pull request touching `backend/app/models/` must also add a revision under `backend/alembic/versions/`. |
+| Model changes ship a migration | Enforced by `test_models_match_the_migrated_schema`, which compares the live schema against the models. Editing a model file without changing the schema is fine; changing the schema without a revision fails the backend job. |
 | No debug statements | No `console.log`, `console.debug` or `debugger` in `frontend/src`. |
 | Lint, types, tests, build | ruff, mypy, pytest, eslint, tsc, vitest, `vite build`, and the backend Docker image. |
 

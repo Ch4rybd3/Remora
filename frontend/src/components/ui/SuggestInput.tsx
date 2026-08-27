@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 
 export interface Suggestion {
-  value: string       // texte inséré dans l'input
-  label: string       // texte affiché dans la liste
+  value: string       // text inserted into the input
+  label: string       // text shown in the list
   sublabel?: string   // info secondaire (type, ip…)
-  badge?: string      // badge coloré (ex: "IOC", "Asset")
+  badge?: string      // coloured badge (e.g. "IOC", "Asset")
   badgeColor?: string // classes tailwind pour le badge
 }
 

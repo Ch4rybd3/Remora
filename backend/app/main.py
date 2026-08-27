@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Depends
+from fastapi import Depends, FastAPI
 
 logging.basicConfig(
     level=logging.INFO,
@@ -16,57 +16,58 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
-from .config import settings
-from .database import Base, engine, SessionLocal
 from .__version__ import __version__, build_info
-from .db_migrate import run_migrations
-from .models.user import User, UserRole
-from .services.auth_service import hash_password
+from .config import settings
 from .core.deps import get_current_user
-from .routers import cases, iocs, assets, evidences, timeline, templates, reports
-from .routers import incident_log as incident_log_router
-from .models import incident_log as _incident_log_models  # ensure table is registered
-from .routers import clients as clients_router
+from .database import Base, SessionLocal, engine
+from .db_migrate import run_migrations
+from .models import attack_graph as _ag_models  # ensure tables are registered
+from .models import audit as _audit_models  # ensure tables are registered
+from .models import binary as _binary_models  # ensure tables are registered
+from .models import chainsaw as _chainsaw_models  # ensure tables are registered
 from .models import client as _client_models  # ensure tables are registered
-from .routers import backup as backup_router
-from .routers import auth, users as users_router, playbooks as playbooks_router
-from .routers import email_analysis as email_analysis_router
-from .routers import knowledge as knowledge_router
-from .routers import evtx as evtx_router
-from .routers import audit as audit_router
+from .models import connector as _connector_models  # ensure tables are registered
+from .models import csv_artifact as _csv_artifact_models  # ensure tables are registered
+from .models import email_file as _email_file_models  # ensure tables are registered
+from .models import evtx as _evtx_models  # ensure tables are registered
+from .models import ez_artifacts as _ez_artifacts_models  # ensure EZ tables are registered
+from .models import incident_log as _incident_log_models  # ensure table is registered
+from .models import memory as _memory_models  # ensure tables are registered
+from .models import mitre as _mitre_models  # ensure tables are registered
+from .models import report_doc_template as _rdt_models  # ensure tables are registered
+from .models import report_version as _rv_models  # ensure tables are registered
+from .models import vault as _vault_models  # ensure table is registered
+from .models.user import User, UserRole
+from .routers import assets, auth, cases, evidences, iocs, reports, templates, timeline
 from .routers import attack_graph as attack_graph_router
-from .routers import memory as memory_router
+from .routers import audit as audit_router
+from .routers import backup as backup_router
 from .routers import binary as binary_router
-from .routers import report_doc_templates as report_doc_templates_router
-from .routers import connectors as connectors_router
-from .routers import cti as cti_router
-from .routers import collection_import as collection_import_router
-from .routers import dropzone as dropzone_router
-from .routers import pcap as pcap_router
-from .routers import disk_images as disk_images_router
-from .models import ez_artifacts as _ez_artifacts_models   # ensure EZ tables are registered
+from .routers import case_emails as case_emails_router
 from .routers import chainsaw as chainsaw_router
 from .routers import chainsaw_rules as chainsaw_rules_router
-from .routers import mitre as mitre_router
+from .routers import clients as clients_router
+from .routers import collection_import as collection_import_router
+from .routers import connectors as connectors_router
+from .routers import csv_artifacts as csv_artifacts_router
+from .routers import cti as cti_router
 from .routers import dashboard as dashboard_router
+from .routers import disk_images as disk_images_router
+from .routers import dropzone as dropzone_router
+from .routers import email_analysis as email_analysis_router
+from .routers import evtx as evtx_router
+from .routers import incident_log as incident_log_router
+from .routers import knowledge as knowledge_router
+from .routers import memory as memory_router
+from .routers import mitre as mitre_router
+from .routers import pcap as pcap_router
+from .routers import playbooks as playbooks_router
+from .routers import report_doc_templates as report_doc_templates_router
+from .routers import users as users_router
 from .routers import vault as vault_router
-from .models import vault as _vault_models             # ensure table is registered
-from .models import evtx as _evtx_models          # ensure tables are registered
-from .models import chainsaw as _chainsaw_models   # ensure tables are registered
-from .models import mitre as _mitre_models         # ensure tables are registered
+from .services.auth_service import hash_password
 from .services.chainsaw_setup import setup_chainsaw
 from .services.cti_tools_setup import setup_cti_tools
-from .models import audit as _audit_models         # ensure tables are registered
-from .models import attack_graph as _ag_models     # ensure tables are registered
-from .models import memory as _memory_models       # ensure tables are registered
-from .models import report_version as _rv_models  # ensure tables are registered
-from .models import binary as _binary_models      # ensure tables are registered
-from .models import report_doc_template as _rdt_models    # ensure tables are registered
-from .models import connector as _connector_models        # ensure tables are registered
-from .models import email_file as _email_file_models      # ensure tables are registered
-from .models import csv_artifact as _csv_artifact_models  # ensure tables are registered
-from .routers import case_emails as case_emails_router
-from .routers import csv_artifacts as csv_artifacts_router
 
 settings.evidence_store_path.mkdir(parents=True, exist_ok=True)
 
@@ -127,8 +128,10 @@ def _setup_report_sections() -> None:
 
 def _setup_binary() -> None:
     """Ensure binary_files storage directory is locked down."""
+    import os
+    import stat as _stat
+
     from .routers.binary import BINARY_DIR
-    import os, stat as _stat
     try:
         os.chmod(BINARY_DIR, _stat.S_IRWXU)
     except Exception:
@@ -291,8 +294,8 @@ def _seed_default_client_and_backfill():
     """Ensure a default Client exists, then point every case without a
     client_id at it — cases with a pre-existing client_name get their own
     Client record instead (matched/created by name) so no data is lost."""
-    from .models.client import Client
     from .models.case import Case
+    from .models.client import Client
 
     db = SessionLocal()
     try:
@@ -332,6 +335,7 @@ def _seed_default_client_and_backfill():
 def _seed_playbooks():
     """Import sample playbooks from samples/playbooks/ on first startup."""
     import json
+
     from .models.playbook import Playbook
 
     samples_dir = Path(__file__).parent.parent.parent / "samples" / "playbooks"

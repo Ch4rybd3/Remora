@@ -4,24 +4,29 @@ import json
 import re
 import uuid
 from pathlib import Path
-from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from ..config import settings
+from ..core.deps import get_current_user
 from ..database import get_db
-from ..models.client import Client, ClientDocTemplate, ClientDocument
 from ..models.case import Case
+from ..models.client import Client, ClientDocTemplate, ClientDocument
 from ..models.user import User
 from ..schemas.client import (
-    ClientCreate, ClientUpdate, ClientRead, ClientSummary,
-    ClientDocTemplateCreate, ClientDocTemplateUpdate, ClientDocTemplateRead,
-    ClientDocumentUpdate, ClientDocumentRead,
+    ClientCreate,
+    ClientDocTemplateCreate,
+    ClientDocTemplateRead,
+    ClientDocTemplateUpdate,
+    ClientDocumentRead,
+    ClientDocumentUpdate,
+    ClientRead,
+    ClientSummary,
+    ClientUpdate,
 )
 from ..services.audit_service import audit_log
-from ..core.deps import get_current_user
-from ..config import settings
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 
@@ -43,7 +48,7 @@ def _tpl_to_read(tpl: ClientDocTemplate) -> ClientDocTemplateRead:
 # ── Doc templates ────────────────────────────────────────────────────────────
 # NOTE: declared before /{client_id} routes so "doc-templates" isn't captured as an id.
 
-@router.get("/doc-templates", response_model=List[ClientDocTemplateRead])
+@router.get("/doc-templates", response_model=list[ClientDocTemplateRead])
 def list_doc_templates(db: Session = Depends(get_db)):
     tpls = db.query(ClientDocTemplate).order_by(ClientDocTemplate.name).all()
     return [_tpl_to_read(t) for t in tpls]
@@ -103,7 +108,7 @@ def delete_doc_template(
 
 # ── Clients ──────────────────────────────────────────────────────────────────
 
-@router.get("/", response_model=List[ClientSummary])
+@router.get("/", response_model=list[ClientSummary])
 def list_clients(db: Session = Depends(get_db)):
     clients = db.query(Client).order_by(Client.is_default.desc(), Client.name).all()
     return [
@@ -192,7 +197,7 @@ def delete_client(
 
 # ── Documents ────────────────────────────────────────────────────────────────
 
-@router.get("/{client_id}/documents", response_model=List[ClientDocumentRead])
+@router.get("/{client_id}/documents", response_model=list[ClientDocumentRead])
 def list_documents(client_id: str, db: Session = Depends(get_db)):
     if not db.query(Client).filter(Client.id == client_id).first():
         raise HTTPException(404, "Client not found")
@@ -206,8 +211,8 @@ def list_documents(client_id: str, db: Session = Depends(get_db)):
 async def upload_document(
     client_id: str,
     file: UploadFile = File(...),
-    slot: Optional[str] = Form(None),
-    name: Optional[str] = Form(None),
+    slot: str | None = Form(None),
+    name: str | None = Form(None),
     description: str = Form(""),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

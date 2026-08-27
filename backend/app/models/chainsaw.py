@@ -1,7 +1,9 @@
 import uuid
-from datetime import datetime, timezone
-from sqlalchemy import Column, String, Integer, Text, DateTime, Boolean, JSON, Index, ForeignKey
+from datetime import UTC, datetime
+
+from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import relationship
+
 from app.database import Base
 
 
@@ -16,7 +18,7 @@ class ChainsawScan(Base):
     alert_count = Column(Integer, nullable=True)
     error_msg   = Column(Text,    nullable=True)
     scanned_at  = Column(DateTime, nullable=True)
-    created_at  = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at  = Column(DateTime, default=lambda: datetime.now(UTC))
 
     alerts = relationship(
         "ChainsawAlert", back_populates="scan",
@@ -68,6 +70,6 @@ class ChainsawCaseSelection(Base):
     alert_ids  = Column(JSON, nullable=False, default=list)   # list[str] of alert UUIDs
     sent_ids   = Column(JSON, nullable=False, default=list)   # alert UUIDs already pushed to timeline
     updated_at = Column(DateTime,
-                        default=lambda:  datetime.now(timezone.utc),
-                        onupdate=lambda: datetime.now(timezone.utc),
+                        default=lambda:  datetime.now(UTC),
+                        onupdate=lambda: datetime.now(UTC),
                         nullable=False)

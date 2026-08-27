@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel
 
@@ -11,29 +10,29 @@ class UsnFileOut(BaseModel):
     case_id:     str
     filename:    str
     status:      str
-    entry_count: Optional[int]
-    error_msg:   Optional[str]
+    entry_count: int | None
+    error_msg:   str | None
     uploaded_at: datetime
-    parsed_at:   Optional[datetime]
+    parsed_at:   datetime | None
     added_to_evidence:      bool
     parse_progress:         int
-    parse_duration_seconds: Optional[int]
+    parse_duration_seconds: int | None
 
     model_config = {"from_attributes": True}
 
 
 class UsnEntryOut(BaseModel):
     """One USN Journal record (from MFTECmd $J CSV → DuckDB)."""
-    entry_offset:     Optional[int]
-    usn:              Optional[int]
-    filename:         Optional[str]
-    extension:        Optional[str]
+    entry_offset:     int | None
+    usn:              int | None
+    filename:         str | None
+    extension:        str | None
     is_directory:     bool
-    update_timestamp: Optional[datetime]
-    reason:           Optional[str]
-    full_path:        Optional[str]
-    file_ref:         Optional[str]
-    parent_ref:       Optional[str]
+    update_timestamp: datetime | None
+    reason:           str | None
+    full_path:        str | None
+    file_ref:         str | None
+    parent_ref:       str | None
 
 
 class UsnEntriesPage(BaseModel):
@@ -46,7 +45,7 @@ class UsnEntriesPage(BaseModel):
 
 class UsnSummary(BaseModel):
     total_entries:      int
-    oldest_timestamp:   Optional[datetime]
-    newest_timestamp:   Optional[datetime]
+    oldest_timestamp:   datetime | None
+    newest_timestamp:   datetime | None
     top_reasons:        list[dict]   # [{reason, count}]
     top_extensions:     list[dict]   # [{ext, count}]

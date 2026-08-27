@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { UserPlus, X, Users, AtSign } from 'lucide-react'
+import { UserPlus, X, Users, AtSign } from '../../ui/icons'
 import type { AuthUser } from '../../api/auth'
 import type { StepAssignee } from '../../api/playbooks'
 
@@ -142,7 +142,7 @@ export default function StepAssigneePicker({ assignee, users, onChange, disabled
         <button
           onClick={() => !disabled && setOpen(o => !o)}
           disabled={disabled}
-          title="Assigner cette étape"
+          title="Assign this step"
           className="flex items-center gap-1 text-[9px] px-1.5 h-5 rounded border border-dashed border-white/15 text-accent-muted/50 hover:text-accent-green hover:border-accent-green/40 transition-colors disabled:opacity-50"
         >
           <UserPlus size={9} /> Assigner
@@ -160,7 +160,7 @@ export default function StepAssigneePicker({ assignee, users, onChange, disabled
               if (matches.length === 1) pickUser(matches[0])
               else if (canAddExternal) pickExternal()
             }}
-            placeholder="Analyste ou nom libre…"
+            placeholder="Analyst or free-form name..."
             className="w-full bg-black/30 border-b border-white/10 px-2.5 py-2 text-[11px] text-white/90 placeholder:text-accent-muted/30 focus:outline-none"
           />
 
@@ -214,7 +214,7 @@ export default function StepAssigneePicker({ assignee, users, onChange, disabled
                     {initialsOf(trimmed)}
                   </span>
                   <span className="text-[11px] text-white/85 truncate">
-                    Assigner à « {trimmed} »
+                    Assign to "{trimmed}"
                   </span>
                 </button>
               </>

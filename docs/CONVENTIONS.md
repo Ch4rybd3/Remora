@@ -17,13 +17,7 @@ There is no i18n framework and none is planned. Strings are hardcoded.
 - case names, notes, report content, incident-log entries stored in the database;
 - case templates, playbooks and report templates under `templates/` and `samples/`, which analysts author in whatever language the client requires.
 
-Enforced in CI as a **ratchet**: the gate inspects only the lines a pull
-request *adds*, to the files it touches. Roughly 400 lines of pre-existing
-French are converted in S12; failing the whole repository before that work is
-done would mean a permanently red CI. Touching a file therefore does not make
-you responsible for the French already in it — but no new French can enter.
-
-S12 replaces the diff-scoped check with a full-repository scan:
+Enforced in CI by a full-repository scan:
 
 ```yaml
 - name: English-only source
@@ -70,7 +64,7 @@ a lazy public changelog.
 
 ### Pull requests
 - One concern per PR. A PR that renames things *and* changes behaviour will be asked to split.
-- A PR touching `backend/app/models/` **must** include an Alembic revision. CI enforces this.
+- A PR touching `backend/app/models/` needs an Alembic revision whenever the *schema* changes. This is enforced by `test_models_match_the_migrated_schema`, which compares the live schema against the models — not by a rule about which files were edited, because a cosmetic edit to a model file needs no migration and an empty revision would satisfy such a rule anyway.
 - Green CI is required to merge. Never merge through a red check.
 
 ---
@@ -166,13 +160,28 @@ arrangement is a design-system gap to raise, not a local exception.
 - Full-height content (matrix, graph, explorer) renders into `content` without the padded wrapper.
 
 ### Icons
-`lucide-react` is imported in exactly one file: `frontend/src/ui/icons.ts`,
-which exports a domain → icon map. Components import from there.
+`lucide-react` is imported in exactly one file: `frontend/src/ui/icons.ts`.
+Everything else imports from there, and eslint's `no-restricted-imports`
+enforces it — the registry is the only exemption.
 
-One concept, one icon, everywhere. Never reuse an icon across two domains — the
-pre-S12 state had `HardDrive` serving both *Logs* and *Disk Images*, which is
-precisely the drift this rule exists to stop. Stroke width is uniform; size
-comes from the token scale, not from an arbitrary `size={17}`.
+The file has two halves:
+
+- **`NAV_ICON`** — destination route to icon. The semantic layer. Anything that
+  renders a destination (sidebar, breadcrumbs, tabs, empty states) reads it from
+  here, so two places cannot disagree. A test asserts every route has an icon
+  and no icon serves two routes.
+- **Re-exports** — the long tail of one-off icons, under their lucide names.
+  Routing them through this file is what makes the lint rule possible.
+
+One concept, one icon, everywhere. Before the registry existed, `HardDrive`
+stood for both *Logs* and *Disk Images*, `FileText` for both *Vault* and *Case
+Templates*, and `Shield` for both *CTI Lookup* and *Audit* — drift that was
+invisible until someone looked at the sidebar.
+
+Adding an icon: import and re-export it in the registry. If it names a
+*concept* rather than a shape, check `NAV_ICON` and the existing exports first.
+Stroke width is uniform; size comes from the token scale, not from an arbitrary
+`size={17}`.
 
 ### Styling
 `eslint` mirrors the ruff scope: defect rules only (`react-hooks`,

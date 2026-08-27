@@ -1,7 +1,8 @@
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey
-from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
 import uuid
+from datetime import UTC, datetime
+
+from sqlalchemy import Column, DateTime, ForeignKey, String, Text
+from sqlalchemy.orm import relationship
 
 from ..database import Base
 
@@ -26,6 +27,6 @@ class IncidentLogEntry(Base):
     description = Column(Text, default="")
     actor = Column(String(255), default="")
 
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
 
     case = relationship("Case", back_populates="incident_log")

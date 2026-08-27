@@ -9,7 +9,7 @@ import {
 import {
   Save, Plus, Trash2, Skull, StickyNote, Wand2,
   Clock, Monitor, Shield, Edit2, ChevronDown, ChevronRight,
-} from 'lucide-react'
+} from '../../../ui/icons'
 import { fmtDateTime, fmtCompactShort } from '../../../utils/dateUtils'
 
 import { attackGraphApi } from '../../../api/attackGraph'

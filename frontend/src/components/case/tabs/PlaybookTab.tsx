@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ReactFlow, Background, Controls, type Node, type Edge } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Plus, GitBranch, CheckCircle2, Circle, ChevronDown, ChevronUp, X, ExternalLink, AlertCircle } from 'lucide-react'
+import { Plus, GitBranch, CheckCircle2, Circle, ChevronDown, ChevronUp, X, ExternalLink, AlertCircle } from '../../../ui/icons'
 import { playbooksApi, type CasePlaybook, type StepAssignee } from '../../../api/playbooks'
 import { usersApi } from '../../../api/auth'
 import { topoSortNodes } from '../../../utils/playbookUtils'
@@ -169,7 +169,7 @@ export default function PlaybookTab({ caseId }: Props) {
 
                 if (node.type === 'playbook_ref') {
                   const linkedId: string | undefined = nodeData.linked_playbook_id
-                  const linkedName: string = nodeData.linked_playbook_name || nodeData.label || 'Playbook lié'
+                  const linkedName: string = nodeData.linked_playbook_name || nodeData.label || 'Linked playbook'
                   const alreadyAttached = linkedId ? !!casePlaybooks.find(cp => cp.playbook_id === linkedId) : false
                   const pbExists = linkedId ? !!allPlaybooks.find(pb => pb.id === linkedId) : false
 
@@ -182,11 +182,11 @@ export default function PlaybookTab({ caseId }: Props) {
                           <p className="text-[10px] text-purple-400/60 mt-0.5">→ {linkedName}</p>
                           {!linkedId ? (
                             <p className="text-[10px] text-accent-muted/50 mt-1 flex items-center gap-1">
-                              <AlertCircle size={10} /> Non lié — aucun playbook configuré
+                              <AlertCircle size={10} /> Not linked - no playbook configured
                             </p>
                           ) : alreadyAttached ? (
                             <p className="text-[10px] text-accent-green/70 mt-1 flex items-center gap-1">
-                              <CheckCircle2 size={10} /> Playbook déjà attaché au case
+                              <CheckCircle2 size={10} /> Playbook already attached to the case
                             </p>
                           ) : !pbExists ? (
                             <p className="text-[10px] text-accent-muted/50 mt-1 flex items-center gap-1">

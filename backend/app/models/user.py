@@ -1,7 +1,9 @@
-from sqlalchemy import Column, String, Boolean, DateTime, Enum as SAEnum
-from datetime import datetime, timezone
-import uuid
 import enum
+import uuid
+from datetime import UTC, datetime
+
+from sqlalchemy import Boolean, Column, DateTime, String
+from sqlalchemy import Enum as SAEnum
 
 from ..database import Base
 
@@ -21,5 +23,5 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     role = Column(SAEnum(UserRole), default=UserRole.analyst, nullable=False)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
     last_login = Column(DateTime, nullable=True)

@@ -4,7 +4,7 @@ import {
   Upload, Mail, Link2, Paperclip, ChevronDown, ChevronRight,
   CheckCircle2, AlertCircle, Copy, Plus, Loader2, Info, FileText,
   ShieldAlert, ShieldX, AlertTriangle, Trash2, Clock,
-} from 'lucide-react'
+} from '../ui/icons'
 import { emailAnalysisApi, type EmailAnalysisResult, type HeaderItem, type AttachmentItem, type EmailWarning, type WarningLevel, type CaseEmailSummary } from '../api/emailAnalysis'
 import { iocsApi } from '../api/iocs'
 import { timelineApi } from '../api/timeline'
@@ -374,7 +374,7 @@ function emailDateToLocalInput(raw: string): string {
 
 function buildEmailTitle(r: EmailAnalysisResult): string {
   const sender = extractEmailAddress(r.from_addr) || r.from_addr
-  const subject = r.subject?.trim() || '(sans objet)'
+  const subject = r.subject?.trim() || '(no subject)'
   return `Email — ${subject}${sender ? ` — de ${sender}` : ''}`.slice(0, 120)
 }
 
@@ -386,7 +386,7 @@ function buildEmailDescription(r: EmailAnalysisResult): string {
     r.return_path ? `Return-Path: ${r.return_path}` : '',
     `Subject: ${r.subject}`,
     `Date: ${r.date}`,
-    r.attachments.length ? `Pièces jointes: ${r.attachments.map(a => a.filename).join(', ')}` : '',
+    r.attachments.length ? `Attachments: ${r.attachments.map(a => a.filename).join(', ')}` : '',
     r.urls.length ? `URLs: ${r.urls.length}` : '',
   ].filter(Boolean)
 
@@ -473,16 +473,16 @@ function SendEmailToTimeline({ result, caseId, filename }: {
         <button onClick={() => setOpen(o => !o)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
           <ChevronRight size={11} className={`text-accent-muted/40 transition-transform ${open ? 'rotate-90' : ''}`} />
           <Clock size={12} className="text-accent-green shrink-0" />
-          <span className="text-[11px] font-semibold text-white">Ajouter à la timeline</span>
+          <span className="text-[11px] font-semibold text-white">Add to the timeline</span>
           <span className="text-[10px] text-accent-muted/40 truncate">
             {dateUnparsable
-              ? 'date de l\'email illisible — à corriger'
-              : `daté du ${new Date(result.date).toLocaleString()}`}
+              ? 'email date unreadable - please correct'
+              : `dated ${new Date(result.date).toLocaleString()}`}
           </span>
         </button>
         {sent && (
           <span className="flex items-center gap-1 text-[10px] text-accent-green/70 shrink-0">
-            <CheckCircle2 size={10} /> envoyé
+            <CheckCircle2 size={10} /> sent
           </span>
         )}
         {!open && !sent && (
@@ -502,8 +502,8 @@ function SendEmailToTimeline({ result, caseId, filename }: {
           {dateUnparsable && (
             <p className="flex items-center gap-1.5 text-[10px] text-yellow-400/80">
               <AlertTriangle size={10} />
-              L'en-tête Date n'a pas pu être interprété ({result.date || 'vide'}) — l'horodatage a été
-              initialisé à maintenant, corrigez-le ci-dessous.
+              The Date header could not be parsed ({result.date || 'empty'}) - the timestamp was
+              set to now; correct it below.
             </p>
           )}
           <div>
@@ -516,7 +516,7 @@ function SendEmailToTimeline({ result, caseId, filename }: {
             />
           </div>
           <div>
-            <label className="text-[9px] uppercase tracking-widest text-accent-muted/40">Titre</label>
+            <label className="text-[9px] uppercase tracking-widest text-accent-muted/40">Title</label>
             <input
               value={title}
               onChange={e => setTitle(e.target.value)}
@@ -541,7 +541,7 @@ function SendEmailToTimeline({ result, caseId, filename }: {
               }}
               className="text-[10px] text-accent-muted/40 hover:text-accent-green transition-colors"
             >
-              Réinitialiser
+              Reset
             </button>
             <button
               onClick={() => send.mutate()}
@@ -549,12 +549,12 @@ function SendEmailToTimeline({ result, caseId, filename }: {
               className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded border border-accent-green/30 text-accent-green bg-accent-green/5 hover:bg-accent-green/10 transition-colors disabled:opacity-40"
             >
               {send.isPending ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}
-              Envoyer à la timeline
+              Send to the timeline
             </button>
           </div>
           <p className="text-[9px] text-accent-muted/30">
-            L'email complet (tous les en-têtes, pièces jointes, URLs, alertes) est joint à
-            l'événement et consultable sous un chevron dans la timeline.
+            The full email (all headers, attachments, URLs, alerts) is attached to the
+            event and can be expanded from a chevron in the timeline.
           </p>
           {send.isError && (
             <p className="text-[10px] text-severity-critical">

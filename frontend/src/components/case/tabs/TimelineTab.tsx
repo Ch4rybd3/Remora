@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Clock, Pencil, ChevronRight, Copy } from 'lucide-react'
+import { Plus, Trash2, Clock, Pencil, ChevronRight, Copy } from '../../../ui/icons'
 import { timelineApi } from '../../../api/timeline'
 import { iocsApi } from '../../../api/iocs'
 import { assetsApi } from '../../../api/assets'
@@ -95,9 +95,9 @@ function RawPayloadPanel({ entries, source }: { entries: [string, string][]; sou
                 entries.map(([k, v]) => `${k}: ${v}`).join('\n')
               )}
               className="flex items-center gap-1 text-[10px] text-accent-muted/50 hover:text-accent-green transition-colors"
-              title="Copier l'event brut"
+              title="Copy the raw event"
             >
-              <Copy size={10} /> Copier
+              <Copy size={10} /> Copy
             </button>
           </div>
           <div className="max-h-72 overflow-auto">

@@ -4,7 +4,7 @@ import {
   Layers, AlignLeft, Code2, BarChart3, Package, ShieldAlert,
   ChevronDown, ChevronRight, Loader2, AlertTriangle, RefreshCw,
   Eye, EyeOff, Lock, Database,
-} from 'lucide-react'
+} from '../../ui/icons'
 import { binaryApi, type BinaryFile, type BinaryAnalysis, type SectionInfo } from '../../api/binary'
 
 interface Props {

@@ -1,7 +1,8 @@
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey
-from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
 import uuid
+from datetime import UTC, datetime
+
+from sqlalchemy import Column, DateTime, ForeignKey, String, Text
+from sqlalchemy.orm import relationship
 
 from ..database import Base
 
@@ -17,9 +18,9 @@ class Playbook(Base):
     edges    = Column(Text, default="[]")
     layout_dir = Column(String(10), default="DOWN")
 
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
-                        onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at = Column(DateTime, default=lambda: datetime.now(UTC),
+                        onupdate=lambda: datetime.now(UTC))
 
     case_playbooks = relationship("CasePlaybook", back_populates="playbook", cascade="all, delete-orphan")
 
@@ -33,6 +34,6 @@ class CasePlaybook(Base):
     playbook_id = Column(String, ForeignKey("playbooks.id", ondelete="CASCADE"), nullable=False)
     # JSON: { node_id: { done: bool, comment: str, done_at: str | null } }
     step_states = Column(Text, default="{}")
-    added_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    added_at = Column(DateTime, default=lambda: datetime.now(UTC))
 
     playbook = relationship("Playbook", back_populates="case_playbooks")

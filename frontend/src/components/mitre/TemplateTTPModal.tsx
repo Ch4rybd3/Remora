@@ -10,7 +10,7 @@
  */
 import { useState, useMemo, useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { X, Shield, ExternalLink, Save, Loader2 } from 'lucide-react'
+import { X, Shield, ExternalLink, Save, Loader2 } from '../../ui/icons'
 import MitreMatrixPicker from './MitreMatrixPicker'
 import { type Technique, type SubTechnique, type Tactic } from '../../api/mitre'
 import { templatesApi } from '../../api/templates'

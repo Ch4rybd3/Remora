@@ -7,7 +7,7 @@ import {
 import {
   CheckCircle2, Circle, ChevronDown, ChevronUp,
   Plus, X, GitBranch, StickyNote, Save, List, Network,
-} from 'lucide-react'
+} from '../../../ui/icons'
 import { playbooksApi, type CasePlaybook, type StepAssignee } from '../../../api/playbooks'
 import { topoSortNodes } from '../../../utils/playbookUtils'
 import { casesApi } from '../../../api/cases'
@@ -261,7 +261,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
         {!activeCp && (
           <div className="flex-1 flex flex-col items-center justify-center text-center py-16">
             <GitBranch size={28} className="text-accent-muted/20 mb-3" />
-            <p className="text-accent-muted text-sm">Aucun playbook attaché</p>
+            <p className="text-accent-muted text-sm">No playbook attached</p>
             <button className="btn-primary mt-4 text-xs flex items-center gap-1.5" onClick={() => setAddOpen(true)}>
               <Plus size={12} /> Attacher un playbook
             </button>
@@ -309,7 +309,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
             {/* Steps */}
             <div className="space-y-1.5 overflow-y-auto flex-1">
               {stepNodes(activeCp).length === 0 && (
-                <p className="text-accent-muted text-xs text-center py-8">Aucune étape dans ce playbook.</p>
+                <p className="text-accent-muted text-xs text-center py-8">No step in this playbook.</p>
               )}
               {stepNodes(activeCp).map((node, idx) => {
                 const state = activeCp.step_states[node.id]
@@ -386,7 +386,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
                           <button
                             className="text-[10px] text-accent-muted hover:text-white transition-colors"
                             onClick={() => setExpanded(e => ({ ...e, [node.id]: false }))}
-                          >Annuler</button>
+                          >Cancel</button>
                           <button
                             className="btn-primary text-[10px] py-1 px-3 flex items-center gap-1"
                             onClick={() => saveStepNotes(activeCp.id, node.id)}
@@ -458,7 +458,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
           )}
         </div>
         <p className="text-[10px] text-accent-muted/30 mb-2 shrink-0">
-          Contexte oral, hypothèses, infos terrain…
+          Verbal context, hypotheses, field intel...
         </p>
         <div className="flex-1">
           <MarkdownEditor
@@ -466,7 +466,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
             onChange={v => { setQuickNotes(v); setNotesDirty(true) }}
             caseId={caseId}
             minHeight={300}
-            placeholder={'# Notes libres\n\n- Info donnée à l\'oral…'}
+            placeholder={'# Free notes\n\n- Information given verbally...'}
           />
         </div>
       </div>
@@ -476,7 +476,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
         <div className="space-y-3">
           {availablePlaybooks.length === 0 ? (
             <p className="text-accent-muted text-sm text-center py-4">
-              Tous les playbooks sont déjà attachés, ou aucun n'existe.
+              Every playbook is already attached, or none exists.
             </p>
           ) : availablePlaybooks.map(pb => (
             <button
@@ -487,11 +487,11 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
             >
               <p className="text-sm font-medium text-white group-hover:text-accent-green">{pb.name}</p>
               {pb.description && <p className="text-xs text-accent-muted mt-0.5">{pb.description}</p>}
-              <p className="text-[10px] text-accent-muted/40 mt-1">{pb.nodes.length} nœud(s)</p>
+              <p className="text-[10px] text-accent-muted/40 mt-1">{pb.nodes.length} node(s)</p>
             </button>
           ))}
           <div className="flex justify-end pt-1">
-            <button className="btn-secondary text-xs" onClick={() => setAddOpen(false)}>Fermer</button>
+            <button className="btn-secondary text-xs" onClick={() => setAddOpen(false)}>Close</button>
           </div>
         </div>
       </Modal>
@@ -502,7 +502,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
         onClose={() => setDetachTarget(null)}
         onConfirm={() => { if (detachTarget) detach.mutate(detachTarget) }}
         title="Retirer le playbook"
-        message="Toutes les notes et l'état des étapes de ce playbook seront perdus pour ce case. Continuer ?"
+        message="Every note and step state for this playbook will be lost for this case. Continue?"
         confirmLabel="Retirer"
       />
     </div>

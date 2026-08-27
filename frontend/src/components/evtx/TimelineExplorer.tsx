@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   ArrowUp, ArrowDown, SlidersHorizontal, X, ChevronDown, BookmarkPlus, BookmarkCheck,
-} from 'lucide-react'
+} from '../../ui/icons'
 import { evtxApi, type EvtxEvent, type EventFilters, type FileSummary } from '../../api/evtx'
 import { fmtDateTime } from '../../utils/dateUtils'
 

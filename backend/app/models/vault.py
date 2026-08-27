@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
+from sqlalchemy import Column, DateTime, Integer, String, Text
 
 from ..database import Base
 
@@ -15,5 +16,5 @@ class Vault(Base):
     file_name   = Column(String(255), nullable=False)  # original filename
     file_size   = Column(Integer, default=0)        # bytes
     mime_type   = Column(String(120), default="")
-    created_at  = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at  = Column(DateTime, default=lambda: datetime.now(UTC))
     created_by  = Column(String(100), nullable=True)

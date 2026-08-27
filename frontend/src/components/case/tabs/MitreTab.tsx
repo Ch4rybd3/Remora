@@ -1,6 +1,6 @@
 import { useMemo, useRef, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Shield, ExternalLink, X, Upload, FileJson } from 'lucide-react'
+import { Shield, ExternalLink, X, Upload, FileJson } from '../../../ui/icons'
 import { mitreApi, type MitreTTP, type Technique, type SubTechnique, type Tactic } from '../../../api/mitre'
 import MitreMatrixPicker from '../../mitre/MitreMatrixPicker'
 

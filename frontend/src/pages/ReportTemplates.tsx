@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   FileOutput, Upload, Trash2, Tag, Info,
   ChevronDown, ChevronUp, X, Check, AlertCircle,
-} from 'lucide-react'
+} from '../ui/icons'
 import { reportDocTemplatesApi, type ReportDocTemplate } from '../api/reportDocTemplates'
 import { fmtDateTimeShort } from '../utils/dateUtils'
 import { fmtBytes as fmtSize } from '../utils/formatUtils'
@@ -241,45 +241,45 @@ function UploadForm({ onDone }: { onDone: () => void }) {
 
 const TAG_DOCS: { group: string; color: 'meta' | 'report' | 'annex'; tags: { tag: string; desc: string }[] }[] = [
   {
-    group: 'Partie 1 — Métadonnées de l\'incident',
+    group: 'Part 1 - Incident metadata',
     color: 'meta',
     tags: [
-      { tag: 'case.title',             desc: 'Titre du cas' },
+      { tag: 'case.title',             desc: 'Case title' },
       { tag: 'case.id',                desc: 'UUID du cas' },
-      { tag: 'case.status',            desc: 'Statut (open / in_progress / closed…)' },
-      { tag: 'case.severity',          desc: 'Sévérité (CRITICAL, HIGH…)' },
+      { tag: 'case.status',            desc: 'Status (open / in_progress / closed...)' },
+      { tag: 'case.severity',          desc: 'Severity (CRITICAL, HIGH...)' },
       { tag: 'case.tlp',               desc: 'Classification TLP' },
-      { tag: 'case.created_at',        desc: 'Date de création' },
-      { tag: 'case.closed_at',         desc: 'Date de clôture (ou N/A)' },
+      { tag: 'case.created_at',        desc: 'Creation date' },
+      { tag: 'case.closed_at',         desc: 'Closing date (or N/A)' },
       { tag: 'case.description',       desc: 'Description du cas' },
-      { tag: 'case.executive_summary', desc: 'Résumé exécutif' },
+      { tag: 'case.executive_summary', desc: 'Executive summary' },
       { tag: 'case.quick_notes',       desc: 'Notes rapides' },
-      { tag: 'case.assigned_to',       desc: 'Analyste(s) assigné(s)' },
+      { tag: 'case.assigned_to',       desc: 'Assigned analyst(s)' },
       { tag: 'case.tags',              desc: 'Tags du cas' },
-      { tag: 'report.date',            desc: 'Date de génération du rapport (YYYY-MM-DD)' },
-      { tag: 'report.author',          desc: 'Analyste ayant généré le rapport' },
+      { tag: 'report.date',            desc: 'Report generation date (YYYY-MM-DD)' },
+      { tag: 'report.author',          desc: 'Analyst who generated the report' },
     ],
   },
   {
-    group: 'Partie 2 — Analyse, Remédiations & Conclusions',
+    group: 'Part 2 - Analysis, Remediations & Conclusions',
     color: 'report',
     tags: [
       {
         tag: 'report_analysis',
-        desc: 'Box 1 — Analyse Technique rédigée dans l\'onglet Report. '
-            + 'En DOCX : converti en paragraphes Word formatés. En MD : inséré tel quel.',
+        desc: 'Box 1 - Technical Analysis written in the Report tab. '
+            + 'In DOCX: converted to formatted Word paragraphs. In MD: inserted as-is.',
       },
       {
         tag: 'report_remediation',
-        desc: 'Box 2 — Remédiations rédigées dans l\'onglet Report.',
+        desc: 'Box 2 - Remediations written in the Report tab.',
       },
       {
         tag: 'report_conclusion',
-        desc: 'Box 3 — Conclusion & Recommandations rédigées dans l\'onglet Report.',
+        desc: 'Box 3 - Conclusion & Recommendations written in the Report tab.',
       },
       {
         tag: 'report_content',
-        desc: 'Alias combiné (backward compat) — injecte les 3 boxes à la suite, séparées par ---.',
+        desc: 'Combined alias (backward compatible) - injects the three boxes in sequence, separated by ---.',
       },
     ],
   },
@@ -288,10 +288,10 @@ const TAG_DOCS: { group: string; color: 'meta' | 'report' | 'annex'; tags: { tag
     color: 'annex',
     tags: [
       { tag: 'ioc_table',        desc: 'Tableau des indicateurs de compromission' },
-      { tag: 'asset_table',      desc: 'Tableau des actifs impliqués' },
-      { tag: 'evidence_table',   desc: 'Tableau des éléments de preuve' },
-      { tag: 'timeline_table',   desc: 'Timeline chronologique des événements' },
-      { tag: 'mitre_matrix',     desc: 'Matrice MITRE ATT&CK textuelle (parents + sous-techniques sélectionnées)' },
+      { tag: 'asset_table',      desc: 'Table of the assets involved' },
+      { tag: 'evidence_table',   desc: 'Table of evidence items' },
+      { tag: 'timeline_table',   desc: 'Chronological timeline of events' },
+      { tag: 'mitre_matrix',     desc: 'MITRE ATT&CK matrix as text (parents plus selected sub-techniques)' },
       { tag: 'mitre_matrix_img', desc: 'Matrice MITRE ATT&CK en image PNG (DOCX uniquement) — placeholder en MD' },
       { tag: 'attack_graph',     desc: 'Graphe d\'attaque en image PNG (DOCX) ou placeholder (MD)' },
     ],
@@ -299,8 +299,8 @@ const TAG_DOCS: { group: string; color: 'meta' | 'report' | 'annex'; tags: { tag
 ]
 
 const GROUP_STYLE: Record<string, { border: string; header: string; badge: string; badgeText: string; codeColor: string }> = {
-  meta:   { border: 'border-blue-500/15',   header: 'text-blue-400/70',   badge: 'bg-blue-500/8 border-blue-500/20 text-blue-400',     badgeText: 'Métadonnées', codeColor: 'text-blue-400' },
-  report: { border: 'border-purple-500/20', header: 'text-purple-300/80', badge: 'bg-purple-500/8 border-purple-500/20 text-purple-300', badgeText: 'Rapport',     codeColor: 'text-purple-300' },
+  meta:   { border: 'border-blue-500/15',   header: 'text-blue-400/70',   badge: 'bg-blue-500/8 border-blue-500/20 text-blue-400',     badgeText: 'Metadata', codeColor: 'text-blue-400' },
+  report: { border: 'border-purple-500/20', header: 'text-purple-300/80', badge: 'bg-purple-500/8 border-purple-500/20 text-purple-300', badgeText: 'Report',     codeColor: 'text-purple-300' },
   annex:  { border: 'border-accent-green/15', header: 'text-accent-green/70', badge: 'bg-accent-green/8 border-accent-green/20 text-accent-green', badgeText: 'Annexe', codeColor: 'text-accent-green' },
 }
 
@@ -311,7 +311,7 @@ function TagReference({ open, onClose }: { open: boolean; onClose: () => void })
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-white flex items-center gap-2">
           <Info size={14} className="text-accent-green" />
-          Référence des balises disponibles
+          Available tag reference
         </h3>
         <button onClick={onClose} className="text-accent-muted/40 hover:text-white">
           <X size={14} />
@@ -319,21 +319,21 @@ function TagReference({ open, onClose }: { open: boolean; onClose: () => void })
       </div>
 
       <p className="text-xs text-accent-muted/60">
-        Placez ces balises dans votre fichier DOCX ou Markdown avec des doubles accolades <code className="font-mono text-[10px] bg-white/5 px-1 rounded">{'{{balise}}'}</code>.
-        Les balises de bloc (Rapport &amp; Annexes) doivent être <em>seules sur leur paragraphe/ligne</em> dans le template DOCX.
+        Place these tags in your DOCX or Markdown file using double braces <code className="font-mono text-[10px] bg-white/5 px-1 rounded">{'{{tag}}'}</code>.
+        Block tags (Report &amp; Annexes) must sit <em>alone on their own paragraph or line</em> in the DOCX template.
       </p>
 
       {/* Visual structure reminder */}
       <div className="rounded-lg border border-white/8 bg-white/[0.02] px-4 py-3 font-mono text-[10px] leading-6 text-accent-muted/50 space-y-0.5">
-        <p className="text-accent-muted/30 italic mb-1">Structure recommandée du template :</p>
+        <p className="text-accent-muted/30 italic mb-1">Recommended template structure:</p>
         <p><span className="text-blue-400">{'{{case.title}}'}</span>  <span className="text-blue-400">{'{{case.created_at}}'}</span>  …</p>
-        <p className="text-accent-muted/30">── partie 1 : métadonnées ──────────────</p>
+        <p className="text-accent-muted/30">-- part 1: metadata --------------------</p>
         <p className="mt-1">
           <span className="text-purple-300">{'{{report_analysis}}'}</span>
         </p>
         <p><span className="text-purple-300">{'{{report_remediation}}'}</span></p>
         <p><span className="text-purple-300">{'{{report_conclusion}}'}</span></p>
-        <p className="text-accent-muted/30">── partie 2 : analyse & remédiations ───</p>
+        <p className="text-accent-muted/30">-- part 2: analysis & remediations -----</p>
         <p className="mt-1">
           <span className="text-accent-green">{'{{ioc_table}}'}</span>{'  '}
           <span className="text-accent-green">{'{{timeline_table}}'}</span>{'  '}

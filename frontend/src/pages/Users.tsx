@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Edit2, KeyRound, ShieldCheck } from 'lucide-react'
+import { Plus, Trash2, Edit2, KeyRound, ShieldCheck } from '../ui/icons'
 import { usersApi, type AuthUser } from '../api/auth'
 import { useAuth } from '../context/AuthContext'
 import Modal from '../components/ui/Modal'
@@ -15,7 +15,7 @@ const ROLE_COLORS: Record<string, string> = {
 
 const ROLE_RANK: Record<string, number> = { analyst: 0, admin: 1, owner: 2 }
 
-/** Retourne vrai si `actor` peut gérer le compte `target`. */
+/** True when `actor` may manage the `target` account. */
 function canManage(actor: AuthUser | null, target: AuthUser): boolean {
   if (!actor) return false
   if (actor.id === target.id) return false
@@ -71,7 +71,7 @@ export default function Users() {
           <p className="text-accent-muted text-sm mt-1">{users.length} compte(s)</p>
         </div>
         <button className="btn-primary flex items-center gap-2" onClick={() => setCreateOpen(true)}>
-          <Plus size={15} /> Nouvel utilisateur
+          <Plus size={15} /> New user
         </button>
       </div>
 
@@ -80,9 +80,9 @@ export default function Users() {
           <thead>
             <tr className="border-b border-white/5 text-accent-muted text-xs uppercase tracking-wide">
               <th className="text-left px-4 py-3">Utilisateur</th>
-              <th className="text-left px-4 py-3">Rôle</th>
-              <th className="text-left px-4 py-3">Statut</th>
-              <th className="text-left px-4 py-3">Dernière connexion</th>
+              <th className="text-left px-4 py-3">Role</th>
+              <th className="text-left px-4 py-3">Status</th>
+              <th className="text-left px-4 py-3">Last login</th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
@@ -123,7 +123,7 @@ export default function Users() {
                       <button
                         onClick={() => setEditTarget(u)}
                         className="text-accent-muted hover:text-accent-green transition-colors"
-                        title="Changer le rôle"
+                        title="Change the role"
                       >
                         <Edit2 size={13} />
                       </button>
@@ -132,7 +132,7 @@ export default function Users() {
                       <button
                         onClick={() => setPwTarget(u)}
                         className="text-accent-muted hover:text-severity-medium transition-colors"
-                        title="Réinitialiser le mot de passe"
+                        title="Reset the password"
                       >
                         <KeyRound size={13} />
                       </button>
@@ -141,7 +141,7 @@ export default function Users() {
                       <button
                         onClick={() => setDeleteTarget(u)}
                         className="text-accent-muted hover:text-severity-critical transition-colors"
-                        title="Supprimer"
+                        title="Delete"
                       >
                         <Trash2 size={13} />
                       </button>
@@ -155,10 +155,10 @@ export default function Users() {
       </div>
 
       {/* Create */}
-      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Nouvel utilisateur" size="sm">
+      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="New user" size="sm">
         <div className="space-y-4">
           <div>
-            <label className="label">Nom d'utilisateur *</label>
+            <label className="label">Username *</label>
             <input className="input" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} />
           </div>
           <div>
@@ -170,7 +170,7 @@ export default function Users() {
             <input className="input" type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
           </div>
           <div>
-            <label className="label">Rôle</label>
+            <label className="label">Role</label>
             <select className="input" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
               {['analyst', 'admin', 'owner']
                 .filter(r => ROLE_RANK[r] <= ROLE_RANK[me?.role ?? 'analyst'])
@@ -178,16 +178,16 @@ export default function Users() {
             </select>
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <button className="btn-secondary" onClick={() => setCreateOpen(false)}>Annuler</button>
+            <button className="btn-secondary" onClick={() => setCreateOpen(false)}>Cancel</button>
             <button className="btn-primary" onClick={() => create.mutate()} disabled={!form.username || !form.password || create.isPending}>
-              {create.isPending ? 'Création…' : 'Créer'}
+              {create.isPending ? 'Creating...' : 'Create'}
             </button>
           </div>
         </div>
       </Modal>
 
       {/* Edit role */}
-      <Modal open={!!editTarget} onClose={() => setEditTarget(null)} title={`Rôle — ${editTarget?.username}`} size="sm">
+      <Modal open={!!editTarget} onClose={() => setEditTarget(null)} title={`Role - ${editTarget?.username}`} size="sm">
         <div className="space-y-4">
           <select
             className="input"
@@ -199,9 +199,9 @@ export default function Users() {
               .map(r => <option key={r} value={r}>{r}</option>)}
           </select>
           <div className="flex justify-end gap-3">
-            <button className="btn-secondary" onClick={() => setEditTarget(null)}>Annuler</button>
+            <button className="btn-secondary" onClick={() => setEditTarget(null)}>Cancel</button>
             <button className="btn-primary" onClick={() => editTarget && updateRole.mutate({ id: editTarget.id, role: editTarget.role })} disabled={updateRole.isPending}>
-              Enregistrer
+              Save
             </button>
           </div>
         </div>
@@ -211,13 +211,13 @@ export default function Users() {
       <Modal open={!!pwTarget} onClose={() => setPwTarget(null)} title={`Mot de passe — ${pwTarget?.username}`} size="sm">
         <div className="space-y-4">
           <div>
-            <label className="label">Nouveau mot de passe</label>
+            <label className="label">New password</label>
             <input className="input" type="password" value={newPw} onChange={e => setNewPw(e.target.value)} />
           </div>
           <div className="flex justify-end gap-3">
-            <button className="btn-secondary" onClick={() => setPwTarget(null)}>Annuler</button>
+            <button className="btn-secondary" onClick={() => setPwTarget(null)}>Cancel</button>
             <button className="btn-primary" onClick={() => changePw.mutate()} disabled={!newPw || changePw.isPending}>
-              {changePw.isPending ? 'Enregistrement…' : 'Changer'}
+              {changePw.isPending ? 'Saving...' : 'Change'}
             </button>
           </div>
         </div>
@@ -227,8 +227,8 @@ export default function Users() {
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => deleteTarget && remove.mutate(deleteTarget.id)}
-        title="Supprimer l'utilisateur"
-        message={`Le compte "${deleteTarget?.username}" sera définitivement supprimé.`}
+        title="Delete the user"
+        message={`The account "${deleteTarget?.username}" will be permanently deleted.`}
       />
     </div>
   )

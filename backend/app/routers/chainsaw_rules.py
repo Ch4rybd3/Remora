@@ -10,11 +10,11 @@ import io
 import zipfile
 from pathlib import Path
 from typing import Any
-from urllib.request import Request, urlopen
 from urllib.error import URLError
+from urllib.request import Request, urlopen
 
 import yaml
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 
 from ..config import settings
 from ..core.deps import get_current_user

@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   CheckCircle2, AlertCircle, Loader2, Clock, RotateCcw, ChevronDown, ChevronUp,
-} from 'lucide-react'
+} from '../../ui/icons'
 import { useState } from 'react'
 import { memoryApi, type MemoryPluginResult } from '../../api/memory'
 import { fmtRelative } from '../../utils/dateUtils'

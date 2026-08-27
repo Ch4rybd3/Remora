@@ -1,7 +1,8 @@
 import re
-from pydantic import BaseModel, field_validator
 from datetime import datetime
-from typing import Optional
+
+from pydantic import BaseModel, field_validator
+
 from ..models.user import UserRole
 
 _PW_RE_UPPER   = re.compile(r'[A-Z]')
@@ -13,23 +14,23 @@ _PW_RE_SPECIAL = re.compile(r'[!@#$%^&*()\-_=+\[\]{}|;:\'",.<>?/\\`~]')
 def _validate_password(v: str) -> str:
     errors = []
     if len(v) < 8:
-        errors.append("au moins 8 caractères")
+        errors.append("at least 8 characters")
     if not _PW_RE_UPPER.search(v):
-        errors.append("une majuscule")
+        errors.append("an uppercase letter")
     if not _PW_RE_LOWER.search(v):
-        errors.append("une minuscule")
+        errors.append("a lowercase letter")
     if not _PW_RE_DIGIT.search(v):
-        errors.append("un chiffre")
+        errors.append("a digit")
     if not _PW_RE_SPECIAL.search(v):
-        errors.append("un caractère spécial")
+        errors.append("a special character")
     if errors:
-        raise ValueError("Le mot de passe doit contenir : " + ", ".join(errors))
+        raise ValueError("Password must contain: " + ", ".join(errors))
     return v
 
 
 class UserCreate(BaseModel):
     username: str
-    email: Optional[str] = None
+    email: str | None = None
     password: str
     role: UserRole = UserRole.analyst
 
@@ -40,9 +41,9 @@ class UserCreate(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    email: Optional[str] = None
-    role: Optional[UserRole] = None
-    is_active: Optional[bool] = None
+    email: str | None = None
+    role: UserRole | None = None
+    is_active: bool | None = None
 
 
 class UserChangePassword(BaseModel):
@@ -57,11 +58,11 @@ class UserChangePassword(BaseModel):
 class UserRead(BaseModel):
     id: str
     username: str
-    email: Optional[str]
+    email: str | None
     role: UserRole
     is_active: bool
     created_at: datetime
-    last_login: Optional[datetime]
+    last_login: datetime | None
 
     model_config = {"from_attributes": True}
 

@@ -1,8 +1,10 @@
-from sqlalchemy import Column, String, Text, DateTime, Integer, ForeignKey, Enum as SAEnum
 import enum
-from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
 import uuid
+from datetime import UTC, datetime
+
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy.orm import relationship
 
 from ..database import Base
 
@@ -48,6 +50,6 @@ class Evidence(Base):
     collected_by      = Column(String(255), default="")
     chain_of_custody  = Column(Text, default="")
     tags              = Column(Text, default="")
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
 
     case = relationship("Case", back_populates="evidences")

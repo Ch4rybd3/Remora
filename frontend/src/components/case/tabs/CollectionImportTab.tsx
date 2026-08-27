@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronRight, Globe } from 'lucide-react'
+import { ChevronRight, Globe } from '../../../ui/icons'
 import { collectionImportApi, type ImportedCollection, type ImportedFile, type GroupSummary } from '../../../api/collectionImport'
 import { useNavigate } from 'react-router-dom'
 import { TIMEZONE_OPTIONS } from '../../../context/TimezoneContext'
@@ -374,7 +374,7 @@ function CollectionCard({ cols, caseId }: { cols: ImportedCollection[]; caseId: 
                         <button
                           onClick={() => navigate(dest)}
                           disabled={f.status !== 'imported'}
-                          title={f.status === 'imported' ? 'Ouvrir dans Artifact Explorer' : 'Pas encore importé'}
+                          title={f.status === 'imported' ? 'Open in the Artifact Explorer' : 'Not imported yet'}
                           className="flex items-center gap-0.5 text-accent-green/60 hover:text-accent-green disabled:text-gray-700 disabled:cursor-default transition-colors shrink-0"
                         >
                           <ChevronRight size={12} />
@@ -451,12 +451,12 @@ function DropZone({ onFiles }: { onFiles: (files: File[]) => void }) {
   const validate = (files: File[]): string | null => {
     const archives = files.filter(f => isArchiveFile(f.name))
     if (archives.length > 0 && archives.length !== files.length)
-      return 'Impossible de mélanger une archive et d\'autres fichiers dans le même upload'
+      return 'Cannot mix an archive with other files in the same upload'
     if (archives.length > 1) return 'Une seule archive par upload'
     for (const f of files) {
       if (isArchiveFile(f.name)) continue
       if (f.name.split('.').pop()?.toLowerCase() !== 'csv')
-        return `Type de fichier non supporté : ${f.name}`
+        return `Unsupported file type: ${f.name}`
     }
     return null
   }
@@ -587,7 +587,7 @@ export default function CollectionImportTab({ caseId }: Props) {
             Artifact Collections
           </h3>
           <p className="text-xs text-gray-500 mt-0.5">
-            Import EZ Tools / KAPE — archive (ZIP, 7z, RAR, TAR…), CSV individuels, ou un dossier entier (récursif)
+            EZ Tools / KAPE import - an archive (ZIP, 7z, RAR, TAR...), individual CSVs, or a whole folder (recursive)
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -624,7 +624,7 @@ export default function CollectionImportTab({ caseId }: Props) {
             className="btn-primary text-xs flex items-center gap-1.5"
             onClick={() => archiveRef.current?.click()}
             disabled={busy}
-            title="Importer une archive — ZIP, 7z, RAR, TAR/TGZ/TAR.XZ… (triage KAPE, sortie EZ Tools)"
+            title="Import an archive - ZIP, 7z, RAR, TAR/TGZ/TAR.XZ... (KAPE triage, EZ Tools output)"
           >
             {upload.isPending ? (
               <>
@@ -659,9 +659,9 @@ export default function CollectionImportTab({ caseId }: Props) {
       {uploadState && uploadState.skipped.length > 0 && (
         <div className="rounded border border-yellow-500/30 bg-yellow-500/5 px-3 py-2 text-xs text-yellow-400">
           <p className="font-semibold mb-1">
-            {uploadState.skipped.length} fichier{uploadState.skipped.length > 1 ? 's' : ''} volumineux (
-            &gt;500 MB) — importé{uploadState.skipped.length > 1 ? 's' : ''} dans l'Artifact Explorer,
-            navigation peut être lente. Pour des performances optimales, utilisez leurs pages dédiées (Logs, MFT/USN…).
+            {uploadState.skipped.length} large file{uploadState.skipped.length > 1 ? 's' : ''} (
+            &gt;500 MB) - imported into the Artifact Explorer,
+            browsing may be slow. For best performance, use their dedicated pages (Logs, MFT/USN...).
           </p>
           <ul className="space-y-0.5 text-yellow-500/80 font-mono">
             {uploadState.skipped.map(s => <li key={s}>· {s}</li>)}
