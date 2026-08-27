@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, computed_field
 
@@ -13,14 +12,14 @@ class RegistryFileOut(BaseModel):
     filename:      str
     hive_type:     str
     status:        str
-    entry_count:   Optional[int]
-    error_msg:     Optional[str]
+    entry_count:   int | None
+    error_msg:     str | None
     uploaded_at:   datetime
-    parsed_at:     Optional[datetime]
+    parsed_at:     datetime | None
     added_to_evidence:      bool
     parse_progress:         int
-    parse_duration_seconds: Optional[int]
-    columns_json:           Optional[str] = None
+    parse_duration_seconds: int | None
+    columns_json:           str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -42,14 +41,14 @@ class RegistryEntryOut(BaseModel):
     All original CSV columns are returned verbatim in ``raw_data``.
     """
     row_num:    int
-    timestamp:  Optional[datetime]
-    hive_path:  Optional[str]
-    hive_type:  Optional[str]    # per-row type (from HiveType column in batch exports)
-    key_path:   Optional[str]
-    value_name: Optional[str]
-    value_type: Optional[str]    # REG_SZ | REG_DWORD | REG_BINARY | …
-    value_data: Optional[str]
-    deleted:    Optional[str]    # "True" / "False" / None
+    timestamp:  datetime | None
+    hive_path:  str | None
+    hive_type:  str | None    # per-row type (from HiveType column in batch exports)
+    key_path:   str | None
+    value_name: str | None
+    value_type: str | None    # REG_SZ | REG_DWORD | REG_BINARY | …
+    value_data: str | None
+    deleted:    str | None    # "True" / "False" / None
     raw_data:   dict[str, str]   # {original_column_name: value}
 
 
@@ -64,8 +63,8 @@ class RegistryEntriesPage(BaseModel):
 class RegistrySummary(BaseModel):
     total_entries:    int
     hive_type:        str            # file-level hive type
-    oldest_timestamp: Optional[datetime]
-    newest_timestamp: Optional[datetime]
+    oldest_timestamp: datetime | None
+    newest_timestamp: datetime | None
     top_hive_types:   list[dict]     # [{hive_type, count}]   — for BATCH files
     top_value_types:  list[dict]     # [{value_type, count}]
     top_categories:   list[dict]     # [{category, count}]    — if Category column present

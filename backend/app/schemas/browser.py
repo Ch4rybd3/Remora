@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, computed_field
 
@@ -13,14 +12,14 @@ class BrowserFileOut(BaseModel):
     filename:      str
     artifact_type: str
     status:        str
-    entry_count:   Optional[int]
-    error_msg:     Optional[str]
+    entry_count:   int | None
+    error_msg:     str | None
     uploaded_at:   datetime
-    parsed_at:     Optional[datetime]
+    parsed_at:     datetime | None
     added_to_evidence:      bool
     parse_progress:         int
-    parse_duration_seconds: Optional[int]
-    columns_json:           Optional[str] = None   # raw JSON – parsed below
+    parse_duration_seconds: int | None
+    columns_json:           str | None = None   # raw JSON – parsed below
 
     model_config = {"from_attributes": True}
 
@@ -44,12 +43,12 @@ class BrowserEntryOut(BaseModel):
     """
     row_num:        int
     artifact_type:  str
-    event_timestamp: Optional[datetime]
-    url:            Optional[str]
-    title:          Optional[str]
-    browser:        Optional[str]
-    profile:        Optional[str]
-    username:       Optional[str]
+    event_timestamp: datetime | None
+    url:            str | None
+    title:          str | None
+    browser:        str | None
+    profile:        str | None
+    username:       str | None
     raw_data:       dict[str, str]   # {original_column_name: value}
 
 
@@ -64,7 +63,7 @@ class BrowserEntriesPage(BaseModel):
 class BrowserSummary(BaseModel):
     total_entries:    int
     artifact_type:    str
-    oldest_timestamp: Optional[datetime]
-    newest_timestamp: Optional[datetime]
+    oldest_timestamp: datetime | None
+    newest_timestamp: datetime | None
     top_browsers:     list[dict]   # [{browser, count}]
     top_domains:      list[dict]   # [{domain, count}]

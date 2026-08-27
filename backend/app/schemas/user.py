@@ -1,7 +1,8 @@
 import re
-from pydantic import BaseModel, field_validator
 from datetime import datetime
-from typing import Optional
+
+from pydantic import BaseModel, field_validator
+
 from ..models.user import UserRole
 
 _PW_RE_UPPER   = re.compile(r'[A-Z]')
@@ -29,7 +30,7 @@ def _validate_password(v: str) -> str:
 
 class UserCreate(BaseModel):
     username: str
-    email: Optional[str] = None
+    email: str | None = None
     password: str
     role: UserRole = UserRole.analyst
 
@@ -40,9 +41,9 @@ class UserCreate(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    email: Optional[str] = None
-    role: Optional[UserRole] = None
-    is_active: Optional[bool] = None
+    email: str | None = None
+    role: UserRole | None = None
+    is_active: bool | None = None
 
 
 class UserChangePassword(BaseModel):
@@ -57,11 +58,11 @@ class UserChangePassword(BaseModel):
 class UserRead(BaseModel):
     id: str
     username: str
-    email: Optional[str]
+    email: str | None
     role: UserRole
     is_active: bool
     created_at: datetime
-    last_login: Optional[datetime]
+    last_login: datetime | None
 
     model_config = {"from_attributes": True}
 

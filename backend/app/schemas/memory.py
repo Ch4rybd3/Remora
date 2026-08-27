@@ -1,8 +1,9 @@
 from __future__ import annotations
-from datetime import datetime
-from typing import Any, Optional
-from pydantic import BaseModel
 
+from datetime import datetime
+from typing import Any
+
+from pydantic import BaseModel
 
 # ── MemoryDump ─────────────────────────────────────────────────────────────────
 
@@ -11,9 +12,9 @@ class MemoryDumpOut(BaseModel):
     case_id:      str
     filename:     str
     os_type:      str                  # "windows" | "linux"
-    file_size:    Optional[int]
+    file_size:    int | None
     status:       str                  # uploaded | analyzing | done | error
-    error_msg:    Optional[str]
+    error_msg:    str | None
     uploaded_at:  datetime
 
     model_config = {"from_attributes": True}
@@ -25,12 +26,12 @@ class MemoryPluginResultOut(BaseModel):
     id:           int
     dump_id:      str
     plugin_name:  str
-    plugin_args:  Optional[dict[str, Any]]
+    plugin_args:  dict[str, Any] | None
     status:       str                  # pending | running | done | error
-    output:       Optional[str]
-    error:        Optional[str]
-    started_at:   Optional[datetime]
-    completed_at: Optional[datetime]
+    output:       str | None
+    error:        str | None
+    started_at:   datetime | None
+    completed_at: datetime | None
     is_custom:    bool
 
     model_config = {"from_attributes": True}
@@ -40,4 +41,4 @@ class MemoryPluginResultOut(BaseModel):
 
 class RunPluginPayload(BaseModel):
     plugin_name: str                   # e.g. "windows.pslist"
-    plugin_args: Optional[dict[str, Any]] = None   # {pid: 1234, ...}
+    plugin_args: dict[str, Any] | None = None   # {pid: 1234, ...}

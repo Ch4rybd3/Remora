@@ -1,14 +1,14 @@
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
 
+from ..core.deps import get_current_user
 from ..database import get_db
 from ..models.case import Case
 from ..models.ioc import IOC
 from ..models.user import User
 from ..schemas.ioc import IOCCreate, IOCRead, IOCUpdate
 from ..services.audit_service import audit_log
-from ..core.deps import get_current_user
 
 router = APIRouter(prefix="/cases/{case_id}/iocs", tags=["iocs"])
 
@@ -20,7 +20,7 @@ def _get_case(case_id: str, db: Session) -> Case:
     return case
 
 
-@router.get("/", response_model=List[IOCRead])
+@router.get("/", response_model=list[IOCRead])
 def list_iocs(case_id: str, db: Session = Depends(get_db)):
     _get_case(case_id, db)
     return db.query(IOC).filter(IOC.case_id == case_id).all()

@@ -17,21 +17,21 @@ import shutil
 import subprocess
 import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from ..config import settings
+from ..core.deps import get_current_user
 from ..database import get_db
 from ..models.case import Case
 from ..models.memory import MemoryDump, MemoryPluginResult
 from ..models.user import User
 from ..schemas.memory import MemoryDumpOut, MemoryPluginResultOut, RunPluginPayload
 from ..services.audit_service import audit_log
-from ..core.deps import get_current_user
 
 router = APIRouter(prefix="/memory", tags=["memory"])
 
@@ -71,7 +71,7 @@ DEFAULT_PLUGINS: dict[str, list[str]] = {
 
 # ── Volatility3 binary resolution ─────────────────────────────────────────────
 
-def _find_vol() -> Optional[list[str]]:
+def _find_vol() -> list[str] | None:
     """Return the Volatility3 invocation prefix, or None if not found.
 
     Priority:
@@ -98,8 +98,8 @@ def _find_vol() -> Optional[list[str]]:
     return None
 
 
-def _vol_cmd(vol: list[str], dump_path: str, symbols_path: Optional[str],
-             plugin: str, args: Optional[dict[str, Any]]) -> list[str]:
+def _vol_cmd(vol: list[str], dump_path: str, symbols_path: str | None,
+             plugin: str, args: dict[str, Any] | None) -> list[str]:
     """Build the full Volatility3 command list."""
     cmd = vol + ["-f", dump_path]
     if symbols_path:
@@ -173,7 +173,7 @@ def _run_plugins_background(dump_id: str, plugin_ids: list[int]) -> None:
                 continue
 
             pr.status     = "running"
-            pr.started_at = datetime.now(timezone.utc)
+            pr.started_at = datetime.now(UTC)
             db.commit()
 
             if vol is None:
@@ -183,7 +183,7 @@ def _run_plugins_background(dump_id: str, plugin_ids: list[int]) -> None:
                     "  pip install volatility3\n"
                     "or ensure 'vol' / 'vol3' is on PATH."
                 )
-                pr.completed_at = datetime.now(timezone.utc)
+                pr.completed_at = datetime.now(UTC)
                 db.commit()
                 continue
 
@@ -217,7 +217,7 @@ def _run_plugins_background(dump_id: str, plugin_ids: list[int]) -> None:
                 pr.status = "error"
                 pr.error  = str(exc)
 
-            pr.completed_at = datetime.now(timezone.utc)
+            pr.completed_at = datetime.now(UTC)
             db.commit()
 
         # Update dump status
@@ -243,7 +243,7 @@ async def upload_dump(
     background_tasks: BackgroundTasks,
     file:             UploadFile = File(...),
     os_type:          str        = Form(...),      # "windows" | "linux"
-    symbols_file:     Optional[UploadFile] = File(None),
+    symbols_file:     UploadFile | None = File(None),
     db:               Session    = Depends(get_db),
     current_user:     User       = Depends(get_current_user),
 ):
@@ -264,7 +264,7 @@ async def upload_dump(
     dest_path.write_bytes(contents)
 
     # Optional symbols file
-    symbols_path: Optional[str] = None
+    symbols_path: str | None = None
     if symbols_file and symbols_file.filename:
         sym_safe = f"{dump_id}_symbols_{Path(symbols_file.filename).name}"
         sym_path = dest_dir / sym_safe

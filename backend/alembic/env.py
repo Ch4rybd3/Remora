@@ -17,9 +17,9 @@ import pkgutil
 from importlib import import_module
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from alembic import context
 from app.config import settings
 from app.database import Base
 
@@ -52,13 +52,13 @@ def _include_object(obj, name, type_, reflected, compare_to) -> bool:
 # SQLite cannot ALTER a column in place. Batch mode makes Alembic rebuild the
 # table instead, which is the only way column changes work on the default
 # deployment. It is harmless on other backends.
-_COMMON = dict(
-    target_metadata=target_metadata,
-    include_object=_include_object,
-    render_as_batch=True,
-    compare_type=True,
-    compare_server_default=True,
-)
+_COMMON = {
+    "target_metadata": target_metadata,
+    "include_object": _include_object,
+    "render_as_batch": True,
+    "compare_type": True,
+    "compare_server_default": True,
+}
 
 
 def run_migrations_offline() -> None:

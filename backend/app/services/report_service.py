@@ -14,6 +14,7 @@ Section slug = section.get("tag") or slugified section["name"].
 """
 
 import re
+
 from ..models.case import Case
 
 

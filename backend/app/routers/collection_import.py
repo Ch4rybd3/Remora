@@ -12,19 +12,22 @@ import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from typing import List
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
-from ..database import get_db, SessionLocal
 from ..core.deps import get_current_user
-from ..models.ez_artifacts import ImportedCollection, ImportedFile
+from ..database import SessionLocal, get_db
 from ..models.csv_artifact import CsvArtifactFile
-from ..services.ez_detection import detect
+from ..models.ez_artifacts import ImportedCollection, ImportedFile
 from ..services.archives import (
-    ARCHIVE_EXTS_LABEL, ArchiveError,
-    archive_suffix, extract_all, is_archive, list_entries,
+    ARCHIVE_EXTS_LABEL,
+    ArchiveError,
+    archive_suffix,
+    extract_all,
+    is_archive,
+    list_entries,
 )
+from ..services.ez_detection import detect
 
 router = APIRouter()
 
@@ -42,7 +45,7 @@ def _collection_dir(case_id: str, collection_id: str) -> Path:
 async def upload_collection(
     case_id: str,
     background_tasks: BackgroundTasks,
-    files: List[UploadFile] = File(...),
+    files: list[UploadFile] = File(...),
     session_id: str | None = Query(None),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -253,10 +256,10 @@ def _run_pending(
     Shared ingest loop — resolves each CSV from extracted_dir and ingests it.
     Returns the number of files processed.
     """
+    from ..services.pcap import PCAP_EXTS, convert_to_csv
+    from .case_emails import register_email_file
     from .csv_artifacts import register_csv_artifact
     from .evtx import register_evtx_file
-    from .case_emails import register_email_file
-    from ..services.pcap import convert_to_csv, PCAP_EXTS
 
     processed = 0
     for file_id, filename, category in pending:

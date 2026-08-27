@@ -18,17 +18,16 @@ from __future__ import annotations
 
 import base64
 import re
-from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from ..core.deps import get_current_user
 from ..database import get_db
 from ..models.connector import ConnectorConfig
 from ..models.user import User
-from ..core.deps import get_current_user
 
 router = APIRouter(prefix="/cti", tags=["cti"])
 
@@ -57,13 +56,13 @@ def _detect_type(value: str) -> str:
 
 class LookupRequest(BaseModel):
     value:     str
-    type_hint: Optional[str] = None
-    platforms: Optional[list[str]] = None   # if None → query all available
+    type_hint: str | None = None
+    platforms: list[str] | None = None   # if None → query all available
 
 
 class BatchLookupRequest(BaseModel):
     values:    list[str]
-    type_hint: Optional[str] = None
+    type_hint: str | None = None
 
 
 class VTStats(BaseModel):
@@ -76,16 +75,16 @@ class VTStats(BaseModel):
 
 class VTResult(BaseModel):
     stats:              VTStats
-    reputation:         Optional[int]  = None
-    country:            Optional[str]  = None
-    as_owner:           Optional[str]  = None
-    network:            Optional[str]  = None
+    reputation:         int | None  = None
+    country:            str | None  = None
+    as_owner:           str | None  = None
+    network:            str | None  = None
     categories:         list[str]      = []
     tags:               list[str]      = []
-    last_analysis_date: Optional[str]  = None
-    meaningful_name:    Optional[str]  = None
-    type_description:   Optional[str]  = None
-    size:               Optional[int]  = None
+    last_analysis_date: str | None  = None
+    meaningful_name:    str | None  = None
+    type_description:   str | None  = None
+    size:               int | None  = None
     link:               str            = ""
     not_found:          bool           = False
 
@@ -94,10 +93,10 @@ class AbuseResult(BaseModel):
     abuse_score:        int
     total_reports:      int
     num_distinct_users: int           = 0
-    country_code:       Optional[str] = None
-    isp:                Optional[str] = None
-    domain:             Optional[str] = None
-    usage_type:         Optional[str] = None
+    country_code:       str | None = None
+    isp:                str | None = None
+    domain:             str | None = None
+    usage_type:         str | None = None
     is_public:          bool          = True
     is_whitelisted:     bool          = False
     is_tor:             bool          = False
@@ -106,7 +105,7 @@ class AbuseResult(BaseModel):
 class OTXPulse(BaseModel):
     id:          str
     name:        str
-    author:      Optional[str] = None
+    author:      str | None = None
     tags:        list[str]     = []
     malware_families: list[str] = []
     targeted_countries: list[str] = []
@@ -116,40 +115,40 @@ class OTXResult(BaseModel):
     pulse_count:      int           = 0
     pulses:           list[OTXPulse] = []
     malware_families: list[str]     = []
-    adversary:        Optional[str] = None
-    country:          Optional[str] = None
-    asn:              Optional[str] = None
+    adversary:        str | None = None
+    country:          str | None = None
+    asn:              str | None = None
     reputation:       int           = 0
     not_found:        bool          = False
 
 
 class ShodanResult(BaseModel):
     ip:             str
-    org:            Optional[str]  = None
-    isp:            Optional[str]  = None
-    country:        Optional[str]  = None
-    city:           Optional[str]  = None
+    org:            str | None  = None
+    isp:            str | None  = None
+    country:        str | None  = None
+    city:           str | None  = None
     ports:          list[int]      = []
     hostnames:      list[str]      = []
     vulns:          list[str]      = []
     tags:           list[str]      = []
-    os:             Optional[str]  = None
-    last_update:    Optional[str]  = None
+    os:             str | None  = None
+    last_update:    str | None  = None
     not_found:      bool           = False
 
 
 class URLScanResult(BaseModel):
-    verdict:    Optional[str] = None   # "malicious" | "suspicious" | "benign" | "unrated"
+    verdict:    str | None = None   # "malicious" | "suspicious" | "benign" | "unrated"
     score:      int           = 0
-    screenshot: Optional[str] = None   # URL to screenshot
-    url:        Optional[str] = None
-    domain:     Optional[str] = None
-    ip:         Optional[str] = None
-    asn:        Optional[str] = None
-    country:    Optional[str] = None
+    screenshot: str | None = None   # URL to screenshot
+    url:        str | None = None
+    domain:     str | None = None
+    ip:         str | None = None
+    asn:        str | None = None
+    country:    str | None = None
     categories: list[str]     = []
     tags:       list[str]     = []
-    scan_id:    Optional[str] = None
+    scan_id:    str | None = None
     not_found:  bool          = False
 
 
@@ -157,27 +156,27 @@ class GeoPoint(BaseModel):
     ip:           str
     lat:          float
     lng:          float
-    country:      Optional[str] = None
-    country_code: Optional[str] = None
-    city:         Optional[str] = None
-    isp:          Optional[str] = None
-    verdict:      Optional[str] = None   # injected by frontend cache
+    country:      str | None = None
+    country_code: str | None = None
+    city:         str | None = None
+    isp:          str | None = None
+    verdict:      str | None = None   # injected by frontend cache
 
 
 class LookupResult(BaseModel):
     value:         str
     detected_type: str
-    virustotal:    Optional[VTResult]    = None
-    abuseipdb:     Optional[AbuseResult] = None
-    otx:           Optional[OTXResult]   = None
-    shodan:        Optional[ShodanResult]= None
-    urlscan:       Optional[URLScanResult]= None
+    virustotal:    VTResult | None    = None
+    abuseipdb:     AbuseResult | None = None
+    otx:           OTXResult | None   = None
+    shodan:        ShodanResult | None= None
+    urlscan:       URLScanResult | None= None
     errors:        dict[str, str]        = {}
 
 
 # ── Connector key retrieval ───────────────────────────────────────────────────
 
-def _get_key(name: str, db: Session) -> Optional[str]:
+def _get_key(name: str, db: Session) -> str | None:
     c = db.query(ConnectorConfig).filter(ConnectorConfig.name == name).first()
     if c and c.enabled and c.api_key:
         return c.api_key
@@ -281,7 +280,7 @@ def _lookup_abuseipdb(ip: str, api_key: str) -> AbuseResult:
 _OTX_BASE = "https://otx.alienvault.com/api/v1"
 
 
-def _lookup_otx(value: str, ioc_type: str, api_key: Optional[str]) -> OTXResult:
+def _lookup_otx(value: str, ioc_type: str, api_key: str | None) -> OTXResult:
     headers = {"X-OTX-API-KEY": api_key} if api_key else {}
 
     if ioc_type == "ip":
@@ -374,7 +373,7 @@ def _lookup_shodan(ip: str, api_key: str) -> ShodanResult:
 
 # ── URLScan.io ────────────────────────────────────────────────────────────────
 
-def _lookup_urlscan(value: str, ioc_type: str, api_key: Optional[str]) -> URLScanResult:
+def _lookup_urlscan(value: str, ioc_type: str, api_key: str | None) -> URLScanResult:
     """Search URLScan for existing scans of this URL/domain."""
     headers = {"API-Key": api_key} if api_key else {}
     query   = f'page.domain:"{value}"' if ioc_type == "domain" else f'page.url:"{value}"'
@@ -565,7 +564,7 @@ class CommandResult(BaseModel):
     command: str
     label:   str
     output:  str
-    error:   Optional[str] = None
+    error:   str | None = None
     runtime_ms: int = 0
 
 

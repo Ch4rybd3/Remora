@@ -1,7 +1,6 @@
-from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional, List
 
+from pydantic import BaseModel
 
 # ── Doc template slots ──────────────────────────────────────────────────────
 
@@ -14,7 +13,7 @@ class DocSlot(BaseModel):
 class ClientDocTemplateBase(BaseModel):
     name: str
     description: str = ""
-    slots: List[DocSlot] = []
+    slots: list[DocSlot] = []
 
 
 class ClientDocTemplateCreate(ClientDocTemplateBase):
@@ -22,9 +21,9 @@ class ClientDocTemplateCreate(ClientDocTemplateBase):
 
 
 class ClientDocTemplateUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    slots: Optional[List[DocSlot]] = None
+    name: str | None = None
+    description: str | None = None
+    slots: list[DocSlot] | None = None
 
 
 class ClientDocTemplateRead(ClientDocTemplateBase):
@@ -45,7 +44,7 @@ class ClientBase(BaseModel):
     contact_phone: str = ""
     address: str = ""
     notes: str = ""
-    doc_template_id: Optional[str] = None
+    doc_template_id: str | None = None
 
 
 class ClientCreate(ClientBase):
@@ -53,15 +52,15 @@ class ClientCreate(ClientBase):
 
 
 class ClientUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    industry: Optional[str] = None
-    contact_name: Optional[str] = None
-    contact_email: Optional[str] = None
-    contact_phone: Optional[str] = None
-    address: Optional[str] = None
-    notes: Optional[str] = None
-    doc_template_id: Optional[str] = None
+    name: str | None = None
+    description: str | None = None
+    industry: str | None = None
+    contact_name: str | None = None
+    contact_email: str | None = None
+    contact_phone: str | None = None
+    address: str | None = None
+    notes: str | None = None
+    doc_template_id: str | None = None
 
 
 class ClientSummary(BaseModel):
@@ -69,7 +68,7 @@ class ClientSummary(BaseModel):
     name: str
     is_default: bool
     industry: str = ""
-    doc_template_id: Optional[str] = None
+    doc_template_id: str | None = None
     case_count: int = 0
     document_count: int = 0
     created_at: datetime
@@ -89,21 +88,21 @@ class ClientRead(ClientBase):
 # ── Documents ────────────────────────────────────────────────────────────────
 
 class ClientDocumentUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    slot: Optional[str] = None
+    name: str | None = None
+    description: str | None = None
+    slot: str | None = None
 
 
 class ClientDocumentRead(BaseModel):
     id: str
     client_id: str
-    slot: Optional[str] = None
+    slot: str | None = None
     name: str
     description: str = ""
     file_name: str
     file_size: int
     mime_type: str
     uploaded_at: datetime
-    uploaded_by: Optional[str] = None
+    uploaded_by: str | None = None
 
     model_config = {"from_attributes": True}

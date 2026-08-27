@@ -1,26 +1,31 @@
+import json
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
-import json
-from datetime import datetime, timezone
 
+from ..core.deps import get_current_user
 from ..database import get_db
-from ..models.playbook import Playbook, CasePlaybook
 from ..models.case import Case
+from ..models.playbook import CasePlaybook, Playbook
 from ..models.user import User
 from ..schemas.playbook import (
-    PlaybookCreate, PlaybookUpdate, PlaybookRead,
-    CasePlaybookCreate, CasePlaybookRead, StepStateUpdate, StepAssigneeUpdate,
+    CasePlaybookCreate,
+    CasePlaybookRead,
+    PlaybookCreate,
+    PlaybookRead,
+    PlaybookUpdate,
+    StepAssigneeUpdate,
+    StepStateUpdate,
 )
 from ..services.audit_service import audit_log
-from ..core.deps import get_current_user
 
 router = APIRouter(tags=["playbooks"])
 
 
 # ── Playbook library CRUD ────────────────────────────────────────────────────
 
-@router.get("/playbooks", response_model=List[PlaybookRead])
+@router.get("/playbooks", response_model=list[PlaybookRead])
 def list_playbooks(db: Session = Depends(get_db)):
     return db.query(Playbook).order_by(Playbook.created_at).all()
 
@@ -73,7 +78,7 @@ def update_playbook(
         data["edges"] = json.dumps(data["edges"])
     for k, v in data.items():
         setattr(pb, k, v)
-    pb.updated_at = datetime.now(timezone.utc)
+    pb.updated_at = datetime.now(UTC)
     audit_log(db, user=current_user, action="playbook.update",
               resource_type="playbook", resource_id=pb_id,
               resource_name=pb.name,
@@ -101,7 +106,7 @@ def delete_playbook(
 
 # ── Case ↔ Playbook association ──────────────────────────────────────────────
 
-@router.get("/cases/{case_id}/playbooks", response_model=List[CasePlaybookRead])
+@router.get("/cases/{case_id}/playbooks", response_model=list[CasePlaybookRead])
 def list_case_playbooks(case_id: str, db: Session = Depends(get_db)):
     _get_case(case_id, db)
     return db.query(CasePlaybook).filter(CasePlaybook.case_id == case_id).all()
@@ -176,7 +181,7 @@ def update_step(
         "done": payload.done,
         "comment": payload.comment,
         "notes": payload.notes,
-        "done_at": datetime.now(timezone.utc).isoformat() if payload.done else None,
+        "done_at": datetime.now(UTC).isoformat() if payload.done else None,
         # Assignment is owned by the dedicated endpoint below — carry it over so
         # ticking a step never silently drops who it was assigned to.
         "assignee": previous.get("assignee"),

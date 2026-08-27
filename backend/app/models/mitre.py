@@ -1,6 +1,8 @@
 import uuid
-from datetime import datetime, timezone
-from sqlalchemy import Column, String, Integer, Text, DateTime, UniqueConstraint, ForeignKey
+from datetime import UTC, datetime
+
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+
 from app.database import Base
 
 
@@ -22,7 +24,7 @@ class CaseTTP(Base):
     score   = Column(Integer,    nullable=True)  # 0-100
     comment = Column(Text,       nullable=True)
 
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
 
     __table_args__ = (
         # One row per (case, technique, tactic) so a technique that spans

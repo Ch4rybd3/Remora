@@ -1,8 +1,10 @@
-from sqlalchemy import Column, String, Text, DateTime, Boolean, ForeignKey, Enum as SAEnum
-from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
-import uuid
 import enum
+import uuid
+from datetime import UTC, datetime
+
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Text
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy.orm import relationship
 
 from ..database import Base
 
@@ -40,6 +42,6 @@ class Asset(Base):
     compromised = Column(Boolean, default=False)
     description = Column(Text, default="")
     tags = Column(Text, default="")
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
 
     case = relationship("Case", back_populates="assets")

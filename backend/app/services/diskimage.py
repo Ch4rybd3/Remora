@@ -14,10 +14,11 @@ from __future__ import annotations
 
 import hashlib
 import threading
+from collections.abc import Iterator
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from ..config import settings
 
@@ -117,7 +118,7 @@ def list_images() -> list[dict]:
                 "root":     str(root),
                 "rel_path": str(p.relative_to(root)),
                 "size":     st.st_size,
-                "modified": datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat(),
+                "modified": datetime.fromtimestamp(st.st_mtime, tz=UTC).isoformat(),
                 "format":   p.suffix.lower().lstrip("."),
             })
     return out
@@ -255,7 +256,7 @@ def _entry_times(entry: Any) -> dict:
         try:
             val = getattr(st, attr, None)
             if val:
-                out[key] = datetime.fromtimestamp(float(val), tz=timezone.utc).isoformat()
+                out[key] = datetime.fromtimestamp(float(val), tz=UTC).isoformat()
         except Exception:
             pass
     return out
@@ -410,7 +411,7 @@ def extract_to(path: Path, partition: int, file_path: str, dest_dir: Path) -> di
     name = Path(file_path).name or "extrait.bin"
     dest = dest_dir / name
     if dest.exists():
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+        stamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
         dest = dest_dir / f"{Path(name).stem}_{stamp}{Path(name).suffix}"
 
     md5, sha256 = hashlib.md5(), hashlib.sha256()

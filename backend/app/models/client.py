@@ -1,7 +1,8 @@
-from sqlalchemy import Column, String, Text, Integer, Boolean, DateTime, ForeignKey
-from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
 import uuid
+from datetime import UTC, datetime
+
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import relationship
 
 from ..database import Base
 
@@ -16,7 +17,7 @@ class ClientDocTemplate(Base):
     name = Column(String(255), nullable=False)
     description = Column(Text, default="")
     slots = Column(Text, default="[]")  # JSON list of {slug, label, description}
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
 
 
 class Client(Base):
@@ -36,9 +37,9 @@ class Client(Base):
 
     doc_template_id = Column(String, ForeignKey("client_doc_templates.id", ondelete="SET NULL"), nullable=True)
 
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
-                        onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at = Column(DateTime, default=lambda: datetime.now(UTC),
+                        onupdate=lambda: datetime.now(UTC))
 
     doc_template = relationship("ClientDocTemplate")
     documents = relationship("ClientDocument", back_populates="client",
@@ -61,7 +62,7 @@ class ClientDocument(Base):
     file_size = Column(Integer, default=0)
     mime_type = Column(String(120), default="")
 
-    uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    uploaded_at = Column(DateTime, default=lambda: datetime.now(UTC))
     uploaded_by = Column(String(100), nullable=True)
 
     client = relationship("Client", back_populates="documents")

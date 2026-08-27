@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 
@@ -23,6 +23,6 @@ class BinaryFile(Base):
     status      = Column(String(16),  nullable=False, default="pending")
     error_msg   = Column(Text,        nullable=True)
     analysis_json = Column(Text,      nullable=True)     # full analysis result (JSON)
-    uploaded_at   = Column(DateTime,  nullable=False, default=lambda: datetime.now(timezone.utc))
+    uploaded_at   = Column(DateTime,  nullable=False, default=lambda: datetime.now(UTC))
     analysed_at   = Column(DateTime,  nullable=True)
     added_to_evidence = Column(Boolean, nullable=False, default=False)

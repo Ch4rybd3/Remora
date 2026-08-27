@@ -1,14 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
-from pathlib import Path
-from sqlalchemy.orm import Session
-from typing import Any
 import json
+from pathlib import Path
+from typing import Any
 
-from ..database import get_db
-from ..models.email_file import EmailFile
-from ..models.case import Case
-from ..models.user import User
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from sqlalchemy.orm import Session
+
 from ..core.deps import get_current_user
+from ..database import get_db
+from ..models.case import Case
+from ..models.email_file import EmailFile
+from ..models.user import User
 from .email_analysis import parse_email_bytes
 
 router = APIRouter(tags=["case-emails"])

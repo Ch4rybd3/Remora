@@ -1,7 +1,8 @@
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey
-from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
 import uuid
+from datetime import UTC, datetime
+
+from sqlalchemy import Column, DateTime, ForeignKey, String, Text
+from sqlalchemy.orm import relationship
 
 from ..database import Base
 
@@ -32,6 +33,6 @@ class TimelineEvent(Base):
     # (e.g. "EVTX Security.evtx" or "MFT $MFT_Output.csv").
     raw_source = Column(String(512), default="")
 
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
 
     case = relationship("Case", back_populates="timeline")

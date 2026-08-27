@@ -1,5 +1,7 @@
-from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, DateTime, JSON
+from datetime import UTC, datetime
+
+from sqlalchemy import JSON, Column, DateTime, Integer, String
+
 from app.database import Base
 
 
@@ -14,5 +16,5 @@ class ReportDocTemplate(Base):
     file_path     = Column(String(1024), nullable=False)  # absolute path on disk
     file_size     = Column(Integer, default=0)
     tags_detected = Column(JSON, default=list)             # list of {{tags}} found
-    created_at    = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at    = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     created_by    = Column(String(64), nullable=True)

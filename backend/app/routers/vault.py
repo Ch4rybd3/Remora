@@ -7,20 +7,19 @@ a description and optional tags for cross-case reference material.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from ..database import get_db
-from ..models.vault import Vault
-from ..models.user import User
-from ..core.deps import get_current_user
 from ..config import settings
+from ..core.deps import get_current_user
+from ..database import get_db
+from ..models.user import User
+from ..models.vault import Vault
 
 router = APIRouter(prefix="/vaults", tags=["vaults"])
 
@@ -40,15 +39,15 @@ class VaultOut(BaseModel):
     file_size:   int
     mime_type:   str
     created_at:  datetime
-    created_by:  Optional[str]
+    created_by:  str | None
 
     model_config = {"from_attributes": True}
 
 
 class VaultPatch(BaseModel):
-    name:        Optional[str] = None
-    description: Optional[str] = None
-    tags:        Optional[str] = None
+    name:        str | None = None
+    description: str | None = None
+    tags:        str | None = None
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -84,7 +83,7 @@ async def upload_vault(
         raise HTTPException(400, "Uploaded file is empty")
 
     VAULT_DIR.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     safe = _safe_name(file.filename)
     dest = VAULT_DIR / f"{ts}_{safe}"
     dest.write_bytes(file_bytes)

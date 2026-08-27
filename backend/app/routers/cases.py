@@ -1,28 +1,27 @@
 import shutil
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
-from typing import List
-from datetime import datetime, timezone
 
+from ..config import settings
+from ..core.deps import get_current_user
 from ..database import get_db
 from ..models.case import Case, CaseStatus
 from ..models.client import Client
 from ..models.user import User
-from ..schemas.case import CaseCreate, CaseRead, CaseUpdate, CaseSummary
-from ..services.template_service import TemplateService
+from ..schemas.case import CaseCreate, CaseRead, CaseSummary, CaseUpdate
 from ..services.audit_service import audit_log
-from ..core.deps import get_current_user
-from ..config import settings
+from ..services.template_service import TemplateService
 
 NOTE_IMAGES_DIR = settings.evidence_store_path.parent / "note_images"
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
 
-@router.get("/", response_model=List[CaseSummary])
+@router.get("/", response_model=list[CaseSummary])
 def list_cases(db: Session = Depends(get_db)):
     cases = db.query(Case).order_by(Case.updated_at.desc()).all()
     result = []
@@ -139,8 +138,8 @@ def update_case(
     for key, value in updates.items():
         setattr(case, key, value)
     if "status" in updates and updates["status"] == CaseStatus.closed:
-        case.closed_at = datetime.now(timezone.utc)
-    case.updated_at = datetime.now(timezone.utc)
+        case.closed_at = datetime.now(UTC)
+    case.updated_at = datetime.now(UTC)
     audit_log(db, user=current_user, action="case.update",
               resource_type="case", resource_id=case_id,
               resource_name=case.title, case_id=case_id, case_title=case.title,

@@ -14,8 +14,8 @@ import tempfile
 import uuid
 from pathlib import Path
 from typing import Any
-from urllib.request import Request, urlopen
 from urllib.error import URLError
+from urllib.request import Request, urlopen
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import Response
@@ -25,8 +25,8 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..core.deps import get_current_user, get_db
-from ..models.user import User
 from ..models.mitre import CaseTTP
+from ..models.user import User
 
 router = APIRouter(tags=["mitre"])
 

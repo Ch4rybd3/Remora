@@ -44,22 +44,21 @@ if TYPE_CHECKING:  # annotation only — python-docx is an optional import
 
 import io
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from ..database import get_db
-from ..models.report_doc_template import ReportDocTemplate
-from ..models.case import Case
-from ..models.attack_graph import AttackGraph
-from ..models.user import User
-from ..core.deps import get_current_user
 from ..config import settings
+from ..core.deps import get_current_user
+from ..database import get_db
+from ..models.attack_graph import AttackGraph
+from ..models.case import Case
+from ..models.report_doc_template import ReportDocTemplate
+from ..models.user import User
 
 router = APIRouter(prefix="/report-doc-templates", tags=["report-doc-templates"])
 
@@ -103,7 +102,7 @@ class ReportDocTemplateOut(BaseModel):
     file_size:     int
     tags_detected: list[str]
     created_at:    datetime
-    created_by:    Optional[str]
+    created_by:    str | None
 
     model_config = {"from_attributes": True}
 
@@ -136,7 +135,7 @@ def _detect_tags_docx(file_bytes: bytes) -> list[str]:
 
 # ── Context builder ────────────────────────────────────────────────────────────
 
-def _fmt_dt(dt: Optional[datetime]) -> str:
+def _fmt_dt(dt: datetime | None) -> str:
     return dt.strftime("%Y-%m-%d %H:%M UTC") if dt else "N/A"
 
 
@@ -154,7 +153,7 @@ def _build_context(case: Case, author: str) -> dict[str, str]:
         "case.quick_notes":       case.quick_notes or "",
         "case.assigned_to":       case.assigned_to or "Unassigned",
         "case.tags":              case.tags or "",
-        "report.date":            datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "report.date":            datetime.now(UTC).strftime("%Y-%m-%d"),
         "report.author":          author,
     }
 
@@ -339,7 +338,7 @@ def _hex_to_rgb(h: str) -> tuple:
     return tuple(int(h[i:i+2], 16) / 255.0 for i in (0, 2, 4))
 
 
-def _render_mitre_matrix_png(case: Case) -> "Optional[tuple[bytes, float]]":
+def _render_mitre_matrix_png(case: Case) -> tuple[bytes, float] | None:
     """
     Render a clean, report-ready MITRE ATT&CK matrix image.
 
@@ -359,10 +358,10 @@ def _render_mitre_matrix_png(case: Case) -> "Optional[tuple[bytes, float]]":
     the case TTPs must be deleted and re-added from the updated matrix.
     """
     try:
-        import matplotlib                                   # type: ignore
+        import matplotlib  # type: ignore
         matplotlib.use("Agg")
-        import matplotlib.pyplot as plt                    # type: ignore
-        from matplotlib.patches import Rectangle           # type: ignore
+        import matplotlib.pyplot as plt  # type: ignore
+        from matplotlib.patches import Rectangle  # type: ignore
 
         ttps = sorted(
             getattr(case, "ttps", []) or [],
@@ -601,8 +600,8 @@ def _replace_text_in_para(para, ctx: dict[str, str]) -> bool:
 
 def _set_cell_bg(cell, color_hex: str) -> None:
     """Apply background shading to a table cell (no leading #)."""
-    from docx.oxml.ns import qn  # type: ignore
     from docx.oxml import OxmlElement  # type: ignore
+    from docx.oxml.ns import qn  # type: ignore
     tc = cell._tc
     tcPr = tc.get_or_add_tcPr()
     for existing in tcPr.findall(qn("w:shd")):
@@ -619,7 +618,7 @@ def _build_word_table(
     headers: list[str],
     rows: list[list[str]],
     header_color: str = "1E3A5F",
-) -> "Table":
+) -> Table:
     """
     Create a fully styled Word table:
     - Extends ~0.5 cm beyond the page text-area on both sides
@@ -628,8 +627,8 @@ def _build_word_table(
     - Alternating light-grey row shading for readability
     - Font size 9pt header / 8pt body
     """
-    from docx.oxml.ns import qn  # type: ignore
     from docx.oxml import OxmlElement  # type: ignore
+    from docx.oxml.ns import qn  # type: ignore
     from docx.shared import Pt, RGBColor  # type: ignore
 
     EMU_PER_TWIP = 635        # 914 400 EMU/in ÷ 1 440 twips/in
@@ -647,7 +646,7 @@ def _build_word_table(
         tbl.insert(0, tblPr)
 
     # ── Width: extend beyond the text area ───────────────────────────────────
-    col_w_twips: Optional[int] = None
+    col_w_twips: int | None = None
     try:
         section  = doc.sections[0]
         text_w   = int((section.page_width - section.left_margin - section.right_margin)
@@ -736,7 +735,7 @@ def _build_word_table(
     return table
 
 
-def _build_mitre_word_table(doc, case: Case) -> "Table":
+def _build_mitre_word_table(doc, case: Case) -> Table:
     """
     Build a MITRE ATT&CK coverage Word table for the case.
 
@@ -749,9 +748,9 @@ def _build_mitre_word_table(doc, case: Case) -> "Table":
     - Free-standing sub-techniques (selected without parent) appear indented
       after an auto-inserted parent placeholder row.
     """
-    from docx.shared import Pt, RGBColor
-    from docx.oxml.ns import qn
     from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.shared import Pt, RGBColor
 
     HEADER_COLOR = "0F2942"   # Deep navy — neutral DFIR feel
     SUB_BG       = "F0FDF4"   # Very light green — sub-technique rows
@@ -841,7 +840,7 @@ def _build_mitre_word_table(doc, case: Case) -> "Table":
 
     # Header row
     hdr = table.rows[0].cells
-    for i, (label, w) in enumerate(zip(["Tactic", "Technique ID", "Technique Name"], COL_PCTS)):
+    for i, (label, w) in enumerate(zip(["Tactic", "Technique ID", "Technique Name"], COL_PCTS, strict=True)):
         _set_cell_bg(hdr[i], HEADER_COLOR); _set_col_w(hdr[i], w)
         run = hdr[i].paragraphs[0].add_run(label)
         run.bold = True; run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF); run.font.size = Pt(9)
@@ -868,7 +867,7 @@ def _build_mitre_word_table(doc, case: Case) -> "Table":
                 for c in cells: _set_cell_bg(c, ALT_BG.lstrip("#"))
             tact_text = tact if tact != prev_tactic else ""  # only show tactic on first row of group
             prev_tactic = tact
-            for c_i, (text, w) in enumerate(zip([tact_text, tid, name], COL_PCTS)):
+            for c_i, (text, _w) in enumerate(zip([tact_text, tid, name], COL_PCTS, strict=True)):
                 run = cells[c_i].paragraphs[0].add_run(text)
                 run.font.size = Pt(8)
                 if c_i == 1:  # technique ID — slightly bold
@@ -877,7 +876,7 @@ def _build_mitre_word_table(doc, case: Case) -> "Table":
     return table
 
 
-def _render_attack_graph_png(nodes: list, edges: list) -> Optional[bytes]:
+def _render_attack_graph_png(nodes: list, edges: list) -> bytes | None:
     """
     Render the attack graph using the actual ReactFlow node positions and types,
     reproducing the visual style of the AttackGraph tab.
@@ -888,9 +887,9 @@ def _render_attack_graph_png(nodes: list, edges: list) -> Optional[bytes]:
     Edges: { id, source, target, ... }
     """
     try:
-        import matplotlib                           # type: ignore
+        import matplotlib  # type: ignore
         matplotlib.use("Agg")
-        import matplotlib.pyplot as plt            # type: ignore
+        import matplotlib.pyplot as plt  # type: ignore
         from matplotlib.patches import FancyBboxPatch  # type: ignore
 
         if not nodes:
@@ -961,12 +960,12 @@ def _render_attack_graph_png(nodes: list, edges: list) -> Optional[bytes]:
             y2 = tp["y"]                # top-centre of target
             ax.annotate(
                 "", xy=(x2, y2), xytext=(x1, y1),
-                arrowprops=dict(
-                    arrowstyle="-|>",
-                    color="#4b5563",
-                    lw=1.2,
-                    connectionstyle="arc3,rad=0.04",
-                ),
+                arrowprops={
+                    "arrowstyle": "-|>",
+                    "color": "#4b5563",
+                    "lw": 1.2,
+                    "connectionstyle": "arc3,rad=0.04",
+                },
                 zorder=1,
             )
 
@@ -1044,7 +1043,7 @@ def _render_attack_graph_png(nodes: list, edges: list) -> Optional[bytes]:
         return None
 
 
-def _resolve_image_url(url: str) -> "Optional[Path]":
+def _resolve_image_url(url: str) -> Path | None:
     """
     Map a note-image URL (or vault view URL) to an absolute local path.
 
@@ -1083,6 +1082,7 @@ def _md_to_docx_paragraphs(doc, placeholder_para, md_text: str) -> None:
         (falls back to [alt] if the image cannot be resolved)
     """
     import re as _re
+
     from docx.shared import Inches  # type: ignore
 
     # Regex that matches a full markdown image token
@@ -1214,10 +1214,10 @@ def _md_to_docx_paragraphs(doc, placeholder_para, md_text: str) -> None:
 
 
 def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
-                 attack_graph_png: Optional[bytes]) -> bytes:
+                 attack_graph_png: bytes | None) -> bytes:
     from docx import Document  # type: ignore
-    from docx.shared import Inches  # type: ignore
     from docx.oxml.ns import qn  # type: ignore
+    from docx.shared import Inches  # type: ignore
 
     doc = Document(template_path)
 
@@ -1402,7 +1402,7 @@ async def upload_template(
     # Persist to disk
     TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
     safe_name = re.sub(r"[^\w\-.]", "_", fname)
-    dest = TEMPLATES_DIR / f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{safe_name}"
+    dest = TEMPLATES_DIR / f"{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}_{safe_name}"
     dest.write_bytes(file_bytes)
 
     tpl = ReportDocTemplate(
@@ -1469,7 +1469,7 @@ def generate_report(
 
     # DOCX
     ag = db.query(AttackGraph).filter(AttackGraph.case_id == case_id).first()
-    png_bytes: Optional[bytes] = None
+    png_bytes: bytes | None = None
     if ag and ag.nodes:
         png_bytes = _render_attack_graph_png(ag.nodes, ag.edges or [])
 

@@ -1,18 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
-from sqlalchemy.orm import Session
-from typing import List
 
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy.orm import Session
+
+from ..core.deps import ROLE_RANK, assert_can_manage, get_current_user, require_admin
 from ..database import get_db
 from ..models.user import User, UserRole
-from ..schemas.user import UserCreate, UserRead, UserUpdate, UserChangePassword
-from ..services.auth_service import hash_password
+from ..schemas.user import UserChangePassword, UserCreate, UserRead, UserUpdate
 from ..services.audit_service import audit_log
-from ..core.deps import get_current_user, require_admin, assert_can_manage, ROLE_RANK
+from ..services.auth_service import hash_password
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 
-@router.get("/", response_model=List[UserRead])
+@router.get("/", response_model=list[UserRead])
 def list_users(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),

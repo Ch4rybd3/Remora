@@ -1,17 +1,17 @@
 import time
 from collections import defaultdict
+from datetime import UTC, datetime
 from threading import Lock
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
-from datetime import datetime, timezone
 
+from ..core.deps import get_current_user
 from ..database import get_db
 from ..models.user import User
 from ..schemas.user import LoginPayload, TokenResponse, UserRead
-from ..services.auth_service import verify_password, create_access_token
 from ..services.audit_service import audit_log
-from ..core.deps import get_current_user
+from ..services.auth_service import create_access_token, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -66,7 +66,7 @@ def login(payload: LoginPayload, request: Request, db: Session = Depends(get_db)
 
     user = db.query(User).filter(
         User.username == payload.username,
-        User.is_active == True,
+        User.is_active.is_(True),
     ).first()
     if not user or not verify_password(payload.password, user.hashed_password):
         _record_failure(payload.username)
@@ -75,7 +75,7 @@ def login(payload: LoginPayload, request: Request, db: Session = Depends(get_db)
             detail="Identifiants incorrects",
         )
     _record_success(payload.username)
-    user.last_login = datetime.now(timezone.utc)
+    user.last_login = datetime.now(UTC)
     audit_log(db, user=user, action="auth.login",
               resource_type="user", resource_id=user.id,
               resource_name=user.username, request=request)

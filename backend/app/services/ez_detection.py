@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Optional
 
 _EXPLORER = "/artifacts/explorer"
 _EXPLORER_LABEL = "Artifact Explorer"
@@ -130,7 +129,7 @@ _COMPILED: list[tuple[re.Pattern, str, str]] = [
 ]
 
 
-def detect(filename: str, first_line: Optional[str] = None) -> Optional[DetectionResult]:
+def detect(filename: str, first_line: str | None = None) -> DetectionResult | None:
     """
     Return a DetectionResult for the given CSV filename, or None if unknown.
     All results route to the Artifact Explorer.
@@ -150,5 +149,5 @@ def detect(filename: str, first_line: Optional[str] = None) -> Optional[Detectio
     return None
 
 
-def detect_zip_contents(entries: list[str]) -> dict[str, Optional[DetectionResult]]:
+def detect_zip_contents(entries: list[str]) -> dict[str, DetectionResult | None]:
     return {e: detect(e) for e in entries}

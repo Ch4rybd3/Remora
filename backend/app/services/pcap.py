@@ -13,6 +13,7 @@ from __future__ import annotations
 import csv
 import shutil
 import subprocess
+from datetime import UTC
 from pathlib import Path
 
 PCAP_EXTS = {".pcap", ".pcapng", ".cap"}
@@ -125,7 +126,7 @@ def _postprocess(csv_path: Path) -> int:
     Returns the number of data rows. Streamed via a sibling temp file so a huge
     capture is never held in memory.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     headers = [h for _, h in _FIELDS]
     tmp = csv_path.with_suffix(csv_path.suffix + ".tmp")
@@ -155,7 +156,7 @@ def _postprocess(csv_path: Path) -> int:
             if aligned and len(row) == len(headers) and row[ts_idx]:
                 try:
                     row[ts_idx] = datetime.fromtimestamp(
-                        float(row[ts_idx]), tz=timezone.utc
+                        float(row[ts_idx]), tz=UTC
                     ).isoformat(timespec="microseconds").replace("+00:00", "Z")
                 except (ValueError, OSError, OverflowError):
                     pass  # keep the raw value rather than dropping the packet

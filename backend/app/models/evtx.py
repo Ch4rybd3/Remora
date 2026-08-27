@@ -1,11 +1,20 @@
-import uuid
 import enum
-from datetime import datetime, timezone
+import uuid
+from datetime import UTC, datetime
+
 from sqlalchemy import (
-    Column, String, Integer, DateTime, ForeignKey,
-    JSON, Boolean, Text, Index,
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
 )
 from sqlalchemy.orm import relationship
+
 from app.database import Base
 
 
@@ -26,7 +35,7 @@ class EvtxFile(Base):
     status       = Column(String(16), default="pending", nullable=False)
     event_count  = Column(Integer, nullable=True)
     error_msg    = Column(Text, nullable=True)
-    uploaded_at  = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    uploaded_at  = Column(DateTime, default=lambda: datetime.now(UTC))
     parsed_at    = Column(DateTime, nullable=True)
     added_to_evidence = Column(Boolean, default=False, nullable=False)
 
@@ -77,6 +86,6 @@ class EvtxCaseSelection(Base):
     events     = Column(JSON, nullable=False, default=list)
     sent_ids   = Column(JSON, nullable=False, default=list)
     updated_at = Column(DateTime,
-                        default=lambda: datetime.now(timezone.utc),
-                        onupdate=lambda: datetime.now(timezone.utc),
+                        default=lambda: datetime.now(UTC),
+                        onupdate=lambda: datetime.now(UTC),
                         nullable=False)

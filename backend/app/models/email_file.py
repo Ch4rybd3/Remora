@@ -1,6 +1,7 @@
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer
-from datetime import datetime, timezone
 import uuid
+from datetime import UTC, datetime
+
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 
 from ..database import Base
 
@@ -13,4 +14,4 @@ class EmailFile(Base):
     filename    = Column(String(255), nullable=False)
     analysis    = Column(Text, nullable=False)   # JSON EmailAnalysisResult
     warning_count = Column(Integer, default=0)   # cached for list view
-    uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    uploaded_at = Column(DateTime, default=lambda: datetime.now(UTC))

@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..core.deps import get_current_user
-from ..database import get_db, SessionLocal
+from ..database import SessionLocal, get_db
 from ..models.case import Case
 from ..services import dropzone as dz
 

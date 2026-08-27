@@ -6,15 +6,15 @@ import uuid
 import zipfile
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from ..config import settings
+from ..core.deps import get_current_user
 from ..database import get_db
 from ..models.user import User
 from ..services.audit_service import audit_log
-from ..core.deps import get_current_user
-from ..config import settings
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 

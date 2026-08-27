@@ -1,14 +1,14 @@
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
 
+from ..core.deps import get_current_user
 from ..database import get_db
-from ..models.case import Case
 from ..models.asset import Asset
+from ..models.case import Case
 from ..models.user import User
 from ..schemas.asset import AssetCreate, AssetRead, AssetUpdate
 from ..services.audit_service import audit_log
-from ..core.deps import get_current_user
 
 router = APIRouter(prefix="/cases/{case_id}/assets", tags=["assets"])
 
@@ -20,7 +20,7 @@ def _get_case(case_id: str, db: Session) -> Case:
     return case
 
 
-@router.get("/", response_model=List[AssetRead])
+@router.get("/", response_model=list[AssetRead])
 def list_assets(case_id: str, db: Session = Depends(get_db)):
     _get_case(case_id, db)
     return db.query(Asset).filter(Asset.case_id == case_id).all()

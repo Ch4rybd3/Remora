@@ -1,11 +1,12 @@
+from typing import Literal
+
 from pydantic import BaseModel
-from typing import Optional, Literal
 
 
 class HeaderItem(BaseModel):
     name: str
     value: str
-    description: Optional[str] = None
+    description: str | None = None
     is_key: bool = False
 
 
@@ -34,5 +35,5 @@ class EmailAnalysisResult(BaseModel):
     urls: list[str]
     attachments: list[AttachmentItem]
     warnings: list[EmailWarning] = []
-    body_plain: Optional[str] = None
-    body_html: Optional[str] = None
+    body_plain: str | None = None
+    body_html: str | None = None

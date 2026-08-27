@@ -1,6 +1,7 @@
-from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
+
+from pydantic import BaseModel
+
 from ..models.asset import AssetType
 
 
@@ -21,15 +22,15 @@ class AssetCreate(AssetBase):
 
 
 class AssetUpdate(BaseModel):
-    name: Optional[str] = None
-    type: Optional[AssetType] = None
-    ip_address: Optional[str] = None
-    hostname: Optional[str] = None
-    os: Optional[str] = None
-    domain: Optional[str] = None
-    compromised: Optional[bool] = None
-    description: Optional[str] = None
-    tags: Optional[str] = None
+    name: str | None = None
+    type: AssetType | None = None
+    ip_address: str | None = None
+    hostname: str | None = None
+    os: str | None = None
+    domain: str | None = None
+    compromised: bool | None = None
+    description: str | None = None
+    tags: str | None = None
 
 
 class AssetRead(AssetBase):

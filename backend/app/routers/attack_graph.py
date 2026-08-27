@@ -3,7 +3,7 @@ Attack Graph API — one graph per case, stored as React Flow nodes/edges JSON.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -33,7 +33,7 @@ def get_attack_graph(case_id: str, db: Session = Depends(get_db)):
             case_id=case_id,
             nodes=[],
             edges=[],
-            updated_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(UTC),
         )
     return graph
 
@@ -49,7 +49,7 @@ def save_attack_graph(
     if graph:
         graph.nodes      = payload.nodes
         graph.edges      = payload.edges
-        graph.updated_at = datetime.now(timezone.utc)
+        graph.updated_at = datetime.now(UTC)
     else:
         graph = AttackGraph(
             case_id=case_id,
