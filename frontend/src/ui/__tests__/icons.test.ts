@@ -16,7 +16,7 @@ describe('NAV_ICON', () => {
       '/knowledge',
       '/config/clients', '/templates', '/report-templates', '/playbooks',
       '/config/chainsaw-rules', '/config/connectors', '/config/vaults',
-      '/users', '/audit',
+      '/users', '/audit', '/design',
     ]
     const missing = routes.filter((route) => !NAV_ICON[route])
     expect(missing).toEqual([])

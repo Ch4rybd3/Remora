@@ -44,6 +44,7 @@ import {
   BookmarkPlus,
   Bug,
   Building2,
+  Columns2,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -195,7 +196,8 @@ export const NAV_ICON: Record<string, LucideIcon> = {
   '/config/connectors':     Plug,
   '/config/vaults':         Archive,
   '/users':                 Users,
-  '/audit':                 ShieldCheck,    // Audit — was Shield, shared with CTI Lookup
+  '/audit':                 ShieldCheck,
+  '/design':                Palette,      // design system gallery    // Audit — was Shield, shared with CTI Lookup
 }
 
 export {
@@ -218,6 +220,7 @@ export {
   BookmarkPlus,
   Bug,
   Building2,
+  Columns2,
   Check,
   CheckCircle2,
   ChevronDown,

@@ -26,7 +26,10 @@
  */
 
 /* ─── Dark — the Remora identity, and the default ────────────────────────── */
-:root {
+/* The theme blocks below are scoped by attribute rather than to :root, so a
+   nested element can carry `data-theme` and re-resolve every token for its
+   subtree. That is what lets the design gallery render four themes at once. */
+:root, [data-theme='dark'] {
   /* Two surfaces. No card-on-card: if you need a third level, the layout is
      wrong. `overlay` is for genuinely floating layers only (modal, popover,
      dropdown), which is also the only place a shadow is allowed. */
@@ -71,7 +74,7 @@
 }
 
 /* ─── Light — re-derived, not inverted ───────────────────────────────────── */
-:root[data-theme='light'] {
+[data-theme='light'] {
   --surface-canvas:    247 249 251;
   --surface-panel:     255 255 255;
   --surface-overlay:   255 255 255;
@@ -113,7 +116,7 @@
 }
 
 /* ─── GitHub dark ────────────────────────────────────────────────────────── */
-:root[data-theme='github-dark'] {
+[data-theme='github-dark'] {
   --surface-canvas:    13 17 23;
   --surface-panel:     22 27 34;
   --surface-overlay:   28 33 40;
@@ -154,7 +157,7 @@
 }
 
 /* ─── GitHub light ───────────────────────────────────────────────────────── */
-:root[data-theme='github-light'] {
+[data-theme='github-light'] {
   --surface-canvas:    255 255 255;
   --surface-panel:     246 248 250;
   --surface-overlay:   255 255 255;

@@ -3,6 +3,7 @@ import { useAuth } from './context/AuthContext'
 import Layout from './components/layout/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
+import DesignSystem from './pages/DesignSystem'
 import Cases from './pages/Cases'
 import CaseDetail from './pages/CaseDetail'
 import Templates from './pages/Templates'
@@ -74,6 +75,7 @@ export default function App() {
         <Route path="/knowledge/editor" element={<KnowledgeEditor />} />
         <Route path="/config/chainsaw-rules" element={<ChainsawRules />} />
         <Route path="/config/vaults" element={<VaultManagement />} />
+        <Route path="/design" element={<DesignSystem />} />
         <Route
           path="/users"
           element={
