@@ -19,7 +19,8 @@ import { Panel, PanelHeader } from '../ui/Panel'
 import { SectionRail, type RailItem } from '../ui/SectionRail'
 import { SidePanel, SidePanelBlock } from '../ui/SidePanel'
 import { Toolbar, ToolbarGroup, ToolbarLabel, ToolbarSpacer } from '../ui/Toolbar'
-import { Columns2, FileDown, Save, Sparkles } from '../ui/icons'
+import { DataTable } from '../ui/DataTable'
+import { BookmarkPlus, Columns2, FileDown, Save, Sparkles, Trash2 } from '../ui/icons'
 
 // ── Layout helpers ────────────────────────────────────────────────────────────
 
@@ -108,6 +109,12 @@ const TYPE_SCALE = [
   { name: 'ui',    px: '13px', use: 'every control, table cell, nav item', cls: 'text-ui', sample: 'Send the selection to the timeline' },
   { name: 'prose', px: '15px', use: 'running text meant to be read', cls: 'text-prose', sample: 'The user received a ClickFix email presenting itself as an account compromise alert.' },
   { name: 'title', px: '19px', use: 'page and section titles', cls: 'text-title font-semibold', sample: 'Technical Analysis' },
+]
+
+const TABLE_ROWS = [
+  { id: '1', timestamp: '2026-08-24 08:16:03', host: 'DC-01',  severity: 'critical', detail: 'lsass access from an unsigned binary' },
+  { id: '2', timestamp: '2026-08-24 08:15:47', host: 'WKS-14', severity: 'medium',   detail: 'Run key written under HKCU' },
+  { id: '3', timestamp: '2026-08-24 08:12:09', host: 'WKS-14', severity: 'low',      detail: 'nltest /dclist enumerated the domain' },
 ]
 
 const RAIL_ITEMS: RailItem[] = [
@@ -262,6 +269,51 @@ export default function DesignSystem() {
               <button className="btn-danger">Danger</button>
               <input className="input max-w-[16rem]" placeholder="Filter rows..." />
             </div>
+          </Panel>
+        </Specimen>
+      </Section>
+
+      <Section id="table" title="One table"
+        lede="Before this primitive existed there were twelve header styles, nine row styles and
+              four spellings of the same sticky header, because every screen rebuilt the table it
+              needed. Rows are separated by hairlines — no zebra striping, which invents a rhythm
+              that competes with the data. The pin is always the first column and never opens the
+              row it sits on.">
+        <Specimen compare={compare}>
+          <Panel className="overflow-hidden">
+            <DataTable
+              density="compact"
+              rows={TABLE_ROWS}
+              rowKey={(r) => r.id}
+              isRowSelected={(r) => r.id === '2'}
+              leading={{
+                render: () => (
+                  <button className="text-fg-muted hover:text-accent transition-colors" title="Pin to the timeline">
+                    <BookmarkPlus size={12} />
+                  </button>
+                ),
+              }}
+              trailing={{
+                render: () => (
+                  <button className="text-fg-muted hover:text-severity-critical transition-colors" title="Delete">
+                    <Trash2 size={12} />
+                  </button>
+                ),
+              }}
+              sort={{ key: 'timestamp', dir: 'desc' }}
+              onSortChange={() => {}}
+              columns={[
+                { key: 'timestamp', header: 'Timestamp', width: 'w-44', mono: true, sortable: true,
+                  render: (r) => <span className="text-fg-secondary">{r.timestamp}</span> },
+                { key: 'host', header: 'Host', width: 'w-28', mono: true, render: (r) => r.host },
+                { key: 'severity', header: 'Severity', width: 'w-24', render: (r) => (
+                  <span className="text-label font-mono uppercase" style={{ color: `rgb(var(--severity-${r.severity}))` }}>
+                    {r.severity}
+                  </span>
+                ) },
+                { key: 'detail', header: 'Detail', hideBelow: 'md', render: (r) => r.detail },
+              ]}
+            />
           </Panel>
         </Specimen>
       </Section>

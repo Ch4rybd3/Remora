@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, Edit2, KeyRound, ShieldCheck } from '../ui/icons'
 import { usersApi, type AuthUser } from '../api/auth'
 import { useAuth } from '../context/AuthContext'
+import { DataTable } from '../ui/DataTable'
+import { Panel } from '../ui/Panel'
 import Modal from '../components/ui/Modal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { fmtDateTimeShort } from '../utils/dateUtils'
@@ -68,90 +70,104 @@ export default function Users() {
           <h1 className="text-title font-bold text-accent flex items-center gap-2">
             <ShieldCheck size={22} /> Gestion des utilisateurs
           </h1>
-          <p className="text-fg-secondary text-ui mt-1">{users.length} compte(s)</p>
+          <p className="text-fg-secondary text-ui mt-1">{users.length} account{users.length > 1 ? 's' : ''}</p>
         </div>
         <button className="btn-primary flex items-center gap-2" onClick={() => setCreateOpen(true)}>
           <Plus size={15} /> New user
         </button>
       </div>
 
-      <div className="card overflow-hidden">
-        <table className="w-full text-ui">
-          <thead>
-            <tr className="border-b border-hairline text-fg-secondary text-label uppercase tracking-wide">
-              <th className="text-left px-4 py-3">Utilisateur</th>
-              <th className="text-left px-4 py-3">Role</th>
-              <th className="text-left px-4 py-3">Status</th>
-              <th className="text-left px-4 py-3">Last login</th>
-              <th className="px-4 py-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map(u => (
-              <tr key={u.id} className="border-b border-hairline last:border-0 hover:bg-white/[0.02] group">
-                <td className="px-4 py-3">
-                  <p className="font-medium">{u.username}</p>
+      <Panel className="overflow-hidden">
+        <DataTable
+          rows={users}
+          rowKey={(u) => u.id}
+          empty="No user yet."
+          columns={[
+            {
+              key: 'username',
+              header: 'User',
+              render: (u) => (
+                <>
+                  <p className="font-medium text-fg">{u.username}</p>
                   {u.email && <p className="text-label text-fg-secondary">{u.email}</p>}
-                  {u.id === me?.id && (
-                    <span className="text-label text-accent/60">(vous)</span>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`text-label font-mono px-2 py-0.5 rounded-control border ${ROLE_COLORS[u.role]}`}>
-                    {u.role}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
+                  {u.id === me?.id && <span className="text-label text-accent">(you)</span>}
+                </>
+              ),
+            },
+            {
+              key: 'role',
+              header: 'Role',
+              width: 'w-28',
+              render: (u) => (
+                <span className={`text-label font-mono px-2 py-0.5 rounded-control border ${ROLE_COLORS[u.role]}`}>
+                  {u.role}
+                </span>
+              ),
+            },
+            {
+              key: 'status',
+              header: 'Status',
+              width: 'w-24',
+              render: (u) => (
+                <button
+                  onClick={() => u.id !== me?.id && toggleActive.mutate({ id: u.id, is_active: !u.is_active })}
+                  disabled={u.id === me?.id}
+                  className={`text-label px-2 py-0.5 rounded-control border transition-colors ${
+                    u.is_active
+                      ? 'bg-accent/10 text-accent border-accent/20 hover:bg-accent/20'
+                      : 'bg-fg/5 text-fg-secondary border-hairline hover:bg-fg/10'
+                  } disabled:cursor-default disabled:opacity-50`}
+                >
+                  {u.is_active ? 'Active' : 'Inactive'}
+                </button>
+              ),
+            },
+            {
+              key: 'last_login',
+              header: 'Last login',
+              width: 'w-44',
+              mono: true,
+              hideBelow: 'md',
+              render: (u) => (
+                <span className="text-fg-secondary">{fmtDateTimeShort(u.last_login)}</span>
+              ),
+            },
+          ]}
+          trailing={{
+            render: (u) => (
+              <>
+                {canManage(me, u) && (
                   <button
-                    onClick={() => u.id !== me?.id && toggleActive.mutate({ id: u.id, is_active: !u.is_active })}
-                    disabled={u.id === me?.id}
-                    className={`text-label px-2 py-0.5 rounded-control border transition-colors ${ u.is_active
-                        ? 'bg-accent/10 text-accent border-accent/20 hover:bg-accent/20'
-                        : 'bg-fg/5 text-fg-secondary border-hairline hover:bg-fg/10'
-                    } disabled:cursor-default disabled:opacity-50`}
+                    onClick={() => setEditTarget(u)}
+                    className="text-fg-secondary hover:text-accent transition-colors"
+                    title="Change the role"
                   >
-                    {u.is_active ? 'Actif' : 'Inactif'}
+                    <Edit2 size={13} />
                   </button>
-                </td>
-                <td className="px-4 py-3 text-label text-fg-secondary">
-                  {fmtDateTimeShort(u.last_login)}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {canManage(me, u) && (
-                      <button
-                        onClick={() => setEditTarget(u)}
-                        className="text-fg-secondary hover:text-accent transition-colors"
-                        title="Change the role"
-                      >
-                        <Edit2 size={13} />
-                      </button>
-                    )}
-                    {(u.id === me?.id || canManage(me, u)) && (
-                      <button
-                        onClick={() => setPwTarget(u)}
-                        className="text-fg-secondary hover:text-severity-medium transition-colors"
-                        title="Reset the password"
-                      >
-                        <KeyRound size={13} />
-                      </button>
-                    )}
-                    {u.id !== me?.id && canManage(me, u) && (
-                      <button
-                        onClick={() => setDeleteTarget(u)}
-                        className="text-fg-secondary hover:text-severity-critical transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                )}
+                {(u.id === me?.id || canManage(me, u)) && (
+                  <button
+                    onClick={() => setPwTarget(u)}
+                    className="text-fg-secondary hover:text-severity-medium transition-colors"
+                    title="Reset the password"
+                  >
+                    <KeyRound size={13} />
+                  </button>
+                )}
+                {u.id !== me?.id && canManage(me, u) && (
+                  <button
+                    onClick={() => setDeleteTarget(u)}
+                    className="text-fg-secondary hover:text-severity-critical transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </>
+            ),
+          }}
+        />
+      </Panel>
 
       {/* Create */}
       <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="New user" size="sm">

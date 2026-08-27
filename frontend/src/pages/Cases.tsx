@@ -10,6 +10,8 @@ import { playbooksApi } from '../api/playbooks'
 import { useAuth } from '../context/AuthContext'
 import type { Case, CaseSeverity, CaseStatus, CaseType } from '../types'
 import { SeverityBadge, StatusBadge, TLPBadge, Tag } from '../components/ui/Badge'
+import { DataTable } from '../ui/DataTable'
+import { Panel } from '../ui/Panel'
 import Modal from '../components/ui/Modal'
 import EmptyState from '../components/ui/EmptyState'
 import TagInput, { type InputTag } from '../components/ui/TagInput'
@@ -170,68 +172,61 @@ export default function Cases() {
           action={cases.length === 0 ? { label: '+ Create first case', onClick: () => setModalOpen(true) } : undefined}
         />
       ) : (
-        <div className="card overflow-hidden">
-          <table className="w-full text-ui">
-            <thead>
-              <tr className="border-b border-hairline text-fg-secondary text-label uppercase tracking-wide">
-                <th className="text-left px-4 py-3">Title</th>
-                <th className="text-left px-4 py-3">Type</th>
-                <th className="text-left px-4 py-3">Severity</th>
-                <th className="text-left px-4 py-3">Status</th>
-                <th className="text-left px-4 py-3">TLP</th>
-                <th className="text-left px-4 py-3">Assigned</th>
-                <th className="text-left px-4 py-3">IOCs</th>
-                <th className="text-left px-4 py-3">Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(c => (
-                <tr
-                  key={c.id}
-                  className="border-b border-hairline last:border-0 hover:bg-white/[0.02] cursor-pointer"
-                  onClick={() => navigate(`/cases/${c.id}`)}
-                >
-                  <td className="px-4 py-3">
-                    <div>
-                      <p className="font-medium">{c.title}</p>
-                      {c.client_name && (
-                        <p className="flex items-center gap-1 text-label text-fg-secondary/50 mt-0.5">
-                          <Building2 size={9} />
-                          {c.client_name}
-                        </p>
-                      )}
-                      {c.tags && (
-                        <div className="flex gap-1 mt-1 flex-wrap">
-                          {c.tags.split(',').filter(Boolean).slice(0, 3).map(t => (
-                            <Tag key={t} label={t.trim()} />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <CaseTypeBadge type={c.case_type ?? 'ir'} />
-                  </td>
-                  <td className="px-4 py-3"><SeverityBadge severity={c.severity} /></td>
-                  <td className="px-4 py-3"><StatusBadge status={c.status} /></td>
-                  <td className="px-4 py-3"><TLPBadge tlp={c.tlp} /></td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-1 flex-wrap">
-                      {c.assigned_to
-                        ? c.assigned_to.split(',').map(s => s.trim()).filter(Boolean).map(name => (
-                            <span key={name} className={`text-label font-mono px-1.5 py-0.5 rounded-control border ${USER_BADGE}`}>{name}</span>
-                          ))
-                        : <span className="text-label text-fg-secondary">—</span>
-                      }
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-label text-fg-secondary">{c.ioc_count}</td>
-                  <td className="px-4 py-3 text-label text-fg-secondary">{fmtDate(c.updated_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Panel className="overflow-hidden">
+          <DataTable
+            rows={filtered}
+            rowKey={(c) => c.id}
+            onRowClick={(c) => navigate(`/cases/${c.id}`)}
+            empty="No case matches these filters."
+            columns={[
+              {
+                key: 'title',
+                header: 'Title',
+                render: (c) => (
+                  <>
+                    <p className="font-medium text-fg">{c.title}</p>
+                    {c.client_name && (
+                      <p className="flex items-center gap-1 text-label text-fg-muted mt-0.5">
+                        <Building2 size={9} />
+                        {c.client_name}
+                      </p>
+                    )}
+                    {c.tags && (
+                      <div className="flex gap-1 mt-1 flex-wrap">
+                        {c.tags.split(',').filter(Boolean).slice(0, 3).map((tag) => (
+                          <Tag key={tag} label={tag.trim()} />
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ),
+              },
+              { key: 'type',     header: 'Type',     width: 'w-24', hideBelow: 'lg', render: (c) => <CaseTypeBadge type={c.case_type ?? 'ir'} /> },
+              { key: 'severity', header: 'Severity', width: 'w-28', render: (c) => <SeverityBadge severity={c.severity} /> },
+              { key: 'status',   header: 'Status',   width: 'w-32', render: (c) => <StatusBadge status={c.status} /> },
+              { key: 'tlp',      header: 'TLP',      width: 'w-28', hideBelow: 'lg', render: (c) => <TLPBadge tlp={c.tlp} /> },
+              {
+                key: 'assigned',
+                header: 'Assigned',
+                width: 'w-40',
+                hideBelow: 'md',
+                render: (c) => (
+                  <div className="flex gap-1 flex-wrap">
+                    {c.assigned_to
+                      ? c.assigned_to.split(',').map((s) => s.trim()).filter(Boolean).map((name) => (
+                          <span key={name} className={`text-label font-mono px-1.5 py-0.5 rounded-control border ${USER_BADGE}`}>
+                            {name}
+                          </span>
+                        ))
+                      : <span className="text-label text-fg-muted">—</span>}
+                  </div>
+                ),
+              },
+              { key: 'iocs',    header: 'IOCs',    width: 'w-16', align: 'right', mono: true, hideBelow: 'md', render: (c) => <span className="text-fg-secondary">{c.ioc_count}</span> },
+              { key: 'updated', header: 'Updated', width: 'w-32', mono: true, render: (c) => <span className="text-fg-secondary">{fmtDate(c.updated_at)}</span> },
+            ]}
+          />
+        </Panel>
       )}
 
       {/* New Case modal */}
