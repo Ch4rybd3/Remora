@@ -17,13 +17,21 @@ There is no i18n framework and none is planned. Strings are hardcoded.
 - case names, notes, report content, incident-log entries stored in the database;
 - case templates, playbooks and report templates under `templates/` and `samples/`, which analysts author in whatever language the client requires.
 
-Enforced in CI:
+Enforced in CI as a **ratchet**: the gate inspects only the lines a pull
+request *adds*, to the files it touches. Roughly 400 lines of pre-existing
+French are converted in S12; failing the whole repository before that work is
+done would mean a permanently red CI. Touching a file therefore does not make
+you responsible for the French already in it — but no new French can enter.
+
+S12 replaces the diff-scoped check with a full-repository scan:
+
 ```yaml
 - name: English-only source
   run: |
     ! grep -rIn "[éèêàùçôîœâêûïëäöüñ]" backend/app frontend/src \
         --include='*.py' --include='*.ts' --include='*.tsx'
 ```
+
 The gate catches accented characters, which is a proxy for French, not a proof
 of English. Reviewers still reject unaccented French (`Erreur`, `Fichier`, `Cas`).
 
@@ -112,6 +120,17 @@ print(f"[ingest] identified {path.name} as {kind} ({sha256[:12]})", flush=True)
 - Always delete child rows explicitly before parent rows in background tasks.
 - `cascade="all, delete-orphan"` on `relationship()` covers ORM-level deletes only.
 
+### Linting
+`ruff` is scoped to the rules that catch defects — `F` (pyflakes) and `E9` — and
+is blocking. The style rules (`E`, `I`, `B`, `UP`, `C4`) report ~730 further
+violations across code written before linting existed; they land as one
+mechanical `ruff check --fix` pass in S12.
+
+`mypy` runs as a **ratchet**. 61 of 102 modules are enforced; the 41 that
+predate type checking are exempted by name in `pyproject.toml`. A module may be
+**removed** from that list once it is clean. Nothing may ever be **added** to
+it — so anything new is type-checked by default.
+
 ### Tests
 - Every new router gets an entry in the generated route smoke test (authenticated → not 5xx, anonymous → 401).
 - Pure functions in `services/` — parsers, detectors, normalisers — get real unit tests. These are where a silent bug is most expensive.
@@ -156,6 +175,10 @@ precisely the drift this rule exists to stop. Stroke width is uniform; size
 comes from the token scale, not from an arbitrary `size={17}`.
 
 ### Styling
+`eslint` mirrors the ruff scope: defect rules only (`react-hooks`,
+`no-unused-vars`, `no-useless-escape`), `--max-warnings 0`, blocking.
+Formatting and the `any` cleanup are S12.
+
 - Tailwind utilities only. No inline `style`, no CSS modules, no styled-components.
 - **No literal colour anywhere outside the token file.** No `#0B121F`, no `rgb(...)`, no `bg-teal-400`. Use semantic tokens: `bg-surface-raised`, `text-primary`, `border-subtle`, `text-accent`.
 - Spacing comes from the scale: 4 / 8 / 12 / 16 / 24 / 32. No `p-[13px]`.

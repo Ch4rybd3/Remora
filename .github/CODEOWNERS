@@ -1,0 +1,8 @@
+# Every change is reviewed by the maintainer.
+*                       @Ch4rybd3
+
+# Files where a mistake is expensive or hard to reverse.
+/backend/alembic/       @Ch4rybd3
+/.github/workflows/     @Ch4rybd3
+/docs/CONVENTIONS.md    @Ch4rybd3
+/release-please-config.json @Ch4rybd3

@@ -1,0 +1,171 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [integration, main]
+  push:
+    branches: [integration, main]
+
+# A new push to the same branch cancels the run it supersedes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "22"
+
+jobs:
+  gates:
+    name: Conventions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # docs/CONVENTIONS.md section 1.
+      #
+      # A ratchet, not a sweep. 398 lines of pre-existing French are converted
+      # in S12; failing the whole repository today would land a permanently red
+      # CI on the sprint whose entire point is that CI can be trusted. Until
+      # then the gate applies to the files a pull request actually touches, so
+      # no new French can enter while the backlog is worked off.
+      #
+      # S12 replaces the diff-scoped check below with a full-repository scan.
+      - name: New source is English
+        if: github.event_name == 'pull_request'
+        run: |
+          BASE="origin/${{ github.base_ref }}"
+          CHANGED=$(git diff --name-only --diff-filter=d "$BASE"...HEAD \
+                    | grep -E '^(backend/app|frontend/src)/.*\.(py|ts|tsx)$' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "No source files changed."
+            exit 0
+          fi
+          FOUND=0
+          for f in $CHANGED; do
+            # Only lines this pull request added, so touching a file does not
+            # make you responsible for the French already in it.
+            if git diff -U0 "$BASE"...HEAD -- "$f" \
+                 | grep -E '^\+' | grep -v '^\+\+\+' \
+                 | grep -n "[éèêàùçôîœâêûïëäöüñ]"; then
+              echo "::error file=$f::Non-English text added. See docs/CONVENTIONS.md section 1."
+              FOUND=1
+            fi
+          done
+          exit $FOUND
+
+      - name: Report the English conversion backlog
+        run: |
+          COUNT=$(grep -rIc "[éèêàùçôîœâêûïëäöüñ]" backend/app frontend/src \
+                    --include='*.py' --include='*.ts' --include='*.tsx' \
+                  | awk -F: '{s+=$2} END {print s+0}')
+          echo "Lines still carrying non-English text: $COUNT"
+          echo "### English conversion backlog: $COUNT lines" >> "$GITHUB_STEP_SUMMARY"
+
+      # docs/CONVENTIONS.md section 2. A model change without a revision is how
+      # an upgrade silently lands on a stale schema.
+      - name: Model changes ship with a migration
+        if: github.event_name == 'pull_request'
+        run: |
+          BASE="origin/${{ github.base_ref }}"
+          CHANGED=$(git diff --name-only "$BASE"...HEAD)
+          if echo "$CHANGED" | grep -q '^backend/app/models/'; then
+            if ! echo "$CHANGED" | grep -q '^backend/alembic/versions/'; then
+              echo "::error::backend/app/models/ changed with no Alembic revision."
+              echo "Run: cd backend && alembic revision --autogenerate -m \"<what changed>\""
+              exit 1
+            fi
+          fi
+
+      - name: No debug statements
+        run: |
+          if grep -rIn --include='*.ts' --include='*.tsx' \
+               -E '(^|[^.\w])console\.(log|debug)\(|(^|\W)debugger\s*;' frontend/src; then
+            echo "::error::console.log/debugger left in frontend source."
+            exit 1
+          fi
+
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+
+      # libmagic and the archive backends are runtime dependencies of the
+      # ingestion services and are imported at collection time.
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libmagic1 p7zip-full
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements-dev.txt
+
+      - name: Lint (ruff)
+        run: ruff check backend/
+
+      - name: Type check (mypy)
+        run: mypy
+
+      - name: Test (pytest)
+        env:
+          SECRET_KEY: ci-secret-key
+          SKIP_TOOL_SETUP: "true"
+        run: pytest backend/tests
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (eslint)
+        run: npm run lint
+
+      - name: Type check (tsc)
+        run: npm run typecheck
+
+      - name: Test (vitest)
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # The image is what ships. A backend that passes its tests but fails to
+      # build is not releasable, so this runs on every pull request.
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
