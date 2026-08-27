@@ -37,6 +37,11 @@ Block tags (replaced with a table or image):
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # annotation only — python-docx is an optional import
+    from docx.table import Table
+
 import io
 import re
 from datetime import datetime, timezone
@@ -614,7 +619,7 @@ def _build_word_table(
     headers: list[str],
     rows: list[list[str]],
     header_color: str = "1E3A5F",
-) -> "Table":  # type: ignore[name-defined]
+) -> "Table":
     """
     Create a fully styled Word table:
     - Extends ~0.5 cm beyond the page text-area on both sides
@@ -731,7 +736,7 @@ def _build_word_table(
     return table
 
 
-def _build_mitre_word_table(doc, case: Case) -> "Table":  # type: ignore[name-defined]
+def _build_mitre_word_table(doc, case: Case) -> "Table":
     """
     Build a MITRE ATT&CK coverage Word table for the case.
 
@@ -886,7 +891,6 @@ def _render_attack_graph_png(nodes: list, edges: list) -> Optional[bytes]:
         import matplotlib                           # type: ignore
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt            # type: ignore
-        import matplotlib.patches as mpatches      # type: ignore
         from matplotlib.patches import FancyBboxPatch  # type: ignore
 
         if not nodes:

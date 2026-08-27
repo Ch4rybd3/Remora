@@ -96,7 +96,7 @@ def audit_meta(
     _current: "User"  = Depends(require_admin),
 ):
     """Return distinct values for filter dropdowns."""
-    from sqlalchemy import func, distinct
+    from sqlalchemy import distinct
 
     usernames = [
         r[0] for r in db.query(distinct(AuditLog.username))

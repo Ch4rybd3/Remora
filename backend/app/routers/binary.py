@@ -31,9 +31,7 @@ import uuid
 from base64 import urlsafe_b64encode
 from collections import Counter
 from datetime import datetime, timezone
-from io import BytesIO
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
@@ -66,7 +64,7 @@ except ImportError:
     HAS_CAPSTONE = False
 
 try:
-    from cryptography.fernet import Fernet, InvalidToken
+    from cryptography.fernet import Fernet
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
     HAS_CRYPTO = True

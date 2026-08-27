@@ -1,6 +1,8 @@
 import logging
 import sys
 from pathlib import Path
+from typing import Any
+
 from fastapi import FastAPI, Depends
 
 logging.basicConfig(
@@ -434,7 +436,9 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/v1")
 
 # Protected — all routes below require a valid JWT
-_auth = {"dependencies": [Depends(get_current_user)]}
+# Annotated as Any because mypy cannot match a narrowly-inferred dict against
+# include_router's heterogeneous keyword signature when expanded with **.
+_auth: dict[str, Any] = {"dependencies": [Depends(get_current_user)]}
 
 app.include_router(cases.router, prefix="/api/v1", **_auth)
 app.include_router(iocs.router, prefix="/api/v1", **_auth)

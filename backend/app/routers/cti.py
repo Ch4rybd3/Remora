@@ -285,16 +285,12 @@ def _lookup_otx(value: str, ioc_type: str, api_key: Optional[str]) -> OTXResult:
     headers = {"X-OTX-API-KEY": api_key} if api_key else {}
 
     if ioc_type == "ip":
-        sections = ["general", "reputation"]
         base_url = f"{_OTX_BASE}/indicators/IPv4/{value}"
     elif ioc_type == "domain":
-        sections = ["general"]
         base_url = f"{_OTX_BASE}/indicators/domain/{value}"
     elif ioc_type == "hash":
-        sections = ["general"]
         base_url = f"{_OTX_BASE}/indicators/file/{value}"
     elif ioc_type == "url":
-        sections = ["general"]
         base_url = f"{_OTX_BASE}/indicators/url/{value}"
     else:
         raise ValueError(f"Unsupported type for OTX: {ioc_type}")
