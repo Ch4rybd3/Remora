@@ -5,7 +5,7 @@ import {
   Upload, Download, Trash2, ShieldCheck, Copy, Check,
   FileArchive, FileText, Cpu, HardDrive, Wifi, Bug, File, FileSearch,
   Pencil, X,
-} from 'lucide-react'
+} from '../../../ui/icons'
 import { evidencesApi } from '../../../api/evidences'
 import { casesApi } from '../../../api/cases'
 import { useAuth } from '../../../context/AuthContext'

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   HardDrive, Terminal, ChevronLeft, ChevronRight, Menu,
   CheckCircle2, Info, TableProperties, BookmarkPlus, Swords,
-} from 'lucide-react'
+} from '../ui/icons'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import EvtxFileList from '../components/evtx/EvtxFileList'
 import TimelineExplorer from '../components/evtx/TimelineExplorer'

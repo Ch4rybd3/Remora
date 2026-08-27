@@ -6,7 +6,7 @@ import {
   Hash, Link2, Cpu, AlertTriangle, CheckCircle2, Info,
   Loader2, ChevronDown, ChevronUp, Zap, Radio,
   Activity, Server, Eye, AlertOctagon, Terminal, Play,
-  MapPin, Wifi, } from 'lucide-react'
+  MapPin, Wifi, } from '../ui/icons'
 import { ctiApi, type LookupResult, type GeoPoint, type IOCType, type CommandResult } from '../api/cti'
 import { iocsApi } from '../api/iocs'
 import { useCurrentCase } from '../context/CurrentCaseContext'

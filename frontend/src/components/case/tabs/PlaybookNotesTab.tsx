@@ -7,7 +7,7 @@ import {
 import {
   CheckCircle2, Circle, ChevronDown, ChevronUp,
   Plus, X, GitBranch, StickyNote, Save, List, Network,
-} from 'lucide-react'
+} from '../../../ui/icons'
 import { playbooksApi, type CasePlaybook, type StepAssignee } from '../../../api/playbooks'
 import { topoSortNodes } from '../../../utils/playbookUtils'
 import { casesApi } from '../../../api/cases'

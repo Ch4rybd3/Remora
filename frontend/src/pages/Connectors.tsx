@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plug, CheckCircle2, XCircle, Loader2, Eye, EyeOff,
   ExternalLink, Trash2, FlaskConical, Save,
-} from 'lucide-react'
+} from '../ui/icons'
 import {
   connectorsApi, CONNECTOR_META,
   type ConnectorConfig, type ConnectorMeta,

@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
-import { X } from 'lucide-react'
+import { X } from '../../ui/icons'
 
 interface Props {
   open: boolean

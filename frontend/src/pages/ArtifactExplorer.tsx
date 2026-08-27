@@ -7,7 +7,7 @@ import {
   BookmarkPlus, BookmarkCheck, Download, Columns3, Trash2, FileText,
   Loader2, Info, Table2, Globe, Layers, GripVertical, ChevronRight as ChevronRightIcon,
   Terminal, HelpCircle, AlertCircle, Shield, ShieldCheck,
-} from 'lucide-react'
+} from '../ui/icons'
 import { csvArtifactsApi, type CsvArtifactMeta, type ArtifactRowFilters, type OmniSearchFile, type GroupResult } from '../api/csvArtifacts'
 import { timelineApi } from '../api/timeline'
 import { useCurrentCase } from '../context/CurrentCaseContext'

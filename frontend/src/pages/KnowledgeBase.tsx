@@ -21,7 +21,7 @@ import {
   FileSpreadsheet, Code2, ExternalLink, Download,
   Settings, Upload, ZoomIn, ZoomOut, Maximize2,
   BookOpen, Package, FileType,
-} from 'lucide-react'
+} from '../ui/icons'
 import { vaultApi, type VaultEntry } from '../api/vault'
 import { fmtDate } from '../utils/dateUtils'
 

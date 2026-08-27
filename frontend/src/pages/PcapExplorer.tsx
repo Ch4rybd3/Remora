@@ -10,7 +10,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Network, Search, X, ChevronRight, BookmarkPlus, BookmarkCheck,
   Loader2, Download, AlertCircle, Filter, ArrowLeftRight, Copy, Check,
-} from 'lucide-react'
+} from '../ui/icons'
 import { csvArtifactsApi, type CsvArtifactMeta } from '../api/csvArtifacts'
 import {
   pcapApi, isPcapArtifact, captureName, hexToBytes,

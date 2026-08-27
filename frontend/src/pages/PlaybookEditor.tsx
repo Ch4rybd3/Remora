@@ -16,7 +16,7 @@ function NodeInternalsSync({ trigger, nodeIds }: { trigger: number; nodeIds: str
   }, [trigger])  
   return null
 }
-import { ArrowLeft, Save, Plus, Trash2, GitBranch, Wand2, Link2Off, ArrowDown, ArrowRight, ImageDown, SquareDashed, Spline } from 'lucide-react'
+import { ArrowLeft, Save, Plus, Trash2, GitBranch, Wand2, Link2Off, ArrowDown, ArrowRight, ImageDown, SquareDashed, Spline } from '../ui/icons'
 import { playbooksApi, type PlaybookNode, type PlaybookEdge } from '../api/playbooks'
 import { NODE_TYPES, LayoutDirContext } from '../components/playbook/PlaybookNodes'
 import {

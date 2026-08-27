@@ -4,7 +4,7 @@ import { useDropzone } from 'react-dropzone'
 import {
   Upload, Trash2, Loader2, AlertTriangle, Lock, Eye, EyeOff, ShieldCheck,
   BookmarkPlus,
-} from 'lucide-react'
+} from '../../ui/icons'
 import { binaryApi, type BinaryFile } from '../../api/binary'
 import { fmtDateTimeShort } from '../../utils/dateUtils'
 

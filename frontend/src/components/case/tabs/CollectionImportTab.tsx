@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronRight, Globe } from 'lucide-react'
+import { ChevronRight, Globe } from '../../../ui/icons'
 import { collectionImportApi, type ImportedCollection, type ImportedFile, type GroupSummary } from '../../../api/collectionImport'
 import { useNavigate } from 'react-router-dom'
 import { TIMEZONE_OPTIONS } from '../../../context/TimezoneContext'

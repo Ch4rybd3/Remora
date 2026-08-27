@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Edit2, Save, X, Trash2 } from 'lucide-react'
+import { ArrowLeft, Edit2, Save, X, Trash2 } from '../ui/icons'
 import { casesApi } from '../api/cases'
 import { usersApi } from '../api/auth'
 import type { Case, CaseSeverity, CaseStatus } from '../types'

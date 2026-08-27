@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { AlertCircle, Eye, EyeOff } from '../ui/icons'
 
 export default function Login() {
   const { login } = useAuth()

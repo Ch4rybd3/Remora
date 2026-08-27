@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, Building2, Star, Pencil, Upload, FileText, FileSpreadsheet,
   Image as ImageIcon, FileArchive, File as FileIcon, Trash2, Eye, FolderOpen,
-} from 'lucide-react'
+} from '../ui/icons'
 import { clientsApi } from '../api/clients'
 import type { Client, ClientDocument, DocSlot } from '../types'
 import { fmtDateTimeShort } from '../utils/dateUtils'

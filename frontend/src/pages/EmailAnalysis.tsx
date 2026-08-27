@@ -4,7 +4,7 @@ import {
   Upload, Mail, Link2, Paperclip, ChevronDown, ChevronRight,
   CheckCircle2, AlertCircle, Copy, Plus, Loader2, Info, FileText,
   ShieldAlert, ShieldX, AlertTriangle, Trash2, Clock,
-} from 'lucide-react'
+} from '../ui/icons'
 import { emailAnalysisApi, type EmailAnalysisResult, type HeaderItem, type AttachmentItem, type EmailWarning, type WarningLevel, type CaseEmailSummary } from '../api/emailAnalysis'
 import { iocsApi } from '../api/iocs'
 import { timelineApi } from '../api/timeline'

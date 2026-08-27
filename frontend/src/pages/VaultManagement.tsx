@@ -4,7 +4,7 @@ import {
   Archive, Upload, Trash2, Download, Pencil, X, Check,
   FileText, FileArchive, FileSpreadsheet, File, Code2,
   AlertCircle, Tag, Package,
-} from 'lucide-react'
+} from '../ui/icons'
 import { vaultApi, type VaultEntry, type VaultPatch } from '../api/vault'
 import { fmtDateTimeShort } from '../utils/dateUtils'
 import { fmtBytes as fmtSize } from '../utils/formatUtils'

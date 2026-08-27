@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FolderOpen, X, ChevronRight, Plus, Clock, Building2 } from 'lucide-react'
+import { FolderOpen, X, ChevronRight, Plus, Clock, Building2 } from '../../ui/icons'
 import { useCurrentCase } from '../../context/CurrentCaseContext'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { incidentLogApi } from '../../api/incidentLog'

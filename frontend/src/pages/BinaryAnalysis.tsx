@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Lock } from 'lucide-react'
+import { Lock } from '../ui/icons'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import BinaryFileList from '../components/binary/BinaryFileList'
 import BinaryExplorer from '../components/binary/BinaryExplorer'

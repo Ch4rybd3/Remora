@@ -3,7 +3,7 @@ import {
   Handle, Position, NodeResizer,
   type NodeProps,
 } from '@xyflow/react'
-import { CheckCircle2, ShieldCheck, GitBranch, ExternalLink } from 'lucide-react'
+import { CheckCircle2, ShieldCheck, GitBranch, ExternalLink } from '../../ui/icons'
 
 // ── Layout direction context ──────────────────────────────────────────────────
 // Allows PlaybookEditor to tell node components which direction the graph flows,

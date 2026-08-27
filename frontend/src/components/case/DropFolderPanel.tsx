@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   FolderInput, RefreshCw, Copy, Check, Inbox, Trash2,
   AlertTriangle, Clock, ChevronRight,
-} from 'lucide-react'
+} from '../../ui/icons'
 import { dropzoneApi, type DropzoneFile } from '../../api/dropzone'
 
 interface Props { caseId: string }

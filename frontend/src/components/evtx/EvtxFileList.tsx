@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Upload, FileText, Loader2, CheckCircle2, AlertCircle,
   Trash2, Clock, Plus, RotateCcw,
-} from 'lucide-react'
+} from '../../ui/icons'
 import { evtxApi, type EvtxFile } from '../../api/evtx'
 import { fmtDateTimeShort } from '../../utils/dateUtils'
 

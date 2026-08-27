@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Upload, Trash2, HardDrive, AlertCircle, Loader2, CheckCircle2, Clock } from 'lucide-react'
+import { Upload, Trash2, HardDrive, AlertCircle, Loader2, CheckCircle2, Clock } from '../../ui/icons'
 import { memoryApi, type MemoryDump } from '../../api/memory'
 import { fmtRelative } from '../../utils/dateUtils'
 import { fmtBytes as formatBytes } from '../../utils/formatUtils'

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { X, Download, AlertCircle, FileQuestion } from 'lucide-react'
+import { X, Download, AlertCircle, FileQuestion } from '../../ui/icons'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 import { clientsApi } from '../../api/clients'

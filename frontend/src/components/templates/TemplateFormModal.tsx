@@ -4,7 +4,7 @@
  * Raw YAML editing is available via the "YAML" button on the existing template card.
  */
 import { useState } from 'react'
-import { Plus, Trash2, Save, X, ChevronDown, AlertCircle, GripVertical } from 'lucide-react'
+import { Plus, Trash2, Save, X, ChevronDown, AlertCircle, GripVertical } from '../../ui/icons'
 import Modal from '../ui/Modal'
 
 // ── Types ──────────────────────────────────────────────────────────────────────

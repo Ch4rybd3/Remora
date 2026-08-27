@@ -25,7 +25,7 @@ import { Plugin }                                     from '@tiptap/pm/state'
 import { Decoration, DecorationSet }                  from '@tiptap/pm/view'
 import ReactMarkdown                                  from 'react-markdown'
 import remarkGfm                                      from 'remark-gfm'
-import { ImageIcon, Loader2 }                         from 'lucide-react'
+import { ImageIcon, Loader2 }                         from '../../ui/icons'
 import { noteImagesApi }                              from '../../api/noteImages'
 
 // ── Wikilink highlight extension ──────────────────────────────────────────────

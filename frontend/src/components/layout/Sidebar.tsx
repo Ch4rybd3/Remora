@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { VersionFooter } from './VersionFooter'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, FolderOpen, FileText, Users, LogOut, GitBranch, Mail, HardDrive, Shield, Cpu, Binary, FileOutput, Swords, Archive, Clock, AlertTriangle, ChevronDown, Plug, Table2, Download, Building2, Network } from 'lucide-react'
+import { NAV_ICON, LogOut, Clock, AlertTriangle, ChevronDown, Download } from '../../ui/icons'
 import { useAuth } from '../../context/AuthContext'
 import { useTimezone, TIMEZONE_OPTIONS, type TzOption } from '../../context/TimezoneContext'
 
@@ -13,7 +13,6 @@ const ROLE_COLORS: Record<string, string> = {
 
 interface NavItem {
   to: string
-  icon: React.ElementType
   label: string
 }
 
@@ -30,7 +29,10 @@ function SectionHeading({ label }: { label: string }) {
   )
 }
 
-function NavItem({ to, icon: Icon, label }: NavItem) {
+function NavItem({ to, label }: NavItem) {
+  // The icon is derived from the route rather than passed in, so a destination
+  // cannot end up with one icon here and a different one somewhere else.
+  const Icon = NAV_ICON[to]
   return (
     <NavLink
       to={to}
@@ -43,7 +45,7 @@ function NavItem({ to, icon: Icon, label }: NavItem) {
         }`
       }
     >
-      <Icon size={16} />
+      {Icon && <Icon size={16} />}
       {label}
     </NavLink>
   )
@@ -140,41 +142,41 @@ export default function Sidebar() {
     {
       heading: 'Home',
       items: [
-        { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-        { to: '/cases', icon: FolderOpen, label: 'Cases' },
+        { to: '/', label: 'Dashboard' },
+        { to: '/cases', label: 'Cases' },
       ],
     },
     {
       heading: 'Artifact Processing',
       items: [
-        { to: '/artifacts/explorer',   icon: Table2,    label: 'Artifact Explorer' },
-        { to: '/artifacts/email',      icon: Mail,      label: 'Email Analysis' },
-        { to: '/artifacts/filesystem', icon: HardDrive, label: 'Logs' },
-        { to: '/artifacts/pcap',       icon: Network,   label: 'Network (PCAP)' },
-        { to: '/artifacts/images',     icon: HardDrive, label: 'Disk Images' },
-        { to: '/artifacts/memory',     icon: Cpu,       label: 'Memory Analysis' },
-        { to: '/artifacts/binary',     icon: Binary,    label: 'Binary Analysis' },
-        { to: '/artifacts/cti',        icon: Shield,    label: 'CTI Lookup' },
+        { to: '/artifacts/explorer', label: 'Artifact Explorer' },
+        { to: '/artifacts/email', label: 'Email Analysis' },
+        { to: '/artifacts/filesystem', label: 'Logs' },
+        { to: '/artifacts/pcap', label: 'Network (PCAP)' },
+        { to: '/artifacts/images', label: 'Disk Images' },
+        { to: '/artifacts/memory', label: 'Memory Analysis' },
+        { to: '/artifacts/binary', label: 'Binary Analysis' },
+        { to: '/artifacts/cti', label: 'CTI Lookup' },
       ],
     },
     {
       heading: 'Knowledge Base',
       items: [
-        { to: '/knowledge', icon: FileText, label: 'Vault' },
+        { to: '/knowledge', label: 'Vault' },
       ],
     },
     {
       heading: 'Config',
       items: [
-        { to: '/config/clients',         icon: Building2,  label: 'Clients' },
-        { to: '/templates',              icon: FileText,   label: 'Case Templates' },
-        { to: '/report-templates',       icon: FileOutput, label: 'Report Templates' },
-        { to: '/playbooks',              icon: GitBranch,  label: 'Playbooks' },
-        { to: '/config/chainsaw-rules',  icon: Swords,     label: 'Detection Rules' },
-        { to: '/config/connectors',      icon: Plug,       label: 'Connectors' },
-        { to: '/config/vaults',          icon: Archive,    label: 'Vault Management' },
-        ...(isAdmin ? [{ to: '/users', icon: Users, label: 'Utilisateurs' }] : []),
-        ...(isAdmin ? [{ to: '/audit', icon: Shield, label: 'Audit' }] : []),
+        { to: '/config/clients', label: 'Clients' },
+        { to: '/templates', label: 'Case Templates' },
+        { to: '/report-templates', label: 'Report Templates' },
+        { to: '/playbooks', label: 'Playbooks' },
+        { to: '/config/chainsaw-rules', label: 'Detection Rules' },
+        { to: '/config/connectors', label: 'Connectors' },
+        { to: '/config/vaults', label: 'Vault Management' },
+        ...(isAdmin ? [{ to: '/users', label: 'Users' }] : []),
+        ...(isAdmin ? [{ to: '/audit', label: 'Audit' }] : []),
       ],
     },
   ]

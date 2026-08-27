@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { UserPlus, X, Users, AtSign } from 'lucide-react'
+import { UserPlus, X, Users, AtSign } from '../../ui/icons'
 import type { AuthUser } from '../../api/auth'
 import type { StepAssignee } from '../../api/playbooks'
 

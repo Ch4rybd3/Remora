@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { FlaskConical, Wrench, Flag, BookOpen, ClipboardCheck, Clipboard } from 'lucide-react'
+import { FlaskConical, Wrench, Flag, BookOpen, ClipboardCheck, Clipboard } from '../../../ui/icons'
 import { casesApi } from '../../../api/cases'
 import MarkdownEditor from '../../ui/MarkdownEditor'
 import type { Case } from '../../../types'

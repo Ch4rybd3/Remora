@@ -3,7 +3,7 @@ import { useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   Folder, FolderOpen, FileText, ChevronRight, ChevronDown,
   Plus, Trash2, Edit2, Check, X, ChevronsUpDown,
-} from 'lucide-react'
+} from '../../ui/icons'
 import { knowledgeApi, type FileNode } from '../../api/knowledge'
 
 interface Props {

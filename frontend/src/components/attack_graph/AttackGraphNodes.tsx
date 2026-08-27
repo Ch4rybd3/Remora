@@ -1,5 +1,5 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { Clock, Monitor, Shield, Skull, StickyNote, User, Server } from 'lucide-react'
+import { Clock, Monitor, Shield, Skull, StickyNote, User, Server } from '../../ui/icons'
 
 // ── Shared constants ──────────────────────────────────────────────────────────
 // All nodes share the same width so handles align regardless of content length.

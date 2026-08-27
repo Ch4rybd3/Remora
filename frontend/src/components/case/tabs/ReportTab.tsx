@@ -25,7 +25,7 @@ import {
   Network, List, StickyNote, CheckCircle2, Circle,
   Sparkles, BookOpen, AlertCircle, Clipboard, ClipboardCheck,
   FlaskConical, Wrench, Flag, FileText, AlignLeft,
-}                                                            from 'lucide-react'
+}                                                            from '../../../ui/icons'
 import { casesApi }                                          from '../../../api/cases'
 import { reportVersionsApi, type ReportVersionMeta }        from '../../../api/reportVersions'
 import { reportDocTemplatesApi }                             from '../../../api/reportDocTemplates'

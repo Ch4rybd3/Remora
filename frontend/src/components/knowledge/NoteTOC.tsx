@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { AlignLeft } from 'lucide-react'
+import { AlignLeft } from '../../ui/icons'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 

@@ -10,7 +10,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   X, Send, Trash2, CheckCircle2, Loader2, Clock,
   ChevronRight, ChevronDown, HardDrive,
-} from 'lucide-react'
+} from '../../ui/icons'
 import { timelineApi } from '../../api/timeline'
 import type { PinnedEvtxEvent } from '../../api/evtx'
 

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Building2, Plus, FileStack, Star, FolderOpen, FileText, Trash2, Check } from 'lucide-react'
+import { Building2, Plus, FileStack, Star, FolderOpen, FileText, Trash2, Check } from '../ui/icons'
 import { clientsApi } from '../api/clients'
 import type { ClientSummary, ClientDocTemplate, DocSlot } from '../types'
 import Modal from '../components/ui/Modal'

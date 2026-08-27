@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus, GitBranch, Edit2, Trash2, Copy, Download, Upload } from 'lucide-react'
+import { Plus, GitBranch, Edit2, Trash2, Copy, Download, Upload } from '../ui/icons'
 import { playbooksApi } from '../api/playbooks'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { fmtDate } from '../utils/dateUtils'

@@ -4,7 +4,7 @@ import {
   Swords, ScanSearch, AlertTriangle, CheckCircle2,
   ChevronDown, ChevronRight, BookmarkPlus, Trash2,
   Send, X, Clock, RefreshCw, Filter,
-} from 'lucide-react'
+} from '../../ui/icons'
 import { evtxApi } from '../../api/evtx'
 import { chainsawApi, type ChainsawScan, type ChainsawAlert, type PinnedChainsawAlert } from '../../api/chainsaw'
 import { fmtDateTime, fmtDateTimeShort } from '../../utils/dateUtils'

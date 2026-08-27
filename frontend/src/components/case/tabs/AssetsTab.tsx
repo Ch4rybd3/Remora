@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Monitor, AlertTriangle, Edit2, Download } from 'lucide-react'
+import { Plus, Trash2, Monitor, AlertTriangle, Edit2, Download } from '../../../ui/icons'
 import { assetsApi } from '../../../api/assets'
 import type { Asset, AssetType } from '../../../types'
 import Modal from '../../ui/Modal'

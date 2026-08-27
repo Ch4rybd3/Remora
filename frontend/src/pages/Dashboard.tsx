@@ -5,7 +5,7 @@ import {
   Crosshair, Server, FileArchive, Clock, RefreshCw,
   Target, List, TrendingUp, TrendingDown, Minus,
   Users, Timer,
-} from 'lucide-react'
+} from '../ui/icons'
 import { dashboardApi, type DashboardStats, type KVCount, type AgingBucket, type RecentCase, type RecentEvent } from '../api/dashboard'
 import { SeverityBadge, StatusBadge } from '../components/ui/Badge'
 import type { CaseSeverity, CaseStatus } from '../types'

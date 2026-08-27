@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   FileText, Plus, Edit2, Trash2, Save, X, AlertCircle,
   ChevronDown, ChevronUp, Shield,
-} from 'lucide-react'
+} from '../ui/icons'
 import { templatesApi } from '../api/templates'
 import type { Template } from '../types'
 import { SeverityBadge, TLPBadge, Tag } from '../components/ui/Badge'

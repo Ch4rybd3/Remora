@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   FileOutput, Upload, Trash2, Tag, Info,
   ChevronDown, ChevronUp, X, Check, AlertCircle,
-} from 'lucide-react'
+} from '../ui/icons'
 import { reportDocTemplatesApi, type ReportDocTemplate } from '../api/reportDocTemplates'
 import { fmtDateTimeShort } from '../utils/dateUtils'
 import { fmtBytes as fmtSize } from '../utils/formatUtils'

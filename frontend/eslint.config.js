@@ -36,10 +36,26 @@ export default tseslint.config(
           ignoreRestSiblings: true,
         },
       ],
-      // The `any` cleanup belongs to the S12 conventions sprint, not here.
+      // ~90 `any` uses predate type checking, most of them around ReactFlow
+      // and axios error shapes. Turning this on is a typing exercise, not a
+      // lint pass, and belongs with the component work in S13/S14.
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-empty-object-type': 'off',
       'no-empty': ['error', { allowEmptyCatch: true }],
+
+      // docs/CONVENTIONS.md section 5. One concept, one icon: the registry is
+      // the only place that may reach for lucide, so a second picture for an
+      // existing idea has to pass through a file where the first one is visible.
+      'no-restricted-imports': ['error', {
+        paths: [{
+          name: 'lucide-react',
+          message: "Import icons from 'src/ui/icons' instead. See docs/CONVENTIONS.md section 5.",
+        }],
+      }],
     },
   },
+  {
+    files: ['src/ui/icons.ts'],
+    rules: { 'no-restricted-imports': 'off' },
+  }
 )

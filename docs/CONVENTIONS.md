@@ -160,13 +160,28 @@ arrangement is a design-system gap to raise, not a local exception.
 - Full-height content (matrix, graph, explorer) renders into `content` without the padded wrapper.
 
 ### Icons
-`lucide-react` is imported in exactly one file: `frontend/src/ui/icons.ts`,
-which exports a domain → icon map. Components import from there.
+`lucide-react` is imported in exactly one file: `frontend/src/ui/icons.ts`.
+Everything else imports from there, and eslint's `no-restricted-imports`
+enforces it — the registry is the only exemption.
 
-One concept, one icon, everywhere. Never reuse an icon across two domains — the
-pre-S12 state had `HardDrive` serving both *Logs* and *Disk Images*, which is
-precisely the drift this rule exists to stop. Stroke width is uniform; size
-comes from the token scale, not from an arbitrary `size={17}`.
+The file has two halves:
+
+- **`NAV_ICON`** — destination route to icon. The semantic layer. Anything that
+  renders a destination (sidebar, breadcrumbs, tabs, empty states) reads it from
+  here, so two places cannot disagree. A test asserts every route has an icon
+  and no icon serves two routes.
+- **Re-exports** — the long tail of one-off icons, under their lucide names.
+  Routing them through this file is what makes the lint rule possible.
+
+One concept, one icon, everywhere. Before the registry existed, `HardDrive`
+stood for both *Logs* and *Disk Images*, `FileText` for both *Vault* and *Case
+Templates*, and `Shield` for both *CTI Lookup* and *Audit* — drift that was
+invisible until someone looked at the sidebar.
+
+Adding an icon: import and re-export it in the registry. If it names a
+*concept* rather than a shape, check `NAV_ICON` and the existing exports first.
+Stroke width is uniform; size comes from the token scale, not from an arbitrary
+`size={17}`.
 
 ### Styling
 `eslint` mirrors the ruff scope: defect rules only (`react-hooks`,

@@ -13,7 +13,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ExternalLink, Search, Eye, EyeOff, RefreshCw, Shield,
   ChevronRight, ChevronDown, RotateCcw, AlertTriangle,
-} from 'lucide-react'
+} from '../../ui/icons'
 import {
   mitreApi,
   type Technique, type SubTechnique, type Tactic,

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { X } from 'lucide-react'
+import { X } from '../../ui/icons'
 import type { Suggestion } from './SuggestInput'
 
 export interface InputTag {

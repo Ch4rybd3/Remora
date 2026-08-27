@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Pencil, ScrollText, Download } from 'lucide-react'
+import { Plus, Trash2, Pencil, ScrollText, Download } from '../../../ui/icons'
 import { incidentLogApi } from '../../../api/incidentLog'
 import type { IncidentLogEntry, IncidentLogCategory } from '../../../types'
 import { fmtDateTime } from '../../../utils/dateUtils'

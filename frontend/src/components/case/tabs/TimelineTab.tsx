@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Clock, Pencil, ChevronRight, Copy } from 'lucide-react'
+import { Plus, Trash2, Clock, Pencil, ChevronRight, Copy } from '../../../ui/icons'
 import { timelineApi } from '../../../api/timeline'
 import { iocsApi } from '../../../api/iocs'
 import { assetsApi } from '../../../api/assets'

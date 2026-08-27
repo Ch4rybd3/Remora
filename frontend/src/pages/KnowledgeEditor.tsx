@@ -12,7 +12,7 @@
 
 import { useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { FileText, GitBranch, ChevronLeft, Menu, ArrowLeft } from 'lucide-react'
+import { FileText, GitBranch, ChevronLeft, Menu, ArrowLeft } from '../ui/icons'
 import { useNavigate } from 'react-router-dom'
 import { knowledgeApi } from '../api/knowledge'
 import FileTree from '../components/knowledge/FileTree'

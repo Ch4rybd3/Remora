@@ -9,7 +9,7 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import {
   HardDrive, ChevronRight, Folder, FolderOpen, File as FileIcon, Loader2,
   AlertCircle, Download, Hash, FileOutput, Check, Copy, Layers, HelpCircle,
-} from 'lucide-react'
+} from '../ui/icons'
 import {
   diskImagesApi, type DirEntry, type DiskImageFile, type Partition,
 } from '../api/diskImages'
