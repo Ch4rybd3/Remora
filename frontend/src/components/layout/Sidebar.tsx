@@ -176,6 +176,7 @@ export default function Sidebar() {
         { to: '/config/vaults', label: 'Vault Management' },
         ...(isAdmin ? [{ to: '/users', label: 'Users' }] : []),
         ...(isAdmin ? [{ to: '/audit', label: 'Audit' }] : []),
+        ...(isAdmin ? [{ to: '/design', label: 'Design System' }] : []),
       ],
     },
   ]
