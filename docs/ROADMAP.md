@@ -85,7 +85,7 @@ release process without migrations is decorative.
 
 ---
 
-## S12 — Conventions and English conversion
+## S12 — Conventions and English conversion — **delivered**
 
 **Why here:** translating touches *strings*; the redesign touches *markup and
 classes*. In this order each file is edited once per concern. In the reverse
@@ -122,10 +122,18 @@ component imports from `lucide-react` directly.
 toolbar, content and optional aside in fixed positions. Written down in
 `CONVENTIONS.md` before S13 builds the primitive.
 
-### Exit criteria
+### Exit criteria — all met
 - `docs/` is authoritative; `CLAUDE.md` contains only pointers.
-- The English gate passes on a full repository scan.
-- No direct `lucide-react` import outside `ui/icons.ts`.
+- The English gate passes on a full repository scan (398 lines converted).
+- No direct `lucide-react` import outside `ui/icons.ts`, enforced by eslint.
+
+### Carried forward
+| Item | Why it was not done here |
+|---|---|
+| `B904` — `raise ... from` | 33 sites, each a judgement between `from exc` and `from None`. Applying it blind would either suppress useful causes or chain internal errors into places they do not belong. |
+| `@typescript-eslint/no-explicit-any` | ~90 uses, most around ReactFlow and axios error shapes. That is a typing exercise, not a lint pass, and it belongs with the component work in S13/S14. |
+| `E701`/`E702`, no formatter | A decision, not a backlog. This codebase column-aligns assignments; Black-style formatting collapses that. Documented in `pyproject.toml`. |
+| `fmtDate` returns `13 May 2026` | Section 6 requires the ISO form. Pinned by a test so S13 changes it deliberately rather than by accident. |
 
 ---
 

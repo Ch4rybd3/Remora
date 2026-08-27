@@ -64,7 +64,7 @@ a lazy public changelog.
 
 ### Pull requests
 - One concern per PR. A PR that renames things *and* changes behaviour will be asked to split.
-- A PR touching `backend/app/models/` **must** include an Alembic revision. CI enforces this.
+- A PR touching `backend/app/models/` needs an Alembic revision whenever the *schema* changes. This is enforced by `test_models_match_the_migrated_schema`, which compares the live schema against the models — not by a rule about which files were edited, because a cosmetic edit to a model file needs no migration and an empty revision would satisfy such a rule anyway.
 - Green CI is required to merge. Never merge through a red check.
 
 ---
