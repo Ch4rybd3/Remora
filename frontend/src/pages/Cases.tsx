@@ -257,8 +257,8 @@ export default function Cases() {
             <div>
               <label className="label flex items-center gap-1.5"><Building2 size={11} /> Client / Organisation</label>
               <select className="input" value={form.client_id ?? ''} onChange={e => setForm(f => ({ ...f, client_id: e.target.value || null }))}>
-                <option value="">— Aucun (client par défaut) —</option>
-                {clients.map(c => <option key={c.id} value={c.id}>{c.name}{c.is_default ? ' (défaut)' : ''}</option>)}
+                <option value="">-- None (default client) --</option>
+                {clients.map(c => <option key={c.id} value={c.id}>{c.name}{c.is_default ? ' (default)' : ''}</option>)}
               </select>
             </div>
           </div>

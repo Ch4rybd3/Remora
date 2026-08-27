@@ -64,7 +64,7 @@ def tshark_path() -> str:
     path = shutil.which("tshark")
     if not path:
         raise TsharkUnavailable(
-            "tshark introuvable — le parsing PCAP nécessite tshark dans l'image backend"
+            "tshark not found - PCAP parsing requires tshark in the backend image"
         )
     return path
 
@@ -110,7 +110,7 @@ def convert_to_csv(pcap_path: Path, out_csv: Path | None = None,
     if proc.returncode != 0:
         err = (proc.stderr or "").strip()[:400]
         out_csv.unlink(missing_ok=True)
-        raise RuntimeError(f"tshark a échoué sur {pcap_path.name}: {err}")
+        raise RuntimeError(f"tshark failed on {pcap_path.name}: {err}")
 
     rows = _postprocess(out_csv)
     print(f"[pcap] {pcap_path.name}: {rows} paquet(s)", flush=True)
@@ -148,8 +148,8 @@ def _postprocess(csv_path: Path) -> int:
 
         aligned = len(actual) == len(headers)
         if not aligned:
-            print(f"[pcap] {len(actual)} colonnes pour {len(headers)} attendues — "
-                  f"en-tête tshark conservé, horodatage laissé en epoch", flush=True)
+            print(f"[pcap] {len(actual)} columns for {len(headers)} expected - "
+                  f"keeping the tshark header, timestamps left as epoch", flush=True)
         writer.writerow(headers if aligned else actual)
 
         for row in reader:
@@ -202,7 +202,7 @@ def follow_stream(pcap_path: Path, stream_index: int, protocol: str = "tcp") -> 
         ===================================================================
     """
     if protocol not in ("tcp", "udp"):
-        raise ValueError("protocol doit être 'tcp' ou 'udp'")
+        raise ValueError("protocol must be 'tcp' or 'udp'")
 
     binary = tshark_path()
     cmd = [binary, "-r", str(pcap_path), "-q",

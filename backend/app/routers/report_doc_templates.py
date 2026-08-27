@@ -21,7 +21,7 @@ Text tags (inline replacement):
 
 Report content (analyst-authored, rendered as formatted DOCX paragraphs):
   {{report_analysis}}         Analyse Technique (box 1 of the Report tab)
-  {{report_remediation}}      Remédiations      (box 2 of the Report tab)
+  {{report_remediation}}      Remediations      (box 2 of the Report tab)
   {{report_conclusion}}       Conclusion        (box 3 of the Report tab)
   {{report_content}}          All 3 boxes combined (backward compat alias)
 
@@ -559,9 +559,9 @@ def _render_markdown(template_text: str, case: Case, ctx: dict[str, str]) -> str
     text = text.replace("{{mitre_matrix}}", _md_mitre_matrix(case))
     text = text.replace("{{mitre_matrix_img}}", "_[MITRE ATT&CK matrix image — available in DOCX export only]_")
     # Split report content tags (fixed 3-section backward compat)
-    text = text.replace("{{report_analysis}}",    (case.report_analysis    or "").strip() or "_[Aucune analyse rédigée.]_")
-    text = text.replace("{{report_remediation}}", (case.report_remediation or "").strip() or "_[Aucune remédiation rédigée.]_")
-    text = text.replace("{{report_conclusion}}",  (case.report_conclusion  or "").strip() or "_[Aucune conclusion rédigée.]_")
+    text = text.replace("{{report_analysis}}",    (case.report_analysis    or "").strip() or "_[No analysis written.]_")
+    text = text.replace("{{report_remediation}}", (case.report_remediation or "").strip() or "_[No remediation written.]_")
+    text = text.replace("{{report_conclusion}}",  (case.report_conclusion  or "").strip() or "_[No conclusion written.]_")
     # Dynamic per-section tags from report_sections_data
     import json as _json
     try:
@@ -569,9 +569,9 @@ def _render_markdown(template_text: str, case: Case, ctx: dict[str, str]) -> str
     except Exception:
         sections_data = {}
     for slug, content in sections_data.items():
-        text = text.replace(f"{{{{{slug}}}}}", (content or "").strip() or f"_[Section «{slug}» non rédigée.]_")
+        text = text.replace(f"{{{{{slug}}}}}", (content or "").strip() or f"_[Section '{slug}' not written.]_")
     # Combined backward compat
-    text = text.replace("{{report_content}}", case.report or "_[Aucun contenu de rapport rédigé.]_")
+    text = text.replace("{{report_content}}", case.report or "_[No report content written.]_")
     return text
 
 
@@ -1288,13 +1288,13 @@ def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
     for para, block_tag in block_paras:
 
         if block_tag == "report_analysis":
-            _md_to_docx_paragraphs(doc, para, (case.report_analysis or "").strip() or "_[Aucune analyse rédigée.]_")
+            _md_to_docx_paragraphs(doc, para, (case.report_analysis or "").strip() or "_[No analysis written.]_")
 
         elif block_tag == "report_remediation":
-            _md_to_docx_paragraphs(doc, para, (case.report_remediation or "").strip() or "_[Aucune remédiation rédigée.]_")
+            _md_to_docx_paragraphs(doc, para, (case.report_remediation or "").strip() or "_[No remediation written.]_")
 
         elif block_tag == "report_conclusion":
-            _md_to_docx_paragraphs(doc, para, (case.report_conclusion or "").strip() or "_[Aucune conclusion rédigée.]_")
+            _md_to_docx_paragraphs(doc, para, (case.report_conclusion or "").strip() or "_[No conclusion written.]_")
 
         elif block_tag.startswith("report_") is False and block_tag not in (
             "ioc_table", "asset_table", "evidence_table", "timeline_table",
@@ -1307,7 +1307,7 @@ def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
             except Exception:
                 sd = {}
             content = sd.get(block_tag, "").strip()
-            _md_to_docx_paragraphs(doc, para, content or f"_[Section «{block_tag}» non rédigée.]_")
+            _md_to_docx_paragraphs(doc, para, content or f"_[Section '{block_tag}' not written.]_")
 
         elif block_tag == "report_content":
             # Combined backward compat alias

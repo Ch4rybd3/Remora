@@ -2,8 +2,8 @@
  * ReportTab — split into 3 analyst-authored boxes + playbook reference.
  *
  * LEFT (60%)  — 3 report boxes
- *   ① Analyse Technique   → {{report_analysis}}
- *   ② Remédiations        → {{report_remediation}}
+ *   ① Technical Analysis   → {{report_analysis}}
+ *   2. Remediations        -> {{report_remediation}}
  *   ③ Conclusion          → {{report_conclusion}}
  *   • Auto-generate button → fills all 3 from the case template in one click
  *   • Single Save saves all 3 + creates a version snapshot
@@ -78,21 +78,21 @@ interface BoxMeta {
 const BOX_META: BoxMeta[] = [
   {
     icon:  <FlaskConical size={12} />,
-    label: 'Analyse Technique',
+    label: 'Technical Analysis',
     tag:   '{{report_analysis}}',
     color: 'text-blue-400 border-blue-500/20 bg-blue-500/5',
     placeholder:
-      '## Cause Racine\n\n*Décrire l\'origine de l\'incident…*\n\n' +
-      '## Chaîne d\'Attaque\n\n*Décrire la progression de l\'attaque.*\n\n' +
-      '## Impact\n\n*Impact technique et métier.*',
+      '## Root Cause\n\n*Describe how the incident started...*\n\n' +
+      '## Attack Chain\n\n*Describe how the attack progressed.*\n\n' +
+      '## Impact\n\n*Technical and business impact.*',
   },
   {
     icon:  <Wrench size={12} />,
-    label: 'Remédiations',
+    label: 'Remediations',
     tag:   '{{report_remediation}}',
     color: 'text-orange-400 border-orange-500/20 bg-orange-500/5',
     placeholder:
-      '*Actions de remédiation réalisées ou en cours.*\n\n' +
+      '*Remediation actions completed or in progress.*\n\n' +
       '- [ ] Action 1\n- [ ] Action 2',
   },
   {
@@ -101,7 +101,7 @@ const BOX_META: BoxMeta[] = [
     tag:   '{{report_conclusion}}',
     color: 'text-purple-300 border-purple-500/20 bg-purple-500/5',
     placeholder:
-      '*Synthèse et recommandations long terme.*\n\n' +
+      '*Summary and long-term recommendations.*\n\n' +
       '- [ ] Recommandation 1\n- [ ] Recommandation 2',
   },
 ]
@@ -114,7 +114,7 @@ function VersionCard({
   const [loading, setLoading] = useState(false)
 
   const handleRestore = async () => {
-    if (!confirm(`Restaurer la version ${v.version} ? Les modifications non sauvegardées seront perdues.`)) return
+    if (!confirm(`Restore version ${v.version}? Unsaved changes will be lost.`)) return
     setLoading(true)
     try {
       const full = await reportVersionsApi.get(caseId, v.id)
@@ -163,7 +163,7 @@ function CopyBtn({ getText }: { getText: () => string }) {
   return (
     <button
       onClick={handleCopy}
-      title="Copier le contenu de cette étape"
+      title="Copy this step's content"
       className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors border ${
         copied
           ? 'text-accent-green bg-accent-green/10 border-accent-green/30'
@@ -171,7 +171,7 @@ function CopyBtn({ getText }: { getText: () => string }) {
       }`}
     >
       {copied
-        ? <><ClipboardCheck size={13} /><span>Copié !</span></>
+        ? <><ClipboardCheck size={13} /><span>Copied</span></>
         : <><Clipboard size={13} /><span>Copy</span></>
       }
     </button>
@@ -254,13 +254,13 @@ function PlaybookReference({ caseId }: { caseId: string }) {
   const activeCp = casePlaybooks.find(cp => cp.id === activeId) ?? casePlaybooks[0] ?? null
 
   if (isLoading) {
-    return <p className="text-xs text-accent-muted/30 italic text-center py-8 animate-pulse">Chargement…</p>
+    return <p className="text-xs text-accent-muted/30 italic text-center py-8 animate-pulse">Loading...</p>
   }
   if (casePlaybooks.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6">
         <StickyNote size={28} className="text-accent-muted/15" />
-        <p className="text-xs text-accent-muted/40">Aucun playbook attaché à ce case.</p>
+        <p className="text-xs text-accent-muted/40">No playbook attached to this case.</p>
         <p className="text-[10px] text-accent-muted/25">
           Attache un playbook depuis l'onglet Playbook pour voir tes notes ici.
         </p>
@@ -325,7 +325,7 @@ function PlaybookReference({ caseId }: { caseId: string }) {
       {activeCp && panelView === 'steps' && (
         <div className="flex-1 overflow-y-auto">
           {stepNodes(activeCp).length === 0
-            ? <p className="text-[11px] text-accent-muted/30 italic text-center py-8">Aucune étape.</p>
+            ? <p className="text-[11px] text-accent-muted/30 italic text-center py-8">No steps.</p>
             : stepNodes(activeCp).map((node, idx) => (
                 <PlaybookStepEditor
                   key={node.id}
@@ -512,7 +512,7 @@ export default function ReportTab({ case_ }: Props) {
           {/* Row 1 — title + badge */}
           <div className="flex items-center gap-2">
             <BookOpen size={13} className="text-accent-green/60" />
-            <span className="text-xs font-semibold text-accent-green tracking-wide">Rapport</span>
+            <span className="text-xs font-semibold text-accent-green tracking-wide">Report</span>
             {hasTemplate ? (
               <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-accent-green/8 text-accent-green/60 border border-accent-green/15">
                 {dynamicSections
@@ -522,7 +522,7 @@ export default function ReportTab({ case_ }: Props) {
             ) : (
               <span className="flex items-center gap-1 text-[9px] text-accent-muted/30">
                 <AlertCircle size={9} />
-                Aucun case template — structure par défaut
+                No case template - default structure
               </span>
             )}
           </div>
@@ -535,17 +535,17 @@ export default function ReportTab({ case_ }: Props) {
               className="btn-secondary text-xs flex items-center gap-1.5"
               onClick={() => generate.mutate()}
               disabled={generate.isPending}
-              title="Génère les 3 sections depuis le case template en un clic"
+              title="Generate the three sections from the case template in one click"
             >
               <Sparkles size={12} className={generate.isPending ? 'animate-pulse' : ''} />
-              {generate.isPending ? 'Génération…' : 'Auto-générer'}
+              {generate.isPending ? 'Generating...' : 'Auto-generate'}
             </button>
 
             {/* Export MD */}
             <button
               className="btn-secondary text-xs flex items-center gap-1.5"
               onClick={handleExportMd}
-              title="Exporter le contenu combiné en Markdown"
+              title="Export the combined content as Markdown"
             >
               <FileDown size={12} />
               .md
@@ -572,7 +572,7 @@ export default function ReportTab({ case_ }: Props) {
                 className="btn-secondary text-xs flex items-center gap-1.5 disabled:opacity-40"
                 disabled={!selectedTemplateId || exporting}
                 onClick={handleExportDocx}
-                title="Générer et télécharger le rapport complet via le report template"
+                title="Generate and download the full report through the report template"
               >
                 <FileOutput size={12} className={exporting ? 'animate-pulse' : ''} />
                 {exporting ? 'Export…' : 'Exporter'}
@@ -600,7 +600,7 @@ export default function ReportTab({ case_ }: Props) {
               disabled={save.isPending || !dirty}
             >
               <Save size={11} className={save.isPending ? 'animate-pulse' : ''} />
-              {save.isPending ? 'Sauvegarde…' : dirty ? 'Sauvegarder' : 'Sauvegardé'}
+              {save.isPending ? 'Saving...' : dirty ? 'Save' : 'Saved'}
             </button>
           </div>
         </div>
@@ -610,7 +610,7 @@ export default function ReportTab({ case_ }: Props) {
           <div className="shrink-0 border-b border-white/5 bg-bg-secondary/20 px-4 py-3">
             {versions.length === 0 ? (
               <p className="text-[10px] text-accent-muted/30 italic">
-                Aucune version — sauvegardez pour créer le premier snapshot.
+                No version yet - save to create the first snapshot.
               </p>
             ) : (
               <div className="space-y-1.5">
@@ -626,7 +626,7 @@ export default function ReportTab({ case_ }: Props) {
             )}
             {dirty && (
               <p className="text-[9px] text-yellow-400/60 mt-2 flex items-center gap-1">
-                <AlertCircle size={9} /> Modifications non sauvegardées — sauvegardez pour créer une version.
+                <AlertCircle size={9} /> Unsaved changes - save to create a version.
               </p>
             )}
           </div>
@@ -694,7 +694,7 @@ export default function ReportTab({ case_ }: Props) {
         </div>
       </div>
 
-      {/* ══ RIGHT — Résumé + Playbook tabs ══════════════════════════════════ */}
+      {/* ══ RIGHT - Summary + Playbook tabs ═════════════════════════════════ */}
       <div className="flex-[2] min-w-0 flex flex-col overflow-hidden bg-bg-secondary/20">
 
         {/* Tab bar */}
@@ -708,7 +708,7 @@ export default function ReportTab({ case_ }: Props) {
             }`}
           >
             <AlignLeft size={11} />
-            Résumé &amp; Notes
+            Summary &amp; Notes
           </button>
           <button
             onClick={() => setRightTab('playbook')}
@@ -733,7 +733,7 @@ export default function ReportTab({ case_ }: Props) {
           )}
         </div>
 
-        {/* Résumé tab */}
+        {/* Summary tab */}
         {rightTab === 'summary' && (
           <div className="flex-1 overflow-y-auto">
 
@@ -751,7 +751,7 @@ export default function ReportTab({ case_ }: Props) {
                   caseId={case_.id}
                   minHeight={140}
                   autoResize
-                  placeholder="Résumé exécutif — synthèse non-technique de l'incident, impact métier, actions clés…"
+                  placeholder="Executive summary - non-technical overview of the incident, business impact, key actions..."
                 />
               </div>
             </div>
@@ -770,7 +770,7 @@ export default function ReportTab({ case_ }: Props) {
                   caseId={case_.id}
                   minHeight={120}
                   autoResize
-                  placeholder="Notes rapides d'investigation, IOCs à creuser, hypothèses…"
+                  placeholder="Quick investigation notes, IOCs to dig into, hypotheses..."
                 />
               </div>
             </div>
@@ -783,7 +783,7 @@ export default function ReportTab({ case_ }: Props) {
           <div className="flex-1 overflow-hidden">
             <div className="px-3 py-2 border-b border-white/5 shrink-0">
               <p className="text-[9px] text-accent-muted/20">
-                Lecture seule — copie-colle dans l'éditeur de gauche
+                Read-only - copy and paste into the editor on the left
               </p>
             </div>
             <div className="h-full overflow-hidden">

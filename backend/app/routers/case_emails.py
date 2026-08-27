@@ -18,7 +18,7 @@ router = APIRouter(tags=["case-emails"])
 def _get_case(case_id: str, db: Session) -> Case:
     case = db.query(Case).filter(Case.id == case_id).first()
     if not case:
-        raise HTTPException(status_code=404, detail="Case introuvable")
+        raise HTTPException(status_code=404, detail="Case not found")
     return case
 
 
@@ -86,7 +86,7 @@ def get_case_email(
         EmailFile.id == email_id, EmailFile.case_id == case_id
     ).first()
     if not ef:
-        raise HTTPException(status_code=404, detail="Email introuvable")
+        raise HTTPException(status_code=404, detail="Email not found")
     return {
         "id":          ef.id,
         "filename":    ef.filename,
@@ -106,7 +106,7 @@ def delete_case_email(
         EmailFile.id == email_id, EmailFile.case_id == case_id
     ).first()
     if not ef:
-        raise HTTPException(status_code=404, detail="Email introuvable")
+        raise HTTPException(status_code=404, detail="Email not found")
     db.delete(ef)
     db.commit()
 

@@ -9,7 +9,7 @@ from ..services.auth_service import decode_access_token
 
 _bearer = HTTPBearer()
 
-# Hiérarchie des rôles : owner > admin > analyst
+# Role hierarchy: owner > admin > analyst
 ROLE_RANK: dict[UserRole, int] = {
     UserRole.analyst: 0,
     UserRole.admin:   1,
@@ -27,36 +27,37 @@ def get_current_user(
     except (JWTError, KeyError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token invalide ou expiré",
+            detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
     user = db.query(User).filter(User.id == user_id, User.is_active.is_(True)).first()
     if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Utilisateur introuvable")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return user
 
 
 def require_admin(user: User = Depends(get_current_user)) -> User:
-    """Admin ou owner requis."""
+    """Requires admin or owner."""
     if ROLE_RANK[user.role] < ROLE_RANK[UserRole.admin]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Rôle admin ou owner requis")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin or owner role required")
     return user
 
 
 def require_owner(user: User = Depends(get_current_user)) -> User:
-    """Owner uniquement."""
+    """Owner only."""
     if user.role != UserRole.owner:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Rôle owner requis")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner role required")
     return user
 
 
 def assert_can_manage(actor: User, target: User) -> None:
-    """Vérifie qu'un acteur peut gérer un compte cible.
-    Règle : on ne peut modifier que des comptes de rang strictement inférieur au sien.
-    Exception : se modifier soi-même (hors rôle) est géré séparément.
+    """Check that an actor may manage a target account.
+
+    Rule: an actor may only modify accounts ranked strictly below their own.
+    Modifying one's own account (role excepted) is handled separately.
     """
     if ROLE_RANK[actor.role] <= ROLE_RANK[target.role] and actor.id != target.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Impossible de gérer un compte de rôle '{target.role.value}'",
+            detail=f"Cannot manage an account with role '{target.role.value}'",
         )

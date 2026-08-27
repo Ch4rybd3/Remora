@@ -59,11 +59,11 @@ function EditClientModal({ client, docTemplates, onClose }: {
   })
 
   return (
-    <Modal open onClose={onClose} title="Modifier le client" size="lg">
+    <Modal open onClose={onClose} title="Edit the client" size="lg">
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="label">Nom *</label>
+            <label className="label">Name *</label>
             <input className="input" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
           </div>
           <div>
@@ -85,7 +85,7 @@ function EditClientModal({ client, docTemplates, onClose }: {
             <input className="input" value={form.contact_email} onChange={e => setForm(f => ({ ...f, contact_email: e.target.value }))} />
           </div>
           <div>
-            <label className="label">Téléphone</label>
+            <label className="label">Phone</label>
             <input className="input" value={form.contact_phone} onChange={e => setForm(f => ({ ...f, contact_phone: e.target.value }))} />
           </div>
         </div>
@@ -100,14 +100,14 @@ function EditClientModal({ client, docTemplates, onClose }: {
         <div>
           <label className="label">Template de documentation</label>
           <select className="input" value={form.doc_template_id} onChange={e => setForm(f => ({ ...f, doc_template_id: e.target.value }))}>
-            <option value="">Aucun — base libre</option>
+            <option value="">None - free-form base</option>
             {docTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </div>
         <div className="flex justify-end gap-3 pt-2">
-          <button className="btn-secondary" onClick={onClose}>Annuler</button>
+          <button className="btn-secondary" onClick={onClose}>Cancel</button>
           <button className="btn-primary" disabled={!form.name.trim() || save.isPending} onClick={() => save.mutate()}>
-            {save.isPending ? 'Enregistrement…' : 'Enregistrer'}
+            {save.isPending ? 'Saving...' : 'Save'}
           </button>
         </div>
       </div>
@@ -175,10 +175,10 @@ function DocRow({ doc, onPreview, onDelete }: {
         </p>
       </div>
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-        <button onClick={onPreview} className="p-1.5 rounded text-accent-muted/40 hover:text-accent-green hover:bg-accent-green/5" title="Aperçu">
+        <button onClick={onPreview} className="p-1.5 rounded text-accent-muted/40 hover:text-accent-green hover:bg-accent-green/5" title="Preview">
           <Eye size={13} />
         </button>
-        <button onClick={onDelete} className="p-1.5 rounded text-accent-muted/40 hover:text-severity-critical hover:bg-severity-critical/5" title="Supprimer">
+        <button onClick={onDelete} className="p-1.5 rounded text-accent-muted/40 hover:text-severity-critical hover:bg-severity-critical/5" title="Delete">
           <Trash2 size={13} />
         </button>
       </div>
@@ -204,7 +204,7 @@ function SlotCard({ slot, doc, uploading, onUpload, onPreview, onDelete }: {
         {doc ? (
           <DocRow doc={doc} onPreview={onPreview} onDelete={onDelete} />
         ) : (
-          <UploadZone label="Déposer un fichier ici" onUpload={onUpload} uploading={uploading} />
+          <UploadZone label="Drop a file here" onUpload={onUpload} uploading={uploading} />
         )}
       </div>
     </div>
@@ -254,7 +254,7 @@ export default function ClientDetail() {
   })
 
   if (isLoading || !client) {
-    return <div className="p-6 text-center text-accent-muted text-sm">Chargement…</div>
+    return <div className="p-6 text-center text-accent-muted text-sm">Loading...</div>
   }
 
   return (
@@ -272,7 +272,7 @@ export default function ClientDetail() {
             <h1 className="text-xl font-bold text-white">{client.name}</h1>
             {client.is_default && (
               <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-400">
-                <Star size={9} /> Par défaut
+                <Star size={9} /> Default
               </span>
             )}
           </div>
@@ -280,7 +280,7 @@ export default function ClientDetail() {
           {client.description && <p className="text-xs text-accent-muted/60 mt-1 max-w-2xl">{client.description}</p>}
         </div>
         <button className="btn-secondary text-xs flex items-center gap-1.5 shrink-0" onClick={() => setEditing(true)}>
-          <Pencil size={12} /> Modifier
+          <Pencil size={12} /> Edit
         </button>
       </div>
 
@@ -289,7 +289,7 @@ export default function ClientDetail() {
         <div className="card p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
           {client.contact_name && <div><p className="text-accent-muted/40 uppercase text-[10px] mb-0.5">Contact</p><p className="text-white">{client.contact_name}</p></div>}
           {client.contact_email && <div><p className="text-accent-muted/40 uppercase text-[10px] mb-0.5">Email</p><p className="text-white">{client.contact_email}</p></div>}
-          {client.contact_phone && <div><p className="text-accent-muted/40 uppercase text-[10px] mb-0.5">Téléphone</p><p className="text-white">{client.contact_phone}</p></div>}
+          {client.contact_phone && <div><p className="text-accent-muted/40 uppercase text-[10px] mb-0.5">Phone</p><p className="text-white">{client.contact_phone}</p></div>}
           {client.address && <div><p className="text-accent-muted/40 uppercase text-[10px] mb-0.5">Adresse</p><p className="text-white">{client.address}</p></div>}
           {client.notes && (
             <div className="col-span-2 sm:col-span-4 pt-2 border-t border-white/5">
@@ -335,7 +335,7 @@ export default function ClientDetail() {
             {template ? 'Autres documents' : 'Documents'}
           </p>
           <UploadZone
-            label="Glissez-déposez un fichier, ou cliquez pour parcourir"
+            label="Drag and drop a file, or click to browse"
             onUpload={file => upload.mutate({ file, slot: null })}
             uploading={uploadingSlot === 'freeform'}
           />
@@ -359,8 +359,8 @@ export default function ClientDetail() {
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => deleteTarget && remove.mutate(deleteTarget)}
-        title="Supprimer le document"
-        message={`« ${deleteTarget?.name} » sera définitivement supprimé.`}
+        title="Delete the document"
+        message={`"${deleteTarget?.name}" will be permanently deleted.`}
       />
     </div>
   )

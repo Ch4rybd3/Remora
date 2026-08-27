@@ -279,7 +279,7 @@ export default function NoteGraph({ currentPath, onNodeClick }: Props) {
     return (
       <div className="h-full flex items-center justify-center p-4">
         <p className="text-[10px] text-accent-muted/30 italic text-center">
-          Crée des notes avec des{' '}
+          Create notes with{' '}
           <code className="bg-white/5 px-1 rounded font-mono">[[wikilinks]]</code>
           {' '}pour voir le graphe.
         </p>

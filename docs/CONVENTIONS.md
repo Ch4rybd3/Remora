@@ -17,13 +17,7 @@ There is no i18n framework and none is planned. Strings are hardcoded.
 - case names, notes, report content, incident-log entries stored in the database;
 - case templates, playbooks and report templates under `templates/` and `samples/`, which analysts author in whatever language the client requires.
 
-Enforced in CI as a **ratchet**: the gate inspects only the lines a pull
-request *adds*, to the files it touches. Roughly 400 lines of pre-existing
-French are converted in S12; failing the whole repository before that work is
-done would mean a permanently red CI. Touching a file therefore does not make
-you responsible for the French already in it — but no new French can enter.
-
-S12 replaces the diff-scoped check with a full-repository scan:
+Enforced in CI by a full-repository scan:
 
 ```yaml
 - name: English-only source

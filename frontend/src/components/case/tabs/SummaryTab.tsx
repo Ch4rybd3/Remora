@@ -25,7 +25,7 @@ function CopyBtn({ getText }: { getText: () => string }) {
           : 'text-accent-muted/40 border-white/10 hover:text-white hover:border-white/20 hover:bg-white/5'
       }`}
     >
-      {copied ? <><ClipboardCheck size={8} /> Copié</> : <><Clipboard size={8} /> Copy</>}
+      {copied ? <><ClipboardCheck size={8} /> Copied</> : <><Clipboard size={8} /> Copy</>}
     </button>
   )
 }
@@ -36,13 +36,13 @@ function ReportRefPanel({ case_ }: { case_: Case }) {
   const sections: SectionBlock[] = [
     {
       icon:    <FlaskConical size={10} />,
-      label:   'Analyse Technique',
+      label:   'Technical Analysis',
       color:   'text-blue-400 border-blue-500/20 bg-blue-500/5',
       content: case_.report_analysis ?? '',
     },
     {
       icon:    <Wrench size={10} />,
-      label:   'Remédiations',
+      label:   'Remediations',
       color:   'text-orange-400 border-orange-500/20 bg-orangeite-500/5',
       content: case_.report_remediation ?? '',
     },
@@ -62,11 +62,11 @@ function ReportRefPanel({ case_ }: { case_: Case }) {
         <div className="flex items-center gap-2">
           <BookOpen size={11} className="text-accent-muted/50" />
           <span className="text-[10px] font-semibold tracking-widest uppercase text-accent-muted/40">
-            Référence Rapport
+            Report reference
           </span>
         </div>
         <p className="text-[9px] text-accent-muted/20 mt-0.5">
-          Lecture seule — copie-colle dans le résumé à gauche
+          Read-only - copy and paste into the summary on the left
         </p>
       </div>
 
@@ -74,9 +74,9 @@ function ReportRefPanel({ case_ }: { case_: Case }) {
         {!hasAny ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6 py-8">
             <BookOpen size={24} className="text-accent-muted/10" />
-            <p className="text-xs text-accent-muted/30">Aucun contenu de rapport rédigé.</p>
+            <p className="text-xs text-accent-muted/30">No report content written.</p>
             <p className="text-[10px] text-accent-muted/20">
-              Rédige les sections depuis l'onglet Rapport pour les voir ici.
+              Write the sections from the Report tab to see them here.
             </p>
           </div>
         ) : (
@@ -159,7 +159,7 @@ export default function SummaryTab({ case_ }: Props) {
           </h3>
           <span className="text-[10px] text-accent-muted/30 flex-1">autosave · Ctrl+S</span>
           {saved && (
-            <span className="text-[10px] text-accent-green/60 animate-pulse">Sauvegardé ✓</span>
+            <span className="text-[10px] text-accent-green/60 animate-pulse">Saved</span>
           )}
           {save.isPending && (
             <span className="text-[10px] text-accent-muted/40 animate-pulse">Sauvegarde…</span>
@@ -178,8 +178,8 @@ export default function SummaryTab({ case_ }: Props) {
             minHeight={500}
             autoResize
             placeholder={
-              '## Contexte\n\nRésumé de l\'incident pour les parties prenantes non techniques.\n\n' +
-              '## Faits Clés\n\n- …\n\n## Impact\n\n- …\n\n## Actions Engagées\n\n- …'
+              '## Context\n\nSummary of the incident for non-technical stakeholders.\n\n' +
+              '## Key Facts\n\n- ...\n\n## Impact\n\n- ...\n\n## Actions Taken\n\n- ...'
             }
           />
         </div>

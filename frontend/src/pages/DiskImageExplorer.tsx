@@ -56,7 +56,7 @@ function CopyableCommand({ label, command, hint }: {
         <code className="flex-1 min-w-0 text-[10px] font-mono text-accent-green/80 break-all whitespace-pre-wrap">
           {command}
         </code>
-        <button onClick={copy} title="Copier la commande"
+        <button onClick={copy} title="Copy the command"
           className="shrink-0 text-accent-muted/40 hover:text-accent-green transition-colors">
           {copied ? <Check size={11} className="text-accent-green" /> : <Copy size={11} />}
         </button>
@@ -70,75 +70,75 @@ function TransferTips({ hostPath, configured }: { hostPath: string; configured: 
   // The host the analyst reached this UI on is, in practice, the host holding
   // the images — a far better default than a placeholder.
   const host = typeof window !== 'undefined' ? window.location.hostname : 'serveur'
-  const user = '<utilisateur>'
+  const user = '<user>'
 
   // A relative DISK_IMAGES_HOST_PATH (the "./images" default) is meaningless as
   // an scp/rsync destination — it would resolve against the SSH home directory
   // and copy to the wrong place without any error. Substitute a placeholder and
   // say so, rather than handing out a command that silently misfires.
   const isAbsolute = hostPath.startsWith('/')
-  const target = isAbsolute ? hostPath.replace(/\/$/, '') : '/chemin/absolu/vers/images'
+  const target = isAbsolute ? hostPath.replace(/\/$/, '') : '/absolute/path/to/images'
 
   return (
     <div className="space-y-3">
       <p className="text-[10px] text-accent-muted/50 leading-relaxed">
-        Les images sont lues <strong className="text-accent-muted/80">sur place</strong>, jamais
-        téléversées : une acquisition complète pèse couramment plusieurs centaines de Go.
-        Copiez-les dans <code className="font-mono text-accent-green/70">{target}</code> sur{' '}
-        <code className="font-mono text-accent-green/70">{host}</code>, elles apparaîtront ici.
+        Images are read <strong className="text-accent-muted/80">in place</strong>, never
+        uploaded: a full acquisition routinely runs to several hundred GB. Copy them to{' '}
+        <code className="font-mono text-accent-green/70">{target}</code> on{' '}
+        <code className="font-mono text-accent-green/70">{host}</code> and they will appear here.
       </p>
 
       {!isAbsolute && (
         <p className="flex items-start gap-1.5 text-[10px] text-yellow-400/80 bg-yellow-500/5 border border-yellow-500/20 rounded px-2 py-1.5 leading-relaxed">
           <AlertCircle size={11} className="mt-0.5 shrink-0" />
           <span>
-            <code className="font-mono">DISK_IMAGES_HOST_PATH</code> vaut{' '}
-            <code className="font-mono">{hostPath || '(vide)'}</code>, un chemin relatif au
-            répertoire du <code className="font-mono">docker-compose.yml</code>. Les commandes
-            ci-dessous ont besoin d'un chemin absolu : remplacez{' '}
-            <code className="font-mono">{target}</code> par le chemin réel, ou passez la variable
-            en absolu dans le <code className="font-mono">.env</code>.
+            <code className="font-mono">DISK_IMAGES_HOST_PATH</code> is{' '}
+            <code className="font-mono">{hostPath || '(empty)'}</code>, a path relative to the
+            directory holding <code className="font-mono">docker-compose.yml</code>. The commands
+            below need an absolute path: replace{' '}
+            <code className="font-mono">{target}</code> with the real one, or make the variable
+            absolute in <code className="font-mono">.env</code>.
           </span>
         </p>
       )}
 
       <CopyableCommand
-        label="Copier une image depuis votre machine"
-        command={`rsync -avP --partial mon-image.E01 ${user}@${host}:${target}/`}
-        hint="-P affiche la progression et --partial reprend un transfert interrompu — indispensable sur une image de plusieurs dizaines de Go."
+        label="Copy an image from your machine"
+        command={`rsync -avP --partial my-image.E01 ${user}@${host}:${target}/`}
+        hint="-P shows progress and --partial resumes an interrupted transfer - essential on an image tens of GB in size."
       />
 
       <CopyableCommand
-        label="Set segmenté (.E01, .E02, …)"
-        command={`rsync -avP --partial mon-image.E0* ${user}@${host}:${target}/`}
-        hint="Copiez toute la série : dissect résout seul les segments suivants à partir du premier."
+        label="Segmented set (.E01, .E02, ...)"
+        command={`rsync -avP --partial my-image.E0* ${user}@${host}:${target}/`}
+        hint="Copy the whole series: dissect resolves the following segments from the first one."
       />
 
       <CopyableCommand
-        label="Monter le dossier comme un lecteur local"
+        label="Mount the folder as a local drive"
         command={`sshfs ${user}@${host}:${target} ~/remora-images`}
-        hint="Pour glisser-déposer depuis votre gestionnaire de fichiers plutôt que pousser des fichiers. Démonter avec : fusermount -u ~/remora-images"
+        hint="For drag-and-drop from your file manager instead of pushing files. Unmount with: fusermount -u ~/remora-images"
       />
 
       {!configured && (
         <CopyableCommand
-          label="Côté serveur — à faire une seule fois, avant de démarrer la pile"
+          label="Server side - once only, before starting the stack"
           command={[
             'sudo mkdir -p /mnt/evidence',
             'sudo chown $USER:$USER /mnt/evidence',
-            '# puis dans .env :  DISK_IMAGES_HOST_PATH=/mnt/evidence',
+            '# then in .env:  DISK_IMAGES_HOST_PATH=/mnt/evidence',
             'docker compose up -d',
           ].join('\n')}
-          hint="Créez le répertoire avant le premier démarrage : sinon Docker le crée en root et vous ne pourrez rien y déposer."
+          hint="Create the directory before the first start: otherwise Docker creates it as root and you will not be able to put anything in it."
         />
       )}
 
       <p className="text-[9px] text-accent-muted/35 leading-relaxed border-t border-white/5 pt-2">
-        Le répertoire est monté en lecture seule : Remora ne peut ni modifier ni supprimer une
-        acquisition. Il vit sur l'hôte et survit aux redémarrages comme aux reconstructions de
-        conteneurs. Si c'est un disque ou un partage réseau dédié, pensez à l'inscrire dans{' '}
-        <code className="font-mono">/etc/fstab</code> — sinon après un reboot le répertoire sera
-        vide et aucune image n'apparaîtra.
+        The directory is mounted read-only: Remora can neither modify nor delete an
+        acquisition. It lives on the host and survives restarts and container rebuilds alike.
+        If it is a dedicated disk or network share, remember to add it to{' '}
+        <code className="font-mono">/etc/fstab</code> - otherwise the directory will be empty
+        after a reboot and no image will appear.
       </p>
     </div>
   )
@@ -154,7 +154,7 @@ function HexView({ hex }: { hex: string }) {
   }, [hex])
 
   if (bytes.length === 0) {
-    return <p className="p-3 text-[10px] text-accent-muted/30 italic">Fichier vide.</p>
+    return <p className="p-3 text-[10px] text-accent-muted/30 italic">Empty file.</p>
   }
 
   const rows: number[][] = []
@@ -327,7 +327,7 @@ export default function DiskImageExplorer() {
       <div className="p-6">
         <div className="flex items-center gap-2 text-sm text-yellow-400 bg-yellow-500/5 border border-yellow-500/20 rounded-lg px-4 py-3">
           <AlertCircle size={14} />
-          dissect.target n'est pas installé dans l'image backend — l'exploration d'images est désactivée.
+          dissect.target is not installed in the backend image - image exploration is disabled.
         </div>
       </div>
     )
@@ -339,10 +339,10 @@ export default function DiskImageExplorer() {
         <div className="flex items-start gap-2 text-sm text-yellow-400 bg-yellow-500/5 border border-yellow-500/20 rounded-lg px-4 py-3">
           <AlertCircle size={14} className="mt-0.5 shrink-0" />
           <div>
-            <p className="font-semibold">Aucun répertoire d'images configuré</p>
+            <p className="font-semibold">No image directory configured</p>
             <p className="text-[11px] text-yellow-400/70 mt-1 leading-relaxed">
               Renseignez <code className="font-mono">DISK_IMAGES_HOST_PATH</code> dans le{' '}
-              <code className="font-mono">.env</code>, puis redémarrez la pile.
+              <code className="font-mono">.env</code>, then restart the stack.
             </p>
           </div>
         </div>
@@ -364,7 +364,7 @@ export default function DiskImageExplorer() {
           {images.length > 0 && <span className="text-accent-muted/30 text-[10px]">{images.length}</span>}
           <button
             onClick={() => setTipsOpen(o => !o)}
-            title="Comment déposer une image sur le serveur"
+            title="How to put an image on the server"
             className={`ml-auto transition-colors ${
               tipsOpen ? 'text-accent-green' : 'text-accent-muted/30 hover:text-accent-green'
             }`}
@@ -382,18 +382,18 @@ export default function DiskImageExplorer() {
         <div className="flex-1 overflow-y-auto">
           {loadingImages && (
             <div className="flex items-center gap-2 px-3 py-3 text-[10px] text-accent-muted/40">
-              <Loader2 size={10} className="animate-spin" /> Analyse du répertoire…
+              <Loader2 size={10} className="animate-spin" /> Scanning the directory...
             </div>
           )}
           {!loadingImages && images.length === 0 && (
             <div className="px-3 py-6 text-center">
               <p className="text-[10px] text-accent-muted/30 leading-relaxed">
-                Aucune image trouvée dans{' '}
+                No image found in{' '}
                 <code className="font-mono">{status?.host_path || status?.roots.join(', ') || '—'}</code>.
               </p>
               <button onClick={() => setTipsOpen(true)}
                 className="mt-2 text-[10px] text-accent-green/70 hover:text-accent-green underline">
-                Comment en déposer une ?
+                How do I add one?
               </button>
             </div>
           )}
@@ -431,7 +431,7 @@ export default function DiskImageExplorer() {
                     <div key={p.number}>
                       <div
                         onClick={() => p.browsable && selectPartition(p)}
-                        title={p.browsable ? undefined : 'Système de fichiers non reconnu'}
+                        title={p.browsable ? undefined : 'Unrecognised filesystem'}
                         className={`flex items-center gap-1.5 px-4 py-1.5 text-[10px] transition-colors ${
                           !p.browsable ? 'text-accent-muted/25 cursor-not-allowed'
                           : partition === p.number ? 'bg-accent-green/10 text-accent-green cursor-pointer'
@@ -467,11 +467,11 @@ export default function DiskImageExplorer() {
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 px-3 py-2 border-b border-white/5 shrink-0">
           <code className="text-[10px] font-mono text-accent-muted/60 truncate flex-1">
-            {image ? `${image.split('/').pop()} › partition ${partition ?? '—'} › ${dir}` : 'Sélectionnez une image'}
+            {image ? `${image.split('/').pop()} › partition ${partition ?? '—'} › ${dir}` : 'Select an image'}
           </code>
           {loadingDir && <Loader2 size={11} className="animate-spin text-accent-green/50" />}
           {entries.length > 0 && (
-            <span className="text-[10px] text-accent-muted/35 shrink-0">{entries.length} entrée(s)</span>
+            <span className="text-[10px] text-accent-muted/35 shrink-0">{entries.length} entries</span>
           )}
         </div>
 
@@ -483,16 +483,16 @@ export default function DiskImageExplorer() {
             </p>
           ) : dirError ? (
             <p className="p-6 text-center text-[11px] text-severity-critical">
-              {(dirError as any)?.response?.data?.detail ?? 'Lecture du répertoire impossible.'}
+              {(dirError as any)?.response?.data?.detail ?? 'Cannot read the directory.'}
             </p>
           ) : (
             <table className="w-full text-[10px] font-mono border-collapse">
               <thead className="sticky top-0 bg-bg-card z-10">
                 <tr className="text-accent-muted/40 text-left">
-                  <th className="px-2 py-1.5">Nom</th>
+                  <th className="px-2 py-1.5">Name</th>
                   <th className="px-2 py-1.5 w-24">Taille</th>
-                  <th className="px-2 py-1.5 w-40">Modifié</th>
-                  <th className="px-2 py-1.5 w-40">Créé</th>
+                  <th className="px-2 py-1.5 w-40">Modified</th>
+                  <th className="px-2 py-1.5 w-40">Created</th>
                 </tr>
               </thead>
               <tbody>
@@ -534,7 +534,7 @@ export default function DiskImageExplorer() {
             </table>
           )}
           {partition !== null && !loadingDir && entries.length === 0 && !dirError && (
-            <p className="p-6 text-center text-[11px] text-accent-muted/30">Répertoire vide.</p>
+            <p className="p-6 text-center text-[11px] text-accent-muted/30">Empty directory.</p>
           )}
         </div>
 
@@ -543,12 +543,12 @@ export default function DiskImageExplorer() {
           <div className="flex items-center gap-2 px-2 py-1 border-b border-white/5 shrink-0">
             <p className="text-[9px] uppercase tracking-widest text-accent-muted/35 truncate">
               {selected && !selected.is_dir
-                ? `${selected.name} — ${fmtSize(selected.size)}${preview && preview.total > preview.length ? ` (${fmtSize(preview.length)} affichés)` : ''}`
-                : 'Aperçu'}
+                ? `${selected.name} — ${fmtSize(selected.size)}${preview && preview.total > preview.length ? ` (${fmtSize(preview.length)} shown)` : ''}`
+                : 'Preview'}
             </p>
             {selected && !selected.is_dir && (
               <div className="ml-auto flex items-center gap-1 shrink-0">
-                <button onClick={copyPath} title="Copier le chemin"
+                <button onClick={copyPath} title="Copy the path"
                   className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border border-white/10 text-accent-muted hover:text-accent-green hover:border-accent-green/40 transition-colors">
                   {copied ? <Check size={9} className="text-accent-green" /> : <Copy size={9} />} Chemin
                 </button>
@@ -558,17 +558,17 @@ export default function DiskImageExplorer() {
                   {hashing ? <Loader2 size={9} className="animate-spin" /> : <Hash size={9} />} Hash
                 </button>
                 <button onClick={download} disabled={downloading}
-                  title="Télécharger le fichier"
+                  title="Download the file"
                   className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border border-white/10 text-accent-muted hover:text-accent-green hover:border-accent-green/40 transition-colors disabled:opacity-40">
                   {downloading ? <Loader2 size={9} className="animate-spin" /> : <Download size={9} />}
-                  Télécharger
+                  Download
                 </button>
                 <button
                   onClick={() => extract.mutate()}
                   disabled={!caseId || extract.isPending}
                   title={caseId
                     ? 'Extraire vers le drop folder du case courant'
-                    : 'Sélectionnez un case courant pour extraire'}
+                    : 'Select a current case to extract into'}
                   className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border border-accent-green/25 text-accent-green/80 hover:bg-accent-green/10 transition-colors disabled:opacity-30">
                   {extract.isPending ? <Loader2 size={9} className="animate-spin" /> : <FileOutput size={9} />}
                   Extraire vers le case
@@ -596,7 +596,7 @@ export default function DiskImageExplorer() {
                 </p>
               )}
               {downloadError && (
-                <p className="text-[9px] text-severity-critical">Téléchargement échoué : {downloadError}</p>
+                <p className="text-[9px] text-severity-critical">Download failed: {downloadError}</p>
               )}
             </div>
           )}
@@ -604,7 +604,7 @@ export default function DiskImageExplorer() {
           <div className="flex-1 overflow-auto">
             {!selected || selected.is_dir ? (
               <p className="p-3 text-[10px] text-accent-muted/30 italic">
-                Sélectionnez un fichier pour afficher ses octets.
+                Select a file to display its bytes.
               </p>
             ) : loadingPreview ? (
               <div className="flex items-center gap-2 p-3 text-[10px] text-accent-muted/40">

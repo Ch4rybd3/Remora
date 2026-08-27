@@ -69,7 +69,7 @@ export default function Login() {
 
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="label">Nom d'utilisateur</label>
+              <label className="label">Username</label>
               <input
                 className="input"
                 autoComplete="username"

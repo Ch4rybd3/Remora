@@ -9,7 +9,10 @@ import Modal from '../ui/Modal'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type SectionCategory = 'analyse' | 'remediation' | 'conclusion'
+// 'analyse' is the legacy French value. Existing case template YAML files
+// carry it, and the backend maps both spellings, so it stays accepted on read
+// while new sections are written as 'analysis'.
+type SectionCategory = 'analysis' | 'analyse' | 'remediation' | 'conclusion'
 
 interface ReportSection {
   name: string
@@ -41,14 +44,15 @@ const INITIAL: FormState = {
     'On [DATE], [ORGANISATION] identified a security incident affecting [AFFECTED_SYSTEMS].\n' +
     'The incident was detected at [DETECTION_TIME] via [DETECTION_SOURCE].',
   sections: [
-    { name: 'Analyse Technique', category: 'analyse',     template: '### Cause Racine\n\n*Décrire l\'origine de l\'incident…*\n\n### Chaîne d\'Attaque\n\n*Décrire la progression.*' },
-    { name: 'Remédiations',      category: 'remediation', template: '*Actions de remédiation réalisées ou en cours.*\n\n- [ ] Action 1\n- [ ] Action 2' },
-    { name: 'Conclusion',        category: 'conclusion',  template: '*Synthèse et recommandations long terme.*\n\n- [ ] Recommandation 1' },
+    { name: 'Technical Analysis', category: 'analysis',    template: '### Root Cause\n\n*Describe how the incident started...*\n\n### Attack Chain\n\n*Describe how it progressed.*' },
+    { name: 'Remediations',       category: 'remediation', template: '*Remediation actions completed or in progress.*\n\n- [ ] Action 1\n- [ ] Action 2' },
+    { name: 'Conclusion',         category: 'conclusion',  template: '*Summary and long-term recommendations.*\n\n- [ ] Recommendation 1' },
   ],
 }
 
 const CATEGORY_COLORS: Record<SectionCategory, string> = {
-  analyse:     'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  analysis:    'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  analyse:     'bg-blue-500/10 text-blue-400 border-blue-500/20',   // legacy
   remediation: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
   conclusion:  'bg-purple-500/10 text-purple-400 border-purple-500/20',
 }
@@ -61,7 +65,7 @@ function indent(text: string, spaces: number): string {
 }
 
 function yamlLiteral(text: string, baseIndent: number): string {
-  return '|\n' + indent(text || '  (vide)', baseIndent)
+  return '|\n' + indent(text || '  (empty)', baseIndent)
 }
 
 function buildYaml(f: FormState): string {
@@ -128,23 +132,23 @@ function SectionRow({
         <div className="px-3 pb-3 pt-2 space-y-2 border-t border-white/5">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="label">Nom de la section</label>
+              <label className="label">Section name</label>
               <input
                 className="input text-xs"
                 value={section.name}
                 onChange={e => onChange({ ...section, name: e.target.value })}
-                placeholder="Analyse Technique"
+                placeholder="Technical Analysis"
               />
             </div>
             <div>
-              <label className="label">Catégorie</label>
+              <label className="label">Category</label>
               <select
                 className="input text-xs"
                 value={section.category}
                 onChange={e => onChange({ ...section, category: e.target.value as SectionCategory })}
               >
-                <option value="analyse">Analyse Technique</option>
-                <option value="remediation">Remédiations</option>
+                <option value="analysis">Technical Analysis</option>
+                <option value="remediation">Remediations</option>
                 <option value="conclusion">Conclusion</option>
               </select>
             </div>
@@ -156,7 +160,7 @@ function SectionRow({
               style={{ minHeight: 80 }}
               value={section.template}
               onChange={e => onChange({ ...section, template: e.target.value })}
-              placeholder="Contenu pré-rempli lors de la création du case…"
+              placeholder="Content pre-filled when the case is created..."
             />
           </div>
         </div>
@@ -187,7 +191,7 @@ export default function TemplateFormModal({ open, onClose, onSave, isSaving, err
   const addSection = () =>
     setForm(f => ({
       ...f,
-      sections: [...f.sections, { name: 'Nouvelle section', category: 'analyse', template: '' }],
+      sections: [...f.sections, { name: 'New section', category: 'analysis', template: '' }],
     }))
 
   const handleSave = async () => {
@@ -198,7 +202,7 @@ export default function TemplateFormModal({ open, onClose, onSave, isSaving, err
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Nouveau template" size="lg">
+    <Modal open={open} onClose={onClose} title="New template" size="lg">
       <div className="space-y-5 max-h-[72vh] overflow-y-auto pr-1">
 
         {error && (
@@ -208,12 +212,12 @@ export default function TemplateFormModal({ open, onClose, onSave, isSaving, err
           </div>
         )}
 
-        {/* ── Métadonnées ───────────────────────────────────────────────────── */}
+        {/* -- Metadata ------------------------------------------------------- */}
         <div className="space-y-3">
-          <p className="text-[10px] font-semibold tracking-widest uppercase text-accent-muted/40">Métadonnées</p>
+          <p className="text-[10px] font-semibold tracking-widest uppercase text-accent-muted/40">Metadata</p>
 
           <div>
-            <label className="label">Nom *</label>
+            <label className="label">Name *</label>
             <input
               className="input"
               placeholder="Ransomware — Generic"
@@ -226,7 +230,7 @@ export default function TemplateFormModal({ open, onClose, onSave, isSaving, err
             <label className="label">Description</label>
             <input
               className="input"
-              placeholder="Template générique pour les incidents ransomware"
+              placeholder="Generic template for ransomware incidents"
               value={form.description}
               onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
             />
@@ -234,7 +238,7 @@ export default function TemplateFormModal({ open, onClose, onSave, isSaving, err
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="label">Catégorie</label>
+              <label className="label">Category</label>
               <select className="input" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
                 <option value="ir">IR — Incident Response</option>
                 <option value="ctf">CTF</option>
@@ -282,7 +286,7 @@ export default function TemplateFormModal({ open, onClose, onSave, isSaving, err
         {/* ── Executive Summary Template ────────────────────────────────────── */}
         <div className="space-y-2">
           <p className="text-[10px] font-semibold tracking-widest uppercase text-accent-muted/40">
-            Executive Summary — modèle initial
+            Executive Summary - initial model
           </p>
           <textarea
             className="input font-mono text-xs resize-y"
@@ -319,7 +323,7 @@ export default function TemplateFormModal({ open, onClose, onSave, isSaving, err
             ))}
             {form.sections.length === 0 && (
               <p className="text-[10px] text-accent-muted/30 italic text-center py-4">
-                Aucune section — le rapport sera vide par défaut.
+                No section - the report will be empty by default.
               </p>
             )}
           </div>
@@ -329,7 +333,7 @@ export default function TemplateFormModal({ open, onClose, onSave, isSaving, err
       {/* ── Actions ───────────────────────────────────────────────────────────── */}
       <div className="flex justify-end gap-3 pt-4 border-t border-white/5 mt-4">
         <button className="btn-secondary flex items-center gap-1.5" onClick={onClose}>
-          <X size={13} /> Annuler
+          <X size={13} /> Cancel
         </button>
         <button
           className="btn-primary flex items-center gap-1.5"
@@ -337,7 +341,7 @@ export default function TemplateFormModal({ open, onClose, onSave, isSaving, err
           disabled={isSaving || !form.name.trim()}
         >
           <Save size={13} />
-          {isSaving ? 'Création…' : 'Créer le template'}
+          {isSaving ? 'Creating...' : 'Create the template'}
         </button>
       </div>
     </Modal>

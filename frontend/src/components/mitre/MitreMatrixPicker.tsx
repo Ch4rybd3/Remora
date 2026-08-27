@@ -431,8 +431,8 @@ export default function MitreMatrixPicker({
         <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-[10px] text-amber-400">
           <AlertTriangle size={10} className="shrink-0" />
           <span className="flex-1">
-            Le cache ATT&CK ne contient pas de sub-techniques — il date probablement d'avant la mise à jour.
-            Cliquez "Refresh" pour le régénérer.
+            The ATT&CK cache holds no sub-techniques - it most likely predates the update.
+            Click "Refresh" to rebuild it.
           </span>
           <button
             onClick={() => downloadMut.mutate()}

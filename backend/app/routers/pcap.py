@@ -37,18 +37,18 @@ def _resolve_capture(artifact_id: str, case_id: str, db: Session) -> Path:
         CsvArtifactFile.case_id == case_id,
     ).first()
     if not artifact:
-        raise HTTPException(404, "Artefact introuvable")
+        raise HTTPException(404, "Artifact not found")
 
     csv_path = Path(artifact.file_path)
     if not csv_path.name.endswith(_CSV_SUFFIX):
-        raise HTTPException(400, "Cet artefact n'est pas une capture réseau")
+        raise HTTPException(400, "This artifact is not a network capture")
 
     capture = csv_path.with_name(csv_path.name[: -len(_CSV_SUFFIX)])
     if not capture.exists():
         raise HTTPException(
             410,
-            "La capture d'origine n'est plus disponible — seule la liste de "
-            "paquets subsiste (le fichier a pu être purgé après 90 jours)",
+            "The original capture is no longer available - only the packet list "
+            "remains (the file may have been purged after 90 days)",
         )
     return capture
 
@@ -75,9 +75,9 @@ def get_stream(
 ):
     """Reassembled conversation — Wireshark's "Follow TCP Stream"."""
     if stream_index < 0:
-        raise HTTPException(400, "stream_index doit être >= 0")
+        raise HTTPException(400, "stream_index must be >= 0")
     if protocol not in ("tcp", "udp"):
-        raise HTTPException(400, "protocol doit être 'tcp' ou 'udp'")
+        raise HTTPException(400, "protocol must be 'tcp' or 'udp'")
 
     capture = _resolve_capture(artifact_id, case_id, db)
     try:
@@ -85,13 +85,13 @@ def get_stream(
     except pcap_service.TsharkUnavailable as e:
         raise HTTPException(503, str(e))
     except Exception as e:
-        raise HTTPException(500, f"Reconstruction impossible: {e}")
+        raise HTTPException(500, f"Reassembly failed: {e}")
 
     if not result["chunks"]:
         raise HTTPException(
             404,
-            f"Flux {protocol} n°{stream_index} vide ou introuvable "
-            f"(une poignée de main sans données n'a rien à reconstruire)",
+            f"{protocol} stream #{stream_index} is empty or not found "
+            f"(a handshake with no payload has nothing to reassemble)",
         )
     return {**result, "capture": capture.name}
 
@@ -106,7 +106,7 @@ def get_frame(
 ):
     """Full protocol tree and raw bytes for one packet — the detail pane."""
     if frame_number < 1:
-        raise HTTPException(400, "frame_number doit être >= 1")
+        raise HTTPException(400, "frame_number must be >= 1")
 
     capture = _resolve_capture(artifact_id, case_id, db)
     try:
@@ -114,10 +114,10 @@ def get_frame(
     except pcap_service.TsharkUnavailable as e:
         raise HTTPException(503, str(e))
     except Exception as e:
-        raise HTTPException(500, f"Dissection impossible: {e}")
+        raise HTTPException(500, f"Dissection failed: {e}")
 
     if not detail:
-        raise HTTPException(404, f"Paquet n°{frame_number} introuvable dans la capture")
+        raise HTTPException(404, f"Packet #{frame_number} not found in the capture")
 
     layers = detail.get("_source", {}).get("layers", {})
     return {

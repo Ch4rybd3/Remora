@@ -27,14 +27,14 @@ def create_user(
     db: Session = Depends(get_db),
     current: User = Depends(require_admin),
 ):
-    # On ne peut pas créer un compte de rang strictement supérieur au sien
+    # An actor cannot create an account ranked above their own
     if ROLE_RANK[payload.role] > ROLE_RANK[current.role]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Impossible de créer un compte de rôle '{payload.role.value}'",
+            detail=f"Cannot create an account with role '{payload.role.value}'",
         )
     if db.query(User).filter(User.username == payload.username).first():
-        raise HTTPException(status_code=409, detail="Ce nom d'utilisateur est déjà pris")
+        raise HTTPException(status_code=409, detail="Username already taken")
     user = User(
         username=payload.username,
         email=payload.email,
@@ -62,18 +62,18 @@ def update_user(
 ):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+        raise HTTPException(status_code=404, detail="User not found")
 
     assert_can_manage(current, user)
 
     if user.id == current.id and payload.is_active is False:
-        raise HTTPException(status_code=400, detail="Impossible de se désactiver soi-même")
+        raise HTTPException(status_code=400, detail="Cannot deactivate your own account")
 
-    # On ne peut pas assigner un rôle de rang strictement supérieur au sien
+    # An actor cannot assign a role ranked above their own
     if payload.role and ROLE_RANK[payload.role] > ROLE_RANK[current.role]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Impossible d'assigner le rôle '{payload.role.value}'",
+            detail=f"Cannot assign role '{payload.role.value}'",
         )
 
     updates = payload.model_dump(exclude_unset=True)
@@ -98,13 +98,13 @@ def change_password(
 ):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+        raise HTTPException(status_code=404, detail="User not found")
 
-    # Chacun peut changer son propre mot de passe
+    # Anyone may change their own password
     if current.id != user_id:
-        # Sinon il faut être admin/owner ET avoir un rang supérieur
+        # Otherwise the actor must be admin/owner AND outrank the target
         if ROLE_RANK[current.role] < ROLE_RANK[UserRole.admin]:
-            raise HTTPException(status_code=403, detail="Accès refusé")
+            raise HTTPException(status_code=403, detail="Access denied")
         assert_can_manage(current, user)
 
     user.hashed_password = hash_password(payload.new_password)
@@ -124,10 +124,10 @@ def delete_user(
     current: User = Depends(require_admin),
 ):
     if current.id == user_id:
-        raise HTTPException(status_code=400, detail="Impossible de supprimer son propre compte")
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+        raise HTTPException(status_code=404, detail="User not found")
 
     assert_can_manage(current, user)
 

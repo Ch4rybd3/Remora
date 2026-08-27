@@ -63,7 +63,7 @@ export default function CaseDetail() {
     enabled: !!id,
   })
 
-  // Définit ce case comme "case courant" dès qu'on le charge
+  // Mark this case as the "current case" as soon as it loads
   useEffect(() => {
     if (case_) setCurrentCase({ id: case_.id, title: case_.title, client_id: case_.client_id })
   }, [case_?.id, case_?.title])

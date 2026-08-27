@@ -68,16 +68,16 @@ async def upload_collection(
         if ext not in _FLAT_EXTS and not is_archive(f.filename):
             raise HTTPException(
                 400,
-                f"Type non supporté '{f.filename}'. Acceptés: "
-                f"{', '.join(sorted(_FLAT_EXTS))} et les archives ({ARCHIVE_EXTS_LABEL})",
+                f"Unsupported type '{f.filename}'. Accepted: "
+                f"{', '.join(sorted(_FLAT_EXTS))} and archives ({ARCHIVE_EXTS_LABEL})",
             )
 
     # Mixed uploads not allowed — either one archive or flat files
     archives = [f for f in files if is_archive(f.filename)]
     if archives and len(archives) != len(files):
-        raise HTTPException(400, "Impossible de mélanger une archive et d'autres fichiers dans le même upload")
+        raise HTTPException(400, "Cannot mix an archive with other files in the same upload")
     if len(archives) > 1:
-        raise HTTPException(400, "Une seule archive par upload")
+        raise HTTPException(400, "Only one archive per upload")
 
     collection_id = str(uuid.uuid4())
     dest_dir = _collection_dir(case_id, collection_id)

@@ -176,5 +176,5 @@ async def upload_note_image(case_id: str, file: UploadFile = File(...)):
     dest = dest_dir / filename
     with open(dest, "wb") as out:
         shutil.copyfileobj(file.file, out)
-    # Servi via StaticFiles monté sur /note-images (sans auth)
+    # Served by StaticFiles mounted at /note-images (no auth)
     return {"url": f"/note-images/{case_id}/{filename}"}

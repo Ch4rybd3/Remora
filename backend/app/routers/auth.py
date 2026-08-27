@@ -34,7 +34,7 @@ def _check_rate_limit(username: str) -> None:
             remaining = int(state[2] - now) + 1
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Trop de tentatives. Réessayez dans {remaining}s.",
+                detail=f"Too many attempts. Try again in {remaining}s.",
             )
         if now - state[1] > _WINDOW_SECONDS:
             state[0] = 0

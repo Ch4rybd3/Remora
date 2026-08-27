@@ -320,7 +320,7 @@ export default function Templates() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget)}
         title="Delete Template"
-        message={`Le fichier ${deleteTarget}.yaml sera supprimé définitivement.`}
+        message={`The file ${deleteTarget}.yaml will be permanently deleted.`}
       />
 
       {/* TTP picker — full-screen modal */}

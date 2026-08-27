@@ -322,7 +322,7 @@ function FollowStreamPanel({ stream, onClose }: { stream: PcapStream; onClose: (
           </div>
           <button onClick={copy}
             className="ml-auto flex items-center gap-1 text-[10px] px-2 py-1 rounded border border-white/10 text-accent-muted hover:text-accent-green hover:border-accent-green/40 transition-colors">
-            {copied ? <Check size={10} className="text-accent-green" /> : <Copy size={10} />} Copier
+            {copied ? <Check size={10} className="text-accent-green" /> : <Copy size={10} />} Copy
           </button>
           <button onClick={download}
             className="flex items-center gap-1 text-[10px] px-2 py-1 rounded border border-white/10 text-accent-muted hover:text-accent-green hover:border-accent-green/40 transition-colors">
@@ -332,7 +332,7 @@ function FollowStreamPanel({ stream, onClose }: { stream: PcapStream; onClose: (
 
         {stream.truncated && (
           <p className="px-4 py-1.5 text-[10px] text-yellow-400/80 bg-yellow-500/5 border-b border-yellow-500/15 shrink-0">
-            Conversation tronquée : seuls les 2 premiers Mo sont affichés.
+            Conversation truncated: only the first 2 MB are shown.
           </p>
         )}
 
@@ -349,7 +349,7 @@ function FollowStreamPanel({ stream, onClose }: { stream: PcapStream; onClose: (
             </pre>
           ))}
           {shown.length === 0 && (
-            <p className="text-accent-muted/30 italic">Aucune donnée dans ce sens.</p>
+            <p className="text-accent-muted/30 italic">No data in this direction.</p>
           )}
         </div>
       </div>
@@ -409,7 +409,7 @@ function PinnedPanel({ pinned, onUnpin, onClear, onEdit, onExport, exporting }: 
     <div className="w-72 shrink-0 border-l border-white/5 bg-bg-card flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-3 py-3 border-b border-white/5 shrink-0">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-accent-muted/50 flex items-center gap-1.5">
-          <BookmarkCheck size={10} /> Sélection
+          <BookmarkCheck size={10} /> Selection
           {pinned.length > 0 && (
             <span className="ml-1 bg-accent-green/15 text-accent-green border border-accent-green/30 rounded px-1.5 py-0.5 text-[9px] font-bold">
               {pinned.length}
@@ -428,7 +428,7 @@ function PinnedPanel({ pinned, onUnpin, onClear, onEdit, onExport, exporting }: 
         <div className="flex-1 flex flex-col items-center justify-center gap-2 px-4 text-center">
           <BookmarkPlus size={22} className="text-accent-muted/15" />
           <p className="text-[10px] text-accent-muted/30 leading-relaxed">
-            Épinglez des paquets pour les préparer avant envoi vers la timeline
+            Pin packets to stage them before sending to the timeline
           </p>
         </div>
       ) : (
@@ -457,7 +457,7 @@ function PinnedPanel({ pinned, onUnpin, onClear, onEdit, onExport, exporting }: 
                 {isOpen && (
                   <div className="mt-2 pl-[19px] space-y-1.5">
                     <div>
-                      <label className="text-[8px] uppercase tracking-widest text-accent-muted/40">Titre</label>
+                      <label className="text-[8px] uppercase tracking-widest text-accent-muted/40">Title</label>
                       <input value={item.title}
                         onChange={e => onEdit(item.key, { title: e.target.value })}
                         className="w-full mt-0.5 bg-black/30 border border-white/10 rounded px-1.5 py-1 text-[10px] text-white/90 focus:border-accent-green/40 focus:outline-none" />
@@ -617,7 +617,7 @@ export default function PcapExplorer() {
       <div className="p-6">
         <div className="flex items-center gap-2 text-sm text-accent-muted bg-white/[0.02] border border-white/8 rounded-lg px-4 py-3">
           <AlertCircle size={14} />
-          Sélectionnez un case courant depuis la barre du haut pour explorer ses captures.
+          Select a current case from the top bar to explore its captures.
         </div>
       </div>
     )
@@ -628,7 +628,7 @@ export default function PcapExplorer() {
       <div className="p-6">
         <div className="flex items-center gap-2 text-sm text-yellow-400 bg-yellow-500/5 border border-yellow-500/20 rounded-lg px-4 py-3">
           <AlertCircle size={14} />
-          tshark n'est pas disponible dans l'image backend — la dissection PCAP est désactivée.
+          tshark is not available in the backend image - PCAP dissection is disabled.
         </div>
       </div>
     )
@@ -649,7 +649,7 @@ export default function PcapExplorer() {
         <div className="flex-1 overflow-y-auto">
           {captures.length === 0 && (
             <p className="px-3 py-6 text-[10px] text-accent-muted/30 leading-relaxed text-center">
-              Aucune capture dans ce case. Déposez un .pcap / .pcapng dans le drop folder
+              No capture in this case. Drop a .pcap / .pcapng into the drop folder
               ou depuis l'onglet Collection.
             </p>
           )}
@@ -679,7 +679,7 @@ export default function PcapExplorer() {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Filtrer les paquets (recherche plein texte)…"
+              placeholder="Filter packets (full-text search)..."
               className="w-full bg-black/30 border border-white/10 rounded pl-7 pr-2 py-1 text-[11px] text-white/90 placeholder:text-accent-muted/30 focus:border-accent-green/40 focus:outline-none"
             />
             {search && (
@@ -734,7 +734,7 @@ export default function PcapExplorer() {
                     <td className="px-1 py-1 align-top">
                       <button
                         onClick={e => { e.stopPropagation(); togglePin(row) }}
-                        title={isPinned ? 'Retirer de la sélection' : 'Épingler ce paquet'}
+                        title={isPinned ? 'Remove from the selection' : 'Pin this packet'}
                         className={`transition-colors ${
                           isPinned ? 'text-accent-green' : 'text-accent-muted/20 hover:text-accent-green'
                         }`}>
@@ -755,7 +755,7 @@ export default function PcapExplorer() {
           </table>
           {rows && rows.items.length === 0 && (
             <p className="p-6 text-center text-[11px] text-accent-muted/30">
-              Aucun paquet ne correspond au filtre.
+              No packet matches the filter.
             </p>
           )}
         </div>
@@ -765,13 +765,13 @@ export default function PcapExplorer() {
           <div className="flex-1 min-w-0 border-r border-white/5 flex flex-col overflow-hidden">
             <div className="flex items-center gap-2 px-2 py-1 border-b border-white/5 shrink-0">
               <p className="text-[9px] uppercase tracking-widest text-accent-muted/35">
-                Détail du paquet {frameNo !== null && `— n°${frameNo}`}
+                Packet detail {frameNo !== null && `- #${frameNo}`}
               </p>
               {currentStream !== null && (
                 <button
                   onClick={() => setFollowing(currentStream)}
                   disabled={loadingStream}
-                  title="Reconstruire la conversation complète de ce flux"
+                  title="Reassemble the full conversation for this stream"
                   className="ml-auto flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border border-accent-green/25 text-accent-green/80 hover:bg-accent-green/10 transition-colors disabled:opacity-40"
                 >
                   {loadingStream
@@ -788,7 +788,7 @@ export default function PcapExplorer() {
             )}
             {frameNo === null ? (
               <p className="p-3 text-[10px] text-accent-muted/30 italic">
-                Sélectionnez un paquet pour voir son arborescence de protocoles.
+                Select a packet to see its protocol tree.
               </p>
             ) : loadingFrame ? (
               <div className="flex items-center gap-2 p-3 text-[10px] text-accent-muted/40">

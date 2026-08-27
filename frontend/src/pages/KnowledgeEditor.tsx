@@ -57,7 +57,7 @@ export default function KnowledgeEditor() {
         <div className="flex items-center gap-2 px-3 py-1.5 border-b border-white/5 shrink-0 bg-bg-secondary/50">
           <button
             onClick={() => navigate('/knowledge')}
-            title="Retour aux vaults"
+            title="Back to vaults"
             className="p-1 rounded text-accent-muted/40 hover:text-white hover:bg-white/5 transition-colors"
           >
             <ArrowLeft size={13} />

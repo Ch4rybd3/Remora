@@ -58,7 +58,7 @@ export default function NotesTab({ case_ }: Props) {
           Scratchpad libre — non inclus dans le rapport final · autosave · Ctrl+S
         </span>
         {saved && (
-          <span className="text-[10px] text-accent-green/60 animate-pulse">Sauvegardé ✓</span>
+          <span className="text-[10px] text-accent-green/60 animate-pulse">Saved</span>
         )}
         {dirty && !save.isPending && (
           <button
@@ -79,7 +79,7 @@ export default function NotesTab({ case_ }: Props) {
           caseId={case_.id}
           minHeight={500}
           autoResize
-          placeholder={'# Notes\n\n- Observation à 14:32 UTC…\n- Mouvement latéral via PsExec…'}
+          placeholder={'# Notes\n\n- Observation at 14:32 UTC...\n- Lateral movement through PsExec...'}
         />
       </div>
     </div>

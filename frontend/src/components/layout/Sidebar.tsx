@@ -76,7 +76,7 @@ function TimezoneSelector() {
             ? 'text-accent-muted hover:text-white hover:bg-white/5'
             : 'text-orange-400 hover:bg-orange-400/5'
         }`}
-        title={isUTC ? 'Timezone (UTC recommandé)' : '⚠ UTC recommandé pour l\'analyse forensique'}
+        title={isUTC ? 'Timezone (UTC recommended)' : 'UTC is recommended for forensic analysis'}
       >
         <Clock size={12} className="shrink-0" />
         <span className="flex-1 text-left truncate font-mono">{current?.label ?? timezone}</span>
@@ -97,7 +97,7 @@ function TimezoneSelector() {
             {!isUTC && (
               <div className="flex items-start gap-2 px-3 py-2 bg-orange-400/8 border-b border-orange-400/20 text-[10px] text-orange-300">
                 <AlertTriangle size={11} className="shrink-0 mt-0.5" />
-                <span>UTC recommandé pour l&rsquo;analyse forensique. Le changement de timezone peut fausser la corrélation des événements.</span>
+                <span>UTC is recommended for forensic analysis. Changing the timezone can skew event correlation.</span>
               </div>
             )}
 
@@ -244,7 +244,7 @@ export default function Sidebar() {
             }
           }}
           className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-accent-muted/50 hover:text-accent-green hover:bg-accent-green/5 transition-colors"
-          title="Télécharger une sauvegarde SQLite de la base de données"
+          title="Download a SQLite backup of the database"
         >
           <Download size={12} />
           Backup BD
@@ -281,7 +281,7 @@ export default function Sidebar() {
           className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-accent-muted hover:text-severity-critical hover:bg-severity-critical/5 transition-colors"
         >
           <LogOut size={13} />
-          Déconnexion
+          Log out
         </button>
       </div>
 

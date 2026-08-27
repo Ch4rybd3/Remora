@@ -53,7 +53,7 @@ class Case(Base):
 
     # ── Report sections (split editor) ─────────────────────────────────────────
     report_analysis    = Column(Text, default="")   # Analyse Technique  → {{report_analysis}}
-    report_remediation = Column(Text, default="")   # Remédiations       → {{report_remediation}}
+    report_remediation = Column(Text, default="")   # Remediations       -> {{report_remediation}}
     report_conclusion  = Column(Text, default="")   # Conclusion         → {{report_conclusion}}
 
     # Dynamic per-section content — JSON dict {slug: markdown_text}

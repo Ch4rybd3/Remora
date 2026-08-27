@@ -57,7 +57,7 @@ def create_playbook(
 def get_playbook(pb_id: str, db: Session = Depends(get_db)):
     pb = db.query(Playbook).filter(Playbook.id == pb_id).first()
     if not pb:
-        raise HTTPException(status_code=404, detail="Playbook introuvable")
+        raise HTTPException(status_code=404, detail="Playbook not found")
     return pb
 
 
@@ -70,7 +70,7 @@ def update_playbook(
 ):
     pb = db.query(Playbook).filter(Playbook.id == pb_id).first()
     if not pb:
-        raise HTTPException(status_code=404, detail="Playbook introuvable")
+        raise HTTPException(status_code=404, detail="Playbook not found")
     data = payload.model_dump(exclude_unset=True)
     if "nodes" in data:
         data["nodes"] = json.dumps(data["nodes"])
@@ -96,7 +96,7 @@ def delete_playbook(
 ):
     pb = db.query(Playbook).filter(Playbook.id == pb_id).first()
     if not pb:
-        raise HTTPException(status_code=404, detail="Playbook introuvable")
+        raise HTTPException(status_code=404, detail="Playbook not found")
     audit_log(db, user=current_user, action="playbook.delete",
               resource_type="playbook", resource_id=pb_id,
               resource_name=pb.name)
@@ -122,13 +122,13 @@ def attach_playbook(
     case = _get_case(case_id, db)
     pb = db.query(Playbook).filter(Playbook.id == payload.playbook_id).first()
     if not pb:
-        raise HTTPException(status_code=404, detail="Playbook introuvable")
+        raise HTTPException(status_code=404, detail="Playbook not found")
     already = db.query(CasePlaybook).filter(
         CasePlaybook.case_id == case_id,
         CasePlaybook.playbook_id == payload.playbook_id,
     ).first()
     if already:
-        raise HTTPException(status_code=409, detail="Playbook déjà associé à ce case")
+        raise HTTPException(status_code=409, detail="Playbook already attached to this case")
     cp = CasePlaybook(case_id=case_id, playbook_id=payload.playbook_id)
     db.add(cp)
     audit_log(db, user=current_user, action="playbook.attach",
@@ -150,7 +150,7 @@ def detach_playbook(
         CasePlaybook.id == cp_id, CasePlaybook.case_id == case_id
     ).first()
     if not cp:
-        raise HTTPException(status_code=404, detail="Association introuvable")
+        raise HTTPException(status_code=404, detail="Association not found")
     case = _get_case(case_id, db)
     pb = db.query(Playbook).filter(Playbook.id == cp.playbook_id).first()
     audit_log(db, user=current_user, action="playbook.detach",
@@ -173,7 +173,7 @@ def update_step(
         CasePlaybook.id == cp_id, CasePlaybook.case_id == case_id
     ).first()
     if not cp:
-        raise HTTPException(status_code=404, detail="Association introuvable")
+        raise HTTPException(status_code=404, detail="Association not found")
     case = _get_case(case_id, db)
     states: dict = json.loads(cp.step_states)
     previous: dict = states.get(node_id) or {}
@@ -213,13 +213,13 @@ def update_step_assignee(
         CasePlaybook.id == cp_id, CasePlaybook.case_id == case_id
     ).first()
     if not cp:
-        raise HTTPException(status_code=404, detail="Association introuvable")
+        raise HTTPException(status_code=404, detail="Association not found")
 
     if payload.assignee and payload.assignee.kind == "user":
         if not payload.assignee.user_id:
-            raise HTTPException(status_code=400, detail="user_id requis pour kind='user'")
+            raise HTTPException(status_code=400, detail="user_id is required for kind='user'")
         if not db.query(User).filter(User.id == payload.assignee.user_id).first():
-            raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+            raise HTTPException(status_code=404, detail="User not found")
 
     case = _get_case(case_id, db)
     states: dict = json.loads(cp.step_states)
@@ -243,5 +243,5 @@ def update_step_assignee(
 def _get_case(case_id: str, db: Session) -> Case:
     case = db.query(Case).filter(Case.id == case_id).first()
     if not case:
-        raise HTTPException(status_code=404, detail="Case introuvable")
+        raise HTTPException(status_code=404, detail="Case not found")
     return case

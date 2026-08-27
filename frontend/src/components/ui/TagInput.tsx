@@ -154,7 +154,7 @@ export default function TagInput({ tags, onChange, suggestions, placeholder }: P
       )}
 
       <p className="text-xs text-accent-muted/40 mt-1">
-        Entrée ou virgule pour valider · Suppr pour effacer
+        Enter or comma to confirm - Backspace to remove
       </p>
     </div>
   )

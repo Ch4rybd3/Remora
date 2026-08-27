@@ -259,7 +259,7 @@ function MarkdownBody({ value, empty }: { value: string; empty?: string }) {
       {value}
     </ReactMarkdown>
   ) : (
-    <span className="italic opacity-30">{empty ?? 'Aucune note…'}</span>
+    <span className="italic opacity-30">{empty ?? 'No note...'}</span>
   )
 }
 
@@ -511,7 +511,7 @@ export function LiveEditor({
           <div className="px-3 py-1 border-b border-white/5 flex items-center gap-1.5">
             <span className="text-[9px] font-mono text-accent-green/60 tracking-widest">[[</span>
             <span className="text-[10px] text-accent-muted/50">
-              {suggest.query ? `"${suggest.query}"` : 'toutes les notes'}
+              {suggest.query ? `"${suggest.query}"` : 'all notes'}
             </span>
           </div>
 
@@ -536,7 +536,7 @@ export function LiveEditor({
 
           <div className="px-3 py-1 border-t border-white/5 flex items-center gap-3 text-[9px] text-accent-muted/30">
             <span>↑↓ naviguer</span>
-            <span>↵ insérer</span>
+            <span>Enter to insert</span>
             <span>Esc annuler</span>
           </div>
         </div>
@@ -624,7 +624,7 @@ export default function MarkdownEditor({
           </div>
           {uploading
             ? <span className="flex items-center gap-1 text-[10px] text-accent-muted"><Loader2 size={10} className="animate-spin" /> Upload…</span>
-            : <span className="text-[9px] text-accent-muted/30 flex items-center gap-1"><ImageIcon size={9} /> Ctrl+V pour coller une image</span>
+            : <span className="text-[9px] text-accent-muted/30 flex items-center gap-1"><ImageIcon size={9} /> Ctrl+V to paste an image</span>
           }
         </div>
       )}

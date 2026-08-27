@@ -132,7 +132,7 @@ function ScoreGauge({ score, label }: { score: number; label: string }) {
 function AutoToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
     <button onClick={e => { e.stopPropagation(); onToggle() }}
-      title={on ? 'Auto-query activé — cliquer pour désactiver' : 'Auto-query désactivé — cliquer pour activer'}
+      title={on ? 'Auto-query enabled - click to disable' : 'Auto-query disabled - click to enable'}
       className="flex items-center gap-1 group shrink-0">
       <span className={`text-[8px] transition-colors ${on ? 'text-accent-green/40' : 'text-accent-muted/25'}`}>auto</span>
       <div className={`relative w-7 h-3.5 rounded-full transition-colors ${on ? 'bg-accent-green/40' : 'bg-white/10'}`}>
@@ -193,10 +193,10 @@ function WidgetCard({ title, icon, color, link, linkLabel, extraLinks, children,
           </div>
         ) : pendingManual ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-2">
-            <p className="text-[10px] text-accent-muted/30">Requête manuelle</p>
+            <p className="text-[10px] text-accent-muted/30">Manual query</p>
             <button onClick={onRunManual}
               className="flex items-center gap-1.5 text-[10px] px-3 py-1.5 rounded border border-accent-green/25 text-accent-green/70 hover:text-accent-green hover:border-accent-green/50 hover:bg-accent-green/5 transition-colors">
-              <Play size={10} /> Lancer la requête
+              <Play size={10} /> Run the query
             </button>
           </div>
         ) : error ? (
@@ -206,7 +206,7 @@ function WidgetCard({ title, icon, color, link, linkLabel, extraLinks, children,
         ) : noKey ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center py-1">
             <Info size={13} className="text-accent-muted/20" />
-            <p className="text-[10px] text-accent-muted/40">Clé API non configurée</p>
+            <p className="text-[10px] text-accent-muted/40">API key not configured</p>
             <div className="flex items-center gap-1.5 flex-wrap justify-center">
               <a href="/config/connectors"
                 className="text-[9px] px-2 py-0.5 rounded border border-accent-green/20 text-accent-green/60 hover:text-accent-green hover:border-accent-green/40 transition-colors">
@@ -215,7 +215,7 @@ function WidgetCard({ title, icon, color, link, linkLabel, extraLinks, children,
               {registerUrl && (
                 <a href={registerUrl} target="_blank" rel="noopener noreferrer"
                   className="text-[9px] px-2 py-0.5 rounded border border-white/10 text-accent-muted/40 hover:text-white hover:border-white/20 transition-colors flex items-center gap-1">
-                  <ExternalLink size={7} /> Créer un compte
+                  <ExternalLink size={7} /> Create an account
                 </a>
               )}
             </div>
@@ -558,7 +558,7 @@ function GlobeInfoPanel({ ioc, geoPoint, result }: {
       {/* Geo info */}
       <div className="px-3 py-2.5 border-b border-white/5 shrink-0 space-y-1.5">
         <p className="text-[9px] uppercase tracking-widest text-accent-muted/30 flex items-center gap-1">
-          <MapPin size={8} /> Géolocalisation
+          <MapPin size={8} /> Geolocation
         </p>
         {geoPoint ? (
           <div className="space-y-1 text-[10px]">
@@ -586,7 +586,7 @@ function GlobeInfoPanel({ ioc, geoPoint, result }: {
       {(result?.virustotal?.as_owner || result?.virustotal?.network) && (
         <div className="px-3 py-2.5 border-b border-white/5 shrink-0 space-y-1.5">
           <p className="text-[9px] uppercase tracking-widest text-accent-muted/30 flex items-center gap-1">
-            <Wifi size={8} /> Réseau
+            <Wifi size={8} /> Network
           </p>
           <div className="space-y-1 text-[10px]">
             {result.virustotal.as_owner && <p className="truncate"><span className="text-accent-muted/40">Owner   </span><span className="text-white/60">{result.virustotal.as_owner}</span></p>}
@@ -646,7 +646,7 @@ function GlobeInfoPanel({ ioc, geoPoint, result }: {
                 <div className="flex-1 overflow-y-auto">
                   {active.loading ? (
                     <div className="flex items-center gap-1.5 px-3 py-3 text-[10px] text-accent-muted/40">
-                      <Loader2 size={10} className="animate-spin" /> Exécution…
+                      <Loader2 size={10} className="animate-spin" /> Running...
                     </div>
                   ) : active.result ? (
                     <pre className="px-3 py-2 text-[9px] font-mono text-white/60 whitespace-pre-wrap break-all leading-relaxed">
@@ -661,7 +661,7 @@ function GlobeInfoPanel({ ioc, geoPoint, result }: {
             )}
             {!active && (
               <div className="flex-1 flex items-center justify-center">
-                <p className="text-[10px] text-accent-muted/20 italic">Lance une commande ci-dessus</p>
+                <p className="text-[10px] text-accent-muted/20 italic">Run a command above</p>
               </div>
             )}
           </div>
@@ -670,7 +670,7 @@ function GlobeInfoPanel({ ioc, geoPoint, result }: {
 
       {commands.length === 0 && (
         <div className="flex-1 flex items-center justify-center px-3">
-          <p className="text-[10px] text-accent-muted/20 italic text-center">Aucune commande réseau disponible pour ce type d'IOC</p>
+          <p className="text-[10px] text-accent-muted/20 italic text-center">No network command available for this IOC type</p>
         </div>
       )}
     </div>
@@ -783,7 +783,7 @@ function IOCPanel({ iocs, selected, onSelect, onAnalyze, analyzing }: {
       <div className="px-3 py-2 border-b border-white/5 shrink-0 space-y-1.5">
         <div className="relative">
           <Search size={10} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-accent-muted/30" />
-          <input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Filtrer…"
+          <input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Filter..."
             className="w-full bg-white/5 border border-white/8 rounded pl-7 pr-3 py-1 text-[11px] text-white placeholder:text-accent-muted/30 outline-none focus:border-accent-green/30 transition-colors" />
         </div>
         <div className="flex gap-1">
@@ -798,7 +798,7 @@ function IOCPanel({ iocs, selected, onSelect, onAnalyze, analyzing }: {
       <div className="flex-1 overflow-y-auto divide-y divide-white/[0.04]">
         {filtered.length === 0 && (
           <p className="px-3 py-6 text-center text-[11px] text-accent-muted/30 italic">
-            {iocs.length === 0 ? 'Aucun IOC dans ce case' : 'Aucun résultat'}
+            {iocs.length === 0 ? 'No IOC in this case' : 'No result'}
           </p>
         )}
         {filtered.map(ioc => {
@@ -1028,7 +1028,7 @@ export default function CTILookup() {
           <div className="relative flex-1 bg-[#0B121F] overflow-hidden">
             {geoLoading && (
               <div className="absolute top-2 right-2 z-10 flex items-center gap-1 text-[9px] text-accent-muted/40 bg-black/30 px-2 py-1 rounded">
-                <Loader2 size={9} className="animate-spin" /> Géolocalisation…
+                <Loader2 size={9} className="animate-spin" /> Geolocating...
               </div>
             )}
             <ThreatGlobe points={enrichedPoints}
@@ -1066,8 +1066,8 @@ export default function CTILookup() {
           {!selectedIoc ? (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
               <Shield size={36} className="text-accent-muted/10" />
-              <p className="text-white/25 text-sm">Sélectionnez un IOC dans la liste pour lancer l'analyse</p>
-              <p className="text-accent-muted/15 text-xs">ou saisissez une valeur dans le champ de recherche</p>
+              <p className="text-white/25 text-sm">Select an IOC from the list to start the analysis</p>
+              <p className="text-accent-muted/15 text-xs">or type a value into the search field</p>
             </div>
           ) : (() => {
             const r   = selectedIoc.result ?? null

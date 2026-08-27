@@ -192,10 +192,10 @@ function PinnedRow({ ev, caseId, isSent, isLast, onRemove, onSent }: PinnedRowPr
           ) : (
             <p
               className="text-[9px] text-accent-muted/45 leading-snug whitespace-pre-line line-clamp-3 cursor-pointer hover:text-accent-muted/70 transition-colors"
-              title="Cliquer pour éditer la description avant l'envoi"
+              title="Click to edit the description before sending"
               onClick={() => setEditingDesc(true)}
             >
-              {editDesc || <span className="italic opacity-50">Cliquer pour ajouter une description…</span>}
+              {editDesc || <span className="italic opacity-50">Click to add a description...</span>}
             </p>
           )}
         </div>

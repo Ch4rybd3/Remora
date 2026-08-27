@@ -295,7 +295,7 @@ export function PlaybookRefNode({ data, selected }: NodeProps) {
         </p>
       )}
       {!hasLink && !done && (
-        <p className="text-[9px] text-purple-400/30 mt-0.5 pl-4 italic">non lié</p>
+        <p className="text-[9px] text-purple-400/30 mt-0.5 pl-4 italic">not linked</p>
       )}
       {d.assignee && <span className="block pl-4"><AssigneeBadge assignee={d.assignee} /></span>}
       <Handle

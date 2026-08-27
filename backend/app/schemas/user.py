@@ -14,17 +14,17 @@ _PW_RE_SPECIAL = re.compile(r'[!@#$%^&*()\-_=+\[\]{}|;:\'",.<>?/\\`~]')
 def _validate_password(v: str) -> str:
     errors = []
     if len(v) < 8:
-        errors.append("au moins 8 caractères")
+        errors.append("at least 8 characters")
     if not _PW_RE_UPPER.search(v):
-        errors.append("une majuscule")
+        errors.append("an uppercase letter")
     if not _PW_RE_LOWER.search(v):
-        errors.append("une minuscule")
+        errors.append("a lowercase letter")
     if not _PW_RE_DIGIT.search(v):
-        errors.append("un chiffre")
+        errors.append("a digit")
     if not _PW_RE_SPECIAL.search(v):
-        errors.append("un caractère spécial")
+        errors.append("a special character")
     if errors:
-        raise ValueError("Le mot de passe doit contenir : " + ", ".join(errors))
+        raise ValueError("Password must contain: " + ", ".join(errors))
     return v
 
 

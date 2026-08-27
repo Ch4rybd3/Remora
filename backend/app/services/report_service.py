@@ -29,34 +29,34 @@ def _section_slug(section: dict) -> str:
 
 DEFAULT_SECTIONS = [
     {
-        "name":     "Analyse Technique",
-        "category": "analyse",
+        "name":     "Technical Analysis",
+        "category": "analysis",
         "template": (
-            "### Cause Racine\n\n"
-            "*Décrire l'origine de l'incident (vecteur initial, vulnérabilité exploitée…)*\n\n"
-            "### Chaîne d'Attaque\n\n"
-            "*Décrire chronologiquement comment l'attaque a progressé.*\n\n"
+            "### Root Cause\n\n"
+            "*Describe how the incident started (initial vector, vulnerability exploited...)*\n\n"
+            "### Attack Chain\n\n"
+            "*Describe chronologically how the attack progressed.*\n\n"
             "### Impact\n\n"
-            "*Décrire l'impact technique et métier de l'incident.*"
+            "*Describe the technical and business impact of the incident.*"
         ),
     },
     {
-        "name":     "Remédiations",
+        "name":     "Remediations",
         "category": "remediation",
         "template": (
-            "*Lister les actions de remédiation réalisées ou en cours, avec statut et responsable.*\n\n"
+            "*List the remediation actions completed or in progress, with status and owner.*\n\n"
             "- [ ] Action 1\n"
             "- [ ] Action 2"
         ),
     },
     {
-        "name":     "Conclusion & Recommandations",
+        "name":     "Conclusion & Recommendations",
         "category": "conclusion",
         "template": (
-            "*Synthèse de l'incident et recommandations long terme pour réduire la surface d'attaque "
-            "et prévenir la récidive.*\n\n"
-            "- [ ] Recommandation 1\n"
-            "- [ ] Recommandation 2"
+            "*Summary of the incident and long-term recommendations to reduce the attack "
+            "surface and prevent a recurrence.*\n\n"
+            "- [ ] Recommendation 1\n"
+            "- [ ] Recommendation 2"
         ),
     },
 ]
@@ -92,11 +92,11 @@ class ReportService:
         for section in sections_def:
             name          = section.get("name", "Section")
             template_text = (section.get("template") or "").strip()
-            raw_cat       = (section.get("category") or "analyse").lower().strip()
+            raw_cat       = (section.get("category") or "analysis").lower().strip()
             bucket        = _CAT_MAP.get(raw_cat, "analysis")
             slug          = _section_slug(section)
 
-            content = f"## {name}\n\n{template_text}\n" if template_text else f"## {name}\n\n*…*\n"
+            content = f"## {name}\n\n{template_text}\n" if template_text else f"## {name}\n\n*...*\n"
             buckets[bucket].append(content)
             sections_data[slug] = content.strip()
 
@@ -138,13 +138,13 @@ class ReportService:
                 f"- `{t.technique_id}` {t.technique_name} *({t.tactic_name})*"
                 for t in sorted(ttps, key=lambda x: x.technique_id)
             )
-            parts.append(f"**TTPs clés :**\n{ttp_lines}")
+            parts.append(f"**Key TTPs:**\n{ttp_lines}")
 
         if not parts:
             return ""
 
         return (
-            "> **Contexte rapide** *(retirer avant export)*\n>\n"
+            "> **Quick context** *(remove before export)*\n>\n"
             + "\n>\n".join("> " + p.replace("\n", "\n> ") for p in parts)
             + "\n"
         )

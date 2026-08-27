@@ -30,29 +30,29 @@ function NewClientModal({ open, onClose, templates }: {
   })
 
   return (
-    <Modal open={open} onClose={onClose} title="Nouveau client" size="sm">
+    <Modal open={open} onClose={onClose} title="New client" size="sm">
       <div className="space-y-4">
         <div>
-          <label className="label">Nom *</label>
+          <label className="label">Name *</label>
           <input className="input" autoFocus value={name} onChange={e => setName(e.target.value)}
                  placeholder="Ex: Acme Corp" />
         </div>
         <div>
           <label className="label">Secteur</label>
           <input className="input" value={industry} onChange={e => setIndustry(e.target.value)}
-                 placeholder="Finance, Santé, Industrie…" />
+                 placeholder="Finance, Healthcare, Industry..." />
         </div>
         <div>
           <label className="label">Template de documentation</label>
           <select className="input" value={docTemplateId} onChange={e => setDocTemplateId(e.target.value)}>
-            <option value="">Aucun — base libre</option>
+            <option value="">None - free-form base</option>
             {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </div>
         <div className="flex justify-end gap-3 pt-2">
-          <button className="btn-secondary" onClick={onClose}>Annuler</button>
+          <button className="btn-secondary" onClick={onClose}>Cancel</button>
           <button className="btn-primary" disabled={!name.trim() || create.isPending} onClick={() => create.mutate()}>
-            {create.isPending ? 'Création…' : 'Créer'}
+            {create.isPending ? 'Creating...' : 'Create'}
           </button>
         </div>
       </div>
@@ -97,9 +97,9 @@ function TemplateEditor({ tpl, onSaved, onCancel }: {
   return (
     <div className="card p-5 space-y-4 border-accent-green/20">
       <div>
-        <label className="label">Nom du template *</label>
+        <label className="label">Template name *</label>
         <input className="input" autoFocus value={name} onChange={e => setName(e.target.value)}
-               placeholder="Ex: Client Entreprise — dossier standard" />
+               placeholder="e.g. Enterprise Client - standard folder" />
       </div>
       <div>
         <label className="label">Description</label>
@@ -113,13 +113,13 @@ function TemplateEditor({ tpl, onSaved, onCancel }: {
             <div key={i} className="flex items-start gap-2">
               <input
                 className="input text-sm flex-1"
-                placeholder="Libellé — ex: Schéma réseau"
+                placeholder="Label - e.g. Network diagram"
                 value={s.label}
                 onChange={e => setSlots(prev => prev.map((p, pi) => pi === i ? { ...p, label: e.target.value } : p))}
               />
               <input
                 className="input text-sm flex-1"
-                placeholder="Description (optionnel)"
+                placeholder="Description (optional)"
                 value={s.description}
                 onChange={e => setSlots(prev => prev.map((p, pi) => pi === i ? { ...p, description: e.target.value } : p))}
               />
@@ -140,17 +140,17 @@ function TemplateEditor({ tpl, onSaved, onCancel }: {
           <Plus size={12} /> Ajouter un emplacement
         </button>
         <p className="text-[11px] text-accent-muted/40 mt-1">
-          Ex: Schéma réseau, RACI, Inventaire machines, Contacts pays…
+          e.g. Network diagram, RACI, Machine inventory, Country contacts...
         </p>
       </div>
       <div className="flex justify-end gap-2 pt-1">
-        <button className="btn-secondary text-xs" onClick={onCancel}>Annuler</button>
+        <button className="btn-secondary text-xs" onClick={onCancel}>Cancel</button>
         <button
           className="btn-primary text-xs flex items-center gap-1.5"
           disabled={!name.trim() || save.isPending}
           onClick={() => save.mutate()}
         >
-          <Check size={12} /> {save.isPending ? 'Enregistrement…' : 'Enregistrer'}
+          <Check size={12} /> {save.isPending ? 'Saving...' : 'Save'}
         </button>
       </div>
     </div>
@@ -182,10 +182,10 @@ function TemplatesPanel({ onClose }: { onClose: () => void }) {
               className="btn-secondary text-xs flex items-center gap-1.5"
               onClick={() => setEditing('new')}
             >
-              <Plus size={12} /> Nouveau template
+              <Plus size={12} /> New template
             </button>
             {templates.length === 0 ? (
-              <p className="text-sm text-accent-muted/50 py-6 text-center">Aucun template défini.</p>
+              <p className="text-sm text-accent-muted/50 py-6 text-center">No template defined.</p>
             ) : (
               <div className="space-y-2">
                 {templates.map(t => (
@@ -206,10 +206,10 @@ function TemplatesPanel({ onClose }: { onClose: () => void }) {
                         onClick={() => setEditing(t)}
                         className="text-xs text-accent-muted/50 hover:text-accent-green transition-colors px-2 py-1"
                       >
-                        Modifier
+                        Edit
                       </button>
                       <button
-                        onClick={() => confirm(`Supprimer le template « ${t.name} » ?`) && remove.mutate(t.id)}
+                        onClick={() => confirm(`Delete the template "${t.name}"?`) && remove.mutate(t.id)}
                         className="p-1.5 text-accent-muted/40 hover:text-severity-critical transition-colors"
                       >
                         <Trash2 size={13} />
@@ -240,7 +240,7 @@ function ClientCard({ client, onClick }: { client: ClientSummary; onClick: () =>
         </div>
         {client.is_default && (
           <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-400">
-            <Star size={9} /> Par défaut
+            <Star size={9} /> Default
           </span>
         )}
       </div>
@@ -273,7 +273,7 @@ export default function Clients() {
             Clients
           </h1>
           <p className="text-accent-muted text-sm mt-1">
-            Organisations sélectionnables à la création d'un case, avec leur base de connaissance documentaire.
+            Organisations selectable when creating a case, each with its own document knowledge base.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -281,7 +281,7 @@ export default function Clients() {
             <FileStack size={14} /> Templates
           </button>
           <button className="btn-primary flex items-center gap-2 text-sm" onClick={() => setShowNew(true)}>
-            <Plus size={14} /> Nouveau client
+            <Plus size={14} /> New client
           </button>
         </div>
       </div>
@@ -291,8 +291,8 @@ export default function Clients() {
           {[1, 2, 3].map(i => <div key={i} className="card p-5 h-32 animate-pulse" />)}
         </div>
       ) : clients.length === 0 ? (
-        <EmptyState icon={Building2} message="Aucun client configuré"
-                    action={{ label: '+ Nouveau client', onClick: () => setShowNew(true) }} />
+        <EmptyState icon={Building2} message="No client configured"
+                    action={{ label: '+ New client', onClick: () => setShowNew(true) }} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {clients.map(c => (

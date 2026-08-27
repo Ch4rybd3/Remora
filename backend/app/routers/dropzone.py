@@ -147,7 +147,7 @@ def assign_inbox_files(
     """
     case_id = body.get("case_id")
     if not case_id:
-        raise HTTPException(400, "case_id requis")
+        raise HTTPException(400, "case_id is required")
     case = _get_case(case_id, db)
 
     names = body.get("files") or []
@@ -156,7 +156,7 @@ def assign_inbox_files(
     chosen = [available[n] for n in names if n in available] if names else list(available.values())
 
     if not chosen:
-        raise HTTPException(400, "Aucun fichier exploitable sélectionné dans l'inbox")
+        raise HTTPException(400, "No usable file selected in the inbox")
 
     # Move into the case folder first, so ingest_files archives them to the
     # case's .processed/ like any other drop.
@@ -181,7 +181,7 @@ def delete_inbox_file(filename: str, current_user=Depends(get_current_user)):
     target = (dz.inbox_dir() / filename).resolve()
     # Reject traversal: the resolved path must stay inside the inbox
     if not str(target).startswith(str(dz.inbox_dir().resolve())) or not target.is_file():
-        raise HTTPException(404, "Fichier introuvable")
+        raise HTTPException(404, "File not found")
     target.unlink()
     return {"ok": True}
 

@@ -37,7 +37,7 @@ def _artifacts_dir(case_id: str) -> Path:
 def _get_case_or_404(case_id: str, db: Session) -> Case:
     c = db.query(Case).filter(Case.id == case_id).first()
     if not c:
-        raise HTTPException(status_code=404, detail="Case introuvable")
+        raise HTTPException(status_code=404, detail="Case not found")
     return c
 
 
@@ -47,7 +47,7 @@ def _get_artifact_or_404(artifact_id: str, case_id: str, db: Session) -> CsvArti
         CsvArtifactFile.case_id == case_id,
     ).first()
     if not a:
-        raise HTTPException(status_code=404, detail="Artifact CSV introuvable")
+        raise HTTPException(status_code=404, detail="CSV artifact not found")
     return a
 
 
@@ -456,7 +456,7 @@ async def upload_artifact(
     if ext not in SUPPORTED:
         raise HTTPException(
             status_code=400,
-            detail=f"Type de fichier '{ext}' non supporté. Formats acceptés : {', '.join(sorted(SUPPORTED))}",
+            detail=f"Unsupported file type '{ext}'. Accepted formats: {', '.join(sorted(SUPPORTED))}",
         )
 
     raw = await file.read()
@@ -618,8 +618,8 @@ def add_evidence_for_artifact(
 
     now_str = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     coc_entry = (
-        f"[{now_str}] Enregistré dans Artifact Explorer par {current_user.username}.\n"
-        f"  Fichier: {a.original_name} — {a.row_count} lignes\n"
+        f"[{now_str}] Registered in the Artifact Explorer by {current_user.username}.\n"
+        f"  File: {a.original_name} - {a.row_count} rows\n"
     )
 
     ev = Evidence(
@@ -633,7 +633,7 @@ def add_evidence_for_artifact(
         collected_at       = a.uploaded_at,
         collected_by       = current_user.username,
         chain_of_custody   = coc_entry,
-        description        = f"Artefact importé via Artifact Explorer. {a.row_count} lignes.",
+        description        = f"Artifact imported through the Artifact Explorer. {a.row_count} rows.",
         tags               = a.ez_category or "",
     )
     db.add(ev)
@@ -659,11 +659,11 @@ def append_coc_note(
 
     a = _get_artifact_or_404(artifact_id, case_id, db)
     if not a.evidence_id:
-        raise HTTPException(status_code=404, detail="Aucune pièce à conviction liée à cet artefact")
+        raise HTTPException(status_code=404, detail="No evidence item linked to this artifact")
 
     ev = db.query(Evidence).filter(Evidence.id == a.evidence_id).first()
     if not ev:
-        raise HTTPException(status_code=404, detail="Pièce à conviction introuvable")
+        raise HTTPException(status_code=404, detail="Evidence item not found")
 
     note    = str(body.get("note", "")).strip()
     now_str = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")

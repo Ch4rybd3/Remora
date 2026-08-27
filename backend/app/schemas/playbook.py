@@ -44,7 +44,7 @@ class PlaybookRead(BaseModel):
 class StepStateUpdate(BaseModel):
     done: bool
     comment: str = ""
-    notes: str = ""     # markdown notes liées à cette étape
+    notes: str = ""     # markdown notes attached to this step
 
 
 class StepAssignee(BaseModel):

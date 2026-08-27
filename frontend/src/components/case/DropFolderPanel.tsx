@@ -23,13 +23,13 @@ function FileRow({ f, action }: { f: DropzoneFile; action?: React.ReactNode }) {
 
       {!f.supported ? (
         <span className="shrink-0 flex items-center gap-1 text-[10px] text-yellow-500/80"
-              title="Extension non prise en charge — ce fichier sera ignoré">
-          <AlertTriangle size={10} /> non supporté
+              title="Unsupported extension - this file will be ignored">
+          <AlertTriangle size={10} /> unsupported
         </span>
       ) : !f.stable ? (
         <span className="shrink-0 flex items-center gap-1 text-[10px] text-blue-400/80"
-              title="Copie encore en cours — l'ingestion attend que le fichier se stabilise">
-          <Clock size={10} /> en cours d'écriture
+              title="Copy still in progress - ingestion waits for the file to settle">
+          <Clock size={10} /> still being written
         </span>
       ) : (
         <span className="shrink-0 text-[10px] text-accent-green/70 truncate max-w-[180px]"
@@ -114,7 +114,7 @@ export default function DropFolderPanel({ caseId }: Props) {
           )}
           {inbox.length > 0 && (
             <span className="text-[10px] px-1.5 py-0.5 rounded border bg-yellow-500/10 text-yellow-400 border-yellow-500/30 shrink-0">
-              {inbox.length} non assigné{inbox.length > 1 ? 's' : ''}
+              {inbox.length} unassigned
             </span>
           )}
           <span className="text-[10px] text-accent-muted/35 truncate ml-1">
@@ -127,7 +127,7 @@ export default function DropFolderPanel({ caseId }: Props) {
         <button
           onClick={() => scan.mutate(false)}
           disabled={scan.isPending}
-          title="Scanner le dossier maintenant"
+          title="Scan the folder now"
           className="flex items-center gap-1 text-[10px] px-2 py-1 rounded border border-white/10 text-accent-muted hover:text-accent-green hover:border-accent-green/40 transition-colors disabled:opacity-40"
         >
           <RefreshCw size={10} className={scan.isPending ? 'animate-spin' : ''} />
@@ -142,22 +142,22 @@ export default function DropFolderPanel({ caseId }: Props) {
             <code className="flex-1 min-w-0 text-[10px] font-mono text-accent-muted/70 truncate">
               {dz.path}
             </code>
-            <button onClick={copyPath} title="Copier le chemin"
+            <button onClick={copyPath} title="Copy the path"
               className="text-accent-muted/40 hover:text-accent-green transition-colors shrink-0">
               {copied ? <Check size={11} className="text-accent-green" /> : <Copy size={11} />}
             </button>
           </div>
 
           <p className="px-3 py-2 text-[10px] text-accent-muted/45 leading-relaxed">
-            Déposez vos artefacts (KAPE, EZ Tools, EVTX, EML, ZIP) dans ce dossier : ils sont
-            ingérés comme un import de collection, sans passer par le navigateur. Ce chemin est
-            celui du serveur ; il peut aussi être monté en lecteur réseau (partage SMB
-            <code className="font-mono mx-0.5">dropzone</code>, à activer côté serveur).
-            {' '}Un fichier n'est traité qu'après {dz.stable_seconds}s sans modification,
+            Drop your artifacts (KAPE, EZ Tools, EVTX, EML, ZIP) into this folder: they are
+            ingested exactly like a collection import, without going through the browser. This is
+            the server-side path; it can also be mounted as a network drive (SMB share
+            <code className="font-mono mx-0.5">dropzone</code>, enabled server-side).
+            {' '}A file is only processed after {dz.stable_seconds}s without modification,
             pour ne jamais lire une copie en cours.
             {dz.processed_count > 0 && (
-              <> {dz.processed_count} fichier{dz.processed_count > 1 ? 's' : ''} déjà traité
-                {dz.processed_count > 1 ? 's' : ''} (archivé{dz.processed_count > 1 ? 's' : ''} dans
+              <> {dz.processed_count} file{dz.processed_count > 1 ? 's' : ''} already processed
+                (archived in
                 {' '}<code className="font-mono">.processed/</code>).</>
             )}
           </p>
@@ -171,7 +171,7 @@ export default function DropFolderPanel({ caseId }: Props) {
               {pending.map(f => <FileRow key={f.name} f={f} />)}
               {ready.length === 0 && (
                 <p className="px-2.5 py-2 text-[10px] text-accent-muted/40 border-t border-white/5">
-                  Aucun fichier prêt — attendez la stabilisation ou forcez le scan.
+                  No file ready - wait for it to settle, or force a scan.
                   <button
                     onClick={() => scan.mutate(true)}
                     disabled={scan.isPending}
@@ -190,14 +190,14 @@ export default function DropFolderPanel({ caseId }: Props) {
               <div className="flex items-center gap-2 px-2.5 py-1.5">
                 <Inbox size={11} className="text-yellow-400/70" />
                 <p className="flex-1 text-[9px] uppercase tracking-widest text-yellow-400/60">
-                  Inbox — non assignés
+                  Inbox - unassigned
                 </p>
                 <button
                   onClick={() => assignInbox.mutate([])}
                   disabled={assignInbox.isPending}
                   className="text-[10px] px-2 py-0.5 rounded border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 transition-colors disabled:opacity-40"
                 >
-                  Tout affecter à ce case
+                  Assign everything to this case
                 </button>
               </div>
               {inbox.map(f => (
@@ -209,7 +209,7 @@ export default function DropFolderPanel({ caseId }: Props) {
                       <button
                         onClick={() => assignInbox.mutate([f.name])}
                         disabled={assignInbox.isPending || !f.supported}
-                        title="Affecter ce fichier au case courant"
+                        title="Assign this file to the current case"
                         className="text-[10px] text-accent-muted/50 hover:text-accent-green transition-colors disabled:opacity-30"
                       >
                         affecter
@@ -217,7 +217,7 @@ export default function DropFolderPanel({ caseId }: Props) {
                       <button
                         onClick={() => deleteInbox.mutate(f.name)}
                         disabled={deleteInbox.isPending}
-                        title="Supprimer ce fichier"
+                        title="Delete this file"
                         className="text-accent-muted/30 hover:text-severity-critical transition-colors disabled:opacity-30"
                       >
                         <Trash2 size={10} />
@@ -238,8 +238,8 @@ export default function DropFolderPanel({ caseId }: Props) {
           {/* Last scan feedback */}
           {scan.data && (
             <p className="px-3 pb-3 text-[10px] text-accent-muted/50">
-              Dernier scan : {scan.data.ingested} fichier(s) ingéré(s)
-              {scan.data.skipped.length > 0 && `, ${scan.data.skipped.length} ignoré(s)`}.
+              Last scan: {scan.data.ingested} file(s) ingested
+              {scan.data.skipped.length > 0 && `, ${scan.data.skipped.length} skipped`}.
             </p>
           )}
         </div>
