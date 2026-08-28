@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { DataTable } from '../ui/DataTable'
 import { useNavigate } from 'react-router-dom'
 import {
   FolderOpen, AlertTriangle, Activity, Shield,
@@ -224,55 +225,39 @@ function RecentCasesWidget({ cases }: { cases: RecentCase[] }) {
   }
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-label">
-        <thead>
-          <tr className="text-left text-fg-secondary/40 uppercase tracking-wider border-b border-hairline">
-            <th className="pb-2 pr-3 font-semibold text-label">Case</th>
-            <th className="pb-2 pr-3 font-semibold text-label">Severity</th>
-            <th className="pb-2 pr-3 font-semibold text-label">Status</th>
-            <th className="pb-2 pr-3 font-semibold text-label text-right">IOCs</th>
-            <th className="pb-2 pr-3 font-semibold text-label text-right">Assets</th>
-            <th className="pb-2 pr-3 font-semibold text-label text-right">Evid.</th>
-            <th className="pb-2 font-semibold text-label text-right">Age</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-hairline/[0.03]">
-          {cases.map(c => (
-            <tr
-              key={c.id}
-              className="hover:bg-white/[0.03] cursor-pointer transition-colors group"
-              onClick={() => navigate(`/cases/${c.id}`)}
-            >
-              <td className="py-2.5 pr-3">
-                <p className="font-medium text-fg/80 group-hover:text-fg transition-colors truncate max-w-[200px]">{c.title}</p>
-                <p className="text-fg-secondary/30 text-label mt-0.5 font-mono">{c.updated_at}</p>
-              </td>
-              <td className="py-2.5 pr-3">
-                <SeverityBadge severity={c.severity as CaseSeverity} />
-              </td>
-              <td className="py-2.5 pr-3">
-                <StatusBadge status={c.status as CaseStatus} />
-              </td>
-              <td className="py-2.5 pr-3 text-right font-mono text-fg-secondary/50">
-                {c.ioc_count > 0 ? <span className="text-severity-high">{c.ioc_count}</span> : <span className="text-fg/15">—</span>}
-              </td>
-              <td className="py-2.5 pr-3 text-right font-mono text-fg-secondary/50">
-                {c.asset_count > 0 ? <span className="text-severity-low/80">{c.asset_count}</span> : <span className="text-fg/15">—</span>}
-              </td>
-              <td className="py-2.5 pr-3 text-right font-mono text-fg-secondary/50">
-                {c.evidence_count > 0 ? c.evidence_count : <span className="text-fg/15">—</span>}
-              </td>
-              <td className="py-2.5 text-right font-mono">
-                {c.days_open >= 0
-                  ? <span className={c.days_open > 30 ? 'text-severity-critical' : c.days_open > 7 ? 'text-severity-high' : 'text-fg-secondary/50'}>
-                      {c.days_open === 0 ? '<1d' : `${c.days_open}d`}
-                    </span>
-                  : <span className="text-fg/15">—</span>}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <DataTable
+        density="compact"
+        rows={cases}
+        rowKey={(c) => c.id}
+        onRowClick={(c) => navigate(`/cases/${c.id}`)}
+        empty="No case yet."
+        columns={[
+          { key: 'case', header: 'Case',
+            render: (c) => (
+              <>
+                <p className="font-medium text-fg truncate max-w-[200px]">{c.title}</p>
+                <p className="text-label font-mono text-fg-muted mt-0.5">{c.updated_at}</p>
+              </>
+            ) },
+          { key: 'severity', header: 'Severity', width: 'w-28', render: (c) => <SeverityBadge severity={c.severity as CaseSeverity} /> },
+          { key: 'status',   header: 'Status',   width: 'w-32', render: (c) => <StatusBadge status={c.status as CaseStatus} /> },
+          { key: 'ioc', header: 'Ioc', width: 'w-16', align: 'right', mono: true, hideBelow: 'md',
+            render: (c) => (c.ioc_count > 0 ? <span className="text-severity-high">{c.ioc_count}</span> : <span className="text-fg-muted">—</span>) },
+          { key: 'asset', header: 'Asset', width: 'w-16', align: 'right', mono: true, hideBelow: 'md',
+            render: (c) => (c.asset_count > 0 ? <span className="text-severity-low">{c.asset_count}</span> : <span className="text-fg-muted">—</span>) },
+          { key: 'evidence', header: 'Evidence', width: 'w-16', align: 'right', mono: true, hideBelow: 'md',
+            render: (c) => (c.evidence_count > 0 ? <span className="text-fg-secondary">{c.evidence_count}</span> : <span className="text-fg-muted">—</span>) },
+          { key: 'age', header: 'Age', width: 'w-16', align: 'right', mono: true,
+            render: (c) =>
+              c.days_open >= 0 ? (
+                <span className={c.days_open > 30 ? 'text-severity-critical' : c.days_open > 7 ? 'text-severity-high' : 'text-fg-secondary'}>
+                  {c.days_open === 0 ? '<1d' : `${c.days_open}d`}
+                </span>
+              ) : (
+                <span className="text-fg-muted">—</span>
+              ) },
+        ]}
+      />
     </div>
   )
 }

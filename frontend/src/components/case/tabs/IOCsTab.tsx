@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, Shield, Copy, Check, Download } from '../../../ui/icons'
+import { DataTable } from '../../../ui/DataTable'
+import { Panel } from '../../../ui/Panel'
 import { iocsApi } from '../../../api/iocs'
 import type { IOC, IOCType, IOCConfidence } from '../../../types'
 import Modal from '../../ui/Modal'
@@ -189,57 +191,63 @@ export default function IOCsTab({ caseId }: Props) {
       {iocs.length === 0 ? (
         <EmptyState icon={Shield} message="No IOCs recorded yet" action={{ label: '+ Add IOC', onClick: () => setModalOpen(true) }} />
       ) : (
-        <div className="card overflow-hidden">
-          <table className="w-full text-ui">
-            <thead>
-              <tr className="border-b border-hairline text-fg-secondary text-label uppercase tracking-wide">
-                <th className="text-left px-4 py-3">Type</th>
-                <th className="text-left px-4 py-3">Value</th>
-                <th className="text-left px-4 py-3">Confidence</th>
-                <th className="text-left px-4 py-3">TLP</th>
-                <th className="text-left px-4 py-3">Description</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {iocs.map(ioc => (
-                <tr key={ioc.id} className="border-b border-hairline last:border-0 hover:bg-white/[0.02]">
-                  <td className="px-4 py-3">
-                    <span className={`text-label font-mono px-2 py-0.5 rounded-control border ${TYPE_COLORS[ioc.type] ?? TYPE_COLORS.other}`}>
-                      {IOC_TYPE_MAP[ioc.type]?.label ?? ioc.type}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 max-w-xs">
-                    <div className="flex items-center gap-2 group/val">
-                      <span className="font-mono text-label text-fg truncate" title={ioc.value}>{ioc.value}</span>
-                      {DEFANGABLE.has(ioc.type) && (
-                        <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/val:opacity-100 transition-opacity">
-                          <CopyBtn text={defang(ioc.value, ioc.type)} label="defanged" />
-                          <CopyBtn text={ioc.value} label="original" />
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`text-label font-mono ${confidenceColor[ioc.confidence]}`}>
-                      {ioc.confidence}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-label text-fg-secondary">{ioc.tlp}</td>
-                  <td className="px-4 py-3 text-label text-fg-secondary max-w-xs truncate">{ioc.description}</td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => setDeleteTarget(ioc.id)}
-                      className="text-fg-secondary hover:text-severity-critical transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Panel className="overflow-hidden">
+          <DataTable
+            rows={iocs}
+            rowKey={(ioc) => ioc.id}
+            empty="No IOC recorded on this case."
+            columns={[
+              {
+                key: 'type',
+                header: 'Type',
+                width: 'w-28',
+                render: (ioc) => (
+                  <span className={`text-label font-mono px-2 py-0.5 rounded-control border ${TYPE_COLORS[ioc.type] ?? TYPE_COLORS.other}`}>
+                    {IOC_TYPE_MAP[ioc.type]?.label ?? ioc.type}
+                  </span>
+                ),
+              },
+              {
+                key: 'value',
+                header: 'Value',
+                render: (ioc) => (
+                  <div className="flex items-center gap-2 group/val max-w-xs">
+                    <span className="font-mono text-label text-fg truncate" title={ioc.value}>{ioc.value}</span>
+                    {DEFANGABLE.has(ioc.type) && (
+                      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/val:opacity-100 transition-opacity">
+                        <CopyBtn text={defang(ioc.value, ioc.type)} label="defanged" />
+                        <CopyBtn text={ioc.value} label="original" />
+                      </div>
+                    )}
+                  </div>
+                ),
+              },
+              {
+                key: 'confidence',
+                header: 'Confidence',
+                width: 'w-28',
+                render: (ioc) => (
+                  <span className={`text-label font-mono ${confidenceColor[ioc.confidence]}`}>{ioc.confidence}</span>
+                ),
+              },
+              { key: 'tlp', header: 'TLP', width: 'w-24', mono: true, hideBelow: 'md',
+                render: (ioc) => <span className="text-fg-secondary">{ioc.tlp}</span> },
+              { key: 'description', header: 'Description', hideBelow: 'lg',
+                render: (ioc) => <span className="block max-w-xs truncate text-fg-secondary">{ioc.description}</span> },
+            ]}
+            trailing={{
+              render: (ioc) => (
+                <button
+                  onClick={() => setDeleteTarget(ioc.id)}
+                  className="text-fg-secondary hover:text-severity-critical transition-colors"
+                  title="Delete this IOC"
+                >
+                  <Trash2 size={14} />
+                </button>
+              ),
+            }}
+          />
+        </Panel>
       )}
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Add IOC" size="md">

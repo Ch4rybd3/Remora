@@ -2,9 +2,10 @@ import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Swords, ScanSearch, AlertTriangle, CheckCircle2,
-  ChevronDown, ChevronRight, BookmarkPlus, Trash2,
+  BookmarkPlus, Trash2,
   Send, X, Clock, RefreshCw, Filter,
 } from '../../ui/icons'
+import { DataTable } from '../../ui/DataTable'
 import { evtxApi } from '../../api/evtx'
 import { chainsawApi, type ChainsawScan, type ChainsawAlert, type PinnedChainsawAlert } from '../../api/chainsaw'
 import { fmtDateTime, fmtDateTimeShort } from '../../utils/dateUtils'
@@ -184,105 +185,46 @@ function FileScanPanel({
 
 // ── Alert detail row ──────────────────────────────────────────────────────────
 
-function AlertRow({
-  alert,
-  pinned,
-  onPin,
-}: {
-  alert: ChainsawAlert
-  pinned: boolean
-  onPin: (a: ChainsawAlert) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const ts = alert.timestamp ? new Date(alert.timestamp) : null
-
+function AlertDetail({ alert }: { alert: ChainsawAlert }) {
   return (
     <>
-      <tr
-        className={`border-b border-hairline hover:bg-white/[0.03] transition-colors ${open ? 'bg-white/[0.04]' : ''}`}
-      >
-        {/* Pin — left column, stops propagation so row click = expand */}
-        <td className="px-2 py-2 w-8" onClick={e => e.stopPropagation()}>
-          <button
-            onClick={() => onPin(alert)}
-            className={`p-1 rounded-control transition-colors ${ pinned
-                ? 'text-accent'
-                : 'text-fg-secondary/30 hover:text-accent hover:bg-accent/5'
-            }`}
-            title={pinned ? 'Already in selection' : 'Add to selection'}
-          >
-            <BookmarkPlus size={11} />
-          </button>
-        </td>
-        {/* Expand */}
-        <td className="px-2 py-2 w-5 text-fg-secondary/30 cursor-pointer" onClick={() => setOpen(o => !o)}>
-          {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-        </td>
-        {/* Level */}
-        <td className="px-2 py-2 w-28 cursor-pointer" onClick={() => setOpen(o => !o)}>
-          <LevelBadge level={alert.level} />
-        </td>
-        {/* Timestamp */}
-        <td className="px-2 py-2 w-36 text-label font-mono text-fg-secondary/70 whitespace-nowrap cursor-pointer" onClick={() => setOpen(o => !o)}>
-          {ts ? fmtDateTime(ts.toISOString()) : '—'}
-        </td>
-        {/* Rule */}
-        <td className="px-2 py-2 text-label text-fg/90 cursor-pointer" onClick={() => setOpen(o => !o)}>
-          {alert.rule_name}
-        </td>
-        {/* Event ID */}
-        <td className="px-2 py-2 w-16 text-label font-mono text-fg-secondary/60 text-right cursor-pointer" onClick={() => setOpen(o => !o)}>
-          {alert.event_id ?? '—'}
-        </td>
-        {/* Channel */}
-        <td className="px-2 py-2 w-32 text-label text-fg-secondary/60 truncate max-w-[120px] cursor-pointer" onClick={() => setOpen(o => !o)}>
-          {alert.channel || '—'}
-        </td>
-        {/* Computer */}
-        <td className="px-2 py-2 w-32 text-label text-fg-secondary/60 truncate max-w-[120px] cursor-pointer" onClick={() => setOpen(o => !o)}>
-          {alert.computer || '—'}
-        </td>
-      </tr>
-      {open && (
-        <tr className="bg-white/[0.02]">
-          <td colSpan={8} className="px-4 py-3">
-            <div className="grid grid-cols-2 gap-x-8 gap-y-1 mb-3">
-              {[
-                ['Level',        alert.level],
-                ['Status',       alert.sigma_status],
-                ['Group',        alert.group_name],
-                ['Event ID',     alert.event_id],
-                ['Channel',      alert.channel],
-                ['Computer',     alert.computer],
-                ['Provider',     alert.provider],
-                ['Tags',         alert.tags],
-                ['Authors',      alert.authors],
-              ].filter(([, v]) => v != null && v !== '').map(([k, v]) => (
-                <div key={k as string} className="flex gap-2 text-label">
-                  <span className="text-fg-secondary/40 w-20 shrink-0">{k as string}</span>
-                  <span className="text-fg/80 break-all">{String(v)}</span>
-                </div>
-              ))}
+      <div className="grid grid-cols-2 gap-x-8 gap-y-1 mb-3">
+        {([
+          ['Level',    alert.level],
+          ['Status',   alert.sigma_status],
+          ['Group',    alert.group_name],
+          ['Event ID', alert.event_id],
+          ['Channel',  alert.channel],
+          ['Computer', alert.computer],
+          ['Provider', alert.provider],
+          ['Tags',     alert.tags],
+          ['Authors',  alert.authors],
+        ] as [string, unknown][])
+          .filter(([, v]) => v != null && v !== '')
+          .map(([k, v]) => (
+            <div key={k} className="flex gap-2 text-label">
+              <span className="text-fg-muted w-20 shrink-0">{k}</span>
+              <span className="text-fg-secondary break-all">{String(v)}</span>
             </div>
-            {alert.event_data && Object.keys(alert.event_data).length > 0 && (
-              <>
-                <p className="text-label uppercase tracking-widest text-fg-secondary/30 mb-1.5">Event Data</p>
-                <div className="grid grid-cols-2 gap-x-8 gap-y-0.5">
-                  {Object.entries(alert.event_data).map(([k, v]) => (
-                    <div key={k} className="flex gap-2 text-label">
-                      <span className="text-fg-secondary/50 w-36 shrink-0 truncate font-mono">{k}</span>
-                      <span className="text-fg/70 break-all font-mono">{v}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </td>
-        </tr>
+          ))}
+      </div>
+      {alert.event_data && Object.keys(alert.event_data).length > 0 && (
+        <>
+          <p className="text-label font-mono uppercase tracking-label text-fg-muted mb-1.5">Event data</p>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-0.5">
+            {Object.entries(alert.event_data).map(([k, v]) => (
+              <div key={k} className="flex gap-2 text-label font-mono">
+                <span className="text-fg-muted w-36 shrink-0 truncate">{k}</span>
+                <span className="text-fg-secondary break-all">{v}</span>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </>
   )
 }
+
 
 // ── Selection panel ───────────────────────────────────────────────────────────
 
@@ -419,6 +361,9 @@ export default function ChainsawTab({ caseId }: Props) {
   const [selectedFileId,  setSelectedFileId]  = useState<string | null>(null)
   const [page,            setPage]            = useState(1)
   const [sortDir,         setSortDir]         = useState<'asc' | 'desc'>('desc')
+  // Which alert has its detail open. Lifted out of the row so the table can
+  // own expansion the same way every other table in the product does.
+  const [openAlertId,     setOpenAlertId]     = useState<string | null>(null)
 
   // Debounced search
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -706,44 +651,48 @@ export default function ChainsawTab({ caseId }: Props) {
               </p>
             </div>
           ) : (
-            <table className="w-full text-left border-collapse">
-              <thead className="sticky top-0 z-10 bg-panel border-b border-hairline">
-                <tr>
-                  <th className="w-8" />
-                  <th className="w-5" />
-                  <th className="px-2 py-2 text-label uppercase tracking-widest text-fg-secondary/40 font-semibold w-28">Level</th>
-                  <th className="px-2 py-2 text-label uppercase tracking-widest text-fg-secondary/40 font-semibold w-36">Timestamp</th>
-                  <th className="px-2 py-2 text-label uppercase tracking-widest text-fg-secondary/40 font-semibold">Rule</th>
-                  <th className="px-2 py-2 text-label uppercase tracking-widest text-fg-secondary/40 font-semibold w-16 text-right">EID</th>
-                  <th className="px-2 py-2 text-label uppercase tracking-widest text-fg-secondary/40 font-semibold w-32">Channel</th>
-                  <th className="px-2 py-2 text-label uppercase tracking-widest text-fg-secondary/40 font-semibold w-32">Computer</th>
-                </tr>
-              </thead>
-              <tbody>
-                {isFetching && !alertsPage?.items.length && (
-                  <tr>
-                    <td colSpan={8} className="py-8 text-center text-fg-secondary/40 text-label">
-                      Loading…
-                    </td>
-                  </tr>
-                )}
-                {alertsPage?.items.map(alert => (
-                  <AlertRow
-                    key={alert.id}
-                    alert={alert}
-                    pinned={pinnedIds.has(alert.id)}
-                    onPin={handlePin}
-                  />
-                ))}
-                {alertsPage?.items.length === 0 && !isFetching && (
-                  <tr>
-                    <td colSpan={8} className="py-8 text-center text-fg-secondary/40 text-label">
-                      No alerts match the current filters
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+            <DataTable
+              density="compact"
+              rows={alertsPage?.items ?? []}
+              rowKey={(a) => a.id}
+              loading={isFetching && !alertsPage?.items.length}
+              empty="No alerts match the current filters"
+              onRowClick={(a) => setOpenAlertId((id) => (id === a.id ? null : a.id))}
+              isRowSelected={(a) => openAlertId === a.id}
+              renderExpanded={(a) => (openAlertId === a.id ? <AlertDetail alert={a} /> : null)}
+              leading={{
+                width: 'w-8',
+                render: (a) => {
+                  const pinned = pinnedIds.has(a.id)
+                  return (
+                    <button
+                      onClick={() => handlePin(a)}
+                      title={pinned ? 'Already in the selection' : 'Add to the selection'}
+                      aria-label={pinned ? 'Already in the selection' : 'Add to the selection'}
+                      className={`block transition-colors ${pinned ? 'text-accent' : 'text-fg-muted hover:text-accent'}`}
+                    >
+                      <BookmarkPlus size={12} />
+                    </button>
+                  )
+                },
+              }}
+              columns={[
+                { key: 'level', header: 'Level', width: 'w-28', render: (a) => <LevelBadge level={a.level} /> },
+                { key: 'timestamp', header: 'Timestamp', width: 'w-36', mono: true,
+                  render: (a) => (
+                    <span className="text-fg-secondary whitespace-nowrap">
+                      {a.timestamp ? fmtDateTime(new Date(a.timestamp).toISOString()) : '—'}
+                    </span>
+                  ) },
+                { key: 'rule', header: 'Rule', render: (a) => <span className="text-fg">{a.rule_name}</span> },
+                { key: 'event_id', header: 'EID', width: 'w-16', align: 'right', mono: true,
+                  render: (a) => <span className="text-fg-muted">{a.event_id ?? '—'}</span> },
+                { key: 'channel', header: 'Channel', width: 'w-32', hideBelow: 'lg',
+                  render: (a) => <span className="block truncate text-fg-muted" title={a.channel ?? ''}>{a.channel || '—'}</span> },
+                { key: 'computer', header: 'Computer', width: 'w-32', hideBelow: 'md',
+                  render: (a) => <span className="block truncate text-fg-muted" title={a.computer ?? ''}>{a.computer || '—'}</span> },
+              ]}
+            />
           )}
         </div>
 

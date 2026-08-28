@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { DataTable } from '../ui/DataTable'
 import { auditApi, type AuditFilters, type AuditLogEntry } from '../api/audit'
 import { fmtDateTime } from '../utils/dateUtils'
 import {
@@ -299,95 +300,82 @@ export default function AuditLog() {
 
       {/* Table */}
       <div className="flex-1 overflow-auto">
-        <table className="w-full text-label border-collapse">
-          <thead className="sticky top-0 z-10 bg-panel">
-            <tr className="border-b border-hairline">
-              <th className="text-left px-4 py-2.5 text-fg-secondary font-medium whitespace-nowrap w-40">
-                Timestamp
-              </th>
-              <th className="text-left px-4 py-2.5 text-fg-secondary font-medium whitespace-nowrap w-28">
-                Utilisateur
-              </th>
-              <th className="text-left px-4 py-2.5 text-fg-secondary font-medium whitespace-nowrap w-36">
-                Action
-              </th>
-              <th className="text-left px-4 py-2.5 text-fg-secondary font-medium">
-                Ressource
-              </th>
-              <th className="text-left px-4 py-2.5 text-fg-secondary font-medium">
-                Case
-              </th>
-              <th className="text-left px-4 py-2.5 text-fg-secondary font-medium w-32">
-                IP
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {!data?.items.length && (
-              <tr>
-                <td colSpan={6} className="text-center py-16 text-fg-secondary/50">
-                  {isFetching ? 'Loading...' : 'No entry'}
-                </td>
-              </tr>
-            )}
-            {data?.items.map(entry => (
-              <>
-                <tr
-                  key={entry.id}
-                  onClick={() => setExpanded(expanded === entry.id ? null : entry.id)}
-                  className={`border-b border-hairline cursor-pointer transition-colors ${ expanded === entry.id
-                      ? 'bg-accent/5'
-                      : 'hover:bg-fg/5'
-                  }`}
-                >
-                  <td className="px-4 py-2 font-mono text-fg-secondary whitespace-nowrap">
-                    {fmtDateTime(entry.timestamp)}
-                  </td>
-                  <td className="px-4 py-2 text-fg whitespace-nowrap">
-                    {entry.username ?? <span className="text-fg-secondary/40 italic">system</span>}
-                    {entry.user_role && (
-                      <span className="ml-1.5 text-label text-fg-secondary/60">({entry.user_role})</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-control border text-label font-mono ${actionColor(entry.action)}`}>
-                      {entry.action}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 max-w-[220px] truncate">
-                    {entry.resource_name ? (
-                      <span className="text-fg/80" title={entry.resource_name}>
-                        {entry.resource_name}
-                      </span>
-                    ) : entry.resource_id ? (
-                      <span className="text-fg-secondary/60 font-mono text-label">{entry.resource_id}</span>
-                    ) : (
-                      <span className="text-fg-secondary/30">—</span>
-                    )}
-                    {entry.resource_type && (
-                      <span className="ml-1.5 text-label text-fg-secondary/40">({entry.resource_type})</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 max-w-[180px] truncate text-fg-secondary/70">
-                    {entry.case_title ?? (entry.case_id ? (
-                      <span className="font-mono text-label">{entry.case_id.slice(0, 8)}…</span>
-                    ) : '—')}
-                  </td>
-                  <td className="px-4 py-2 font-mono text-fg-secondary/60 whitespace-nowrap">
-                    {entry.ip_address ?? '—'}
-                  </td>
-                </tr>
-                {expanded === entry.id && (
-                  <tr key={`${entry.id}-detail`}>
-                    <td colSpan={6} className="p-0">
-                      <DetailPanel entry={entry} onClose={() => setExpanded(null)} />
-                    </td>
-                  </tr>
-                )}
-              </>
-            ))}
-          </tbody>
-        </table>
+        <DataTable
+          rows={data?.items ?? []}
+          rowKey={(e) => String(e.id)}
+          loading={isFetching && !data}
+          density="compact"
+          onRowClick={(e) => setExpanded(expanded === e.id ? null : e.id)}
+          isRowSelected={(e) => expanded === e.id}
+          renderExpanded={(e) =>
+            expanded === e.id ? <DetailPanel entry={e} onClose={() => setExpanded(null)} /> : null
+          }
+          empty="No entry"
+          columns={[
+            {
+              key: 'timestamp',
+              header: 'Timestamp',
+              width: 'w-40',
+              mono: true,
+              render: (e) => <span className="text-fg-secondary whitespace-nowrap">{fmtDateTime(e.timestamp)}</span>,
+            },
+            {
+              key: 'user',
+              header: 'User',
+              width: 'w-28',
+              render: (e) => (
+                <span className="whitespace-nowrap">
+                  {e.username ?? <span className="text-fg-muted italic">system</span>}
+                  {e.user_role && <span className="ml-1.5 text-label text-fg-muted">({e.user_role})</span>}
+                </span>
+              ),
+            },
+            {
+              key: 'action',
+              header: 'Action',
+              width: 'w-36',
+              render: (e) => (
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-control border text-label font-mono ${actionColor(e.action)}`}>
+                  {e.action}
+                </span>
+              ),
+            },
+            {
+              key: 'resource',
+              header: 'Resource',
+              render: (e) => (
+                <span className="block max-w-[220px] truncate">
+                  {e.resource_name ? (
+                    <span className="text-fg" title={e.resource_name}>{e.resource_name}</span>
+                  ) : e.resource_id ? (
+                    <span className="text-fg-muted font-mono text-label">{e.resource_id}</span>
+                  ) : (
+                    <span className="text-fg-muted">—</span>
+                  )}
+                  {e.resource_type && <span className="ml-1.5 text-label text-fg-muted">({e.resource_type})</span>}
+                </span>
+              ),
+            },
+            {
+              key: 'case',
+              header: 'Case',
+              hideBelow: 'lg',
+              render: (e) => (
+                <span className="block max-w-[180px] truncate text-fg-secondary">
+                  {e.case_title ?? (e.case_id ? <span className="font-mono text-label">{e.case_id.slice(0, 8)}…</span> : '—')}
+                </span>
+              ),
+            },
+            {
+              key: 'ip',
+              header: 'IP',
+              width: 'w-32',
+              mono: true,
+              hideBelow: 'md',
+              render: (e) => <span className="text-fg-muted whitespace-nowrap">{e.ip_address ?? '—'}</span>,
+            },
+          ]}
+        />
       </div>
 
       {/* Pagination */}

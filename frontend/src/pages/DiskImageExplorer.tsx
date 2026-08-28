@@ -5,6 +5,7 @@
  * directory's contents top-right, and the selected file's bytes bottom-right.
  */
 import { useState, useMemo, useCallback } from 'react'
+import { DataTable } from '../ui/DataTable'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import {
   HardDrive, ChevronRight, Folder, FolderOpen, File as FileIcon, Loader2,
@@ -482,54 +483,54 @@ export default function DiskImageExplorer() {
               {(dirError as any)?.response?.data?.detail ?? 'Cannot read the directory.'}
             </p>
           ) : (
-            <table className="w-full text-label font-mono border-collapse">
-              <thead className="sticky top-0 bg-panel z-10">
-                <tr className="text-fg-secondary/40 text-left">
-                  <th className="px-2 py-1.5">Name</th>
-                  <th className="px-2 py-1.5 w-24">Taille</th>
-                  <th className="px-2 py-1.5 w-40">Modified</th>
-                  <th className="px-2 py-1.5 w-40">Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dir !== '/' && (
-                  <tr onClick={() => navigate(dir.split('/').slice(0, -1).join('/') || '/')}
-                      className="border-t border-strong/[0.03] cursor-pointer hover:bg-white/[0.03]">
-                    <td colSpan={4} className="px-2 py-1 text-fg-secondary/50">../</td>
-                  </tr>
-                )}
-                {entries.map(e => (
-                  <tr key={e.path}
-                    onClick={() => e.is_dir ? navigate(e.path) : setSelected(e)}
-                    className={`border-t border-strong/[0.03] cursor-pointer transition-colors ${ selected?.path === e.path ? 'bg-accent/10' : 'hover:bg-white/[0.03]'
-                    }`}>
-                    <td className="px-2 py-1">
-                      <span className="flex items-center gap-1.5">
-                        {e.is_dir
-                          ? <Folder size={10} className="shrink-0 text-fg-secondary/50" />
-                          : <FileIcon size={10} className="shrink-0 text-fg-secondary/30" />}
-                        <span className={
-                          e.error ? 'text-severity-critical/70'
-                          : isMetadata(e.name) ? 'text-data-2/70'
-                          : e.is_dir ? 'text-fg/80' : 'text-fg/60'
-                        }>{e.name}</span>
-                        {e.error && (
-                          <span className="text-label text-severity-critical/60" title={e.error}>
-                            illisible
-                          </span>
-                        )}
-                      </span>
-                    </td>
-                    <td className="px-2 py-1 text-fg-secondary/40">{e.is_dir ? '' : fmtSize(e.size)}</td>
-                    <td className="px-2 py-1 text-fg-secondary/40">{fmtDate(e.mtime)}</td>
-                    <td className="px-2 py-1 text-fg-secondary/40">{fmtDate(e.btime)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          {partition !== null && !loadingDir && entries.length === 0 && !dirError && (
-            <p className="p-6 text-center text-label text-fg-secondary/30">Empty directory.</p>
+            <>
+            {/* The parent directory is navigation, not an entry in the listing,
+                so it sits above the table rather than pretending to be a row. */}
+            {dir !== '/' && (
+              <button
+                onClick={() => navigate(dir.split('/').slice(0, -1).join('/') || '/')}
+                className="w-full text-left px-2 py-1 font-mono text-label text-fg-muted
+                           border-b border-hairline hover:bg-hover transition-colors"
+              >
+                ../
+              </button>
+            )}
+            <DataTable
+              density="compact"
+              rows={entries}
+              rowKey={(e) => e.path}
+              empty="Empty directory."
+              onRowClick={(e) => (e.is_dir ? navigate(e.path) : setSelected(e))}
+              isRowSelected={(e) => selected?.path === e.path}
+              columns={[
+                {
+                  key: 'name',
+                  header: 'Name',
+                  render: (e) => (
+                    <span className="flex items-center gap-1.5">
+                      {e.is_dir
+                        ? <Folder size={10} className="shrink-0 text-fg-muted" />
+                        : <FileIcon size={10} className="shrink-0 text-fg-muted" />}
+                      <span className={
+                        e.error ? 'text-severity-critical'
+                        : isMetadata(e.name) ? 'text-data-2'
+                        : e.is_dir ? 'text-fg' : 'text-fg-secondary'
+                      }>{e.name}</span>
+                      {e.error && (
+                        <span className="text-label text-severity-critical" title={e.error}>unreadable</span>
+                      )}
+                    </span>
+                  ),
+                },
+                { key: 'size',  header: 'Size',     width: 'w-24', align: 'right', mono: true,
+                  render: (e) => <span className="text-fg-muted">{e.is_dir ? '' : fmtSize(e.size)}</span> },
+                { key: 'mtime', header: 'Modified', width: 'w-40', mono: true, hideBelow: 'md',
+                  render: (e) => <span className="text-fg-muted">{fmtDate(e.mtime)}</span> },
+                { key: 'btime', header: 'Created',  width: 'w-40', mono: true, hideBelow: 'lg',
+                  render: (e) => <span className="text-fg-muted">{fmtDate(e.btime)}</span> },
+              ]}
+            />
+            </>
           )}
         </div>
 

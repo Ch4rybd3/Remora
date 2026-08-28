@@ -7,6 +7,7 @@
  */
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { DataTable } from '../ui/DataTable'
 import {
   Network, Search, X, ChevronRight, BookmarkPlus, BookmarkCheck,
   Loader2, Download, AlertCircle, Filter, ArrowLeftRight, Copy, Check,
@@ -701,56 +702,39 @@ export default function PcapExplorer() {
 
         {/* Packet list */}
         <div className="flex-1 min-h-0 overflow-auto">
-          <table className="w-full text-label font-mono border-collapse">
-            <thead className="sticky top-0 bg-panel z-10">
-              <tr className="text-fg-secondary/40 text-left">
-                <th className="w-7 px-1 py-1.5" />
-                <th className="px-2 py-1.5 w-14">No</th>
-                <th className="px-2 py-1.5 w-48">Time</th>
-                <th className="px-2 py-1.5 w-36">Source</th>
-                <th className="px-2 py-1.5 w-36">Destination</th>
-                <th className="px-2 py-1.5 w-16">Proto</th>
-                <th className="px-2 py-1.5 w-14">Len</th>
-                <th className="px-2 py-1.5">Info</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(rows?.items ?? []).map(row => {
-                const no       = Number(row.No)
-                const key      = `${active?.id}${row.No}`
-                const isPinned = pinnedKeys.has(key)
-                const isActive = frameNo === no
+          <DataTable
+            density="compact"
+            rows={rows?.items ?? []}
+            rowKey={(row) => String(row.No)}
+            empty="No packet matches the filter."
+            onRowClick={(row) => { setFrameNo(Number(row.No)); setHighlight(null) }}
+            isRowSelected={(row) => frameNo === Number(row.No)}
+            leading={{
+              width: 'w-7',
+              render: (row) => {
+                const isPinned = pinnedKeys.has(`${active?.id}${row.No}`)
                 return (
-                  <tr key={row.No}
-                    onClick={() => { setFrameNo(no); setHighlight(null) }}
-                    className={`border-t border-strong/[0.03] cursor-pointer transition-colors ${ isActive ? 'bg-accent/10' : 'hover:bg-white/[0.03]'
-                    }`}>
-                    <td className="px-1 py-1 align-top">
-                      <button
-                        onClick={e => { e.stopPropagation(); togglePin(row) }}
-                        title={isPinned ? 'Remove from the selection' : 'Pin this packet'}
-                        className={`transition-colors ${ isPinned ? 'text-accent' : 'text-fg-secondary/20 hover:text-accent'
-                        }`}>
-                        {isPinned ? <BookmarkCheck size={11} /> : <BookmarkPlus size={11} />}
-                      </button>
-                    </td>
-                    <td className="px-2 py-1 text-fg-secondary/50">{row.No}</td>
-                    <td className="px-2 py-1 text-fg-secondary/70 whitespace-nowrap">{fmtTime(row.Timestamp ?? '')}</td>
-                    <td className="px-2 py-1 text-fg/60 truncate">{row.Source}</td>
-                    <td className="px-2 py-1 text-fg/60 truncate">{row.Destination}</td>
-                    <td className={`px-2 py-1 font-semibold ${protoClass(row.Protocol ?? '')}`}>{row.Protocol}</td>
-                    <td className="px-2 py-1 text-fg-secondary/40">{row.Length}</td>
-                    <td className="px-2 py-1 text-fg/45 truncate max-w-0">{row.Info}</td>
-                  </tr>
+                  <button
+                    onClick={() => togglePin(row)}
+                    title={isPinned ? 'Remove from the selection' : 'Pin this packet'}
+                    aria-label={isPinned ? 'Remove from the selection' : 'Pin this packet'}
+                    className={`block transition-colors ${isPinned ? 'text-accent' : 'text-fg-muted hover:text-accent'}`}
+                  >
+                    {isPinned ? <BookmarkCheck size={11} /> : <BookmarkPlus size={11} />}
+                  </button>
                 )
-              })}
-            </tbody>
-          </table>
-          {rows && rows.items.length === 0 && (
-            <p className="p-6 text-center text-label text-fg-secondary/30">
-              No packet matches the filter.
-            </p>
-          )}
+              },
+            }}
+            columns={[
+              { key: 'no',    header: 'No',    width: 'w-14', mono: true, render: (row) => <span className="text-fg-muted">{row.No}</span> },
+              { key: 'time',  header: 'Time',  width: 'w-48', mono: true, render: (row) => <span className="text-fg-secondary whitespace-nowrap">{fmtTime(row.Timestamp ?? '')}</span> },
+              { key: 'src',   header: 'Source',      width: 'w-36', mono: true, render: (row) => <span className="block truncate text-fg-secondary">{row.Source}</span> },
+              { key: 'dst',   header: 'Destination', width: 'w-36', mono: true, render: (row) => <span className="block truncate text-fg-secondary">{row.Destination}</span> },
+              { key: 'proto', header: 'Proto', width: 'w-16', mono: true, render: (row) => <span className={`font-semibold ${protoClass(row.Protocol ?? '')}`}>{row.Protocol}</span> },
+              { key: 'len',   header: 'Len',   width: 'w-14', mono: true, align: 'right', render: (row) => <span className="text-fg-muted">{row.Length}</span> },
+              { key: 'info',  header: 'Info',  mono: true, hideBelow: 'md', render: (row) => <span className="block truncate text-fg-muted">{row.Info}</span> },
+            ]}
+          />
         </div>
 
         {/* Detail panes */}

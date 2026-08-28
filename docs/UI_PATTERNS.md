@@ -48,6 +48,7 @@ the design system. `frontend/src/components/ui/` holds older composite widgets
 | Primitive | Contract |
 |---|---|
 | `Panel` / `PanelHeader` | A surface: square, hairline, no fill shift, no shadow. Panels do not nest. |
+| `DataTable` | Every table in the product. Hairline rows, no zebra, mono headers, sticky by default. |
 | `Toolbar` / `ToolbarGroup` / `ToolbarSpacer` / `ToolbarLabel` | A row with hierarchy. Everything that is not the primary action is `.btn-ghost`; related controls sit in a group separated by a hairline. |
 | `SectionRail` | A numbered list that doubles as a filter. |
 | `SidePanel` / `SidePanelBlock` | A right panel that collapses to a rail. Blocks are labelled by a rule, never boxed. |
@@ -91,4 +92,50 @@ of switching the whole application.
 
 Add a specimen here whenever you add a primitive. A primitive that only exists
 inside the page that needed it is how the next round of drift starts.
+
+### DataTable
+
+There were twelve header styles, nine row styles and four spellings of the same
+sticky header, because every screen rebuilt the table it needed. None of the
+differences meant anything.
+
+The contract it encodes:
+
+- **Rows are separated by hairlines.** No zebra striping — alternating fills
+  invent a rhythm that competes with the data.
+- **The pin is `leading`**, the first and leftmost column, and its cell stops
+  click propagation. That is the Timeline Explorer pattern above, made
+  structural rather than remembered.
+- **Row actions are `trailing`**, right-aligned and revealed on hover, so a
+  table of forty rows is not also a wall of forty delete buttons.
+- **A selected row carries an accent edge**, not a fill — a fill would collide
+  with hover and make the two states ambiguous.
+- **Loading renders skeleton rows** the height of real ones, so the layout does
+  not jump when data lands.
+- **`hideBelow` drops a column** at a breakpoint. On a 14-inch screen, hiding a
+  column an analyst can still reach beats shrinking every column until none is
+  readable. This is the responsive answer for dense tables.
+- **`aria-sort` appears only on sortable columns.** Announcing it on a header
+  that cannot be sorted tells a screen reader an interaction exists when it
+  does not.
+- **`renderExpanded`** puts detail in a full-width row beneath its parent — the
+  detail belongs with the row it explains, not in a modal that hides it.
+- **`renderFilter` puts per-column filters in the header**, under the thing they
+  filter. In a bar above the table the analyst has to hold the mapping between
+  control and column in their head — a small tax that adds up over a long
+  session. A column with no filter still gets an empty cell, because skipping it
+  would shift every filter one column left.
+
+**Every list of records in the product goes through `DataTable`.** Two tables
+are deliberately not migrated:
+
+- `TimelineTab` renders a key/value dump of a raw event. That is a definition
+  list that happens to use table markup, not a list of records — routing it
+  through `DataTable` would make it worse.
+- `ArtifactExplorer` is migrated with its own split, since the table there is
+  entangled with the RQL bar, dynamic columns and group-by in a single
+  2 600-line file.
+
+A new screen that needs a table starts from the specimen in `/design`, not from
+the nearest file that happens to have one.
 

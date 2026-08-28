@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, Monitor, AlertTriangle, Edit2, Download } from '../../../ui/icons'
+import { DataTable } from '../../../ui/DataTable'
+import { Panel } from '../../../ui/Panel'
 import { assetsApi } from '../../../api/assets'
 import type { Asset, AssetType } from '../../../types'
 import Modal from '../../ui/Modal'
@@ -280,67 +282,68 @@ export default function AssetsTab({ caseId }: Props) {
           action={{ label: '+ Add Asset', onClick: openCreate }}
         />
       ) : (
-        <div className="card overflow-hidden">
-          <table className="w-full text-ui">
-            <thead>
-              <tr className="border-b border-hairline text-fg-secondary text-label uppercase tracking-wide">
-                <th className="text-left px-4 py-3">Name</th>
-                <th className="text-left px-4 py-3">Type</th>
-                <th className="text-left px-4 py-3">IP / Hostname</th>
-                <th className="text-left px-4 py-3">OS</th>
-                <th className="text-left px-4 py-3">Status</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {assets.map(a => (
-                <tr
-                  key={a.id}
-                  className="border-b border-hairline last:border-0 hover:bg-white/[0.02] group"
-                >
-                  <td className="px-4 py-3">
-                    <p className="font-medium">{a.name}</p>
-                    {a.tags && (
-                      <p className="text-label text-fg-secondary/60 font-mono mt-0.5">{a.tags}</p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`text-label font-mono px-2 py-0.5 rounded-control border ${TYPE_COLORS[a.type]}`}>
-                      {TYPE_LABELS[a.type]}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-label text-fg-secondary">
+        <Panel className="overflow-hidden">
+          <DataTable
+            rows={assets}
+            rowKey={(a) => a.id}
+            empty="No asset recorded on this case."
+            columns={[
+              {
+                key: 'name',
+                header: 'Name',
+                render: (a) => (
+                  <>
+                    <p className="font-medium text-fg">{a.name}</p>
+                    {a.tags && <p className="text-label font-mono text-fg-muted mt-0.5">{a.tags}</p>}
+                  </>
+                ),
+              },
+              {
+                key: 'type',
+                header: 'Type',
+                width: 'w-32',
+                render: (a) => (
+                  <span className={`text-label font-mono px-2 py-0.5 rounded-control border ${TYPE_COLORS[a.type]}`}>
+                    {TYPE_LABELS[a.type]}
+                  </span>
+                ),
+              },
+              { key: 'address', header: 'IP / Hostname', mono: true,
+                render: (a) => (
+                  <span className="text-fg-secondary">
                     {[a.ip_address, a.hostname].filter(Boolean).join(' / ') || '—'}
-                  </td>
-                  <td className="px-4 py-3 text-label text-fg-secondary">{a.os || '—'}</td>
-                  <td className="px-4 py-3">
-                    {a.compromised
-                      ? <span className="flex items-center gap-1 text-label text-severity-critical">
-                          <AlertTriangle size={12} /> Compromised
-                        </span>
-                      : <span className="text-label text-fg-secondary/50">—</span>}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => openEdit(a)}
-                        className="text-fg-secondary hover:text-accent transition-colors"
-                      >
-                        <Edit2 size={13} />
-                      </button>
-                      <button
-                        onClick={() => setDeleteTarget(a.id)}
-                        className="text-fg-secondary hover:text-severity-critical transition-colors"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </span>
+                ) },
+              { key: 'os', header: 'OS', width: 'w-40', hideBelow: 'md',
+                render: (a) => <span className="text-fg-secondary">{a.os || '—'}</span> },
+              {
+                key: 'status',
+                header: 'Status',
+                width: 'w-36',
+                render: (a) =>
+                  a.compromised ? (
+                    <span className="flex items-center gap-1 text-label text-severity-critical">
+                      <AlertTriangle size={12} /> Compromised
+                    </span>
+                  ) : (
+                    <span className="text-label text-fg-muted">—</span>
+                  ),
+              },
+            ]}
+            trailing={{
+              render: (a) => (
+                <>
+                  <button onClick={() => openEdit(a)} className="text-fg-secondary hover:text-accent transition-colors" title="Edit">
+                    <Edit2 size={13} />
+                  </button>
+                  <button onClick={() => setDeleteTarget(a.id)} className="text-fg-secondary hover:text-severity-critical transition-colors" title="Delete">
+                    <Trash2 size={13} />
+                  </button>
+                </>
+              ),
+            }}
+          />
+        </Panel>
       )}
 
       <Modal

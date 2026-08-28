@@ -1,6 +1,7 @@
 import { useRef, useState, useCallback, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronRight, Globe } from '../../../ui/icons'
+import { DataTable, type Column } from '../../../ui/DataTable'
 import { collectionImportApi, type ImportedCollection, type ImportedFile, type GroupSummary } from '../../../api/collectionImport'
 import { useNavigate } from 'react-router-dom'
 import { TIMEZONE_OPTIONS } from '../../../context/TimezoneContext'
@@ -206,32 +207,44 @@ function TzPicker({ f, caseId }: { f: ImportedFile; caseId: string }) {
   )
 }
 
-function FileBadge({ f, caseId }: { f: ImportedFile; caseId: string }) {
-  const color = STATUS_COLOR[f.status] ?? 'text-fg-muted'
-  const showTzPicker = f.status === 'imported' && !!f.csv_artifact_id
-  return (
-    <tr className="border-b border-hairline hover:bg-white/[0.02] text-label">
-      <td className="py-2 pl-3 pr-2 font-mono text-fg-muted max-w-[280px] truncate">
-        {f.filename.split('/').pop()}
-      </td>
-      <td className="py-2 px-2">
-        {f.category_label
-          ? <span className="text-fg-muted">{f.category_label}</span>
-          : <span className="text-label font-semibold px-1.5 py-0.5 rounded-control border bg-fg-muted/10 text-fg-muted border-fg-muted/20">unknown</span>}
-      </td>
-      <td className={`py-2 px-2 font-semibold ${color}`}>{f.status}</td>
-      <td className="py-2 px-2 text-fg-muted text-right">{fmtNum(f.row_count)}</td>
-      <td className="py-2 px-2">
-        {showTzPicker ? <TzPicker f={f} caseId={caseId} /> : <span className="text-fg-muted">—</span>}
-      </td>
-      <td className="py-2 px-2 text-fg-muted text-right">{fmt(f.file_size)}</td>
-      <td className="py-2 pr-3 text-fg-muted text-right">
-        {f.expires_at && !f.added_to_evidence
-          ? new Date(f.expires_at).toLocaleDateString()
-          : f.added_to_evidence ? <span className="text-accent text-label">∞</span> : '—'}
-      </td>
-    </tr>
-  )
+/** Column set for the files inside one collection. */
+function fileColumns(caseId: string): Column<ImportedFile>[] {
+  return [
+    { key: 'file', header: 'File', mono: true,
+      render: (f) => (
+        <span className="block max-w-[280px] truncate text-fg-secondary" title={f.filename}>
+          {f.filename.split('/').pop()}
+        </span>
+      ) },
+    { key: 'category', header: 'Category',
+      render: (f) =>
+        f.category_label
+          ? <span className="text-fg-secondary">{f.category_label}</span>
+          : <span className="text-label font-semibold px-1.5 py-0.5 rounded-control border bg-fg-muted/10 text-fg-muted border-fg-muted/20">unknown</span> },
+    { key: 'status', header: 'Status', width: 'w-24',
+      render: (f) => (
+        <span className={`font-semibold ${STATUS_COLOR[f.status] ?? 'text-fg-muted'}`}>{f.status}</span>
+      ) },
+    { key: 'rows', header: 'Rows', width: 'w-20', align: 'right', mono: true,
+      render: (f) => <span className="text-fg-muted">{fmtNum(f.row_count)}</span> },
+    { key: 'timezone', header: 'Timezone', width: 'w-40', hideBelow: 'md',
+      render: (f) =>
+        f.status === 'imported' && f.csv_artifact_id
+          ? <TzPicker f={f} caseId={caseId} />
+          : <span className="text-fg-muted">—</span> },
+    { key: 'size', header: 'Size', width: 'w-24', align: 'right', mono: true, hideBelow: 'md',
+      render: (f) => <span className="text-fg-muted">{fmt(f.file_size)}</span> },
+    { key: 'expires', header: 'Expires', width: 'w-28', align: 'right', mono: true, hideBelow: 'lg',
+      render: (f) => (
+        <span className="text-fg-muted">
+          {f.expires_at && !f.added_to_evidence
+            ? new Date(f.expires_at).toLocaleDateString()
+            : f.added_to_evidence
+              ? <span className="text-accent" title="Kept as evidence">∞</span>
+              : '—'}
+        </span>
+      ) },
+  ]
 }
 
 /** Extract a short display name from a potentially long path or "N CSV files". */
@@ -420,22 +433,13 @@ function CollectionCard({ cols, caseId }: { cols: ImportedCollection[]; caseId: 
       {/* File detail table — raw view inside expanded card */}
       {expanded && (
         <div className="overflow-x-auto">
-          <table className="w-full text-label">
-            <thead>
-              <tr className="border-b border-hairline text-fg-muted uppercase tracking-wide text-label">
-                <th className="py-2 pl-3 pr-2 text-left">File</th>
-                <th className="py-2 px-2 text-left">Category</th>
-                <th className="py-2 px-2 text-left">Status</th>
-                <th className="py-2 px-2 text-right">Rows</th>
-                <th className="py-2 px-2 text-left">Timezone</th>
-                <th className="py-2 px-2 text-right">Size</th>
-                <th className="py-2 pr-3 text-right">Expires</th>
-              </tr>
-            </thead>
-            <tbody>
-              {col.files.map(f => <FileBadge key={f.id} f={f} caseId={caseId} />)}
-            </tbody>
-          </table>
+          <DataTable
+            density="compact"
+            rows={col.files}
+            rowKey={(f) => f.id}
+            columns={fileColumns(caseId)}
+            empty="No file in this collection."
+          />
         </div>
       )}
     </div>
