@@ -15,10 +15,15 @@ assets  binary  case_emails  cases  chainsaw_rules  clients  collection_import
 csv_artifacts  email_analysis  evidences  evtx  knowledge  memory  report_doc_templates  vault
 ```
 
-Eight of them ingest case artifacts and are in scope for consolidation:
+Seven of them ingest case artifacts and are in scope for consolidation:
 `binary`, `case_emails`, `collection_import`, `csv_artifacts`, `email_analysis`,
-`evidences`, `evtx`, `memory`. The rest upload platform content and keep their
-own endpoints (§2, *What is not an artifact*).
+`evtx`, `memory`. The rest upload platform content and keep their own endpoints
+(§2, *What is not an artifact*).
+
+`evidences` was listed here in an earlier draft and does not belong. Uploading a
+file straight into the chain of custody is not ingestion - the file is not
+parsed, not routed, and not queried. It is the custody path, and routing it
+through identification would only delay preserving it.
 
 Consequences:
 - No single answer to *"what has been ingested into this case?"*.
@@ -257,6 +262,39 @@ Declarative table, not a chain of `if` statements. One row per kind.
 Logs *and* in the Explorer. The analyst who wants Sigma detections goes to
 Logs; the analyst who wants to pivot on a field goes to the Explorer. Producing
 only one of the two is what forces manual re-import today.
+
+### Dispatch
+
+Routing decides *where* a file belongs. Dispatch decides *what happens to it* -
+which parser runs. Without it the pipeline produced a correct answer that led
+nowhere: it knew a file was an EVTX bound for Logs and had no way to send it
+there.
+
+`services/ingest/dispatch.py` holds a second declarative table, kind → handler.
+The handlers **wrap the parsers that already exist** (`register_csv_artifact`,
+`register_evtx_file`, `register_email_file`, the PCAP converter) rather than
+reimplementing them, which is what makes it safe to route the legacy Collection
+Import through the same table. Parsing behaviour does not change; only who
+decides which parser runs, and on what evidence.
+
+That last part is the upgrade the legacy path gets for free. It dispatched on
+the filename extension, so a `.txt` that was really an EVTX was registered in
+the Explorer as a one-column table of binary garbage. It now identifies from the
+bytes like everything else.
+
+An explicit `kind` is trusted over the bytes, because a kind an analyst forced
+must not be quietly re-derived - that would undo the correction the Collection
+tab exists to let them make.
+
+Memory dumps, binaries and disk images are deliberately **absent** from the
+handler table. Their routers still own that work, and wiring them in without
+moving it would parse every one of them twice. They move over in the same pull
+request that converts their endpoint.
+
+A kind with no handler is `unsupported`, not an error: the file is stored and
+listed, it is simply not queryable yet. A handler that raises produces `failed`
+with the reason attached - a parser crash is a fact about one file, never a
+reason to lose it or to stop the batch it arrived in.
 
 ### Type-hint folders
 Sub-folders such as `evtx/`, `registry/`, `memory/` are **optional hints, never

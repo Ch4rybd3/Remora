@@ -6,6 +6,10 @@ folder on the host, the Collection tab's upload, an unpacked archive member, a
 connector. Identification, deduplication and routing live in one place so they
 can be tested in one place and cannot disagree between entry points.
 """
+# `dispatch_file`, not `dispatch`: the submodule is called dispatch, and a
+# function of the same name would shadow it for anyone writing
+# `from app.services.ingest import dispatch`.
+from .dispatch import HANDLED_KINDS, ParseResult, dispatch_file, has_handler, parse
 from .identify import Identification, identify, identify_bytes
 from .routing import (
     ARCHIVE_KINDS,
@@ -25,17 +29,22 @@ from .service import (
 
 __all__ = [
     "ARCHIVE_KINDS",
+    "HANDLED_KINDS",
     "KNOWN_KINDS",
     "Identification",
+    "ParseResult",
     "Route",
     "case_summary",
     "compute_sha256",
     "destination_pages",
+    "dispatch_file",
     "find_duplicate",
     "force_kind",
     "identify",
+    "has_handler",
     "identify_bytes",
     "is_archive_kind",
+    "parse",
     "record",
     "route_for",
 ]

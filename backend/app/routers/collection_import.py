@@ -20,6 +20,8 @@ from ..core.deps import get_current_user
 from ..database import SessionLocal, get_db
 from ..models.csv_artifact import CsvArtifactFile
 from ..models.ez_artifacts import ImportedCollection, ImportedFile
+from ..models.ingest import STATE_FAILED as INGEST_FAILED
+from ..models.ingest import STATE_UNSUPPORTED as INGEST_UNSUPPORTED
 from ..services.archives import (
     ARCHIVE_EXTS_LABEL,
     ArchiveError,
@@ -29,6 +31,7 @@ from ..services.archives import (
     list_entries,
 )
 from ..services.ez_detection import detect
+from ..services.ingest.dispatch import parse as dispatch_parse
 
 router = APIRouter()
 
@@ -256,11 +259,6 @@ def _run_pending(
     Shared ingest loop — resolves each CSV from extracted_dir and ingests it.
     Returns the number of files processed.
     """
-    from ..services.pcap import PCAP_EXTS, convert_to_csv
-    from .case_emails import register_email_file
-    from .csv_artifacts import register_csv_artifact
-    from .evtx import register_evtx_file
-
     processed = 0
     for file_id, filename, category in pending:
         # Try exact path first, then basename search (handles ZIP subdirs and flat files)
@@ -269,50 +267,34 @@ def _run_pending(
             candidates = list(extracted_dir.rglob(Path(filename).name))
             file_path = candidates[0] if candidates else None
 
-        ext = Path(filename).suffix.lower()
-        print(f"[collection_import] registering {filename} ({ext}) → category={category} path={file_path}", flush=True)
+        print(f"[collection_import] registering {filename} → category={category} path={file_path}", flush=True)
 
         f = db.get(ImportedFile, file_id)
         if not f:
             continue
 
-        try:
-            if file_path is None or not file_path.exists():
-                raise FileNotFoundError(f"File not found: {filename}")
+        # One dispatch table, shared with the drop folder pipeline. This used to
+        # be an if/elif on the filename extension, which sent a `.txt` that was
+        # really an EVTX to the Explorer as a one-column table of binary
+        # garbage. `parse()` identifies from the bytes instead.
+        result = dispatch_parse(
+            db, case_id=case_id,
+            path=file_path if file_path else extracted_dir / filename,
+            filename=filename,
+        )
 
-            if ext == ".evtx":
-                # Route to EVTX module — parse runs asynchronously in daemon thread
-                register_evtx_file(file_path, case_id, filename, db)
-                f.status    = "imported"
-                f.row_count = 0        # events counted after async parse
-                f.imported_at = datetime.utcnow()
-            elif ext in PCAP_EXTS:
-                # Dissect with tshark into a packet-list CSV, then register that
-                # CSV in the Artifact Explorer like any other artifact.
-                csv_path = convert_to_csv(file_path)
-                artifact = register_csv_artifact(csv_path, case_id, db)
-                f.status          = "imported"
-                f.row_count       = artifact.row_count if artifact else 0
-                f.imported_at     = datetime.utcnow()
-                f.csv_artifact_id = artifact.id if artifact else None
-            elif ext == ".eml":
-                # Route to Email Analysis
-                register_email_file(file_path, case_id, Path(filename).name, db)
-                f.status    = "imported"
-                f.row_count = 1
-                f.imported_at = datetime.utcnow()
-            else:
-                # All other supported types (.csv, .json, .txt, .log) go to Artifact Explorer
-                artifact = register_csv_artifact(file_path, case_id, db)
-                f.status         = "imported"
-                f.row_count      = artifact.row_count if artifact else 0
-                f.imported_at    = datetime.utcnow()
-                f.csv_artifact_id = artifact.id if artifact else None
-
-        except Exception as e:
-            print(f"[collection_import] ERROR registering {filename}: {e}", flush=True)
+        if result.state == INGEST_FAILED:
+            print(f"[collection_import] ERROR registering {filename}: {result.error}", flush=True)
             f.status = "error"
-            f.error_message = str(e)[:500]
+            f.error_message = (result.error or "")[:500]
+        elif result.state == INGEST_UNSUPPORTED:
+            f.status = "unsupported"
+            f.error_message = (result.error or "")[:500]
+        else:
+            f.status          = "imported"
+            f.row_count       = result.row_count
+            f.imported_at     = datetime.utcnow()
+            f.csv_artifact_id = result.artifact_id
 
         processed += 1
         col = db.get(ImportedCollection, collection_id)
