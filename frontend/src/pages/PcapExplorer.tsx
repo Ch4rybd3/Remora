@@ -6,7 +6,7 @@
  * protocol tree and hexdump come from dissecting the selected frame on demand.
  */
 import { useState, useMemo, useEffect, useCallback } from 'react'
-import { PageHelp } from '../help/pageHelp'
+import { PageShell } from '../ui/PageShell'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { DataTable } from '../ui/DataTable'
 import {
@@ -635,15 +635,16 @@ export default function PcapExplorer() {
   const totalPages = rows?.pages ?? 1
 
   return (
-    <div className="flex h-full overflow-hidden">
-      {/* ── Captures sidebar ─────────────────────────────────────────────── */}
-      <div className="w-56 shrink-0 border-r border-hairline bg-panel flex flex-col overflow-hidden">
-        <p className="px-3 py-3 text-label font-semibold uppercase tracking-widest text-fg-secondary/50 flex items-center gap-1.5 border-b border-hairline">
+    <PageShell
+      route="/artifacts/pcap"
+      title="Network (PCAP)"
+      subtitle={currentCase?.title}
+      meta={captures.length ? `${captures.length} capture${captures.length > 1 ? 's' : ''}` : undefined}
+      fullHeight
+      asideLeft={(
+        <aside className="w-56 shrink-0 border-r border-hairline bg-panel flex flex-col min-h-0 overflow-hidden">
+        <p className="px-3 py-2 text-label font-mono uppercase tracking-label text-fg-muted flex items-center gap-1.5 border-b border-hairline">
           <Network size={11} /> Captures
-          <span className="ml-auto"><PageHelp route="/artifacts/pcap" /></span>
-          {captures.length > 0 && (
-            <span className="ml-auto text-fg-secondary/30">{captures.length}</span>
-          )}
         </p>
         <div className="flex-1 overflow-y-auto">
           {captures.length === 0 && (
@@ -666,10 +667,10 @@ export default function PcapExplorer() {
             </button>
           ))}
         </div>
-      </div>
-
-      {/* ── Main: packet list + detail ───────────────────────────────────── */}
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        </aside>
+      )}
+    >
+      <div className="h-full min-w-0 flex flex-col overflow-hidden">
         {/* Toolbar */}
         <div className="flex items-center gap-2 px-3 py-2 border-b border-hairline shrink-0">
           <div className="relative flex-1 max-w-md">
@@ -807,6 +808,6 @@ export default function PcapExplorer() {
         onExport={exportToTimeline}
         exporting={exporting}
       />
-    </div>
+    </PageShell>
   )
 }

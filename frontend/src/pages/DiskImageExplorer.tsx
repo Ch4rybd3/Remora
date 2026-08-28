@@ -5,7 +5,7 @@
  * directory's contents top-right, and the selected file's bytes bottom-right.
  */
 import { useState, useMemo, useCallback } from 'react'
-import { PageHelp } from '../help/pageHelp'
+import { PageShell } from '../ui/PageShell'
 import { DataTable } from '../ui/DataTable'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import {
@@ -355,13 +355,17 @@ export default function DiskImageExplorer() {
   }
 
   return (
-    <div className="flex h-full overflow-hidden">
-      {/* ── Evidence tree ────────────────────────────────────────────────── */}
-      <div className="w-72 shrink-0 border-r border-hairline bg-panel flex flex-col overflow-hidden">
-        <div className="px-3 py-3 flex items-center gap-1.5 border-b border-hairline">
-          <p className="text-label font-semibold uppercase tracking-widest text-fg-secondary/50 flex items-center gap-1.5">
+    <PageShell
+      route="/artifacts/images"
+      title="Disk Images"
+      subtitle={currentCase?.title}
+      meta={images.length ? `${images.length} image${images.length > 1 ? 's' : ''}` : undefined}
+      fullHeight
+      asideLeft={(
+        <aside className="w-72 shrink-0 border-r border-hairline bg-panel flex flex-col min-h-0 overflow-hidden">
+        <div className="px-3 py-2 flex items-center gap-1.5 border-b border-hairline">
+          <p className="text-label font-mono uppercase tracking-label text-fg-muted flex items-center gap-1.5">
             <HardDrive size={11} /> Images
-            <span className="ml-auto"><PageHelp route="/artifacts/images" /></span>
           </p>
           {images.length > 0 && <span className="text-fg-secondary/30 text-label">{images.length}</span>}
           <button
@@ -459,10 +463,10 @@ export default function DiskImageExplorer() {
             </div>
           ))}
         </div>
-      </div>
-
-      {/* ── Directory contents + file preview ────────────────────────────── */}
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        </aside>
+      )}
+    >
+      <div className="h-full min-w-0 flex flex-col overflow-hidden">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 px-3 py-2 border-b border-hairline shrink-0">
           <code className="text-label font-mono text-fg-secondary/60 truncate flex-1">
@@ -614,6 +618,6 @@ export default function DiskImageExplorer() {
           </div>
         </div>
       </div>
-    </div>
+    </PageShell>
   )
 }
