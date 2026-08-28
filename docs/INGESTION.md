@@ -15,6 +15,11 @@ assets  binary  case_emails  cases  chainsaw_rules  clients  collection_import
 csv_artifacts  email_analysis  evidences  evtx  knowledge  memory  report_doc_templates  vault
 ```
 
+Eight of them ingest case artifacts and are in scope for consolidation:
+`binary`, `case_emails`, `collection_import`, `csv_artifacts`, `email_analysis`,
+`evidences`, `evtx`, `memory`. The rest upload platform content and keep their
+own endpoints (§2, *What is not an artifact*).
+
 Consequences:
 - No single answer to *"what has been ingested into this case?"*.
 - No cross-cutting duplicate detection.
@@ -24,20 +29,72 @@ Consequences:
 
 ## 2. The principle
 
-**One ingestion path: the drop folder.** Everything else is a thin wrapper.
+**One ingestion path: the drop folder.** There is no unitary import any more.
+No endpoint parses a file, decides where it belongs, or writes it to permanent
+storage. Identification, deduplication and routing happen in exactly one
+service, which means they are testable in exactly one place and behave
+identically no matter how the bytes arrived.
+
+### The two access points
 
 ```
-                          ┌──────────────────────────┐
-  browser upload ────────►│                          │
-  drop folder (host copy) │  <dropzone>/<case>/      │──► ingest service ──► routing
-  connector / API ───────►│                          │
-                          └──────────────────────────┘
+  A. host filesystem ──── cp / scp / rsync / mount ─────┐
+                                                        ▼
+                                          <dropzone>/<case>/  ──► ingest service ──► routing
+                                                        ▲
+  B. Collection tab ───── POST .../uploads ─────────────┘
+                          (writes the file, returns 202)
 ```
 
-Upload endpoints write the bytes into the case drop folder and return `202`.
-They contain no parsing, no storage decision, no hashing. Identification and
-routing happen in exactly one place, which means they are testable in exactly
-one place.
+**A — directly on the machine.** The analyst copies an acquisition into the
+case folder over SSH, from a mounted share, or from a write blocker. No browser
+involved, no size limit but the disk, and a 400 GB E01 never travels through
+HTTP. This is the path that matters for real acquisitions.
+
+**B — from the Collection tab.** A drag-and-drop zone in the UI. This is a
+*courier, not an importer*: it writes the bytes into the same case folder that
+path A writes into, then returns `202 Accepted`. It holds no parsing logic and
+makes no storage decision. Removing it would change nothing about how a file is
+processed — only who can put one there.
+
+Both converge before anything is inspected. An EVTX uploaded from a laptop and
+an EVTX dropped by `scp` produce byte-identical `ingested_files` rows apart from
+`origin` and `origin_detail`.
+
+### Why the browser upload must not write in place
+
+The watcher only picks up a file once its size and mtime are unchanged across
+two consecutive polls (§3) — that is what stops a half-copied file being
+ingested. An HTTP upload streamed straight into the case folder can still stall
+long enough to look stable, and would then be parsed truncated.
+
+So the upload endpoint writes to `<dropzone>/<case>/.incoming/<uuid>` and, once
+the request body is fully read and the handle closed, **atomically renames** it
+into the case folder. A rename within a filesystem is atomic, so the watcher
+sees either nothing or a complete file — never a partial one. `.incoming/` is
+skipped by the watcher, and anything left there is garbage from an interrupted
+request, swept on startup.
+
+A name that already exists in the case folder is suffixed (`System.evtx` →
+`System (2).evtx`). It is not overwritten and not rejected: two acquisitions
+legitimately contain a file of the same name, and content-level duplicates are
+caught by hash in §7 regardless of what they are called.
+
+### What is *not* an artifact
+
+The rule covers **case artifacts** — evidence about the incident. It does not
+cover platform content that happens to arrive as a file:
+
+| Stays a direct upload | Why |
+|---|---|
+| Report DOCX/Markdown templates | Configuration, global, not case-scoped |
+| Chainsaw / Sigma rule packs | Detection content, versioned with the tool |
+| Knowledge base attachments, client and user avatars | Not evidence |
+| Vault entries | Encrypted at rest by a different path on purpose |
+
+Running these through hashing, magic-byte routing and a parser queue would buy
+nothing and would put a report template in the Artifact Explorer. They keep
+their own endpoints and are explicitly out of scope for §1's consolidation.
 
 ---
 
@@ -48,10 +105,14 @@ one place.
   acme-ransomware-4f3a9b21/       one folder per case (slug + short id)
     <files dropped here>
     evtx/  registry/  memory/     optional type hints (see §6)
+    .incoming/                    browser uploads in flight, renamed in when complete
     .processed/                   ingested originals, moved never deleted
     .failed/                      files that could not be ingested, with a .error sidecar
   _inbox/                         case-less drops, assigned from the UI
 ```
+
+The watcher skips every dot-prefixed folder, so nothing under `.incoming/`,
+`.processed/` or `.failed/` is ever re-ingested.
 
 A file is only picked up once its size and mtime are unchanged across two
 consecutive polls, so a large copy in progress is never ingested half-written.
@@ -328,8 +389,16 @@ Rules:
 
 1. Ship the ingest service alongside the existing endpoints; both write `ingested_files`.
 2. Backfill `ingested_files` from existing `ImportedCollection` / `ImportedFile` rows and from files already on disk (hash and identify in a background job).
-3. Convert upload endpoints to wrappers, one module per PR.
-4. Remove the dead parsing code from routers.
-5. Convert stored CSV to Parquet lazily, on first access.
+3. Convert the eight artifact upload endpoints into drop-folder couriers, one
+   module per PR: write to `.incoming/`, rename in, return `202`.
+4. Remove the parsing, hashing and storage code left dead in those routers.
+   This is the step that actually retires the unitary import - until it lands,
+   two paths still exist and can disagree.
+5. Rebuild the Collection tab around the ingest queue: a drop zone, the
+   `ingested_files` list with its state per file, and the actions the states
+   call for - force a type on `unidentified`, retry a `failed`, set the source
+   timezone before parsing. It stops being an import form and becomes the view
+   of what the pipeline is doing.
+6. Convert stored CSV to Parquet lazily, on first access.
 
 No step requires downtime, and each is independently revertible.
