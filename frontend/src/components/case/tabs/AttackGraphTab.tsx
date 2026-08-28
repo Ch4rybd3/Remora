@@ -7,7 +7,7 @@ import {
   type Connection, type ReactFlowInstance,
 } from '@xyflow/react'
 import {
-  Save, Plus, Trash2, Skull, StickyNote, Wand2,
+  ImageDown, Save, Plus, Trash2, Skull, StickyNote, Wand2,
   Clock, Monitor, Shield, Edit2, ChevronDown, ChevronRight,
 } from '../../../ui/icons'
 import { fmtDateTime, fmtCompactShort } from '../../../utils/dateUtils'
@@ -284,6 +284,27 @@ export default function AttackGraphTab({ caseId }: Props) {
     setSelected(null)
   }
 
+  // ── PNG export ────────────────────────────────────────────────────────────
+  // Rendered by the backend rather than the browser: it is the same renderer
+  // the DOCX report uses, so the download and the report image match. A second
+  // client-side renderer would drift, and a report that no longer looks like
+  // the screen it came from is worse than no export.
+  const [exportingPng, setExportingPng] = useState(false)
+  const exportPng = useCallback(async () => {
+    setExportingPng(true)
+    try {
+      const blob = await attackGraphApi.png(caseId)
+      const url  = URL.createObjectURL(blob)
+      Object.assign(document.createElement('a'), {
+        href: url,
+        download: 'attack-graph.png',
+      }).click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setExportingPng(false)
+    }
+  }, [caseId])
+
   // ── Copy / paste ──────────────────────────────────────────────────────────
   useGraphClipboard({
     selectedNodes,
@@ -372,6 +393,15 @@ export default function AttackGraphTab({ caseId }: Props) {
             onApply={applyShape}
             onClear={clearWaypoints}
           />
+          <button
+            onClick={exportPng}
+            disabled={exportingPng || nodes.length === 0}
+            className="btn-ghost flex items-center gap-1.5 disabled:opacity-40"
+            title="Download the graph as a PNG — the same image the report embeds"
+          >
+            <ImageDown size={12} />
+            {exportingPng ? 'Exporting...' : 'Export PNG'}
+          </button>
           <button
             onClick={runLayout}
             disabled={laying || nodes.length === 0}

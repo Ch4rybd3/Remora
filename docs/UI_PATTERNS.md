@@ -252,3 +252,13 @@ domain belongs here, not in the page that happened to need it first — that is
 exactly how the attack graph ended up with default edges that crossed each
 other while the playbook next door could route around anything.
 
+**Exporting a canvas** goes through the backend, not the browser. The attack
+graph's PNG is rendered by `services/graph_render.py`, which is also what the
+DOCX report embeds — so what an analyst downloads and what lands in the report
+are the same picture. A second client-side renderer would drift, and a report
+that no longer looks like the screen it came from is worse than no export.
+
+The playbook editor still renders its own PNG in the browser, because its
+canvas exporter predates this and there is no server-side equivalent yet. That
+is the remaining asymmetry between the two canvases.
+
