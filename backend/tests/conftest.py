@@ -58,3 +58,36 @@ def auth_client(client: TestClient, token: str) -> TestClient:
     authenticated = TestClient(app)
     authenticated.headers.update({"Authorization": f"Bearer {token}"})
     return authenticated
+
+
+@pytest.fixture()
+def db_session(client: TestClient):
+    """
+    A session on the migrated test database.
+
+    Depends on `client` so startup - and therefore the migration runner - has
+    already brought the schema to head. Testing against the migrated schema
+    rather than `create_all` means a missing migration fails here too, instead
+    of these tests quietly passing against a schema that exists nowhere else.
+    """
+    from app.database import SessionLocal
+
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.rollback()
+        session.close()
+
+
+@pytest.fixture()
+def case_id(db_session) -> str:
+    """A throwaway case for ingested files to hang off."""
+    import uuid as _uuid
+
+    from app.models.case import Case
+
+    new_id = str(_uuid.uuid4())
+    db_session.add(Case(id=new_id, title=f"Ingest test {new_id[:8]}"))
+    db_session.commit()
+    return new_id

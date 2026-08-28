@@ -1,0 +1,183 @@
+"""
+Where does an identified file go?
+
+A table, not a chain of `if` statements. Adding support for a new artifact is
+one row here plus one parser — not an edit inside a router, which is how the
+current logic ended up duplicated across fourteen of them with no two agreeing.
+
+The rule the table encodes (`docs/INGESTION.md` section 6): **two destinations
+are the norm.** A raw EVTX belongs in the Logs module *and*, once parsed, in
+the Artifact Explorer. The analyst chasing Sigma detections goes to Logs; the
+one pivoting on a field goes to the Explorer. Producing only one of the two is
+exactly what forces the manual re-import that exists today.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+# ─── Destination modules ──────────────────────────────────────────────────────
+
+DEST_EXPLORER   = "artifact_explorer"
+DEST_LOGS       = "logs"
+DEST_DISK       = "disk_images"
+DEST_MEMORY     = "memory"
+DEST_MAIL       = "email_analysis"
+DEST_PCAP       = "pcap"
+DEST_BINARY     = "binary_analysis"
+DEST_COLLECTION = "collection"      # held for an analyst decision
+DEST_UNPACK     = "unpack"          # not a destination: re-enters the pipeline
+
+
+@dataclass(frozen=True)
+class Route:
+    #: Module that owns the raw file. `None` means the Explorer is the only home.
+    primary: str | None
+    #: Parser producing the tabular form the Explorer indexes. `None` means the
+    #: file is already tabular, or that no parser exists yet.
+    parser: str | None = None
+    #: False for kinds that are stored and listed but never parsed.
+    to_explorer: bool = True
+    #: Set when the parser is specified but not yet shipped. The file is kept
+    #: and listed as `unsupported` rather than being refused - a pipeline that
+    #: rejects files becomes a prison, and analysts route around prisons.
+    pending: bool = False
+    #: Frontend routes offered as "open in" links from the Collection tab.
+    pages: tuple[str, ...] = field(default_factory=tuple)
+
+
+#: `{case_id}` is substituted at read time by `destination_pages()`.
+_ROUTES: dict[str, Route] = {
+    # ── Already tabular: straight into the Explorer ──────────────────────────
+    "csv":    Route(None, pages=("/artifacts/explorer",)),
+    "json":   Route(None, pages=("/artifacts/explorer",)),
+    "jsonl":  Route(None, pages=("/artifacts/explorer",)),
+    "text":   Route(None, pages=("/artifacts/explorer",)),
+    "log":    Route(None, pages=("/artifacts/explorer",)),
+    "xml":    Route(None, pages=("/artifacts/explorer",)),
+
+    # ── Windows event logs ──────────────────────────────────────────────────
+    "evtx":   Route(DEST_LOGS, parser="evtxecmd",
+                    pages=("/cases/{case_id}/evtx", "/artifacts/explorer")),
+    "evt":    Route(DEST_LOGS, parser="evtxecmd", pending=True,
+                    pages=("/cases/{case_id}/evtx",)),
+
+    # ── NTFS metadata ───────────────────────────────────────────────────────
+    "mft":            Route(DEST_LOGS, parser="mftecmd",
+                            pages=("/cases/{case_id}/mft", "/artifacts/explorer")),
+    "usnjrnl":        Route(DEST_LOGS, parser="mftecmd",
+                            pages=("/cases/{case_id}/usn", "/artifacts/explorer")),
+    "ntfs_logfile":   Route(None, parser="logfile", pending=True),
+    "ntfs_secure":    Route(None, parser=None, to_explorer=False),
+
+    # ── Registry and execution artifacts (S16 parsers) ──────────────────────
+    "registry_hive":  Route(None, parser="recmd",   pending=True),
+    "registry_log":   Route(None, parser=None, to_explorer=False),
+    "prefetch":       Route(None, parser="pecmd",   pending=True),
+    "lnk":            Route(None, parser="lecmd",   pending=True),
+    "jumplist_auto":  Route(None, parser="jlecmd",  pending=True),
+    "jumplist_custom": Route(None, parser="jlecmd", pending=True),
+    "srum":           Route(None, parser="srumecmd", pending=True),
+    "windows_timeline": Route(None, parser="wxtcmd", pending=True),
+    "ntds":           Route(None, parser=None, to_explorer=False),
+    "search_index":   Route(None, parser=None, to_explorer=False),
+
+    # ── Browser ─────────────────────────────────────────────────────────────
+    "browser_history": Route(None, parser="browser", pending=True),
+    "browser_cookies": Route(None, parser="browser", pending=True),
+    "browser_cache":   Route(None, parser="browser", pending=True),
+
+    # ── Disk images ─────────────────────────────────────────────────────────
+    "ewf":      Route(DEST_DISK, parser="filesystem_listing",
+                      pages=("/cases/{case_id}/disk-images",)),
+    "vmdk":     Route(DEST_DISK, parser="filesystem_listing",
+                      pages=("/cases/{case_id}/disk-images",)),
+    "vhd":      Route(DEST_DISK, parser="filesystem_listing",
+                      pages=("/cases/{case_id}/disk-images",)),
+    "vhdx":     Route(DEST_DISK, parser="filesystem_listing",
+                      pages=("/cases/{case_id}/disk-images",)),
+    "qcow":     Route(DEST_DISK, parser="filesystem_listing",
+                      pages=("/cases/{case_id}/disk-images",)),
+    "ad1":      Route(DEST_DISK, parser="filesystem_listing", pending=True,
+                      pages=("/cases/{case_id}/disk-images",)),
+    "disk_raw": Route(DEST_DISK, parser="filesystem_listing",
+                      pages=("/cases/{case_id}/disk-images",)),
+
+    # ── Memory ──────────────────────────────────────────────────────────────
+    "memory_dump": Route(DEST_MEMORY, parser="volatility",
+                         pages=("/cases/{case_id}/memory", "/artifacts/explorer")),
+    # A page file holds memory but no Volatility profile reads it directly.
+    # Kept and listed so it can be carved later; not parsed.
+    "pagefile":  Route(DEST_MEMORY, parser=None, to_explorer=False,
+                       pages=("/cases/{case_id}/memory",)),
+    "hiberfil":  Route(DEST_MEMORY, parser="hibernation", pending=True,
+                       pages=("/cases/{case_id}/memory",)),
+
+    # ── Mail ────────────────────────────────────────────────────────────────
+    "eml":   Route(DEST_MAIL, parser="mail",
+                   pages=("/cases/{case_id}/emails", "/artifacts/explorer")),
+    "msg":   Route(DEST_MAIL, parser="mail",
+                   pages=("/cases/{case_id}/emails", "/artifacts/explorer")),
+    "mbox":  Route(DEST_MAIL, parser="mail", pending=True,
+                   pages=("/cases/{case_id}/emails",)),
+    "pst":   Route(DEST_MAIL, parser="mail", pending=True,
+                   pages=("/cases/{case_id}/emails",)),
+
+    # ── Network ─────────────────────────────────────────────────────────────
+    "pcap":   Route(DEST_PCAP, parser="pcap",
+                    pages=("/cases/{case_id}/pcap", "/artifacts/explorer")),
+    "pcapng": Route(DEST_PCAP, parser="pcap",
+                    pages=("/cases/{case_id}/pcap", "/artifacts/explorer")),
+
+    # ── Executables ─────────────────────────────────────────────────────────
+    "pe":    Route(DEST_BINARY, parser="binary",
+                   pages=("/cases/{case_id}/binary", "/artifacts/explorer")),
+    "elf":   Route(DEST_BINARY, parser="binary",
+                   pages=("/cases/{case_id}/binary", "/artifacts/explorer")),
+    "macho": Route(DEST_BINARY, parser="binary",
+                   pages=("/cases/{case_id}/binary", "/artifacts/explorer")),
+
+    # ── Containers: unpacked, then every member re-enters the pipeline ──────
+    "archive_zip":   Route(DEST_UNPACK, to_explorer=False),
+    "archive_7z":    Route(DEST_UNPACK, to_explorer=False),
+    "archive_rar":   Route(DEST_UNPACK, to_explorer=False),
+    "archive_tar":   Route(DEST_UNPACK, to_explorer=False),
+    "archive_gzip":  Route(DEST_UNPACK, to_explorer=False),
+    "archive_bzip2": Route(DEST_UNPACK, to_explorer=False),
+    "archive_xz":    Route(DEST_UNPACK, to_explorer=False),
+
+    # ── Held for a decision ─────────────────────────────────────────────────
+    "sqlite":       Route(DEST_COLLECTION, to_explorer=False),
+    "ese":          Route(DEST_COLLECTION, to_explorer=False),
+    "olecf":        Route(DEST_COLLECTION, to_explorer=False),
+    "binary_blob":  Route(DEST_COLLECTION, to_explorer=False),
+    "pdf":          Route(DEST_COLLECTION, to_explorer=False),
+    "empty":        Route(DEST_COLLECTION, to_explorer=False),
+    "unknown":      Route(DEST_COLLECTION, to_explorer=False),
+}
+
+#: Kinds whose members are unpacked and fed back through identification.
+ARCHIVE_KINDS = frozenset(k for k, r in _ROUTES.items() if r.primary == DEST_UNPACK)
+
+#: Every kind the routing table knows. Used by the tests that assert the
+#: identification table and the routing table have not drifted apart.
+KNOWN_KINDS = frozenset(_ROUTES)
+
+
+def route_for(kind: str) -> Route:
+    """
+    The route for a detected kind.
+
+    An unmapped kind is not an error: it falls back to the Collection tab,
+    where the file is listed and an analyst can force a type. That is the
+    difference between a pipeline and a gate.
+    """
+    return _ROUTES.get(kind, _ROUTES["unknown"])
+
+
+def destination_pages(kind: str, case_id: str) -> list[str]:
+    """Frontend routes for this kind, with the case id substituted in."""
+    return [p.replace("{case_id}", case_id) for p in route_for(kind).pages]
+
+
+def is_archive_kind(kind: str) -> bool:
+    return kind in ARCHIVE_KINDS
