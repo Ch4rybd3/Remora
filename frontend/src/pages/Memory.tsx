@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PageHelp } from '../help/pageHelp'
+import { PageShell } from '../ui/PageShell'
 import {
   Cpu, ChevronLeft, Menu, CheckCircle2, Info, List, Terminal,
 } from '../ui/icons'
@@ -95,31 +95,24 @@ export default function Memory() {
   const [selectedDump, setSelectedDump] = useState<MemoryDump | null>(null)
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      {/* ── Page header ─────────────────────────────────────────────────── */}
-      <div className="shrink-0 border-b border-hairline bg-panel/50 px-5 py-4 flex items-center gap-3">
-        <Cpu size={16} className="text-accent" />
-        <div className="flex-1 min-w-0">
-          <h1 className="text-prose font-bold text-fg leading-tight">Memory Analysis</h1>
-          <p className="text-label text-fg-secondary/50 mt-0.5">
-            Upload memory dumps and run Volatility3 analysis
-          </p>
-        </div>
-        <PageHelp route="/artifacts/memory" />
-        <div className="ml-auto">
-          {currentCase ? (
-            <div className="flex items-center gap-1.5 text-label text-accent/70 bg-accent/5 border border-accent/15 rounded-control px-2.5 py-1.5">
-              <CheckCircle2 size={11} />
-              <span className="font-medium">{currentCase.title}</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 text-label text-fg-secondary/50 bg-white/[0.02] border border-hairline rounded-control px-2.5 py-1.5">
-              <Info size={11} />
-              No case selected
-            </div>
-          )}
-        </div>
-      </div>
+    <PageShell
+      route="/artifacts/memory"
+      title="Memory Analysis"
+      subtitle={currentCase?.title ?? 'No case selected'}
+      actions={
+        currentCase ? (
+          <span className="flex items-center gap-1.5 text-label text-accent">
+            <CheckCircle2 size={11} /> current case
+          </span>
+        ) : (
+          <span className="flex items-center gap-1.5 text-label text-fg-muted">
+            <Info size={11} /> set a case from the top bar
+          </span>
+        )
+      }
+      fullHeight
+    >
+      <div className="h-full flex flex-col min-h-0 overflow-hidden">
 
       {/* ── No case guard ────────────────────────────────────────────────── */}
       {!currentCase ? (
@@ -184,6 +177,7 @@ export default function Memory() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </PageShell>
   )
 }
