@@ -235,3 +235,48 @@ def test_the_staged_upload_name_can_be_overridden(tmp_path: Path):
     p.write_bytes(b"\x00\x00\x00\x00\xef\xcd\xab\x89" + b"\x00" * 64)
     assert identify(p).kind == "ese"
     assert identify(p, name="SRUDB.dat").kind == "srum"
+
+
+# ─── Memory formats ───────────────────────────────────────────────────────────
+
+def test_an_elf_core_dump_is_memory_not_a_binary():
+    """
+    Both open with `\\x7fELF`.
+
+    Without the `e_type` check a Linux memory image captured as a core dump is
+    filed as a binary and sent to Binary Analysis, which encrypts it under a
+    password and asks nobody about Volatility.
+    """
+    head = bytearray(b"\x00" * 128)
+    head[0:4]       = b"\x7fELF"
+    head[0x10:0x12] = (4).to_bytes(2, "little")     # ET_CORE
+    assert identify_bytes(bytes(head), "core.1234").kind == "memory_dump_linux"
+
+
+def test_an_elf_executable_is_still_a_binary():
+    head = bytearray(b"\x00" * 128)
+    head[0:4]       = b"\x7fELF"
+    head[0x10:0x12] = (2).to_bytes(2, "little")     # ET_EXEC
+    assert identify_bytes(bytes(head), "sample").kind == "elf"
+
+
+@pytest.mark.parametrize("head,expected", [
+    (b"PAGEDU64" + b"\x00" * 64,        "memory_dump_windows"),
+    (b"PAGEDUMP" + b"\x00" * 64,        "memory_dump_windows"),
+    (b"EMiL"     + b"\x00" * 64,        "memory_dump_linux"),
+    (b"hibr"     + b"\x00" * 64,        "hiberfil"),
+    (b"WAKE"     + b"\x00" * 64,        "hiberfil"),
+    (b"\xd2\xbe\xd2\xbe" + b"\x00" * 64, "memory_dump"),
+])
+def test_memory_formats_are_recognised(head: bytes, expected: str):
+    assert identify_bytes(head, "acquisition.bin").kind == expected
+
+
+def test_a_raw_dump_has_no_signature_and_falls_back_to_its_name():
+    """
+    Raw and dd-style images carry nothing at all. The name is the only handle,
+    and the resulting kind is the one that has to ask the analyst for an OS.
+    """
+    found = identify_bytes(b"\x00\x11\x22\x33" * 64, "memdump.raw")
+    assert found.kind in {"memory_dump", "disk_raw"}
+    assert found.source == DETECTED_BY_EXTENSION

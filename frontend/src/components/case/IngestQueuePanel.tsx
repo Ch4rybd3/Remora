@@ -143,6 +143,15 @@ function IngestRow({ file, caseId, kinds, onChange }: {
     onSuccess: onChange,
   })
 
+  // Only a raw dump needs this. A Windows crash dump and a LiME image say which
+  // OS they are in their header, and offering to set one would invite an
+  // analyst to contradict the file.
+  const setOs = useMutation({
+    mutationFn: (os: 'windows' | 'linux') => ingestApi.setMemoryOs(caseId, file.id, os),
+    onSuccess: onChange,
+  })
+  const needsOs = file.detected_kind === 'memory_dump' && file.state === 'unsupported'
+
   return (
     <li className="px-3 py-1.5 border-b border-strong/[0.04] last:border-b-0">
       <div className="flex items-center gap-2">
@@ -184,6 +193,20 @@ function IngestRow({ file, caseId, kinds, onChange }: {
             title="Send back through the pipeline">
             <RefreshCw size={11} />
           </button>
+        )}
+
+        {needsOs && (
+          <span className="flex items-center gap-1 shrink-0">
+            <span className="text-label text-severity-medium">OS:</span>
+            {(['windows', 'linux'] as const).map(os => (
+              <button key={os}
+                onClick={() => setOs.mutate(os)}
+                disabled={setOs.isPending}
+                className="text-label px-1.5 py-0.5 rounded-control border border-severity-medium/30 text-severity-medium hover:bg-severity-medium/10 transition-colors disabled:opacity-40">
+                {os}
+              </button>
+            ))}
+          </span>
         )}
 
         {file.state === 'unidentified' && !forcing && (

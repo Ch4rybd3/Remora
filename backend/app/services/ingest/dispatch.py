@@ -133,8 +133,9 @@ _BINARY_NOTE = (
     "folder cannot ask for. Upload it from the Binary Analysis page."
 )
 _IMAGE_NOTE = (
-    "Disk images are read in place from the images directory and never copied - "
-    "a full acquisition is far too large. Point the Disk Images page at it."
+    "Disk images are read in place, never copied - an acquisition is far too "
+    "large to duplicate. Open it from the Disk Images page; the drop folder is "
+    "a readable location, so it does not need to be moved anywhere."
 )
 
 _NEEDS_INPUT: dict[str, str] = {
@@ -213,6 +214,30 @@ def parse(db: Session, *, case_id: str, path: Path, filename: str,
         return ParseResult(STATE_FAILED, error=str(e)[:500])
 
 
+def resolve_stored_path(stored_path: str, base_path: Path | None = None) -> Path | None:
+    """
+    Find a file from its recorded `stored_path`, or None if it is gone.
+
+    Paths are recorded relative to one of two roots - the drop folder for
+    anything the pipeline ingested, the case data directory for anything the
+    backfill found - and absolute for rows written before that was settled. All
+    three are tried, because guessing wrong here reads as "the file is gone".
+    """
+    from ...config import settings
+
+    candidate = Path(stored_path)
+    if not stored_path:
+        return None
+    if candidate.is_absolute():
+        return candidate if candidate.exists() else None
+    roots = [base_path] if base_path else []
+    roots += [Path(settings.dropzone_path), settings.case_data_path]
+    for root in roots:
+        if root and (root / candidate).exists():
+            return root / candidate
+    return None
+
+
 def dispatch_file(db: Session, row: IngestedFile, base_path: Path | None = None,
                   commit: bool = True) -> ParseResult:
     """
@@ -222,10 +247,8 @@ def dispatch_file(db: Session, row: IngestedFile, base_path: Path | None = None,
     recoverable state carrying its reason, which is what makes the retry in the
     Collection tab worth offering.
     """
-    stored = str(row.stored_path or "")
-    path = Path(stored)
-    if base_path and not path.is_absolute():
-        path = base_path / path
+    path = resolve_stored_path(str(row.stored_path or ""), base_path) \
+        or Path(str(row.stored_path or ""))
 
     result = parse(db, case_id=str(row.case_id), path=path,
                    filename=str(row.original_name),

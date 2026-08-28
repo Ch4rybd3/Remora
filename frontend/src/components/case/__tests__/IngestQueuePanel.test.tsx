@@ -10,6 +10,7 @@ const list      = vi.fn()
 const kinds     = vi.fn()
 const forceKind = vi.fn()
 const retry     = vi.fn()
+const setOs     = vi.fn()
 
 vi.mock('../../../api/ingest', () => ({
   ingestApi: {
@@ -17,6 +18,7 @@ vi.mock('../../../api/ingest', () => ({
     kinds:     () => kinds(),
     forceKind: (...a: unknown[]) => forceKind(...a),
     retry:     (...a: unknown[]) => retry(...a),
+    setMemoryOs: (...a: unknown[]) => setOs(...a),
   },
 }))
 
@@ -54,6 +56,7 @@ describe('IngestQueuePanel', () => {
     })
     forceKind.mockReset().mockResolvedValue(file())
     retry.mockReset().mockResolvedValue(file())
+    setOs.mockReset().mockResolvedValue(file())
   })
 
   it('lists what the pipeline has seen', async () => {
@@ -135,5 +138,32 @@ describe('IngestQueuePanel', () => {
     list.mockResolvedValue({ files: [], summary: {} })
     renderPanel()
     expect(await screen.findByText(/Nothing ingested yet/)).toBeInTheDocument()
+  })
+
+  it('asks for an OS on a raw memory image', async () => {
+    list.mockResolvedValue({
+      files: [file({
+        original_name: 'memdump.raw', detected_kind: 'memory_dump',
+        state: 'unsupported', detection_source: 'extension',
+        error: 'A raw memory image does not record which OS it came from.',
+      })],
+      summary: { unsupported: 1 },
+    })
+    renderPanel()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'linux' }))
+    expect(setOs).toHaveBeenCalledWith('case-1', 'f1', 'linux')
+  })
+
+  it('does not ask for an OS on a dump that already says which it is', async () => {
+    list.mockResolvedValue({
+      files: [file({ detected_kind: 'memory_dump_windows', state: 'parsed' })],
+      summary: { parsed: 1 },
+    })
+    renderPanel()
+    await screen.findByText('parsed')
+
+    // Offering the choice would invite an analyst to contradict the file.
+    expect(screen.queryByRole('button', { name: 'windows' })).not.toBeInTheDocument()
   })
 })

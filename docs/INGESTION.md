@@ -322,11 +322,27 @@ Three artifact types are recognised and deliberately **not** parsed by the
 pipeline, because acting on them requires something only an analyst can supply.
 Each says so on its row rather than showing a generic "no parser":
 
-| Kind | What is missing |
-|---|---|
-| Raw memory dump | Which OS it came from. Guessing would queue the wrong Volatility plugins and produce confident wrong output. A Windows crash dump (`PAGEDU64`) and a LiME image (`EMiL`) *are* self-describing, so those two are handled - which is why identification splits them into separate kinds. |
-| PE / ELF / Mach-O | The password the binary is encrypted under at rest. The drop folder cannot ask for one. |
-| Disk image | Nothing, but it must not be copied: acquisitions are read in place from the images directory, and a full one is far too large to duplicate. |
+| Kind | What is missing | How it is resolved |
+|---|---|---|
+| Raw memory dump | Which OS it came from. Guessing would queue the wrong Volatility plugins and produce confident wrong output. | **The dump waits in the queue** - hashed, listed, preservable - and the Collection tab offers `windows` / `linux` on its row. One click registers it in the Memory module. `POST .../ingest/{id}/memory-os`. |
+| PE / ELF / Mach-O | The password the binary is encrypted under at rest. The drop folder cannot ask for one. | Upload from the Binary Analysis page. |
+| Disk image | Nothing - but it must not be copied. | **The drop folder is an allowed root**, so the Disk Images page opens it where it lies. Nothing has to be moved. |
+
+### Memory formats
+
+Identification splits memory by what the format actually records:
+
+| Signature / name | Kind | Why |
+|---|---|---|
+| `PAGEDU64`, `PAGEDUMP` | `memory_dump_windows` | A Windows crash dump is Windows. Parsed straight away. |
+| `EMiL`, `.lime` | `memory_dump_linux` | LiME is a Linux acquisition format. Parsed straight away. |
+| ELF with `e_type == ET_CORE` | `memory_dump_linux` | **A core dump and an ELF executable share `\x7fELF`.** Without the `e_type` check at offset `0x10`, a Linux memory image is filed as a binary and sent to Binary Analysis, which encrypts it under a password and asks nobody about Volatility. |
+| `hibr`, `HIBR`, `wake`, `WAKE` | `hiberfil` | Hibernation file. `wake` marks one already resumed from - still the only copy of that machine's memory at suspend time. |
+| `\xd2\xbe\xd2\xbe` | `memory_dump` | VMware suspend state. The guest OS is not in the header, so it needs the OS question. |
+| `.raw`, `.mem`, `.dmp`, `.vmem`, `.crash` | `memory_dump` | No signature at all. The name is the only handle, and the OS question follows. |
+
+AFF4 containers are not recognised: the format is a ZIP, so one is currently
+identified as an archive and unpacked. That is a known gap, not a decision.
 
 ### Type-hint folders
 Sub-folders such as `evtx/`, `registry/`, `memory/` are **optional hints, never

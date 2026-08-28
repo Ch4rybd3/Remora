@@ -113,8 +113,20 @@ _SIGNATURES: list[tuple[int, bytes, str, str]] = [
     (0, b"PAGEDU64",                "memory_dump_windows", "Windows crash dump (64-bit)"),
     (0, b"PAGEDUMP",                "memory_dump_windows", "Windows crash dump (32-bit)"),
     (0, b"EMiL",                    "memory_dump_linux",   "LiME memory image"),
+    # hiberfil.sys. `wake` marks a file already resumed from - still readable,
+    # and still the only copy of that machine's memory at suspend time.
+    (0, b"hibr",                    "hiberfil",       "Windows hibernation file"),
+    (0, b"HIBR",                    "hiberfil",       "Windows hibernation file"),
+    (0, b"wake",                    "hiberfil",       "Windows hibernation file (resumed)"),
+    (0, b"WAKE",                    "hiberfil",       "Windows hibernation file (resumed)"),
+    # VMware suspend state. The guest OS is not recorded in the header, so this
+    # is a raw dump as far as choosing Volatility plugins goes.
+    (0, b"\xd2\xbe\xd2\xbe",        "memory_dump",    "VMware suspend state (VMSS/VMSN)"),
+    (0, b"\xd3\xbe\xd3\xbe",        "memory_dump",    "VMware suspend state (VMSS/VMSN)"),
 
     # ── Executables ──────────────────────────────────────────────────────────
+    # Checked before the executable entry: `_refine_signature` sends a core
+    # dump to memory instead, and both share this signature.
     (0, b"\x7fELF",                 "elf",            "ELF executable"),
     (0, b"\xca\xfe\xba\xbe",        "macho",          "Mach-O universal binary"),
     (0, b"\xcf\xfa\xed\xfe",        "macho",          "Mach-O executable (64-bit)"),
@@ -136,6 +148,21 @@ _SIGNATURES: list[tuple[int, bytes, str, str]] = [
 ]
 
 
+def _elf_is_core(head: bytes) -> bool:
+    """
+    Distinguish a Linux memory core dump from an ELF executable.
+
+    Both open with `\x7fELF`, so without this a memory image captured as a core
+    dump is filed as a binary and sent to Binary Analysis - which encrypts it
+    under a password and asks nobody about Volatility.
+
+    `e_type` sits at offset 0x10 as a little-endian half-word. 4 is `ET_CORE`.
+    """
+    if len(head) < 0x12:
+        return False
+    return int.from_bytes(head[0x10:0x12], "little") == 4
+
+
 def _valid_pe(head: bytes) -> bool:
     """
     Confirm an `MZ` head really is a PE.
@@ -148,6 +175,15 @@ def _valid_pe(head: bytes) -> bool:
         return False
     offset = int.from_bytes(head[0x3C:0x40], "little")
     return head[offset:offset + 4] == b"PE\x00\x00"
+
+
+#: Signatures that identify a *family*, where a header field says which member.
+#: Returns the replacement (kind, label), or None to keep the table's answer.
+_REFINERS: dict[str, Callable[[bytes], tuple[str, str] | None]] = {
+    "elf": lambda head: (
+        ("memory_dump_linux", "Linux memory core dump") if _elf_is_core(head) else None
+    ),
+}
 
 
 #: Extra confirmation for signatures short enough to collide with real data.
@@ -203,6 +239,11 @@ _EXTENSIONS: dict[str, tuple[str, str]] = {
     ".raw":     ("memory_dump",     "Raw image"),
     ".vmem":    ("memory_dump",     "VMware memory image"),
     ".lime":    ("memory_dump_linux", "LiME memory image"),
+    ".vmss":    ("memory_dump",     "VMware suspend state"),
+    ".vmsn":    ("memory_dump",     "VMware snapshot state"),
+    ".core":    ("memory_dump_linux", "Linux memory core dump"),
+    ".lmem":    ("memory_dump",     "Memory image"),
+    ".crash":   ("memory_dump",     "Memory image"),
     ".dd":      ("disk_raw",        "Raw disk image"),
     ".img":     ("disk_raw",        "Raw disk image"),
     ".001":     ("disk_raw",        "Raw disk image (split)"),
@@ -348,6 +389,11 @@ def identify_bytes(head: bytes, name: str, folder_hint: str | None = None) -> Id
             validator = _VALIDATORS.get(kind)
             if validator and not validator(head):
                 continue
+            refiner = _REFINERS.get(kind)
+            if refiner:
+                replacement = refiner(head)
+                if replacement:
+                    return Identification(replacement[0], replacement[1], DETECTED_BY_MAGIC)
             refined = _refine_container(kind, name)
             if refined:
                 return Identification(refined[0], refined[1], DETECTED_BY_MAGIC)
