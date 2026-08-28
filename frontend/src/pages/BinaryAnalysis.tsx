@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PageHelp } from '../help/pageHelp'
+import { PageShell } from '../ui/PageShell'
 import { Lock } from '../ui/icons'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import BinaryFileList from '../components/binary/BinaryFileList'
@@ -25,28 +25,30 @@ export default function BinaryAnalysis() {
   }
 
   return (
-    <div className="flex h-full overflow-hidden">
-
-      {/* ── Left panel ──────────────────────────────────────────────── */}
-      <div className="w-64 shrink-0 border-r border-hairline bg-panel flex flex-col">
-        <div className="px-3 py-2.5 border-b border-hairline shrink-0 flex items-center gap-2">
-          <Lock size={11} className="text-fg-secondary/40" />
-          <span className="text-label font-semibold tracking-widest uppercase text-fg-secondary/50">
-            Binary Files
-          </span>
-          <span className="ml-auto"><PageHelp route="/artifacts/binary" /></span>
-        </div>
-        <div className="flex-1 overflow-hidden">
-          <BinaryFileList
-            caseId={currentCase.id}
-            selectedFileId={selectedFile?.id ?? null}
-            onSelectFile={f => setSelectedFile(f)}
-          />
-        </div>
-      </div>
-
-      {/* ── Right: explorer ───────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-canvas min-w-0">
+    <PageShell
+      route="/artifacts/binary"
+      title="Binary Analysis"
+      subtitle={currentCase.title}
+      fullHeight
+      asideLeft={(
+        <aside className="w-64 shrink-0 border-r border-hairline bg-panel flex flex-col min-h-0">
+          <div className="px-3 py-2 border-b border-hairline shrink-0 flex items-center gap-2">
+            <Lock size={11} className="text-fg-muted" />
+            <span className="text-label font-mono uppercase tracking-label text-fg-muted">
+              Binary files
+            </span>
+          </div>
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <BinaryFileList
+              caseId={currentCase.id}
+              selectedFileId={selectedFile?.id ?? null}
+              onSelectFile={(f) => setSelectedFile(f)}
+            />
+          </div>
+        </aside>
+      )}
+    >
+      <div className="h-full flex flex-col overflow-hidden min-w-0">
         {selectedFile ? (
           <BinaryExplorer
             caseId={currentCase.id}
@@ -66,6 +68,6 @@ export default function BinaryAnalysis() {
           </div>
         )}
       </div>
-    </div>
+    </PageShell>
   )
 }

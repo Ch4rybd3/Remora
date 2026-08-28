@@ -199,9 +199,13 @@ gutter they did not ask for and a second scrollbar.
 The slots are fixed. A page needing a different arrangement is a gap in the
 design system to raise, not a local exception to make.
 
-**Migrated so far** (11 of 25): Dashboard, Cases, Users, Templates, Report
+**Migrated so far** (13 of 25): Dashboard, Cases, Users, Templates, Report
 Templates, Playbooks, Clients, Connectors, Vault Management, Audit log,
-Detection Rules.
+Detection Rules, Memory Analysis, Binary Analysis.
+
+Binary Analysis is the first to use `asideLeft`, which is what the slot is for:
+the page no longer builds its own two-column flex row, it hands the shell a file
+list and gets the layout.
 
 The rest still carry their own headers. Each is its own small piece of surgery
 because each header is a different shape — which is the whole reason this
