@@ -135,6 +135,12 @@ jobs:
       - name: Design tokens
         run: npm run check:design
 
+      # docs/CONVENTIONS.md section 5. A page that builds its own header passes
+      # every other check and ships looking subtly unlike the twenty-one beside
+      # it, which nobody notices for a month.
+      - name: Page shell
+        run: npm run check:pages
+
       - name: Type check (tsc)
         run: npm run typecheck
 

@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 
 import { PageHelp } from '../help/pageHelp'
-import { NAV_ICON } from './icons'
+import { ArrowLeft, NAV_ICON } from './icons'
 
 interface PageShellProps {
   /**
@@ -10,7 +11,18 @@ interface PageShellProps {
    * cannot show one destination's icon beside another's help.
    */
   route: string
-  title: string
+  /**
+   * Usually a string. It accepts a node because an entity page renames its
+   * subject in place — the case title becomes an input while editing — and
+   * losing that would be a worse outcome than widening the type.
+   */
+  title: ReactNode
+  /**
+   * Where "back" goes, for a detail page. A client, a playbook or a case is a
+   * page *about* something inside a destination, so it carries its parent's
+   * icon and help and offers the way back to the list it came from.
+   */
+  backTo?: string
   /** The case, the file, the client — whatever this page is currently about. */
   subtitle?: ReactNode
   /** Counts, status, a version. Sits after the title in mono. */
@@ -46,6 +58,7 @@ interface PageShellProps {
 export function PageShell({
   route,
   title,
+  backTo,
   subtitle,
   meta,
   actions,
@@ -60,8 +73,17 @@ export function PageShell({
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden">
       <header className="shrink-0 flex items-center gap-2.5 px-4 py-2.5 border-b border-hairline">
+        {backTo && (
+          <Link
+            to={backTo}
+            aria-label="Back"
+            className="shrink-0 text-fg-muted hover:text-fg transition-colors"
+          >
+            <ArrowLeft size={15} />
+          </Link>
+        )}
         {Icon && <Icon size={15} className="shrink-0 text-accent" />}
-        <h1 className="text-title font-semibold text-fg shrink-0">{title}</h1>
+        <h1 className="text-title font-semibold text-fg min-w-0 truncate">{title}</h1>
         {meta && <span className="text-label font-mono text-fg-muted shrink-0">{meta}</span>}
         {subtitle && (
           <span className="text-ui text-fg-muted truncate min-w-0" title={typeof subtitle === 'string' ? subtitle : undefined}>

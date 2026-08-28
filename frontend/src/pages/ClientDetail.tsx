@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react'
+import { PageShell } from '../ui/PageShell'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowLeft, Building2, Star, Pencil, Upload, FileText, FileSpreadsheet,
+  Pencil, Upload, FileText, FileSpreadsheet,
   Image as ImageIcon, FileArchive, File as FileIcon, Trash2, Eye, FolderOpen,
 } from '../ui/icons'
 import { clientsApi } from '../api/clients'
@@ -258,31 +259,22 @@ export default function ClientDetail() {
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-start gap-3">
-        <button onClick={() => navigate('/config/clients')} className="p-2 text-fg-secondary/50 hover:text-fg hover:bg-fg/5 transition-colors shrink-0 mt-0.5">
-          <ArrowLeft size={18} />
-        </button>
-        <div className="p-2.5 bg-accent/10 text-accent shrink-0">
-          <Building2 size={20} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-title font-bold text-fg">{client.name}</h1>
-            {client.is_default && (
-              <span className="flex items-center gap-1 text-label px-1.5 py-0.5 rounded-control border border-severity-medium/30 bg-severity-medium/10 text-severity-medium">
-                <Star size={9} /> Default
-              </span>
-            )}
-          </div>
-          {client.industry && <p className="text-ui text-fg-secondary mt-0.5">{client.industry}</p>}
-          {client.description && <p className="text-label text-fg-secondary/60 mt-1 max-w-2xl">{client.description}</p>}
-        </div>
-        <button className="btn-secondary text-label flex items-center gap-1.5 shrink-0" onClick={() => setEditing(true)}>
+    <PageShell
+      route="/config/clients"
+      backTo="/config/clients"
+      title={client.name}
+      meta={client.is_default ? 'default' : undefined}
+      subtitle={client.industry}
+      actions={(
+        <button className="btn-ghost flex items-center gap-1.5" onClick={() => setEditing(true)}>
           <Pencil size={12} /> Edit
         </button>
-      </div>
+      )}
+    >
+      <div className="max-w-5xl mx-auto space-y-6">
+      {client.description && (
+        <p className="text-ui text-fg-secondary max-w-2xl">{client.description}</p>
+      )}
 
       {/* Contact + meta */}
       {(client.contact_name || client.contact_email || client.contact_phone || client.address || client.notes) && (
@@ -290,7 +282,7 @@ export default function ClientDetail() {
           {client.contact_name && <div><p className="text-fg-secondary/40 uppercase text-label mb-0.5">Contact</p><p className="text-fg">{client.contact_name}</p></div>}
           {client.contact_email && <div><p className="text-fg-secondary/40 uppercase text-label mb-0.5">Email</p><p className="text-fg">{client.contact_email}</p></div>}
           {client.contact_phone && <div><p className="text-fg-secondary/40 uppercase text-label mb-0.5">Phone</p><p className="text-fg">{client.contact_phone}</p></div>}
-          {client.address && <div><p className="text-fg-secondary/40 uppercase text-label mb-0.5">Adresse</p><p className="text-fg">{client.address}</p></div>}
+          {client.address && <div><p className="text-fg-secondary/40 uppercase text-label mb-0.5">Address</p><p className="text-fg">{client.address}</p></div>}
           {client.notes && (
             <div className="col-span-2 sm:col-span-4 pt-2 border-t border-hairline">
               <p className="text-fg-secondary/40 uppercase text-label mb-0.5">Notes</p>
@@ -362,6 +354,7 @@ export default function ClientDetail() {
         title="Delete the document"
         message={`"${deleteTarget?.name}" will be permanently deleted.`}
       />
-    </div>
+      </div>
+    </PageShell>
   )
 }

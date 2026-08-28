@@ -537,7 +537,7 @@ export default function PlaybookEditor() {
               onClick={() => addNode('frame', { color: frameColor })}
               className="ml-1 text-label text-fg-secondary hover:text-fg border border-hairline hover:border-strong px-2 py-0.5 rounded-control transition-colors"
             >
-              + Cadre
+              + Frame
             </button>
           </div>
 

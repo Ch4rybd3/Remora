@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "lint": "eslint src --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "check:design": "node scripts/check-design-tokens.mjs"
+    "check:design": "node scripts/check-design-tokens.mjs",
+    "check:pages": "node scripts/check-page-shell.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.7",

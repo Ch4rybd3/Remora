@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
@@ -66,5 +67,21 @@ describe('PageShell', () => {
 
     rerender(<PageShell route="/cases" title="Cases" fullHeight>body</PageShell>)
     expect(container.querySelector('.overflow-y-auto')).not.toBeInTheDocument()
+  })
+
+  it('offers a way back on a detail page, pointing at its parent list', () => {
+    render(
+      <MemoryRouter>
+        <PageShell route="/config/clients" title="ACME Corp" backTo="/config/clients">
+          body
+        </PageShell>
+      </MemoryRouter>,
+    )
+    expect(screen.getByLabelText('Back')).toHaveAttribute('href', '/config/clients')
+  })
+
+  it('has no back affordance on a top-level page', () => {
+    render(<PageShell route="/cases" title="Cases">body</PageShell>)
+    expect(screen.queryByLabelText('Back')).not.toBeInTheDocument()
   })
 })

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
-import { PageHelp } from '../help/pageHelp'
+import { PageShell } from '../ui/PageShell'
 import { useQuery } from '@tanstack/react-query'
 import Globe from 'react-globe.gl'
 import {
@@ -972,18 +972,13 @@ export default function CTILookup() {
   const isAnalyzing = selectedId ? analyzing.has(selectedId) : false
 
   return (
-    <div className="flex h-full overflow-hidden bg-canvas">
-
-      {/* ── Left: IOC list ─────────────────────────────────────────────── */}
-      <div className="w-60 shrink-0 border-r border-hairline bg-panel flex flex-col overflow-hidden">
-        <div className="px-3 py-2.5 border-b border-hairline shrink-0">
-          <p className="text-label font-semibold uppercase tracking-widest text-fg-secondary/50 flex items-center gap-1.5">
-            <Shield size={10} /> CTI Intelligence
-            <span className="ml-auto"><PageHelp route="/artifacts/cti" /></span>
-          </p>
-          {currentCase && <p className="text-label text-fg-secondary/25 mt-0.5 truncate">{currentCase.title}</p>}
-        </div>
-
+    <PageShell
+      route="/artifacts/cti"
+      title="CTI Lookup"
+      subtitle={currentCase?.title}
+      fullHeight
+      asideLeft={(
+        <aside className="w-60 shrink-0 border-r border-hairline bg-panel flex flex-col min-h-0 overflow-hidden">
         {/* Stats */}
         <div className="grid grid-cols-4 border-b border-hairline shrink-0">
           {[
@@ -1013,14 +1008,14 @@ export default function CTILookup() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden">
           <IOCPanel iocs={iocs} selected={selectedId} onSelect={handleSelect}
             onAnalyze={analyze} analyzing={analyzing} />
         </div>
-      </div>
-
-      {/* ── Main area ──────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+        </aside>
+      )}
+    >
+      <div className="h-full flex flex-col overflow-hidden">
 
         {/* Globe + info panel */}
         <div className="flex h-80 shrink-0 border-b border-hairline overflow-hidden">
@@ -1103,6 +1098,6 @@ export default function CTILookup() {
           })()}
         </div>
       </div>
-    </div>
+    </PageShell>
   )
 }

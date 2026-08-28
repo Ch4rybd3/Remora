@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { PageHelp } from '../help/pageHelp'
+import { PageShell } from '../ui/PageShell'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -399,23 +399,25 @@ export default function ArtifactExplorer() {
   })()
 
   return (
-    <div className="flex h-full overflow-hidden" data-no-select={isResizing.current || undefined}
+    // The whole page is the drop target — an analyst dropping a CSV should not
+    // have to find a zone first — so the drag handlers wrap the shell.
+    <div
+      className="h-full"
+      data-no-select={isResizing.current || undefined}
       onDragOver={e => { e.preventDefault(); setDragging(true) }}
       onDragLeave={() => setDragging(false)}
-      onDrop={e => { e.preventDefault(); setDragging(false); handleFiles(e.dataTransfer.files) }}>
-
-      {/* ── Left sidebar ─────────────────────────────────────────────────── */}
-      <div
-        className="relative shrink-0 border-r border-hairline bg-panel flex flex-col overflow-hidden"
+      onDrop={e => { e.preventDefault(); setDragging(false); handleFiles(e.dataTransfer.files) }}
+    >
+    <PageShell
+      route="/artifacts/explorer"
+      title="Artifact Explorer"
+      subtitle={currentCase?.title}
+      fullHeight
+      asideLeft={(
+      <aside
+        className="relative shrink-0 border-r border-hairline bg-panel flex flex-col min-h-0 overflow-hidden"
         style={{ width: sidebarWidth }}
       >
-        <div className="px-3 py-3 border-b border-hairline shrink-0">
-          <p className="text-label font-semibold uppercase tracking-widest text-fg-secondary/50 flex items-center gap-1.5">
-            <Table2 size={10} /> Artifact Explorer
-            <span className="ml-auto"><PageHelp route="/artifacts/explorer" /></span>
-          </p>
-          <p className="text-label text-fg-secondary/25 mt-0.5 truncate">{currentCase?.title}</p>
-        </div>
 
         <div className="px-3 py-2 border-b border-hairline shrink-0">
           <div className="relative">
@@ -501,10 +503,21 @@ export default function ArtifactExplorer() {
         >
           <div className="w-0.5 h-12 rounded-pill bg-fg/10 group-hover:bg-accent/40 transition-colors" />
         </div>
-      </div>
-
-      {/* ── Main area ────────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      </aside>
+      )}
+      asideRight={(
+        <PinnedPanel
+          pinned={pinnedRows}
+          onUnpin={key => setPinnedRows(prev => prev.filter(p => p.key !== key))}
+          onClear={() => setPinnedRows([])}
+          onExport={exportToTimeline}
+          onEdit={handlePinEdit}
+          onReset={handlePinReset}
+          exporting={exporting}
+        />
+      )}
+    >
+      <div className="h-full flex flex-col overflow-hidden">
 
         {openTabs.length > 0 && (
           <div className="flex items-center gap-0 border-b border-hairline bg-panel/50 shrink-0 overflow-x-auto">
@@ -547,17 +560,7 @@ export default function ArtifactExplorer() {
           </div>
         )}
       </div>
-
-      {/* ── Right pinned panel ───────────────────────────────────────────── */}
-      <PinnedPanel
-        pinned={pinnedRows}
-        onUnpin={key => setPinnedRows(prev => prev.filter(p => p.key !== key))}
-        onClear={() => setPinnedRows([])}
-        onExport={exportToTimeline}
-        onEdit={handlePinEdit}
-        onReset={handlePinReset}
-        exporting={exporting}
-      />
+    </PageShell>
     </div>
   )
 }

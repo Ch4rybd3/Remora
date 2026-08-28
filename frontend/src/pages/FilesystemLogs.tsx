@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
-import { PageHelp } from '../help/pageHelp'
+import { PageShell } from '../ui/PageShell'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   HardDrive, Terminal, ChevronLeft, ChevronRight, Menu,
@@ -231,7 +231,6 @@ function WindowsTab({ caseId }: { caseId: string }) {
               className={`transition-transform duration-150 ${showPinPanel ? 'rotate-180' : ''}`}
             />
           </button>
-          <span className="ml-auto"><PageHelp route="/artifacts/filesystem" /></span>
         </div>
 
         {/* Explorer content */}
@@ -294,41 +293,31 @@ export default function FilesystemLogs() {
   const [tab, setTab] = useState<OsTab>('windows')
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      {/* Page header */}
-      <div className="shrink-0 border-b border-hairline bg-panel/50">
-        <div className="flex items-center gap-3 px-5 pt-4 pb-3">
-          <HardDrive size={16} className="text-accent" />
-          <div>
-            <h1 className="text-prose font-bold text-fg leading-tight">
-              Logs
-            </h1>
-            <p className="text-label text-fg-secondary/50 mt-0.5">
-              Parse and explore Windows event logs (.evtx) and system artifacts
-            </p>
-          </div>
-          <div className="ml-auto">
-            {currentCase ? (
-              <div className="flex items-center gap-1.5 text-label text-accent/70 bg-accent/5 border border-accent/15 rounded-control px-2.5 py-1.5">
-                <CheckCircle2 size={11} />
-                <span className="font-medium">{currentCase.title}</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 text-label text-fg-secondary/50 bg-white/[0.02] border border-hairline rounded-control px-2.5 py-1.5">
-                <Info size={11} />
-                No case selected
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* OS tabs */}
-        <div className="flex items-end gap-0 px-5">
+    <PageShell
+      route="/artifacts/filesystem"
+      title="Logs"
+      subtitle={currentCase?.title}
+      actions={
+        currentCase ? (
+          <span className="flex items-center gap-1.5 text-label text-accent">
+            <CheckCircle2 size={11} /> current case
+          </span>
+        ) : (
+          <span className="flex items-center gap-1.5 text-label text-fg-muted">
+            <Info size={11} /> set a case from the top bar
+          </span>
+        )
+      }
+      toolbar={(
+        <div className="flex items-end gap-0">
           <TabBtn active={tab === 'windows'}  onClick={() => setTab('windows')}  icon={HardDrive} label="Windows" />
           <TabBtn active={tab === 'linux'}    onClick={() => setTab('linux')}    icon={Terminal}  label="Linux"   />
           <TabBtn active={tab === 'chainsaw'} onClick={() => setTab('chainsaw')} icon={Swords}    label="Chainsaw" />
         </div>
-      </div>
+      )}
+      fullHeight
+    >
+      <div className="h-full flex flex-col min-h-0 overflow-hidden">
 
       {/* No case guard */}
       {!currentCase ? (
@@ -346,6 +335,7 @@ export default function FilesystemLogs() {
           {tab === 'chainsaw' && <ChainsawTab  caseId={currentCase.id} />}
         </div>
       )}
-    </div>
+      </div>
+    </PageShell>
   )
 }

@@ -199,39 +199,22 @@ gutter they did not ask for and a second scrollbar.
 The slots are fixed. A page needing a different arrangement is a gap in the
 design system to raise, not a local exception to make.
 
-**Migrated so far** (14 of 25): Dashboard, Cases, Users, Templates, Report
-Templates, Playbooks, Clients, Connectors, Vault Management, Audit log,
-Detection Rules, Memory Analysis, Binary Analysis, Email Analysis.
+**Every page is on the shell**, except four that legitimately have no page
+chrome — and `check-page-shell.mjs` enforces that in CI rather than leaving it
+to a sentence in a document.
 
-Binary Analysis is the first to use `asideLeft`, which is what the slot is for:
-the page no longer builds its own two-column flex row, it hands the shell a file
-list and gets the layout.
+| Exempt | Why |
+|---|---|
+| `Login` | Rendered outside the layout: no navigation, nothing for a header to sit under. |
+| `DesignSystem` | The gallery is itself a specimen, with its own theme-comparison chrome. Wrapping it would show the shell twice. |
+| `PlaybookEditor` | A full-screen editor whose header *is* its control surface — the name and description are inputs. There is no title to display, only a title to edit. |
+| `KnowledgeEditor` | Three panes with no page header by design. Chrome would take space from the thing being edited. |
 
-The rest still carry their own headers. Each is its own small piece of surgery
-because each header is a different shape — which is the whole reason this
-exists, and also why the migration cannot be scripted. The remaining hard ones
-are the pages with a left file list and a right selection panel
-(ArtifactExplorer, PcapExplorer, DiskImageExplorer, FilesystemLogs,
-CaseDetail): they are where PageShell earns the most, and where converting
-touches real layout rather than markup.
+The list is one-directional, like the mypy and literal-colour ratchets: a page
+may be **removed** once it uses the shell, nothing may be **added**. A new page
+that genuinely cannot fit is a gap in the shell — the answer is a prop, not an
+exemption. `backTo` and `title: ReactNode` both exist because the rollout found
+that gap and widened the shell rather than carving out an exception.
 
-### Rendering attacker-authored content
-
-The email preview renders the message HTML so an analyst can see what the
-recipient saw — reading the source is not the same thing. It renders under two
-locks:
-
-- `sandbox=""` on the iframe: no scripts, no forms, no popups, no same-origin
-  access.
-- a CSP inside the document allowing inline styles and `data:` images and
-  nothing else. That is what stops the remote image that is really a tracking
-  pixel from telling the sender the mail was opened, from the analyst's address.
-
-It is **off by default**. Turning it on is a decision, so an analyst makes it,
-with the caveat stated next to the button.
-
-Its colours are literal on purpose — the preview is a white page with black
-text whatever theme is active, because theming an artefact misrepresents it.
-`check-design-tokens.mjs` keeps that in `INTENTIONAL_LITERALS`, separate from
-the debt list: the debt list is expected to shrink to nothing, that one is not.
-
+The check also rejects a stale exemption: a page listed here that has since
+started using the shell, or that no longer exists.
