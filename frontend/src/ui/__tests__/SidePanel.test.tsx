@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SidePanel, SidePanelBlock, type SidePanelTab } from '../SidePanel'
 
@@ -68,6 +68,26 @@ describe('SidePanel', () => {
     } finally {
       Storage.prototype.getItem = original
     }
+  })
+})
+
+describe('SidePanel — controlled tab', () => {
+  it('shows the tab the page asks for', () => {
+    render(<SidePanel tabs={TABS} storageKey="test" activeTab="playbook" />)
+    expect(screen.getByText('playbook body')).toBeInTheDocument()
+  })
+
+  it('reports a tab change so the page can follow', async () => {
+    const onTabChange = vi.fn()
+    render(<SidePanel tabs={TABS} storageKey="test" activeTab="summary" onTabChange={onTabChange} />)
+    await userEvent.click(screen.getByText('Playbook'))
+    expect(onTabChange).toHaveBeenCalledWith('playbook')
+  })
+
+  it('keeps its own tab when the page does not control it', async () => {
+    render(<SidePanel tabs={TABS} storageKey="test" />)
+    await userEvent.click(screen.getByText('Playbook'))
+    expect(screen.getByText('playbook body')).toBeInTheDocument()
   })
 })
 

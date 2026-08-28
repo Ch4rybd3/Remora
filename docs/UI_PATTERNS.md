@@ -288,3 +288,23 @@ theme rather than ReactFlow's grey.
 it by hand is how the attack graph asked for a type that was not registered:
 React Flow fell back to its built-in edge without complaining, and the shape
 controls sat on screen governing nothing.
+
+### Row detail
+
+The Artifact Explorer opens a row into the right-hand panel, not into the table.
+
+It used to expand in place, which meant a row with sixty fields pushed the rest
+of the result set off screen and the analyst lost where they were. The panel
+leaves the table untouched, and gives the values real room: command lines,
+registry paths and base64 wrap instead of being cut at a column width, which is
+the whole reason for opening a row.
+
+The panel is the `SidePanel` primitive with two tabs — **Detail** and
+**Selection** — so it is resizable and collapsible like every other. Clicking a
+row switches to Detail; clicking the same row again closes it. The page owns
+which tab is showing, which is why `SidePanel` accepts a controlled `activeTab`.
+
+Fields are searchable, because opening a row is usually about finding one value
+and the other forty are noise at that moment. The date column is marked in the
+accent: it is what orders the timeline the row may end up in.
+

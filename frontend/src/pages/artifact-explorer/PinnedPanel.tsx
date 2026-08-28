@@ -8,7 +8,7 @@
 import { useMemo, useState } from 'react'
 
 import {
-  BookmarkCheck, BookmarkPlus, ChevronRight as ChevronRightIcon,
+  BookmarkPlus, ChevronRight as ChevronRightIcon,
   Download, Loader2, X,
 } from '../../ui/icons'
 import type { PinnedRow } from './types'
@@ -38,24 +38,18 @@ export function PinnedPanel({ pinned, onUnpin, onClear, onExport, onEdit, onRese
   }), [pinned])
 
   return (
-    <div className="w-72 shrink-0 border-l border-hairline bg-panel flex flex-col overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-3 border-b border-hairline shrink-0">
-        <p className="text-label font-semibold uppercase tracking-widest text-fg-secondary/50 flex items-center gap-1.5">
-          <BookmarkCheck size={10} />
-          Selection
-          {pinned.length > 0 && (
-            <span className="ml-1 bg-accent/15 text-accent border border-accent/30 rounded-control px-1.5 py-0.5 text-label font-bold">
-              {pinned.length}
-            </span>
-          )}
-        </p>
-        {pinned.length > 0 && (
-          <button onClick={onClear} title="Clear all"
-            className="text-fg-secondary/30 hover:text-severity-critical transition-colors">
+    <div className="h-full flex flex-col overflow-hidden">
+      {pinned.length > 0 && (
+        <div className="flex items-center justify-between px-3 py-2 border-b border-hairline shrink-0">
+          <span className="text-label font-mono text-fg-muted">
+            {pinned.length} pinned, chronological
+          </span>
+          <button onClick={onClear} title="Clear the selection"
+            className="text-fg-muted hover:text-severity-critical transition-colors">
             <X size={12} />
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {pinned.length === 0 && (
         <div className="flex-1 flex flex-col items-center justify-center gap-2 px-4 text-center">

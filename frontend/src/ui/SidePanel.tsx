@@ -16,6 +16,9 @@ interface SidePanelProps {
   /** Distinguishes the stored collapse state and width between panels. */
   storageKey: string
   defaultCollapsed?: boolean
+  /** Controlled tab, for a page that opens the panel onto a particular one. */
+  activeTab?: string
+  onTabChange?: (id: string) => void
   defaultWidth?: number
   minWidth?: number
   maxWidth?: number
@@ -45,6 +48,8 @@ export function SidePanel({
   tabs,
   storageKey,
   defaultCollapsed = false,
+  activeTab,
+  onTabChange,
   defaultWidth = DEFAULT_WIDTH,
   minWidth = MIN_WIDTH,
   maxWidth = MAX_WIDTH,
@@ -127,7 +132,15 @@ export function SidePanel({
     [clamp, persistWidth],
   )
 
-  const [activeId, setActiveId] = useState(tabs[0]?.id ?? '')
+  const [uncontrolledId, setUncontrolledId] = useState(tabs[0]?.id ?? '')
+  const activeId = activeTab ?? uncontrolledId
+  const setActiveId = useCallback(
+    (id: string) => {
+      setUncontrolledId(id)
+      onTabChange?.(id)
+    },
+    [onTabChange],
+  )
 
   useEffect(() => {
     if (!tabs.some((t) => t.id === activeId) && tabs[0]) setActiveId(tabs[0].id)

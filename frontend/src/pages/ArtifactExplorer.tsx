@@ -10,6 +10,8 @@ import { timelineApi } from '../api/timeline'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import { fmtRelative, parseArtifactTimestamp } from '../utils/dateUtils'
 import { PinnedPanel } from './artifact-explorer/PinnedPanel'
+import { RowDetailPanel, type SelectedRow } from './artifact-explorer/RowDetailPanel'
+import { SidePanel } from '../ui/SidePanel'
 import { ArtifactTableView } from './artifact-explorer/ArtifactTableView'
 import { EZBadge } from './artifact-explorer/EZBadge'
 import { OmniSearchView } from './artifact-explorer/OmniSearchView'
@@ -259,6 +261,11 @@ export default function ArtifactExplorer() {
     finally { setAddingEvidenceId(null) }
   }, [caseId, qc])
 
+  // The row open in the detail panel. Held here rather than in the table so the
+  // panel on the right can show it while the table keeps its scroll position.
+  const [selectedRow, setSelectedRow] = useState<SelectedRow | null>(null)
+  const [rightTab,    setRightTab]    = useState<string>('selection')
+
   const [pinnedRows,   setPinnedRows]   = useState<PinnedRow[]>([])
   const [exporting,    setExporting]    = useState(false)
   const [exportedKeys, setExportedKeys] = useState<Set<string>>(new Set())
@@ -394,7 +401,12 @@ export default function ArtifactExplorer() {
         onStateChange={patch => updateTabState(activeTab, patch)}
         pinnedKeys={pinnedKeySet}
         exportedKeys={exportedKeys}
-        onPinToggle={(key, row) => handlePinToggle(key, row, activeMeta)} />
+        onPinToggle={(key, row) => handlePinToggle(key, row, activeMeta)}
+        selectedKey={selectedRow?.pinKey ?? null}
+        onSelectRow={(row, columns, key) => {
+          setSelectedRow(row ? { row, columns, pinKey: key } : null)
+          if (row) setRightTab('detail')
+        }} />
     )
   })()
 
@@ -506,14 +518,49 @@ export default function ArtifactExplorer() {
       </aside>
       )}
       asideRight={(
-        <PinnedPanel
-          pinned={pinnedRows}
-          onUnpin={key => setPinnedRows(prev => prev.filter(p => p.key !== key))}
-          onClear={() => setPinnedRows([])}
-          onExport={exportToTimeline}
-          onEdit={handlePinEdit}
-          onReset={handlePinReset}
-          exporting={exporting}
+        <SidePanel
+          storageKey="artifact-explorer"
+          // Wider than the default: this panel holds full field values —
+          // command lines, registry paths, base64 — and the whole point of
+          // opening a row is not having them truncated.
+          defaultWidth={420}
+          activeTab={rightTab}
+          onTabChange={setRightTab}
+          tabs={[
+            {
+              id: 'detail',
+              label: 'Detail',
+              content: (
+                <RowDetailPanel
+                  selected={selectedRow}
+                  isPinned={selectedRow ? pinnedKeySet.has(selectedRow.pinKey) : false}
+                  dateColumn={activeMeta?.date_column ?? null}
+                  onPin={() => {
+                    if (selectedRow && activeMeta) {
+                      handlePinToggle(selectedRow.pinKey, selectedRow.row, activeMeta)
+                    }
+                  }}
+                  onClose={() => setSelectedRow(null)}
+                />
+              ),
+            },
+            {
+              id: 'selection',
+              label: 'Selection',
+              meta: pinnedRows.length ? String(pinnedRows.length) : undefined,
+              content: (
+                <PinnedPanel
+                  pinned={pinnedRows}
+                  onUnpin={key => setPinnedRows(prev => prev.filter(p => p.key !== key))}
+                  onClear={() => setPinnedRows([])}
+                  onExport={exportToTimeline}
+                  onEdit={handlePinEdit}
+                  onReset={handlePinReset}
+                  exporting={exporting}
+                />
+              ),
+            },
+          ]}
         />
       )}
     >
