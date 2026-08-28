@@ -53,16 +53,23 @@ def allowed_roots() -> list[Path]:
     file-read primitive against the container filesystem.
     """
     raw = str(settings.disk_image_paths or "").strip()
+    parts = [part.strip() for part in raw.split(",") if part.strip()]
+
+    # The drop folder is always readable. An acquisition dropped there is
+    # already in the case, already hashed and listed by the ingest queue -
+    # telling the analyst to move it somewhere else to actually open it would
+    # make the "single entry point" a lie, and copying it is out of the
+    # question at acquisition sizes. Images are read in place either way, so
+    # this widens what can be *read*, never what is written or executed.
+    parts.append(str(settings.dropzone_path))
+
     roots: list[Path] = []
-    for part in raw.split(","):
-        part = part.strip()
-        if not part:
-            continue
+    for part in parts:
         try:
             p = Path(part).resolve()
         except OSError:
             continue
-        if p.is_dir():
+        if p.is_dir() and p not in roots:
             roots.append(p)
     return roots
 

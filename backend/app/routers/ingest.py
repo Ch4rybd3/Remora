@@ -23,9 +23,11 @@ from ..database import get_db
 from ..models.case import Case
 from ..models.ingest import (
     ALL_STATES,
+    DETECTED_BY_FORCED,
     ORIGIN_UPLOAD,
     RECOVERABLE_STATES,
     STATE_DISCOVERED,
+    STATE_PARSED,
     IngestedFile,
 )
 from ..services import dropzone as dz
@@ -273,6 +275,60 @@ def retry_file(
 
     row.state = STATE_DISCOVERED
     row.error = None
+    db.commit()
+    return _dto(row, case_id)
+
+
+@router.post("/cases/{case_id}/ingest/{file_id}/memory-os")
+def set_memory_os(
+    case_id: str,
+    file_id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Tell the pipeline which OS a raw memory image came from, and parse it.
+
+    Body: `{"os_type": "windows" | "linux"}`.
+
+    A raw dump carries no signature saying which OS it is, and guessing would
+    queue the wrong Volatility plugins and produce confident wrong output. So
+    the file waits here instead of being refused: it is hashed, listed and
+    preservable, and one click turns it into an analysed dump. A Windows crash
+    dump and a LiME image *are* self-describing and never reach this endpoint.
+    """
+    from ..routers.memory import register_memory_dump
+    from ..services.ingest.dispatch import resolve_stored_path
+
+    os_type = str((body or {}).get("os_type") or "")
+    if os_type not in ("windows", "linux"):
+        raise HTTPException(400, "os_type must be 'windows' or 'linux'")
+
+    row = (
+        db.query(IngestedFile)
+        .filter(IngestedFile.id == file_id, IngestedFile.case_id == case_id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(404, "Ingested file not found")
+    if row.detected_kind != "memory_dump":
+        raise HTTPException(
+            409,
+            f"'{row.original_name}' was identified as {row.detected_kind}, not a raw "
+            "memory image. Only a dump whose format does not record its OS needs one.",
+        )
+
+    path = resolve_stored_path(str(row.stored_path or ""))
+    if path is None:
+        raise HTTPException(409, "The dump is no longer on disk")
+
+    register_memory_dump(path, case_id, str(row.original_name), os_type, db)
+
+    row.state = STATE_PARSED
+    row.error = None
+    row.detected_kind = f"memory_dump_{os_type}"
+    row.detection_source = DETECTED_BY_FORCED
     db.commit()
     return _dto(row, case_id)
 

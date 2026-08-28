@@ -79,6 +79,20 @@ export const ingestApi = {
     }).then(r => unwrap<IngestedFile>(r))
   },
 
+  /**
+   * Tell the pipeline which OS a raw memory image came from, and parse it.
+   *
+   * Only raw dumps need this. A Windows crash dump and a LiME image say which
+   * OS they are in their header, and are parsed without asking.
+   */
+  setMemoryOs(caseId: string, fileId: string, osType: 'windows' | 'linux') {
+    return fetch(`${BASE}/cases/${caseId}/ingest/${fileId}/memory-os`, {
+      method:  'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ os_type: osType }),
+    }).then(r => unwrap<IngestedFile>(r))
+  },
+
   retry(caseId: string, fileId: string) {
     return fetch(`${BASE}/cases/${caseId}/ingest/${fileId}/retry`, {
       method: 'POST', headers: authHeaders(),

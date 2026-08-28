@@ -7,6 +7,7 @@ recovery actions the Collection tab offers on the states that need them.
 from __future__ import annotations
 
 import io
+from pathlib import Path
 
 import pytest
 
@@ -319,3 +320,86 @@ def test_it_is_still_moved_out_of_the_watched_folder(auth_client, db_session, ap
 
     assert not (folder / "image.vhdx").exists()
     assert (folder / ".processed" / "image.vhdx").exists()
+
+
+# ─── Choosing an OS for a raw memory image ────────────────────────────────────
+
+def _record_raw_dump(db_session, case_id, tmp_path, name="memdump.raw"):
+    from app.services.ingest import service
+
+    path = tmp_path / name
+    path.write_bytes(b"\x11\x22\x33\x44" * 256)
+    row = service.record(db_session, case_id=case_id, path=path)
+    row.stored_path = str(path)
+    db_session.commit()
+    return row
+
+
+def test_a_raw_dump_waits_instead_of_being_refused(db_session, api_case, tmp_path):
+    """
+    It is hashed, listed and preservable while it waits. Refusing it outright
+    would mean the analyst has to remember they have it.
+    """
+    row = _record_raw_dump(db_session, api_case, tmp_path)
+    assert row.detected_kind == "memory_dump"
+    assert row.sha256
+
+
+def test_setting_the_os_registers_the_dump(auth_client, db_session, api_case, tmp_path,
+                                           monkeypatch):
+    seen: dict = {}
+
+    def fake_register(source_path, case_id, filename, os_type, db):
+        seen.update(filename=filename, os_type=os_type)
+        return None
+
+    monkeypatch.setattr("app.routers.memory.register_memory_dump", fake_register)
+
+    row = _record_raw_dump(db_session, api_case, tmp_path, "acquisition.raw")
+    response = auth_client.post(
+        f"/api/v1/cases/{api_case}/ingest/{row.id}/memory-os", json={"os_type": "linux"})
+
+    assert response.status_code == 200, response.text
+    assert seen == {"filename": "acquisition.raw", "os_type": "linux"}
+    assert response.json()["state"] == "parsed"
+    assert response.json()["detection_source"] == "forced"
+
+
+def test_an_invalid_os_is_rejected(auth_client, db_session, api_case, tmp_path):
+    row = _record_raw_dump(db_session, api_case, tmp_path, "bad-os.raw")
+    response = auth_client.post(
+        f"/api/v1/cases/{api_case}/ingest/{row.id}/memory-os", json={"os_type": "solaris"})
+    assert response.status_code == 400
+
+
+def test_a_self_describing_dump_is_not_asked_for_an_os(auth_client, db_session,
+                                                       api_case, tmp_path):
+    """
+    A Windows crash dump already says which OS it is. Offering to set one would
+    invite an analyst to contradict the file.
+    """
+    from app.services.ingest import service
+
+    path = tmp_path / "crash.bin"
+    path.write_bytes(b"PAGEDU64" + b"\x00" * 256)
+    row = service.record(db_session, case_id=api_case, path=path)
+    row.stored_path = str(path)
+    db_session.commit()
+
+    response = auth_client.post(
+        f"/api/v1/cases/{api_case}/ingest/{row.id}/memory-os", json={"os_type": "linux"})
+    assert response.status_code == 409
+
+
+def test_the_drop_folder_is_a_readable_location_for_disk_images():
+    """
+    An acquisition dropped into a case folder is already hashed and listed.
+    Telling the analyst to move it elsewhere to actually open it would make the
+    single entry point a lie, and copying it is out of the question at
+    acquisition sizes.
+    """
+    from app.config import settings
+    from app.services.diskimage import allowed_roots
+
+    roots = {str(r) for r in allowed_roots()}
+    assert str(Path(settings.dropzone_path).resolve()) in roots
