@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback, useMemo } from 'react'
+import { PageShell } from '../ui/PageShell'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Upload, Mail, Link2, Paperclip, ChevronDown, ChevronRight,
@@ -566,7 +567,131 @@ function SendEmailToTimeline({ result, caseId, filename }: {
   )
 }
 
+// ── Message view — the email as the recipient saw it ───────────────────────
+
+/**
+ * Renders the HTML body inside a sandboxed frame.
+ *
+ * Seeing what the victim saw is worth a lot when triaging a phishing email, and
+ * reading the source is not the same thing. But this is attacker-authored HTML,
+ * so it renders under two locks:
+ *
+ *   sandbox=""  — no scripts, no forms, no popups, no same-origin access.
+ *   a CSP that allows inline styles and data: images and nothing else, which
+ *   is what stops the remote image that is really a tracking pixel from
+ *   telling the sender the mail was opened, from your analyst's IP.
+ *
+ * Off by default. Turning it on is a decision, so it is one the analyst makes.
+ */
+function HtmlPreview({ html }: { html: string }) {
+  const doc = `<!doctype html><html><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:">
+<style>
+  body { margin:0; padding:16px; background:#fff; color:#111;
+         font-family: -apple-system, system-ui, sans-serif; font-size:14px; line-height:1.5; }
+  img { max-width:100%; }
+  a { color:#0b57d0; }
+</style></head><body>${html}</body></html>`
+
+  return (
+    <iframe
+      sandbox=""
+      srcDoc={doc}
+      title="Rendered message body"
+      className="w-full h-[28rem] border-0 bg-white"
+    />
+  )
+}
+
+function MessageTab({ result }: { result: EmailAnalysisResult }) {
+  const [view, setView] = useState<'plain' | 'source' | 'render'>(
+    result.body_plain ? 'plain' : 'source',
+  )
+  const senderName = extractSenderName(result.from_addr)
+  const senderMail = extractEmailAddress(result.from_addr)
+  const initial    = (senderName || senderMail || '?').trim().charAt(0).toUpperCase()
+
+  return (
+    <div className="max-w-[80ch]">
+      {/* The envelope, laid out the way a mail client lays it out — so an
+          analyst reads it the way the recipient did, not as a field dump. */}
+      <div className="border border-hairline bg-panel">
+        <div className="px-5 pt-5 pb-4">
+          <h2 className="text-title font-semibold text-fg break-words">
+            {result.subject || <span className="text-fg-muted italic">(no subject)</span>}
+          </h2>
+        </div>
+
+        <div className="flex items-start gap-3 px-5 pb-4 border-b border-hairline">
+          <span className="w-9 h-9 shrink-0 rounded-pill bg-accent/10 border border-accent/20
+                           flex items-center justify-center text-accent font-semibold">
+            {initial}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-ui text-fg truncate">
+              {senderName ?? senderMail}
+              {senderName && (
+                <span className="text-fg-muted font-mono text-label ml-1.5">&lt;{senderMail}&gt;</span>
+              )}
+            </p>
+            <p className="text-label text-fg-muted truncate">to {result.to_addr || '—'}</p>
+          </div>
+          <p className="text-label font-mono text-fg-muted shrink-0">{result.date || '—'}</p>
+        </div>
+
+        <div className="flex items-center gap-1 px-4 py-1.5 border-b border-hairline">
+          {result.body_plain && (
+            <button onClick={() => setView('plain')} className={view === 'plain' ? 'btn-primary' : 'btn-ghost'}>
+              Plain text
+            </button>
+          )}
+          {result.body_html && (
+            <>
+              <button onClick={() => setView('source')} className={view === 'source' ? 'btn-primary' : 'btn-ghost'}>
+                HTML source
+              </button>
+              <button onClick={() => setView('render')} className={view === 'render' ? 'btn-primary' : 'btn-ghost'}>
+                Render
+              </button>
+            </>
+          )}
+        </div>
+
+        {view === 'render' && result.body_html ? (
+          <>
+            <p className="flex items-start gap-1.5 px-4 py-2 text-label text-severity-medium border-b border-hairline">
+              <AlertTriangle size={11} className="mt-0.5 shrink-0" />
+              Rendered with scripts disabled and remote loading blocked, so a tracking pixel
+              cannot report that this mail was opened. Layout may differ from what the
+              recipient saw.
+            </p>
+            <HtmlPreview html={result.body_html} />
+          </>
+        ) : (
+          <pre className="px-5 py-4 text-prose font-sans text-fg whitespace-pre-wrap break-words
+                          max-h-[28rem] overflow-y-auto">
+            {view === 'plain' ? result.body_plain : result.body_html}
+          </pre>
+        )}
+
+        {!result.body_plain && !result.body_html && (
+          <p className="px-5 py-8 text-center text-ui text-fg-muted">This message has no body.</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── EmailResultView — shared analysis display ──────────────────────────────
+
+type EmailTab = 'overview' | 'message' | 'links' | 'headers'
+
+const EMAIL_TABS: { id: EmailTab; label: string; icon: React.ElementType }[] = [
+  { id: 'overview', label: 'Overview',    icon: Info      },
+  { id: 'message',  label: 'Message',     icon: Mail      },
+  { id: 'links',    label: 'Links & files', icon: Link2   },
+  { id: 'headers',  label: 'Headers',     icon: FileText  },
+]
 
 function EmailResultView({
   result,
@@ -583,21 +708,24 @@ function EmailResultView({
   addedKeys: Set<string>
   onAdded: (type: string, value: string) => void
 }) {
-  const [bodyView, setBodyView] = useState<'plain' | 'html'>('plain')
+  const [tab, setTab] = useState<EmailTab>('overview')
   const iocProps = { caseId, caseTitle, addedKeys, onAdded }
 
-  return (
-    <div className="space-y-4">
-      {/* Timeline export — only meaningful with a case to send to */}
-      {caseId && <SendEmailToTimeline result={result} caseId={caseId} filename={filename} />}
+  const fromEmail   = extractEmailAddress(result.from_addr)
+  const replyEmail  = result.reply_to    ? extractEmailAddress(result.reply_to)    : ''
+  const returnEmail = result.return_path ? extractEmailAddress(result.return_path) : ''
+  const replyMismatch  = !!(replyEmail  && replyEmail  !== fromEmail)
+  const returnMismatch = !!(returnEmail && returnEmail.split('@')[1] !== fromEmail.split('@')[1])
 
-      <WarningsSection warnings={result.warnings} />
+  const urlsAndFiles = result.urls.length + result.attachments.length
 
+  const summary = (
+    <>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <SummaryCard
           label="From" value={result.from_addr}
           iocActions={[
-            { type: 'email', value: extractEmailAddress(result.from_addr), label: 'Email' },
+            { type: 'email', value: fromEmail, label: 'Email' },
             ...(extractSenderName(result.from_addr)
               ? [{ type: 'sender_name', value: extractSenderName(result.from_addr)!, label: 'Name' }]
               : []),
@@ -612,94 +740,61 @@ function EmailResultView({
         <SummaryCard label="Date" value={result.date} addedKeys={addedKeys} onAdded={onAdded} />
       </div>
 
-      {(result.reply_to || result.return_path) && (() => {
-        const fromEmail   = extractEmailAddress(result.from_addr)
-        const replyEmail  = result.reply_to    ? extractEmailAddress(result.reply_to)    : ''
-        const returnEmail = result.return_path ? extractEmailAddress(result.return_path) : ''
-        const replyMismatch  = !!(replyEmail  && replyEmail  !== fromEmail)
-        const returnMismatch = !!(returnEmail && returnEmail.split('@')[1] !== fromEmail.split('@')[1])
-        return (
-          <div className="grid grid-cols-2 gap-3">
-            {result.reply_to && (
-              <div className={` border px-3 py-2.5 min-w-0 ${replyMismatch ? 'border-severity-critical/30 bg-severity-critical/5' : 'border-hairline bg-panel'}`}>
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <p className="text-label font-semibold tracking-widest uppercase text-fg-secondary/50">Reply-To</p>
-                  {replyMismatch && (
-                    <span className="flex items-center gap-0.5 text-label font-bold text-severity-critical bg-severity-critical/10 border border-severity-critical/30 px-1.5 py-0.5 rounded-control">
-                      <AlertTriangle size={8} /> MISMATCH
-                    </span>
-                  )}
-                </div>
-                <p className={`text-label font-mono truncate ${replyMismatch ? 'text-severity-critical/90' : 'text-fg/80'}`} title={result.reply_to}>
-                  {result.reply_to || '—'}
-                </p>
+      {(result.reply_to || result.return_path) && (
+        <div className="grid grid-cols-2 gap-3">
+          {result.reply_to && (
+            <div className={`border px-3 py-2.5 min-w-0 ${replyMismatch ? 'border-severity-critical/30 bg-severity-critical/5' : 'border-hairline bg-panel'}`}>
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <p className="text-label font-mono uppercase tracking-label text-fg-muted">Reply-To</p>
+                {replyMismatch && (
+                  <span className="flex items-center gap-0.5 text-label font-semibold text-severity-critical bg-severity-critical/10 border border-severity-critical/30 px-1.5 py-0.5 rounded-control">
+                    <AlertTriangle size={8} /> MISMATCH
+                  </span>
+                )}
               </div>
-            )}
-            {result.return_path && (
-              <div className={` border px-3 py-2.5 min-w-0 ${returnMismatch ? 'border-severity-high/30 bg-severity-high/5' : 'border-hairline bg-panel'}`}>
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <p className="text-label font-semibold tracking-widest uppercase text-fg-secondary/50">Return-Path</p>
-                  {returnMismatch && (
-                    <span className="flex items-center gap-0.5 text-label font-bold text-severity-high bg-severity-high/10 border border-severity-high/30 px-1.5 py-0.5 rounded-control">
-                      <AlertTriangle size={8} /> DOMAIN MISMATCH
-                    </span>
-                  )}
-                </div>
-                <p className={`text-label font-mono truncate ${returnMismatch ? 'text-severity-high/90' : 'text-fg/80'}`} title={result.return_path}>
-                  {result.return_path || '—'}
-                </p>
+              <p className={`text-label font-mono truncate ${replyMismatch ? 'text-severity-critical' : 'text-fg-secondary'}`} title={result.reply_to}>
+                {result.reply_to || '—'}
+              </p>
+            </div>
+          )}
+          {result.return_path && (
+            <div className={`border px-3 py-2.5 min-w-0 ${returnMismatch ? 'border-severity-high/30 bg-severity-high/5' : 'border-hairline bg-panel'}`}>
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <p className="text-label font-mono uppercase tracking-label text-fg-muted">Return-Path</p>
+                {returnMismatch && (
+                  <span className="flex items-center gap-0.5 text-label font-semibold text-severity-high bg-severity-high/10 border border-severity-high/30 px-1.5 py-0.5 rounded-control">
+                    <AlertTriangle size={8} /> DOMAIN MISMATCH
+                  </span>
+                )}
               </div>
-            )}
-          </div>
-        )
-      })()}
+              <p className={`text-label font-mono truncate ${returnMismatch ? 'text-severity-high' : 'text-fg-secondary'}`} title={result.return_path}>
+                {result.return_path || '—'}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       <SummaryCard
         label="Subject" value={result.subject}
         iocActions={[{ type: 'email_subject', value: result.subject, description: `Email subject: ${result.subject}` }]}
         {...iocProps}
       />
+    </>
+  )
 
-      {(result.body_plain || result.body_html) && (
-        <Section icon={FileText} title="Message Body" count={0}>
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-hairline">
-            {result.body_plain && (
-              <button onClick={() => setBodyView('plain')} className={`text-label px-2.5 py-1 rounded-control transition-colors ${bodyView === 'plain' ? 'bg-accent/10 text-accent' : 'text-fg-secondary hover:text-fg'}`}>Plain text</button>
-            )}
-            {result.body_html && (
-              <button onClick={() => setBodyView('html')} className={`text-label px-2.5 py-1 rounded-control transition-colors ${bodyView === 'html' ? 'bg-accent/10 text-accent' : 'text-fg-secondary hover:text-fg'}`}>HTML source</button>
-            )}
-          </div>
-          {bodyView === 'plain' && result.body_plain && (
-            <pre className="px-4 py-3 text-label font-mono text-fg/70 whitespace-pre-wrap break-words leading-relaxed max-h-96 overflow-y-auto">{result.body_plain}</pre>
-          )}
-          {bodyView === 'html' && result.body_html && (
-            <pre className="px-4 py-3 text-label font-mono text-fg/70 whitespace-pre-wrap break-words leading-relaxed max-h-96 overflow-y-auto">{result.body_html}</pre>
-          )}
-        </Section>
-      )}
-
-      <Section icon={Mail} title="Key Headers" count={result.key_headers.length}>
-        {result.key_headers.length === 0
-          ? <p className="px-4 py-3 text-label text-fg-secondary/40 italic">No key headers found.</p>
-          : result.key_headers.map((h, i) => <HeaderRow key={i} h={h} {...iocProps} />)
-        }
-      </Section>
-
-      <Section icon={ChevronDown} title="All Headers" count={result.all_headers.length} defaultOpen={false}>
-        {result.all_headers.map((h, i) => <HeaderRow key={i} h={h} {...iocProps} />)}
-      </Section>
-
+  const links = (
+    <>
       <Section icon={Link2} title="Extracted URLs" count={result.urls.length}>
         {result.urls.length === 0
-          ? <p className="px-4 py-3 text-label text-fg-secondary/40 italic">No URLs found.</p>
+          ? <p className="px-4 py-3 text-ui text-fg-muted italic">No URLs found.</p>
           : (
             <div className="divide-y divide-hairline">
               {result.urls.map((url, i) => (
-                <div key={i} className="flex items-center gap-3 px-3 py-2 group hover:bg-white/[0.02] transition-colors">
-                  <span className="flex-1 text-label font-mono text-severity-low/80 break-all">{url}</span>
+                <div key={i} className="flex items-center gap-3 px-3 py-2 group hover:bg-hover transition-colors">
+                  <span className="flex-1 text-label font-mono text-severity-low break-all">{url}</span>
                   <div className="flex items-center gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => copyToClipboard(url)} title="Copy URL" className="text-fg-secondary/50 hover:text-fg transition-colors"><Copy size={11} /></button>
+                    <button onClick={() => copyToClipboard(url)} title="Copy URL" className="text-fg-muted hover:text-fg transition-colors"><Copy size={11} /></button>
                     <IocButton type="url" value={url} description="Extracted from email body" {...iocProps} />
                   </div>
                 </div>
@@ -711,7 +806,7 @@ function EmailResultView({
 
       <Section icon={Paperclip} title="Attachments" count={result.attachments.length}>
         {result.attachments.length === 0
-          ? <p className="px-4 py-3 text-label text-fg-secondary/40 italic">No attachments found.</p>
+          ? <p className="px-4 py-3 text-ui text-fg-muted italic">No attachments found.</p>
           : (
             <div className="divide-y divide-hairline">
               {result.attachments.map((att, i) => <AttachmentRow key={i} att={att} {...iocProps} />)}
@@ -719,6 +814,68 @@ function EmailResultView({
           )
         }
       </Section>
+    </>
+  )
+
+  const headers = (
+    <>
+      <Section icon={Mail} title="Key Headers" count={result.key_headers.length}>
+        {result.key_headers.length === 0
+          ? <p className="px-4 py-3 text-ui text-fg-muted italic">No key headers found.</p>
+          : result.key_headers.map((h, i) => <HeaderRow key={i} h={h} {...iocProps} />)
+        }
+      </Section>
+
+      <Section icon={ChevronDown} title="All Headers" count={result.all_headers.length} defaultOpen={false}>
+        {result.all_headers.map((h, i) => <HeaderRow key={i} h={h} {...iocProps} />)}
+      </Section>
+    </>
+  )
+
+  const COUNTS: Record<EmailTab, number | null> = {
+    overview: null,
+    message:  null,
+    links:    urlsAndFiles,
+    headers:  result.all_headers.length,
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Timeline export — only meaningful with a case to send to */}
+      {caseId && <SendEmailToTimeline result={result} caseId={caseId} filename={filename} />}
+
+      {/* Warnings sit above the tabs on purpose: a DKIM failure is not a
+          detail belonging to one view of the message. */}
+      <WarningsSection warnings={result.warnings} />
+
+      <div className="flex items-center gap-1 border-b border-hairline">
+        {EMAIL_TABS.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            className={`flex items-center gap-1.5 px-3 py-2 text-ui transition-colors ${
+              tab === id ? 'tab-active' : 'tab-inactive'
+            }`}
+          >
+            <Icon size={11} />
+            {label}
+            {COUNTS[id] !== null && (
+              <span className="text-label font-mono text-fg-muted">{COUNTS[id]}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'overview' && (
+        <div className="space-y-4">
+          {summary}
+          {headers}
+          {links}
+        </div>
+      )}
+      {tab === 'message' && <MessageTab result={result} />}
+      {tab === 'links'   && <div className="space-y-4">{links}</div>}
+      {tab === 'headers' && <div className="space-y-4">{headers}</div>}
     </div>
   )
 }
@@ -893,15 +1050,14 @@ export default function EmailAnalysis() {
   // ── With active case: sidebar layout ──────────────────────────────────────
   if (caseId) {
     return (
-      <div className="flex h-full overflow-hidden">
-        {/* Left sidebar — email list */}
-        <div className="w-64 shrink-0 border-r border-hairline bg-panel flex flex-col overflow-hidden">
-          <div className="px-3 py-3 border-b border-hairline shrink-0">
-            <p className="text-label font-semibold uppercase tracking-widest text-fg-secondary/50 flex items-center gap-1.5">
-              <Mail size={10} /> Emails — {currentCase?.title}
-            </p>
-          </div>
-
+      <PageShell
+        route="/artifacts/email"
+        title="Email Analysis"
+        subtitle={currentCase?.title}
+        meta={`${storedEmails.length} email${storedEmails.length > 1 ? 's' : ''}`}
+        fullHeight
+        asideLeft={(
+          <aside className="w-64 shrink-0 border-r border-hairline bg-panel flex flex-col min-h-0 overflow-hidden">
           {/* Upload button */}
           <div className="px-3 py-2 border-b border-hairline shrink-0">
             <button
@@ -932,10 +1088,10 @@ export default function EmailAnalysis() {
               />
             ))}
           </div>
-        </div>
-
-        {/* Main content */}
-        <div className="flex-1 overflow-y-auto">
+          </aside>
+        )}
+      >
+        <div className="h-full overflow-y-auto">
           {error && (
             <div className="m-4 flex items-center gap-2 text-ui text-severity-critical bg-severity-critical/10 border border-severity-critical/20 px-4 py-3">
               <AlertCircle size={14} />{error}
@@ -985,19 +1141,18 @@ export default function EmailAnalysis() {
             </div>
           )}
         </div>
-      </div>
+      </PageShell>
     )
   }
 
   // ── Without active case: full-page stateless layout ────────────────────────
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-title font-bold text-fg flex items-center gap-2">
-          <Mail size={18} className="text-accent" /> Email Analysis
-        </h1>
-        <p className="text-fg-secondary text-ui mt-0.5">Upload a .eml file to parse headers, extract URLs and hash attachments.</p>
-      </div>
+    <PageShell
+      route="/artifacts/email"
+      title="Email Analysis"
+      subtitle="Parse headers, extract URLs and hash attachments"
+    >
+      <div className="max-w-6xl mx-auto space-y-6">
 
       <div className="flex items-center gap-2 text-label text-fg-secondary/60 bg-white/[0.02] border border-hairline px-3 py-2">
         <Info size={12} />
@@ -1021,6 +1176,7 @@ export default function EmailAnalysis() {
           onAdded={handleAdded}
         />
       )}
-    </div>
+      </div>
+    </PageShell>
   )
 }
