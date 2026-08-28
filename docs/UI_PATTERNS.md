@@ -199,8 +199,15 @@ gutter they did not ask for and a second scrollbar.
 The slots are fixed. A page needing a different arrangement is a gap in the
 design system to raise, not a local exception to make.
 
-**Migrated so far**: Users, Templates, Report Templates, Playbooks, Clients,
-Connectors, Vault Management. The rest still carry their own headers; each is
-its own small piece of surgery because each header is a different shape, which
-is the whole reason this exists.
+**Migrated so far** (11 of 25): Dashboard, Cases, Users, Templates, Report
+Templates, Playbooks, Clients, Connectors, Vault Management, Audit log,
+Detection Rules.
+
+The rest still carry their own headers. Each is its own small piece of surgery
+because each header is a different shape — which is the whole reason this
+exists, and also why the migration cannot be scripted. The remaining hard ones
+are the pages with a left file list and a right selection panel
+(ArtifactExplorer, PcapExplorer, DiskImageExplorer, FilesystemLogs,
+CaseDetail): they are where PageShell earns the most, and where converting
+touches real layout rather than markup.
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { PageShell } from '../ui/PageShell'
 import { DataTable } from '../ui/DataTable'
 import {
   Swords, Search, Upload, Trash2, CheckCircle2, Loader2,
@@ -445,44 +446,33 @@ export default function ChainsawRules() {
   ]
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-canvas">
-      {/* Page header */}
-      <div className="px-8 pt-8 pb-6 border-b border-hairline">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-accent/10 border border-accent/20 flex items-center justify-center">
-            <Swords size={18} className="text-accent" />
-          </div>
-          <div>
-            <h1 className="text-title font-bold text-fg tracking-tight">Detection Rules</h1>
-            <p className="text-label text-fg-secondary/60 mt-0.5">
-              Manage Chainsaw built-in, custom, and SigmaHQ detection rules
-            </p>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-1 mt-5">
+    <PageShell
+      route="/config/chainsaw-rules"
+      title="Detection Rules"
+      subtitle="Chainsaw built-in, custom and SigmaHQ rules"
+      toolbar={(
+        <div className="flex gap-1">
           {tabs.map(t => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`px-4 py-2 text-ui font-medium rounded-t-lg border-b-2 transition-colors ${ tab === t.key
-                  ? 'bg-accent/10 text-accent border-accent'
-                  : 'text-fg-secondary/60 border-transparent hover:text-fg hover:bg-fg/5'
+              className={`px-3 py-1.5 text-ui transition-colors ${
+                tab === t.key ? 'tab-active' : 'tab-inactive'
               }`}
             >
               {t.label}
             </button>
           ))}
         </div>
-      </div>
+      )}
+      fullHeight
+    >
 
-      {/* Tab content */}
-      <div className="flex-1 overflow-y-auto px-8 py-6">
+      <div className="h-full overflow-y-auto px-6 py-5">
         {tab === 'builtin' && <BuiltinTab />}
         {tab === 'custom'  && <CustomTab />}
         {tab === 'sigma'   && <SigmaTab />}
       </div>
-    </div>
+    </PageShell>
   )
 }

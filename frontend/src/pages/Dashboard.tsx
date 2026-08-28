@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { PageShell } from '../ui/PageShell'
 import { DataTable } from '../ui/DataTable'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -489,23 +490,22 @@ export default function Dashboard() {
   const lastUpdated = dataUpdatedAt ? fmtTimeOnly(dataUpdatedAt) : null
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-5">
-
-      {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-title font-bold text-fg">Dashboard</h1>
-          <p className="text-fg-secondary/50 text-label mt-0.5">DFIR Operations Overview</p>
-        </div>
+    <PageShell
+      route="/"
+      title="Dashboard"
+      subtitle={"DFIR operations overview"}
+      actions={(
         <button
           onClick={() => refetch()}
           disabled={isRefetching}
-          className="flex items-center gap-1.5 text-label text-fg-secondary/40 hover:text-fg transition-colors disabled:opacity-40"
+          className="btn-ghost flex items-center gap-1.5 disabled:opacity-40"
         >
           <RefreshCw size={11} className={isRefetching ? 'animate-spin' : ''} />
           {lastUpdated ? `Updated ${lastUpdated}` : 'Refresh'}
         </button>
-      </div>
+      )}
+    >
+      <div className="max-w-7xl mx-auto space-y-5">
 
       {/* ── KPI Strip ───────────────────────────────────────────────────────── */}
       {isLoading ? (
@@ -653,6 +653,7 @@ export default function Dashboard() {
         </div>
       )}
 
-    </div>
+      </div>
+    </PageShell>
   )
 }
