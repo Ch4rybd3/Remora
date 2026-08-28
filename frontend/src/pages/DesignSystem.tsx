@@ -278,7 +278,8 @@ export default function DesignSystem() {
               four spellings of the same sticky header, because every screen rebuilt the table it
               needed. Rows are separated by hairlines — no zebra striping, which invents a rhythm
               that competes with the data. The pin is always the first column and never opens the
-              row it sits on.">
+              row it sits on, and per-column filters sit in the header, under the thing they
+              filter.">
         <Specimen compare={compare}>
           <Panel className="overflow-hidden">
             <DataTable
@@ -302,6 +303,13 @@ export default function DesignSystem() {
               }}
               sort={{ key: 'timestamp', dir: 'desc' }}
               onSortChange={() => {}}
+              renderFilter={(col) =>
+                col.key === 'timestamp' ? (
+                  <span className="text-label text-fg-muted italic">date range above</span>
+                ) : (
+                  <input className="input py-0.5" placeholder={`filter ${col.key}`} />
+                )
+              }
               columns={[
                 { key: 'timestamp', header: 'Timestamp', width: 'w-44', mono: true, sortable: true,
                   render: (r) => <span className="text-fg-secondary">{r.timestamp}</span> },

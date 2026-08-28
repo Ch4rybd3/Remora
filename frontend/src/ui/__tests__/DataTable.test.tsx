@@ -166,3 +166,39 @@ describe('DataTable — responsive', () => {
     expect(screen.getByText('Host').closest('th')?.className).toContain('lg:table-cell')
   })
 })
+
+describe('DataTable — per-column filters', () => {
+  it('puts one filter cell under each column header', () => {
+    const { container } = table({
+      renderFilter: (col) => <input aria-label={`filter ${col.key}`} />,
+    })
+    expect(screen.getByLabelText('filter host')).toBeInTheDocument()
+    expect(screen.getByLabelText('filter severity')).toBeInTheDocument()
+    expect(container.querySelectorAll('thead tr')).toHaveLength(2)
+  })
+
+  it('leaves a column without a filter empty rather than skipping the cell', () => {
+    // Skipping the cell would shift every filter one column to the left, which
+    // is the kind of bug that looks like the filters simply do not work.
+    const { container } = table({
+      renderFilter: (col) => (col.key === 'host' ? <input aria-label="filter host" /> : null),
+    })
+    const filterRow = container.querySelectorAll('thead tr')[1]
+    expect(filterRow.querySelectorAll('th')).toHaveLength(COLUMNS.length)
+  })
+
+  it('accounts for the pin column so the filters stay aligned', () => {
+    const { container } = table({
+      leading: { render: () => <span>pin</span> },
+      renderFilter: () => <input aria-label="filter" />,
+    })
+    const [headerRow, filterRow] = container.querySelectorAll('thead tr')
+    expect(filterRow.querySelectorAll('th')).toHaveLength(headerRow.querySelectorAll('th').length)
+  })
+
+  it('renders no second row when no filter is provided', () => {
+    const { container } = table()
+    expect(container.querySelectorAll('thead tr')).toHaveLength(1)
+  })
+})
+

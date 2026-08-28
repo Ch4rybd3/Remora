@@ -120,4 +120,9 @@ The contract it encodes:
   does not.
 - **`renderExpanded`** puts detail in a full-width row beneath its parent — the
   detail belongs with the row it explains, not in a modal that hides it.
+- **`renderFilter` puts per-column filters in the header**, under the thing they
+  filter. In a bar above the table the analyst has to hold the mapping between
+  control and column in their head — a small tax that adds up over a long
+  session. A column with no filter still gets an empty cell, because skipping it
+  would shift every filter one column left.
 

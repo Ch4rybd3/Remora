@@ -5,6 +5,7 @@ import {
   ArrowUp, ArrowDown, SlidersHorizontal, X, ChevronDown, BookmarkPlus, BookmarkCheck,
 } from '../../ui/icons'
 import { evtxApi, type EvtxEvent, type EventFilters, type FileSummary } from '../../api/evtx'
+import { DataTable } from '../../ui/DataTable'
 import { fmtDateTime } from '../../utils/dateUtils'
 
 // ── Level styling ─────────────────────────────────────────────────────────────
@@ -705,130 +706,72 @@ export default function TimelineExplorer({ caseId, fileId, filename = '', pinned
           </div>
         )}
 
-        <table className="w-full border-collapse text-label min-w-[960px]">
-          <thead className="sticky top-0 z-10 bg-panel">
-            {/* Column name row */}
-            <tr className="border-b border-hairline">
-              {/* Pin column header */}
-              {onPin && <th className="w-8 shrink-0 px-1 pt-2 pb-1" />}
-              {COLUMNS.map(col => (
-                <th key={col.key}
-                  className={`${col.cls} px-3 pt-2 pb-1 text-left font-medium text-label text-fg-secondary/40 uppercase tracking-widest whitespace-nowrap`}
-                >
-                  {col.label}
-                </th>
-              ))}
-            </tr>
-
-            {/* Per-column filter row */}
-            <tr className="border-b border-hairline bg-panel/80">
-              {/* Pin column filter cell (empty) */}
-              {onPin && <th className="w-8 shrink-0 px-1 py-1.5" />}
-              {COLUMNS.map(col => (
-                <th key={`${col.key}-filter`} className={`${col.cls} px-2 py-1.5`}>
-                  {col.filterKey ? (
-                    <ColFilterInput
-                      colKey={col.filterKey}
-                      filter={colFilters[col.filterKey] ?? defaultColFilter()}
-                      onChange={cf => handleColFilterChange(col.filterKey!, cf)}
-                    />
-                  ) : (
-                    /* Time column: no per-column filter (use date range in global bar) */
-                    <div className="h-6 flex items-center px-1">
-                      <span className="text-label text-fg/10 italic">date range ↑</span>
-                    </div>
-                  )}
-                </th>
-              ))}
-            </tr>
-          </thead>
-
-          <tbody>
-            {isLoading && Array.from({ length: 8 }).map((_, i) => (
-              <tr key={i} className="border-b border-strong/[0.04]">
-                {COLUMNS.map(col => (
-                  <td key={col.key} className={`${col.cls} px-3 py-2`}>
-                    <div className="h-3 rounded-control bg-fg/5 animate-pulse" style={{ width: `${45 + (i * 7) % 45}%` }} />
-                  </td>
-                ))}
-              </tr>
-            ))}
-
-            {!isLoading && events.length === 0 && (
-              <tr>
-                <td colSpan={COLUMNS.length + (onPin ? 1 : 0)} className="px-3 py-12 text-center text-label text-fg-secondary/30 italic">
-                  No events match the current filters
-                </td>
-              </tr>
-            )}
-
-            {events.map(ev => {
-              const isPinned = pinnedIds?.has(ev.id) ?? false
-              return (
-                <>
-                  <tr
-                    key={ev.id}
-                    onClick={() => setExpandedId(id => id === ev.id ? null : ev.id)}
-                    className={` border-b border-strong/[0.04] cursor-pointer transition-colors group
-                      ${expandedId === ev.id
-                        ? 'bg-accent/5'
-                        : 'hover:bg-white/[0.025]'}
-                    `}
-                  >
-                    {/* Pin button cell */}
-                    {onPin && (
-                      <td
-                        className="w-8 shrink-0 px-1 py-1.5 text-center"
-                        onClick={e => { e.stopPropagation(); if (!isPinned) onPin(ev, filename) }}
+        <DataTable
+          density="compact"
+          className="min-w-[960px]"
+          rows={events}
+          rowKey={(ev) => String(ev.id)}
+          loading={isLoading}
+          empty="No events match the current filters"
+          onRowClick={(ev) => setExpandedId((id) => (id === ev.id ? null : ev.id))}
+          isRowSelected={(ev) => expandedId === ev.id}
+          renderExpanded={(ev) =>
+            expandedId === ev.id ? <EventDetail event={ev} onClose={() => setExpandedId(null)} /> : null
+          }
+          leading={
+            onPin
+              ? {
+                  width: 'w-8',
+                  render: (ev) => {
+                    const isPinned = pinnedIds?.has(ev.id) ?? false
+                    return isPinned ? (
+                      <BookmarkCheck size={13} className="mx-auto text-accent" />
+                    ) : (
+                      <button
+                        onClick={() => onPin(ev, filename)}
+                        title="Pin to the timeline selection"
+                        aria-label="Pin to the timeline selection"
+                        className="block mx-auto text-fg-muted hover:text-accent transition-colors"
                       >
-                        {isPinned ? (
-                          <BookmarkCheck
-                            size={13}
-                            className="mx-auto text-accent/60"
-                          />
-                        ) : (
-                          <BookmarkPlus
-                            size={13}
-                            className="mx-auto text-fg-secondary/20 group-hover:text-fg-secondary/50 hover:!text-accent transition-colors"
-                          />
-                        )}
-                      </td>
-                    )}
-                    <td className="w-44 shrink-0 px-3 py-1.5 font-mono text-label text-fg/45 whitespace-nowrap">
-                      {fmtTime(ev.time_created)}
-                    </td>
-                    <td className="w-20 shrink-0 px-3 py-1.5 font-mono text-fg/80 font-semibold">
-                      {ev.event_id ?? '—'}
-                    </td>
-                    <td className="w-26 shrink-0 px-3 py-1.5">
-                      <LevelBadge name={ev.level_name} />
-                    </td>
-                    <td className="w-52 shrink-0 px-3 py-1.5 text-fg/55 truncate" title={ev.channel ?? ''}>
-                      {ev.channel ?? '—'}
-                    </td>
-                    <td className="flex-1 min-w-0 px-3 py-1.5 text-fg/40 truncate" title={ev.provider ?? ''}>
-                      {ev.provider ?? '—'}
-                    </td>
-                    <td className="w-36 shrink-0 px-3 py-1.5 text-fg/50 truncate" title={ev.computer ?? ''}>
-                      {ev.computer ?? '—'}
-                    </td>
-                    <td className="w-56 shrink-0 px-3 py-1.5 text-fg/25 font-mono text-label truncate" title={dataPreview(ev)}>
-                      {dataPreview(ev)}
-                    </td>
-                  </tr>
-
-                  {expandedId === ev.id && (
-                    <tr key={`${ev.id}-detail`}>
-                      <td colSpan={COLUMNS.length + (onPin ? 1 : 0)} className="p-0">
-                        <EventDetail event={ev} onClose={() => setExpandedId(null)} />
-                      </td>
-                    </tr>
-                  )}
-                </>
-              )
-            })}
-          </tbody>
-        </table>
+                        <BookmarkPlus size={13} />
+                      </button>
+                    )
+                  },
+                }
+              : undefined
+          }
+          renderFilter={(col) => {
+            const def = COLUMNS.find((c) => c.key === col.key)
+            if (!def?.filterKey) {
+              // Time is filtered by the date range in the toolbar above: two
+              // controls for one dimension would disagree sooner or later.
+              return <span className="text-label text-fg-muted italic">date range above</span>
+            }
+            return (
+              <ColFilterInput
+                colKey={def.filterKey}
+                filter={colFilters[def.filterKey] ?? defaultColFilter()}
+                onChange={(cf) => handleColFilterChange(def.filterKey!, cf)}
+              />
+            )
+          }}
+          columns={[
+            { key: 'time_created', header: 'Time', width: 'w-44', mono: true,
+              render: (ev) => <span className="text-fg-secondary whitespace-nowrap">{fmtTime(ev.time_created)}</span> },
+            { key: 'event_id', header: 'Event ID', width: 'w-20', mono: true,
+              render: (ev) => <span className="text-fg font-medium">{ev.event_id ?? '—'}</span> },
+            { key: 'level_name', header: 'Level', width: 'w-24',
+              render: (ev) => <LevelBadge name={ev.level_name} /> },
+            { key: 'channel', header: 'Channel', width: 'w-52',
+              render: (ev) => <span className="block truncate text-fg-secondary" title={ev.channel ?? ''}>{ev.channel ?? '—'}</span> },
+            { key: 'provider', header: 'Provider', hideBelow: 'lg',
+              render: (ev) => <span className="block truncate text-fg-muted" title={ev.provider ?? ''}>{ev.provider ?? '—'}</span> },
+            { key: 'computer', header: 'Computer', width: 'w-36', hideBelow: 'md',
+              render: (ev) => <span className="block truncate text-fg-secondary" title={ev.computer ?? ''}>{ev.computer ?? '—'}</span> },
+            { key: 'preview', header: 'Data', width: 'w-56', mono: true, hideBelow: 'xl',
+              render: (ev) => <span className="block truncate text-fg-muted" title={dataPreview(ev)}>{dataPreview(ev)}</span> },
+          ]}
+        />
       </div>
 
       {/* Pagination */}

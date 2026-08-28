@@ -44,6 +44,16 @@ export interface DataTableProps<T> {
    * — the detail belongs with the row it explains, not in a modal that hides it.
    */
   renderExpanded?: (row: T) => ReactNode | null
+  /**
+   * A second header row holding one filter control per column. Returning null
+   * for a column leaves its cell empty.
+   *
+   * Filters belong in the header because that is where the thing they filter is
+   * named. In a bar above the table the analyst has to hold the mapping between
+   * control and column in their head, which is the kind of small tax that makes
+   * a dense screen tiring over a long session.
+   */
+  renderFilter?: (column: Column<T>) => ReactNode | null
   sort?: SortState | null
   onSortChange?: (sort: SortState) => void
   empty?: ReactNode
@@ -86,6 +96,7 @@ export function DataTable<T>({
   onRowClick,
   isRowSelected,
   renderExpanded,
+  renderFilter,
   sort,
   onSortChange,
   empty,
@@ -144,6 +155,21 @@ export function DataTable<T>({
             )}
             {trailing && headerCell('__trailing', '', { width: trailing.width ?? 'w-20', align: 'right' })}
           </tr>
+
+          {renderFilter && (
+            <tr className="border-b border-hairline">
+              {leading && <th className={pad} />}
+              {columns.map((c) => (
+                <th
+                  key={`${c.key}-filter`}
+                  className={`${pad} ${c.hideBelow ? HIDE[c.hideBelow] : ''} font-normal`}
+                >
+                  {renderFilter(c)}
+                </th>
+              ))}
+              {trailing && <th className={pad} />}
+            </tr>
+          )}
         </thead>
 
         <tbody>
