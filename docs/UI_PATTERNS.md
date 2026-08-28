@@ -132,9 +132,19 @@ are deliberately not migrated:
 - `TimelineTab` renders a key/value dump of a raw event. That is a definition
   list that happens to use table markup, not a list of records — routing it
   through `DataTable` would make it worse.
-- `ArtifactExplorer` is migrated with its own split, since the table there is
-  entangled with the RQL bar, dynamic columns and group-by in a single
-  2 600-line file.
+- `ArtifactExplorer` keeps its own grid, and that is a decision rather than an
+  omission. Its columns are resizable, reorderable by dragging their header and
+  droppable onto the group-by bar; its rows are a lazily-fetched tree of group
+  headers and leaves; its first column is sticky across a horizontal scroll of
+  arbitrary width. Fourteen other tables need none of that, and pushing it into
+  `DataTable` would add drag-and-drop, resizing and tree rendering to a
+  component whose whole value is being small enough to be predictable.
+
+  What it does share is the **contract**: hairline rows and no zebra, mono
+  uppercase headers, a sticky header, the pin as the first column, filters in
+  the header under the thing they filter, detail in a row beneath its parent.
+  When that contract changes here, it changes in
+  `artifact-explorer/ArtifactTableView.tsx` too.
 
 A new screen that needs a table starts from the specimen in `/design`, not from
 the nearest file that happens to have one.
