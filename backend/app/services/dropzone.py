@@ -283,7 +283,7 @@ def ingest_files(
             try:
                 extract_all(src, sub, src.name)
             except ArchiveError as e:
-                print(f"[dropzone] archive {src.name} illisible: {e}", flush=True)
+                print(f"[dropzone] archive {src.name} could not be read: {e}", flush=True)
                 continue
             # Walk what actually landed on disk rather than re-reading the
             # archive index — unsafe entries were dropped during extraction.
@@ -303,7 +303,7 @@ def ingest_files(
     col = ImportedCollection(
         id=collection_id,
         case_id=case.id,
-        filename=(files[0].name if len(files) == 1 else f"{len(rows)} fichiers ({source_label})"),
+        filename=(files[0].name if len(files) == 1 else f"{len(rows)} files ({source_label})"),
         file_size=total_size,
         uploaded_at=datetime.utcnow(),
         status="processing",
