@@ -49,6 +49,44 @@ Applies to any free-form query language box (today: RQL in the Artifact Explorer
 - Cheap incremental controls - the plain search box, column filters - stay
   debounced. The rule is about expression languages, not about all input.
 
+## Chain of Custody Actions
+Any page that lists artifacts renders `components/custody/CustodyActions` and
+nothing else. It carries the copy button, the preserve action, the IOC
+containment option, the withdrawal confirmation and the audit trail - so
+"preserve this" means the same thing on every page, and a new artifact page
+gets the behaviour rather than reimplementing it.
+
+Adding a page takes two steps:
+
+1. Register a source kind in `backend/app/services/custody.py` - one entry in
+   `_SOURCES`, a resolver returning where the file is and what it is.
+2. Put `<CustodyActions caseId kind sourceId name evidenceId onChange />` in the
+   row.
+
+Behavioural rules it encodes:
+
+- **The filename is the copy affordance.** `CopyableName` copies on click,
+  because the name is what an analyst pastes into a command line most often.
+  A separate copy button exists for the cases where the name is already a link.
+- **Preserving copies the bytes.** An evidence record that points into a
+  collection expiring in 90 days documents something that will not be there,
+  which is worse than no record - it reads as preserved.
+- **Withdrawal requires a typed reason** and deletes the preserved copy. Both
+  are deliberate: an unexplained withdrawal is the gap a chain of custody
+  exists to close, and leaving bytes the record says were withdrawn makes the
+  store disagree with the chain.
+- **The IOC option is offered at the moment of preserving**, not buried in a
+  settings screen, because that is when the analyst knows whether the file
+  could execute.
+- **The archive password is shown in the interface.** It is containment, not
+  confidentiality: it stops a double-click after a download and stops endpoint
+  protection quarantining a sample out of the evidence store. Hiding it would
+  only stop the analyst opening their own evidence.
+
+`utils/clipboard.ts` is required for all copying. `navigator.clipboard` only
+exists in a secure context, and Remora is routinely reached over plain HTTP on
+an internal network - where a naive call fails silently.
+
 ---
 
 ## Primitives

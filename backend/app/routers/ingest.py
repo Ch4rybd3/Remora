@@ -62,6 +62,10 @@ def _dto(row: IngestedFile, case_id: str) -> dict:
         "parent_id":        row.parent_id,
         "collection_id":    row.collection_id,
         "recoverable":      row.state in RECOVERABLE_STATES,
+        # Preserved in the chain of custody, so the collection expiry no longer
+        # decides whether this file still exists.
+        "evidence_id":      row.evidence_id,
+        "preserved":        bool(row.evidence_id),
         "destination_pages": [p.replace("{case_id}", case_id) for p in route.pages],
         "created_at":       row.created_at.isoformat() if row.created_at else None,
     }

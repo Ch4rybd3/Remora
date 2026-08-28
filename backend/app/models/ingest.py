@@ -65,9 +65,15 @@ ORIGIN_DROPZONE  = "dropzone"   # copied onto the host: cp, scp, rsync, a mount
 ORIGIN_UPLOAD    = "upload"     # the Collection tab's drop area
 ORIGIN_ARCHIVE   = "archive"    # unpacked from a container already ingested
 ORIGIN_CONNECTOR = "connector"  # pulled by an integration
+# Ingested before this table existed, by one of the fourteen upload endpoints.
+# Which door it used was never recorded, and inventing an answer would be
+# fabricating provenance in a tool whose output is meant to survive scrutiny.
+# "We do not know" is the only honest value, so it is a value.
+ORIGIN_LEGACY    = "legacy"
 
 ALL_ORIGINS = frozenset({
     ORIGIN_DROPZONE, ORIGIN_UPLOAD, ORIGIN_ARCHIVE, ORIGIN_CONNECTOR,
+    ORIGIN_LEGACY,
 })
 
 # ─── Detection sources ────────────────────────────────────────────────────────
@@ -138,6 +144,17 @@ class IngestedFile(Base):
 
     routed_to:          Mapped[str | None] = mapped_column(String, nullable=True)
     parsed_artifact_id: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # Set once the file has been preserved in the chain of custody. Its
+    # presence is what exempts the file from the 90-day collection expiry:
+    # a preserved copy lives in the evidence store, which nothing expires.
+    # The constraint is named: SQLite's batch migration cannot drop an unnamed
+    # one, so an anonymous foreign key here makes the downgrade unrunnable.
+    evidence_id: Mapped[str | None] = mapped_column(
+        String,
+        ForeignKey("evidences.id", ondelete="SET NULL",
+                   name="fk_ingested_files_evidence_id"),
+        nullable=True, index=True)
 
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
