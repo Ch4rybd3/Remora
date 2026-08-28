@@ -14,6 +14,7 @@
  */
 
 import { useState } from 'react'
+import { PageShell } from '../ui/PageShell'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -489,9 +490,12 @@ export default function KnowledgeBase() {
   const filterOptions: Array<VaultType | 'all'> = ['all', ...presentTypes]
 
   return (
-    <div className="flex h-full overflow-hidden">
-
-      {/* ── Left panel — vault list ──────────────────────────────────────── */}
+    <PageShell
+      route="/knowledge"
+      title="Vault"
+      meta={vaults.length ? `${vaults.length} vault${vaults.length > 1 ? 's' : ''}` : undefined}
+      fullHeight
+      asideLeft={(
       <aside className="w-64 shrink-0 border-r border-hairline bg-panel flex flex-col">
 
         {/* Header */}
@@ -584,9 +588,11 @@ export default function KnowledgeBase() {
           </div>
         )}
       </aside>
+      )}
+    >
 
       {/* ── Right panel — viewer ─────────────────────────────────────────── */}
-      <main className="flex-1 overflow-hidden">
+      <main className="h-full overflow-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <p className="text-fg-secondary text-ui animate-pulse">Loading vaults...</p>
@@ -600,6 +606,6 @@ export default function KnowledgeBase() {
         )}
       </main>
 
-    </div>
+    </PageShell>
   )
 }

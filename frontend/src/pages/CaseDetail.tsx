@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from 'react'
+import { PageShell } from '../ui/PageShell'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Edit2, Save, X, Trash2 } from '../ui/icons'
+import { Edit2, Save, X, Trash2 } from '../ui/icons'
 import { casesApi } from '../api/cases'
 import { usersApi } from '../api/auth'
 import type { Case, CaseSeverity, CaseStatus } from '../types'
@@ -97,24 +98,35 @@ export default function CaseDetail() {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="border-b border-hairline px-6 py-4">
-        <div className="flex items-start gap-4">
-          <button onClick={() => navigate('/cases')} className="text-fg-secondary hover:text-fg mt-1 transition-colors">
-            <ArrowLeft size={18} />
-          </button>
-          <div className="flex-1 min-w-0">
-            {editing ? (
-              <input
-                className="input text-title font-bold mb-2 w-full"
-                value={editForm.title}
-                onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
-              />
-            ) : (
-              <h1 className="text-title font-bold text-fg truncate">{case_.title}</h1>
-            )}
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
+    <PageShell
+      route="/cases"
+      backTo="/cases"
+      title={editing ? (
+        <input
+          className="input text-title font-semibold w-full max-w-md"
+          value={editForm.title}
+          onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+        />
+      ) : case_.title}
+      meta={`updated ${fmtDateTimeShort(case_.updated_at)}`}
+      actions={
+        editing ? (
+          <>
+            <button onClick={() => setEditing(false)} className="btn-ghost flex items-center gap-1.5"><X size={12} /> Cancel</button>
+            <button onClick={() => update.mutate(editForm)} disabled={update.isPending} className="btn-primary flex items-center gap-1.5">
+              <Save size={12} />{update.isPending ? 'Saving...' : 'Save'}
+            </button>
+          </>
+        ) : (
+          <>
+            <button onClick={startEdit} className="btn-ghost flex items-center gap-1.5"><Edit2 size={12} /> Edit</button>
+            <button onClick={() => setDeleteOpen(true)} className="btn-danger flex items-center gap-1.5"><Trash2 size={12} /> Delete</button>
+          </>
+        )
+      }
+      toolbar={(
+        <>
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
               {editing ? (
                 <>
                   <select className="input text-label py-0.5 w-32" value={editForm.severity} onChange={e => setEditForm(f => ({ ...f, severity: e.target.value as CaseSeverity }))}>
@@ -147,38 +159,21 @@ export default function CaseDetail() {
                   {case_.tags && case_.tags.split(',').filter(Boolean).map(t => <Tag key={t} label={t.trim()} />)}
                 </>
               )}
-            </div>
-            <p className="text-label text-fg-secondary/60 mt-1">
-              Created {fmtDateTimeShort(case_.created_at)} ·
-              Updated {fmtDateTimeShort(case_.updated_at)}
-            </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {editing ? (
-              <>
-                <button onClick={() => setEditing(false)} className="btn-secondary text-label flex items-center gap-1.5"><X size={12} /> Cancel</button>
-                <button onClick={() => update.mutate(editForm)} disabled={update.isPending} className="btn-primary text-label flex items-center gap-1.5">
-                  <Save size={12} />{update.isPending ? 'Saving…' : 'Save'}
-                </button>
-              </>
-            ) : (
-              <>
-                <button onClick={startEdit} className="btn-secondary text-label flex items-center gap-1.5"><Edit2 size={12} /> Edit</button>
-                <button onClick={() => setDeleteOpen(true)} className="btn-danger text-label flex items-center gap-1.5"><Trash2 size={12} /> Delete</button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
+        </>
+      )}
+      fullHeight
+    >
+      <div className="h-full flex flex-col min-h-0 overflow-hidden">
       {/* Tabs */}
-      <div className="border-b border-hairline px-6">
-        <div className="flex gap-1">
+      <div className="border-b border-hairline px-4 shrink-0">
+        <div className="flex gap-1 overflow-x-auto">
           {TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-3 text-label font-medium transition-colors ${ activeTab === tab.id ? 'tab-active' : 'tab-inactive'
+              className={`px-3 py-2 text-ui whitespace-nowrap transition-colors ${
+                activeTab === tab.id ? 'tab-active' : 'tab-inactive'
               }`}
             >
               {tab.label}
@@ -188,7 +183,7 @@ export default function CaseDetail() {
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {/* Full-height tabs (no padding, custom layout) */}
         {activeTab === 'attack_graph' && (
           <div className="h-full">
@@ -235,6 +230,7 @@ export default function CaseDetail() {
         title="Delete Case"
         message={`"${case_.title}" and all associated data will be permanently deleted.`}
       />
-    </div>
+      </div>
+    </PageShell>
   )
 }

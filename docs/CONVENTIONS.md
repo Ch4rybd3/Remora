@@ -142,8 +142,10 @@ it — so anything new is type-checked by default.
 5. Query keys are arrays, most general first: `['artifacts', caseId, fileId]`.
 
 ### Page contract
-Every page is a `PageShell`. The slots are fixed; a page that needs a different
-arrangement is a design-system gap to raise, not a local exception.
+Every page is a `PageShell`, enforced by `npm run check:pages` in CI. The slots
+are fixed; a page that needs a different arrangement is a design-system gap to
+raise, not a local exception. Four pages are exempt by name, each with its
+reason recorded in the check — see `docs/UI_PATTERNS.md`.
 
 ```
 ┌────────────────────────────────────────────────────┐
