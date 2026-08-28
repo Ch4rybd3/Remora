@@ -13,11 +13,20 @@ export interface SidePanelTab {
 
 interface SidePanelProps {
   tabs: SidePanelTab[]
-  /** Distinguishes the stored collapse state between panels. */
+  /** Distinguishes the stored collapse state and width between panels. */
   storageKey: string
   defaultCollapsed?: boolean
+  defaultWidth?: number
+  minWidth?: number
+  maxWidth?: number
   className?: string
 }
+
+const DEFAULT_WIDTH = 288
+const MIN_WIDTH = 220
+const MAX_WIDTH = 720
+/** How far one arrow key press moves the edge. */
+const KEY_STEP = 24
 
 /**
  * A right-hand panel that collapses to a rail.
@@ -36,9 +45,13 @@ export function SidePanel({
   tabs,
   storageKey,
   defaultCollapsed = false,
+  defaultWidth = DEFAULT_WIDTH,
+  minWidth = MIN_WIDTH,
+  maxWidth = MAX_WIDTH,
   className = '',
 }: SidePanelProps) {
   const key = `remora_sidepanel_${storageKey}`
+  const widthKey = `${key}_width`
 
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try {
@@ -50,6 +63,69 @@ export function SidePanel({
     }
     return defaultCollapsed
   })
+
+  const clamp = useCallback(
+    (value: number) => Math.min(maxWidth, Math.max(minWidth, value)),
+    [minWidth, maxWidth],
+  )
+
+  const [width, setWidth] = useState<number>(() => {
+    try {
+      const stored = Number(localStorage.getItem(widthKey))
+      if (Number.isFinite(stored) && stored > 0) return Math.min(maxWidth, Math.max(minWidth, stored))
+    } catch {
+      // Unreadable storage is not a reason to render a broken panel.
+    }
+    return defaultWidth
+  })
+
+  const persistWidth = useCallback(
+    (next: number) => {
+      try {
+        localStorage.setItem(widthKey, String(next))
+      } catch {
+        // The width is lost on reload; nothing else breaks.
+      }
+    },
+    [widthKey],
+  )
+
+  // Dragging the left edge. Listeners live on the document so the pointer can
+  // leave the 5px handle — which it always does — without dropping the drag.
+  const startResize = useCallback(
+    (event: React.PointerEvent) => {
+      event.preventDefault()
+      const startX = event.clientX
+      const startWidth = width
+
+      const onMove = (e: PointerEvent) => setWidth(clamp(startWidth + (startX - e.clientX)))
+      const onUp = (e: PointerEvent) => {
+        document.removeEventListener('pointermove', onMove)
+        document.removeEventListener('pointerup', onUp)
+        document.body.style.removeProperty('cursor')
+        document.body.style.removeProperty('user-select')
+        persistWidth(clamp(startWidth + (startX - e.clientX)))
+      }
+
+      document.addEventListener('pointermove', onMove)
+      document.addEventListener('pointerup', onUp)
+      // Without these the drag selects the text it passes over.
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+    },
+    [width, clamp, persistWidth],
+  )
+
+  const nudge = useCallback(
+    (delta: number) => {
+      setWidth((current) => {
+        const next = clamp(current + delta)
+        persistWidth(next)
+        return next
+      })
+    },
+    [clamp, persistWidth],
+  )
 
   const [activeId, setActiveId] = useState(tabs[0]?.id ?? '')
 
@@ -104,7 +180,34 @@ export function SidePanel({
   const active = tabs.find((t) => t.id === activeId) ?? tabs[0]
 
   return (
-    <aside className={`w-72 shrink-0 border-l border-hairline bg-panel flex flex-col min-h-0 ${className}`}>
+    <aside
+      className={`relative shrink-0 border-l border-hairline bg-panel flex flex-col min-h-0 ${className}`}
+      style={{ width }}
+    >
+      {/* The resize handle is a real separator: focusable, and operable with
+          the arrow keys. A drag-only affordance is unreachable without a
+          pointer, and this one governs how much of the screen the document
+          gets — not a detail worth locking behind a mouse. */}
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize the panel"
+        aria-valuenow={width}
+        aria-valuemin={minWidth}
+        aria-valuemax={maxWidth}
+        tabIndex={0}
+        onPointerDown={startResize}
+        onDoubleClick={() => { setWidth(defaultWidth); persistWidth(defaultWidth) }}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowLeft')  { e.preventDefault(); nudge(KEY_STEP) }
+          if (e.key === 'ArrowRight') { e.preventDefault(); nudge(-KEY_STEP) }
+          if (e.key === 'Home')       { e.preventDefault(); setWidth(defaultWidth); persistWidth(defaultWidth) }
+        }}
+        title="Drag to resize, double-click to reset"
+        className="absolute left-0 top-0 bottom-0 -ml-0.5 w-1 z-20 cursor-col-resize
+                   hover:bg-accent/40 focus-visible:bg-accent/60 focus-visible:outline-none
+                   transition-colors"
+      />
       <div className="flex items-center border-b border-hairline">
         {tabs.map((tab) => (
           <button
