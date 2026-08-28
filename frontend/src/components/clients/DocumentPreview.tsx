@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { X, Download, AlertCircle, FileQuestion } from '../../ui/icons'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
+import { DataTable } from '../../ui/DataTable'
 import { clientsApi } from '../../api/clients'
 import type { ClientDocument } from '../../types'
 import { fmtBytes } from '../../utils/formatUtils'
@@ -29,26 +30,20 @@ function SpreadsheetTable({ rows }: { rows: string[][] }) {
   const shown = truncated ? body.slice(0, MAX_PREVIEW_ROWS) : body
   return (
     <div className="overflow-auto h-full">
-      <table className="w-full text-label border-collapse">
-        <thead className="sticky top-0 bg-panel">
-          <tr>
-            {header.map((h, i) => (
-              <th key={i} className="text-left px-3 py-2 border-b border-hairline text-accent font-semibold whitespace-nowrap">
-                {h || `Col ${i + 1}`}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {shown.map((row, ri) => (
-            <tr key={ri} className="border-b border-hairline hover:bg-white/[0.02]">
-              {header.map((_, ci) => (
-                <td key={ci} className="px-3 py-1.5 whitespace-nowrap text-fg-secondary">{row[ci] ?? ''}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <DataTable
+        density="compact"
+        rows={shown.map((row, index) => ({ index, cells: row }))}
+        rowKey={(r) => String(r.index)}
+        empty="This file has no rows."
+        columns={header.map((h, i) => ({
+          key: String(i),
+          header: h || `Col ${i + 1}`,
+          mono: true,
+          render: (r: { index: number; cells: string[] }) => (
+            <span className="whitespace-nowrap text-fg-secondary">{r.cells[i] ?? ''}</span>
+          ),
+        }))}
+      />
       {truncated && (
         <p className="text-label text-fg-secondary/50 px-3 py-2">
           Preview limited to the first {MAX_PREVIEW_ROWS} rows of {body.length}. Download the file for the full version.

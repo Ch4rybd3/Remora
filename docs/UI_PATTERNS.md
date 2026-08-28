@@ -126,3 +126,16 @@ The contract it encodes:
   session. A column with no filter still gets an empty cell, because skipping it
   would shift every filter one column left.
 
+**Every list of records in the product goes through `DataTable`.** Two tables
+are deliberately not migrated:
+
+- `TimelineTab` renders a key/value dump of a raw event. That is a definition
+  list that happens to use table markup, not a list of records — routing it
+  through `DataTable` would make it worse.
+- `ArtifactExplorer` is migrated with its own split, since the table there is
+  entangled with the RQL bar, dynamic columns and group-by in a single
+  2 600-line file.
+
+A new screen that needs a table starts from the specimen in `/design`, not from
+the nearest file that happens to have one.
+

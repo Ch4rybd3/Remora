@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { DataTable } from '../ui/DataTable'
 import {
   Swords, Search, Upload, Trash2, CheckCircle2, Loader2,
   Download, Info, ShieldCheck, AlertCircle,
@@ -43,56 +44,51 @@ function RulesTable({ rules, onDelete, deletingFilename }: RulesTableProps) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-ui">
-        <thead>
-          <tr className="border-b border-hairline text-left">
-            <th className="px-4 py-2.5 text-label font-semibold text-fg-secondary/60 uppercase tracking-wider">Title</th>
-            <th className="px-4 py-2.5 text-label font-semibold text-fg-secondary/60 uppercase tracking-wider">Group</th>
-            <th className="px-4 py-2.5 text-label font-semibold text-fg-secondary/60 uppercase tracking-wider">Level</th>
-            <th className="px-4 py-2.5 text-label font-semibold text-fg-secondary/60 uppercase tracking-wider">Status</th>
-            <th className="px-4 py-2.5 text-label font-semibold text-fg-secondary/60 uppercase tracking-wider">Description</th>
-            {onDelete && (
-              <th className="px-4 py-2.5 text-label font-semibold text-fg-secondary/60 uppercase tracking-wider w-12" />
-            )}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-hairline">
-          {rules.map(rule => (
-            <tr key={rule.path} className="hover:bg-fg/3 transition-colors">
-              <td className="px-4 py-3 text-fg text-label font-medium max-w-[220px] truncate" title={rule.title}>
-                {rule.title}
-              </td>
-              <td className="px-4 py-3 text-fg-secondary text-label max-w-[160px] truncate" title={rule.group}>
-                {rule.group || <span className="opacity-30">—</span>}
-              </td>
-              <td className="px-4 py-3">
-                <LevelBadge level={rule.level} />
-              </td>
-              <td className="px-4 py-3 text-fg-secondary text-label">
-                {rule.status || <span className="opacity-30">—</span>}
-              </td>
-              <td className="px-4 py-3 text-fg-secondary/70 text-label max-w-[300px] truncate" title={rule.description}>
-                {rule.description || <span className="opacity-30">No description</span>}
-              </td>
-              {onDelete && (
-                <td className="px-4 py-3 text-right">
+      <DataTable
+        rows={rules}
+        rowKey={(rule) => rule.path}
+        empty="No rule matches these filters."
+        columns={[
+          { key: 'title', header: 'Title',
+            render: (rule) => (
+              <span className="block max-w-[220px] truncate font-medium text-fg" title={rule.title}>{rule.title}</span>
+            ) },
+          { key: 'group', header: 'Group', width: 'w-44', hideBelow: 'md',
+            render: (rule) => (
+              <span className="block max-w-[160px] truncate text-fg-secondary" title={rule.group}>
+                {rule.group || <span className="text-fg-muted">—</span>}
+              </span>
+            ) },
+          { key: 'level', header: 'Level', width: 'w-28', render: (rule) => <LevelBadge level={rule.level} /> },
+          { key: 'status', header: 'Status', width: 'w-28', hideBelow: 'md',
+            render: (rule) => rule.status || <span className="text-fg-muted">—</span> },
+          { key: 'description', header: 'Description', hideBelow: 'lg',
+            render: (rule) => (
+              <span className="block max-w-[300px] truncate text-fg-secondary" title={rule.description}>
+                {rule.description || <span className="text-fg-muted">No description</span>}
+              </span>
+            ) },
+        ]}
+        trailing={
+          onDelete
+            ? {
+                width: 'w-12',
+                render: (rule) => (
                   <button
                     onClick={() => onDelete(rule.filename)}
                     disabled={deletingFilename === rule.filename}
-                    className="p-1.5 rounded-control hover:bg-severity-critical/10 text-fg-secondary/40 hover:text-severity-critical transition-colors disabled:opacity-40"
+                    className="text-fg-muted hover:text-severity-critical transition-colors disabled:opacity-40"
                     title="Delete rule"
                   >
                     {deletingFilename === rule.filename
                       ? <Loader2 size={13} className="animate-spin" />
-                      : <Trash2 size={13} />
-                    }
+                      : <Trash2 size={13} />}
                   </button>
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                ),
+              }
+            : undefined
+        }
+      />
     </div>
   )
 }

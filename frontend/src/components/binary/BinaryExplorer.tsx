@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { DataTable } from '../../ui/DataTable'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Layers, AlignLeft, Code2, BarChart3, Package, ShieldAlert,
@@ -250,24 +251,21 @@ function StringsTab({ strings }: { strings: BinaryAnalysis['strings'] }) {
       </div>
       {/* List */}
       <div className="flex-1 overflow-y-auto">
-        <table className="w-full text-label font-mono">
-          <thead className="sticky top-0 bg-panel border-b border-hairline">
-            <tr>
-              <th className="px-3 py-1.5 text-left text-fg-secondary/40 font-normal w-24">Offset</th>
-              <th className="px-2 py-1.5 text-left text-fg-secondary/40 font-normal w-12">Enc</th>
-              <th className="px-2 py-1.5 text-left text-fg-secondary/40 font-normal">String</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-hairline">
-            {filtered.map((s, i) => (
-              <tr key={i} className="hover:bg-fg/5">
-                <td className="px-3 py-1 text-fg-secondary/30">0x{s.offset.toString(16).padStart(8, '0')}</td>
-                <td className="px-2 py-1 text-fg-secondary/30">{s.encoding === 'utf-16' ? 'u16' : 'asc'}</td>
-                <td className="px-2 py-1 text-fg/70 break-all">{s.value}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTable
+          density="compact"
+          stickyHeader
+          rows={filtered.map((s, index) => ({ ...s, index }))}
+          rowKey={(s) => String(s.index)}
+          empty="No string matches the filter."
+          columns={[
+            { key: 'offset', header: 'Offset', width: 'w-24', mono: true,
+              render: (s) => <span className="text-fg-muted">0x{s.offset.toString(16).padStart(8, '0')}</span> },
+            { key: 'encoding', header: 'Enc', width: 'w-12', mono: true,
+              render: (s) => <span className="text-fg-muted">{s.encoding === 'utf-16' ? 'u16' : 'asc'}</span> },
+            { key: 'value', header: 'String', mono: true,
+              render: (s) => <span className="break-all text-fg-secondary">{s.value}</span> },
+          ]}
+        />
         {filtered.length === 0 && (
           <p className="text-center text-label text-fg-secondary/30 py-8">No strings match</p>
         )}
@@ -290,28 +288,23 @@ function DisassemblyTab({ lines }: { lines: BinaryAnalysis['disassembly'] }) {
   }
   return (
     <div className="overflow-y-auto h-full">
-      <table className="w-full text-label font-mono">
-        <thead className="sticky top-0 bg-panel border-b border-hairline">
-          <tr>
-            <th className="px-3 py-1.5 text-left text-fg-secondary/40 font-normal w-28">Address</th>
-            <th className="px-2 py-1.5 text-left text-fg-secondary/40 font-normal w-32">Bytes</th>
-            <th className="px-2 py-1.5 text-left text-fg-secondary/40 font-normal w-20">Mnemonic</th>
-            <th className="px-2 py-1.5 text-left text-fg-secondary/40 font-normal">Operands</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-hairline">
-          {lines.map((l, i) => (
-            <tr key={i} className="hover:bg-fg/5">
-              <td className="px-3 py-0.5 text-fg-secondary/40">
-                0x{l.address.toString(16).padStart(8, '0').toUpperCase()}
-              </td>
-              <td className="px-2 py-0.5 text-fg-secondary/25">{l.bytes_hex}</td>
-              <td className="px-2 py-0.5 text-accent/70 font-semibold">{l.mnemonic}</td>
-              <td className="px-2 py-0.5 text-fg/60">{l.op_str}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <DataTable
+        density="compact"
+        stickyHeader
+        rows={lines.map((l, index) => ({ ...l, index }))}
+        rowKey={(l) => String(l.index)}
+        empty="Nothing disassembled."
+        columns={[
+          { key: 'address', header: 'Address', width: 'w-28', mono: true,
+            render: (l) => <span className="text-fg-muted">0x{l.address.toString(16).padStart(8, '0').toUpperCase()}</span> },
+          { key: 'bytes', header: 'Bytes', width: 'w-32', mono: true, hideBelow: 'md',
+            render: (l) => <span className="text-fg-muted">{l.bytes_hex}</span> },
+          { key: 'mnemonic', header: 'Mnemonic', width: 'w-20', mono: true,
+            render: (l) => <span className="text-accent font-semibold">{l.mnemonic}</span> },
+          { key: 'operands', header: 'Operands', mono: true,
+            render: (l) => <span className="text-fg-secondary">{l.op_str}</span> },
+        ]}
+      />
     </div>
   )
 }
