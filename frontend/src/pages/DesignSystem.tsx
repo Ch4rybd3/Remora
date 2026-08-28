@@ -328,8 +328,9 @@ export default function DesignSystem() {
 
       <Section id="layout" title="Rail, document, panel"
         lede="The three-column shape the Report tab uses. Selecting a section filters the document
-              to it; selecting it again brings everything back. The right panel collapses to a rail
-              of vertical labels, which is also the responsive answer for a 14-inch screen.">
+              to it; selecting it again brings everything back. The right panel is draggable from
+              its left edge and collapses to a rail of vertical labels — between them, that is the
+              responsive answer from a 14-inch laptop to an ultrawide.">
         <Specimen compare={compare}>
           <div className="flex h-80 border border-hairline overflow-hidden">
             <SectionRail

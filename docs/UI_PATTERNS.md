@@ -70,8 +70,16 @@ Expanded it is a real pane: tabs across the top, blocks separated by hairlines,
 no boxes. Collapsed it is a narrow rail of vertical labels, and clicking a label
 opens the panel straight onto that tab.
 
-The collapse state is stored per panel via its `storageKey`, so two panels on
-different pages do not share one setting. It is a per-viewer convenience whose
+The panel is also **resizable**: drag its left edge, double-click to reset, or
+focus the separator and use the arrow keys. A drag-only affordance is
+unreachable without a pointer, and this one governs how much of the screen the
+document gets — not a detail worth locking behind a mouse.
+
+Width and collapse state are both stored per panel via its `storageKey`, so two
+panels on different pages do not share one setting. A stored width outside the
+current bounds is clamped rather than honoured: bounds change between releases,
+and a panel wider than the screen would otherwise be unrecoverable without
+clearing site data. It is a per-viewer convenience whose
 loss is harmless, which is why `localStorage` is the right home for it and why
 every read is wrapped — a private window throws rather than returning null.
 
@@ -148,4 +156,20 @@ are deliberately not migrated:
 
 A new screen that needs a table starts from the specimen in `/design`, not from
 the nearest file that happens to have one.
+
+### Page help
+
+Every page carries a `?`. What it says lives in `src/help/pageHelp.tsx`, keyed
+by route, not inline in the page — the answers are documentation and want to be
+written as prose, and keeping them together makes it obvious which pages have
+none.
+
+`<PageHelp route="..." />` renders nothing when a route has no entry, so adding
+the button to a page before writing its help is harmless. A test asserts every
+key matches a real route: a typo renders nothing at all, silently, and nobody
+notices until an analyst asks where the help went.
+
+Write what someone arriving cold actually needs — the query syntax, the command
+to copy an image onto the server, which action leaves the network. Not a
+restatement of the labels already on screen.
 

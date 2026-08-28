@@ -5,6 +5,7 @@
  * directory's contents top-right, and the selected file's bytes bottom-right.
  */
 import { useState, useMemo, useCallback } from 'react'
+import { PageHelp } from '../help/pageHelp'
 import { DataTable } from '../ui/DataTable'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import {
@@ -360,6 +361,7 @@ export default function DiskImageExplorer() {
         <div className="px-3 py-3 flex items-center gap-1.5 border-b border-hairline">
           <p className="text-label font-semibold uppercase tracking-widest text-fg-secondary/50 flex items-center gap-1.5">
             <HardDrive size={11} /> Images
+            <span className="ml-auto"><PageHelp route="/artifacts/images" /></span>
           </p>
           {images.length > 0 && <span className="text-fg-secondary/30 text-label">{images.length}</span>}
           <button

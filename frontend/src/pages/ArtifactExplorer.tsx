@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { PageHelp } from '../help/pageHelp'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -411,6 +412,7 @@ export default function ArtifactExplorer() {
         <div className="px-3 py-3 border-b border-hairline shrink-0">
           <p className="text-label font-semibold uppercase tracking-widest text-fg-secondary/50 flex items-center gap-1.5">
             <Table2 size={10} /> Artifact Explorer
+            <span className="ml-auto"><PageHelp route="/artifacts/explorer" /></span>
           </p>
           <p className="text-label text-fg-secondary/25 mt-0.5 truncate">{currentCase?.title}</p>
         </div>

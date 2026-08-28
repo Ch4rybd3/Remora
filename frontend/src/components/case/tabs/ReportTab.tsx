@@ -728,6 +728,10 @@ export default function ReportTab({ case_ }: Props) {
       {/* ══ RIGHT — reference, collapsible to a rail ══════════════════════════ */}
       <SidePanel
         storageKey="report"
+        // Wider than the default: this panel holds two prose editors, and at
+        // 288px an executive summary wraps every six or seven words. Draggable
+        // from its left edge, so the analyst sets the real answer.
+        defaultWidth={360}
         tabs={[
           {
             id:    'summary',

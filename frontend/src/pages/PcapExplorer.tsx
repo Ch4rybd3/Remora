@@ -6,6 +6,7 @@
  * protocol tree and hexdump come from dissecting the selected frame on demand.
  */
 import { useState, useMemo, useEffect, useCallback } from 'react'
+import { PageHelp } from '../help/pageHelp'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { DataTable } from '../ui/DataTable'
 import {
@@ -639,6 +640,7 @@ export default function PcapExplorer() {
       <div className="w-56 shrink-0 border-r border-hairline bg-panel flex flex-col overflow-hidden">
         <p className="px-3 py-3 text-label font-semibold uppercase tracking-widest text-fg-secondary/50 flex items-center gap-1.5 border-b border-hairline">
           <Network size={11} /> Captures
+          <span className="ml-auto"><PageHelp route="/artifacts/pcap" /></span>
           {captures.length > 0 && (
             <span className="ml-auto text-fg-secondary/30">{captures.length}</span>
           )}

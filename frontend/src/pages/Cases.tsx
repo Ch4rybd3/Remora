@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { PageHelp } from '../help/pageHelp'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, FolderOpen, Building2 } from '../ui/icons'
@@ -109,6 +110,7 @@ export default function Cases() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-title font-bold text-accent">Cases</h1>
+          <PageHelp route="/cases" />
           <p className="text-fg-secondary text-ui mt-1">{cases.length} total</p>
         </div>
         <button className="btn-primary flex items-center gap-2" onClick={openModal}>

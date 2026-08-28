@@ -71,6 +71,62 @@ describe('SidePanel', () => {
   })
 })
 
+describe('SidePanel — resizing', () => {
+  const handle = () => screen.getByRole('separator', { name: 'Resize the panel' })
+
+  it('exposes the handle as a separator with its bounds', () => {
+    render(<SidePanel tabs={TABS} storageKey="test" defaultWidth={300} minWidth={220} maxWidth={720} />)
+    expect(handle()).toHaveAttribute('aria-valuenow', '300')
+    expect(handle()).toHaveAttribute('aria-valuemin', '220')
+    expect(handle()).toHaveAttribute('aria-valuemax', '720')
+  })
+
+  it('widens with the left arrow and narrows with the right', async () => {
+    render(<SidePanel tabs={TABS} storageKey="test" defaultWidth={300} />)
+    handle().focus()
+    await userEvent.keyboard('{ArrowLeft}')
+    expect(Number(handle().getAttribute('aria-valuenow'))).toBeGreaterThan(300)
+    await userEvent.keyboard('{ArrowRight}{ArrowRight}')
+    expect(Number(handle().getAttribute('aria-valuenow'))).toBeLessThan(300)
+  })
+
+  it('will not go past its bounds', async () => {
+    render(<SidePanel tabs={TABS} storageKey="test" defaultWidth={240} minWidth={220} maxWidth={280} />)
+    handle().focus()
+    await userEvent.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}{ArrowRight}')
+    expect(handle()).toHaveAttribute('aria-valuenow', '220')
+    await userEvent.keyboard('{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowLeft}')
+    expect(handle()).toHaveAttribute('aria-valuenow', '280')
+  })
+
+  it('resets to the default on Home', async () => {
+    render(<SidePanel tabs={TABS} storageKey="test" defaultWidth={300} />)
+    handle().focus()
+    await userEvent.keyboard('{ArrowLeft}{ArrowLeft}')
+    await userEvent.keyboard('{Home}')
+    expect(handle()).toHaveAttribute('aria-valuenow', '300')
+  })
+
+  it('remembers the width per panel', async () => {
+    const { unmount } = render(<SidePanel tabs={TABS} storageKey="report" defaultWidth={300} />)
+    handle().focus()
+    await userEvent.keyboard('{ArrowLeft}')
+    const widened = handle().getAttribute('aria-valuenow')
+    unmount()
+
+    render(<SidePanel tabs={TABS} storageKey="report" defaultWidth={300} />)
+    expect(handle()).toHaveAttribute('aria-valuenow', widened!)
+  })
+
+  it('clamps a stored width that is now out of bounds', () => {
+    // The bounds can change between releases; a panel wider than the screen
+    // allows would otherwise be unrecoverable without clearing site data.
+    localStorage.setItem('remora_sidepanel_test_width', '5000')
+    render(<SidePanel tabs={TABS} storageKey="test" maxWidth={720} />)
+    expect(handle()).toHaveAttribute('aria-valuenow', '720')
+  })
+})
+
 describe('SidePanelBlock', () => {
   it('labels its content without wrapping it in a box', () => {
     render(<SidePanelBlock label="Quick notes" meta="3">body</SidePanelBlock>)

@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { PageHelp } from '../help/pageHelp'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   HardDrive, Terminal, ChevronLeft, ChevronRight, Menu,
@@ -230,6 +231,7 @@ function WindowsTab({ caseId }: { caseId: string }) {
               className={`transition-transform duration-150 ${showPinPanel ? 'rotate-180' : ''}`}
             />
           </button>
+          <span className="ml-auto"><PageHelp route="/artifacts/filesystem" /></span>
         </div>
 
         {/* Explorer content */}
