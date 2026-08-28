@@ -21,10 +21,11 @@ import { playbooksApi, type PlaybookNode, type PlaybookEdge } from '../api/playb
 import { NODE_TYPES, LayoutDirContext } from '../components/playbook/PlaybookNodes'
 import { EDGE_TYPES, EdgeEditContext, edgeWaypoints } from '../components/graph/ReshapableEdge'
 import { EdgeShapePicker, useEdgeShaping } from '../components/graph/useEdgeShaping'
+import { exportGraphPng } from '../components/graph/exportGraphImage'
+import { FRAME_COLORS } from '../components/graph/FrameNode'
 import { CANVAS_INTERACTION, useGraphClipboard } from '../components/graph/useGraphClipboard'
 import { color } from '../styles/tokens'
 import { applyElkLayout } from '../utils/elkLayout'
-import { renderPlaybookToCanvas } from '../utils/playbookExport'
 import Modal from '../components/ui/Modal'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -82,15 +83,6 @@ function cleanEdge(e: Edge): Omit<Edge, 'selected'> {
   return rest
 }
 
-const FRAME_COLORS: string[] = [
-  '#3b82f6',  // blue
-  '#22c55e',  // green
-  '#f97316',  // orange
-  '#ef4444',  // red
-  '#a855f7',  // purple
-  '#eab308',  // yellow
-  '#6b7280',  // gray
-]
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -379,12 +371,7 @@ export default function PlaybookEditor() {
     if (!rf || nodes.length === 0) return
     setExporting(true)
     try {
-      const canvas  = renderPlaybookToCanvas(rf.getNodes().map(cleanNode) as Node[], rf.getEdges(), layoutDir)
-      const dataUrl = canvas.toDataURL('image/png')
-      Object.assign(document.createElement('a'), {
-        href:     dataUrl,
-        download: `${name || 'playbook'}.png`,
-      }).click()
+      await exportGraphPng(rf.getNodes(), `${name || 'playbook'}.png`)
     } finally {
       setExporting(false)
     }

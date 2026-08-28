@@ -20,4 +20,13 @@ export const attackGraphApi = {
    */
   png: (caseId: string): Promise<Blob> =>
     api.get(`/cases/${caseId}/attack-graph/png`, { responseType: 'blob' }).then(r => r.data),
+
+  /**
+   * Store a PNG of the canvas so the report embeds what the analyst arranged
+   * rather than a server-side redrawing of it.
+   */
+  saveSnapshot: (caseId: string, png: Blob): Promise<void> =>
+    api.put(`/cases/${caseId}/attack-graph/snapshot`, png, {
+      headers: { 'Content-Type': 'image/png' },
+    }).then(() => undefined),
 }

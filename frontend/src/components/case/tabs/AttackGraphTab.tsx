@@ -7,11 +7,13 @@ import {
   type Connection, type ReactFlowInstance,
 } from '@xyflow/react'
 import {
-  ImageDown, Save, Plus, Trash2, Skull, StickyNote, Wand2,
+  ImageDown, Save, Plus, Trash2, Skull, SquareDashed, StickyNote, Wand2,
   Clock, Monitor, Shield, Edit2, ChevronDown, ChevronRight,
 } from '../../../ui/icons'
 import { fmtDateTime, fmtCompactShort } from '../../../utils/dateUtils'
 
+import { exportGraphPng, renderGraphBlob } from '../../graph/exportGraphImage'
+import { FRAME_COLORS } from '../../graph/FrameNode'
 import { color } from '../../../styles/tokens'
 import { attackGraphApi } from '../../../api/attackGraph'
 import { timelineApi } from '../../../api/timeline'
@@ -117,6 +119,7 @@ export default function AttackGraphTab({ caseId }: Props) {
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [selectedEdges, setSelectedEdges] = useState<Edge[]>([])
   const [selectedNodes, setSelectedNodes] = useState<Node[]>([])
+  const [frameColor, setFrameColor] = useState<string>(FRAME_COLORS[0])
   const [laying,    setLaying]    = useState(false)
   const saveTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** Captured ReactFlow instance — used to get viewport center for new nodes. */
@@ -253,6 +256,23 @@ export default function AttackGraphTab({ caseId }: Props) {
     })
   }
 
+  /**
+   * A grouping zone. It goes behind everything else and is not selectable by a
+   * rubber-band drag, or dragging across the canvas would pick up the zone
+   * instead of the nodes inside it.
+   */
+  const addFrame = () => {
+    const center = getViewportCenter()
+    pushNode({
+      id: nextId(), type: 'frame',
+      position: { x: snap(center.x - 160), y: snap(center.y - 100) },
+      style: { width: 360, height: 220, zIndex: -1 },
+      selectable: true,
+      draggable: true,
+      data: { label: 'Zone', color: frameColor, nodeKind: 'free' } as unknown as AGNodeData,
+    })
+  }
+
   // ── Edit / delete ─────────────────────────────────────────────────────────
   const openEdit = (node: Node) => {
     setSelected(node)
@@ -285,25 +305,19 @@ export default function AttackGraphTab({ caseId }: Props) {
   }
 
   // ── PNG export ────────────────────────────────────────────────────────────
-  // Rendered by the backend rather than the browser: it is the same renderer
-  // the DOCX report uses, so the download and the report image match. A second
-  // client-side renderer would drift, and a report that no longer looks like
-  // the screen it came from is worse than no export.
+  // Rasterises the real canvas, so the image is the graph as arranged: same
+  // node shapes, same edge waypoints, same zone colours, same theme. The
+  // server-side renderer redrew it from the stored coordinates and never quite
+  // matched.
   const [exportingPng, setExportingPng] = useState(false)
   const exportPng = useCallback(async () => {
     setExportingPng(true)
     try {
-      const blob = await attackGraphApi.png(caseId)
-      const url  = URL.createObjectURL(blob)
-      Object.assign(document.createElement('a'), {
-        href: url,
-        download: 'attack-graph.png',
-      }).click()
-      URL.revokeObjectURL(url)
+      await exportGraphPng(rfInstance.current?.getNodes() ?? nodes, 'attack-graph.png')
     } finally {
       setExportingPng(false)
     }
-  }, [caseId])
+  }, [nodes])
 
   // ── Copy / paste ──────────────────────────────────────────────────────────
   useGraphClipboard({
@@ -320,6 +334,18 @@ export default function AttackGraphTab({ caseId }: Props) {
     setSaveState('saving')
     try {
       await attackGraphApi.save(caseId, nodes, edges)
+
+      // Snapshot the canvas alongside the coordinates, so the report embeds the
+      // graph as arranged rather than a server-side redrawing of it. A failure
+      // here must not fail the save: the graph is the data, the picture is a
+      // convenience, and the report falls back to rendering server-side.
+      try {
+        const blob = await renderGraphBlob(rfInstance.current?.getNodes() ?? nodes)
+        if (blob) await attackGraphApi.saveSnapshot(caseId, blob)
+      } catch {
+        // Snapshot unavailable — the report will render from coordinates.
+      }
+
       qc.invalidateQueries({ queryKey: ['attack-graph', caseId] })
       setSaveState('saved')
       if (saveTimer.current) clearTimeout(saveTimer.current)
@@ -364,6 +390,32 @@ export default function AttackGraphTab({ caseId }: Props) {
         >
           <StickyNote size={12} /> Note
         </button>
+
+        {/* Grouping zone, with its colour — the same control the playbook has */}
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded-control border border-hairline">
+          <SquareDashed size={11} className="text-fg-muted shrink-0" />
+          {FRAME_COLORS.map(c => (
+            <button
+              key={c}
+              onClick={() => setFrameColor(c)}
+              title={`Zone colour ${c}`}
+              aria-label={`Zone colour ${c}`}
+              className="w-3.5 h-3.5 rounded-control transition-all"
+              style={{
+                backgroundColor: c,
+                outline: frameColor === c ? `2px solid ${c}` : '2px solid transparent',
+                outlineOffset: 2,
+              }}
+            />
+          ))}
+          <button
+            onClick={addFrame}
+            className="ml-1 text-label text-fg-secondary hover:text-fg border border-hairline
+                       hover:border-strong px-2 py-0.5 rounded-control transition-colors"
+          >
+            + Zone
+          </button>
+        </div>
 
         {/* Selected node actions */}
         {selected && (

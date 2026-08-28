@@ -1,6 +1,7 @@
 import { Handle, NodeResizer, Position, type NodeProps } from '@xyflow/react'
 
 import { color } from '../../styles/tokens'
+import { FrameNode } from '../graph/FrameNode'
 import { Clock, Monitor, Shield, Skull, StickyNote, User, Server } from '../../ui/icons'
 
 // ── Shared constants ──────────────────────────────────────────────────────────
@@ -231,4 +232,7 @@ export const AG_NODE_TYPES = {
   ioc:      IOCNode,
   attacker: AttackerNode,
   free:     FreeNode,
+  // Grouping zones, shared with the playbook editor: "these belong together",
+  // whether that is a host, a phase, or a compromised segment.
+  frame:    FrameNode,
 }

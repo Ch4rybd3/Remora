@@ -252,13 +252,25 @@ domain belongs here, not in the page that happened to need it first — that is
 exactly how the attack graph ended up with default edges that crossed each
 other while the playbook next door could route around anything.
 
-**Exporting a canvas** goes through the backend, not the browser. The attack
-graph's PNG is rendered by `services/graph_render.py`, which is also what the
-DOCX report embeds — so what an analyst downloads and what lands in the report
-are the same picture. A second client-side renderer would drift, and a report
-that no longer looks like the screen it came from is worse than no export.
+**Exporting a canvas rasterises the real DOM.** `exportGraphImage.ts` calls
+`html-to-image` on the ReactFlow viewport, after re-fitting it to the nodes'
+bounding box so the export is the whole graph rather than the visible part.
+Controls, minimap and resize handles are filtered out — they are chrome for
+editing, not part of the graph.
 
-The playbook editor still renders its own PNG in the browser, because its
-canvas exporter predates this and there is no server-side equivalent yet. That
-is the remaining asymmetry between the two canvases.
+This replaced two hand-written renderers: a 2D-canvas one for the playbook and a
+matplotlib one on the server for the attack graph. Both *redrew* the graph from
+its coordinates, so both drifted from the components they were imitating —
+different node shapes, different edge routing, different alignment. An analyst
+recognised the graph but not the picture. There is nothing to keep in sync now,
+because nothing is drawn twice.
 
+**The report embeds the same image.** On save, the attack graph uploads its
+rasterised canvas to `PUT /cases/{id}/attack-graph/snapshot`, and the DOCX
+export prefers it. `services/graph_render.py` stays as the fallback for a graph
+saved before snapshots existed, or one whose tab was never opened — so the
+report always has something, and has the right thing whenever the analyst has
+looked at the graph.
+
+A snapshot failure never fails the save: the graph is the data, the picture is a
+convenience.

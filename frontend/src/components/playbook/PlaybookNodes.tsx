@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react'
+import { FrameNode } from '../graph/FrameNode'
 import {
   Handle, Position, NodeResizer,
   type NodeProps,
@@ -303,41 +304,6 @@ export function PlaybookRefNode({ data, selected }: NodeProps) {
         position={dir === 'RIGHT' ? Position.Right : Position.Bottom}
         className="!bg-data-2/40 !border-data-2/40"
       />
-    </div>
-  )
-}
-
-// ── FrameNode ─────────────────────────────────────────────────────────────────
-// Decorative zone node: transparent colored background + title, no handles.
-// Rendered behind other nodes via zIndex: -1 set at creation.
-
-export function FrameNode({ data, selected }: NodeProps) {
-  const d     = data as { label?: string; color?: string; [key: string]: unknown }
-  const color = d.color ?? '#3b82f6'
-  const label = d.label ?? 'Zone'
-
-  return (
-    <div
-      className="w-full h-full "
-      style={{
-        backgroundColor: `${color}18`,
-        border: `1.5px solid ${color}${selected ? '70' : '28'}`,
-        borderRadius: 12,
-      }}
-    >
-      <NodeResizer
-        isVisible={selected}
-        minWidth={150}
-        minHeight={100}
-        lineStyle={{ borderColor: `${color}50` }}
-        handleStyle={{ backgroundColor: color, borderColor: color, width: 8, height: 8, borderRadius: 2 }}
-      />
-      <span
-        className="absolute top-2.5 left-3.5 text-label font-bold tracking-wider select-none pointer-events-none"
-        style={{ color: `${color}cc` }}
-      >
-        {label}
-      </span>
     </div>
   )
 }
