@@ -12,6 +12,7 @@ import {
 } from '../../../ui/icons'
 import { fmtDateTime, fmtCompactShort } from '../../../utils/dateUtils'
 
+import { color } from '../../../styles/tokens'
 import { attackGraphApi } from '../../../api/attackGraph'
 import { timelineApi } from '../../../api/timeline'
 import { assetsApi } from '../../../api/assets'
@@ -22,6 +23,9 @@ import Modal from '../../ui/Modal'
 import { applyElkLayout } from '../../../utils/elkLayout'
 import { EDGE_TYPES, EdgeEditContext } from '../../graph/ReshapableEdge'
 import { EdgeShapePicker, useEdgeShaping } from '../../graph/useEdgeShaping'
+import {
+  CANVAS_INTERACTION, GRAPH_GRID, useGraphClipboard,
+} from '../../graph/useGraphClipboard'
 
 interface Props { caseId: string }
 
@@ -112,6 +116,7 @@ export default function AttackGraphTab({ caseId }: Props) {
   const [editForm, setEditForm]   = useState<EditForm>({ label: '', notes: '' })
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [selectedEdges, setSelectedEdges] = useState<Edge[]>([])
+  const [selectedNodes, setSelectedNodes] = useState<Node[]>([])
   const [laying,    setLaying]    = useState(false)
   const saveTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** Captured ReactFlow instance — used to get viewport center for new nodes. */
@@ -279,6 +284,16 @@ export default function AttackGraphTab({ caseId }: Props) {
     setSelected(null)
   }
 
+  // ── Copy / paste ──────────────────────────────────────────────────────────
+  useGraphClipboard({
+    selectedNodes,
+    edges,
+    setNodes,
+    setEdges,
+    makeNodeId: () => `ag-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    enabled: !editOpen,
+  })
+
   // ── Save ──────────────────────────────────────────────────────────────────
   const doSave = useCallback(async () => {
     setSaveState('saving')
@@ -437,18 +452,16 @@ export default function AttackGraphTab({ caseId }: Props) {
             onNodeClick={(_, node) => setSelected(prev => prev?.id === node.id ? null : node)}
             onPaneClick={() => setSelected(null)}
             onNodeDoubleClick={(_, node) => openEdit(node)}
-            onSelectionChange={({ edges: sel }) => setSelectedEdges(sel)}
+            onSelectionChange={({ nodes: selN, edges: selE }) => { setSelectedNodes(selN); setSelectedEdges(selE) }}
             nodeTypes={AG_NODE_TYPES}
             edgeTypes={EDGE_TYPES}
             defaultEdgeOptions={{ type: 'reshapable', animated: true }}
-            snapToGrid
-            snapGrid={[20, 20]}
+            {...CANVAS_INTERACTION}
             fitView
             fitViewOptions={{ padding: 0.25 }}
-            style={{ background: '#0B121F', width: '100%', height: '100%' }}
-            deleteKeyCode={null}
+            style={{ width: '100%', height: '100%' }}
           >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#1a2535" />
+            <Background variant={BackgroundVariant.Dots} gap={GRAPH_GRID} size={1} color={color('--border-hairline')} />
             <Controls
               showInteractive={false}
               style={{ background: 'rgba(15,22,36,0.9)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8 }}

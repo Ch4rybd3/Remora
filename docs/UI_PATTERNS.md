@@ -233,6 +233,19 @@ of them had the answers — because they lived inside the playbook page.
 - `useEdgeShaping` — the state and handlers behind that, plus `EdgeShapePicker`,
   the toolbar control. A canvas passes its own grid step so a dragged waypoint
   lands on the grid.
+- `useGraphClipboard` — Ctrl+C / Ctrl+V. Copying takes the selected nodes and
+  the edges *between* them; an edge with one end outside the selection would
+  paste dangling, so it is dropped. It stands down while a modal is open or a
+  text field has focus.
+- `CANVAS_INTERACTION` — the props every canvas passes to ReactFlow. Delete
+  removes the selection, dragging empty space selects, middle and right drag
+  pan, everything snaps to the same grid.
+
+`CANVAS_INTERACTION` exists because these are the *interaction model*, not
+styling. The attack graph shipped with `deleteKeyCode` set to `null`: Delete did
+nothing on that canvas while it worked on the playbook next door, and nothing in
+the interface explained why. A canvas that sets these by hand behaves
+differently for no reason an analyst can see.
 
 A new canvas starts from these. Anything a canvas needs that is not about *its*
 domain belongs here, not in the page that happened to need it first — that is

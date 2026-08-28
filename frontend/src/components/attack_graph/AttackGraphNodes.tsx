@@ -1,4 +1,6 @@
-import { Handle, Position, type NodeProps } from '@xyflow/react'
+import { Handle, NodeResizer, Position, type NodeProps } from '@xyflow/react'
+
+import { color } from '../../styles/tokens'
 import { Clock, Monitor, Shield, Skull, StickyNote, User, Server } from '../../ui/icons'
 
 // ── Shared constants ──────────────────────────────────────────────────────────
@@ -32,7 +34,9 @@ function Handles({ color }: { color: string }) {
 }
 
 // ── Shared node shell ─────────────────────────────────────────────────────────
-// Fixed width, consistent padding, border + bg from props.
+// A default width so handles line up on a fresh node, and a resizer so an
+// analyst can widen one that holds a long command line — the same affordance
+// the playbook editor has had since it shipped.
 function NodeShell({ selected, border, bg, children, handles }: {
   selected: boolean
   border:   string   // Tailwind border-color class (selected / idle)
@@ -42,11 +46,20 @@ function NodeShell({ selected, border, bg, children, handles }: {
 }) {
   return (
     <div
-      style={{ width: NODE_WIDTH, background: bg }}
-      className={`relative border px-3 py-3 shadow-lg transition-all ${border} ${
-        selected ? 'shadow-lg' : ''
-      }`}
+      style={{ width: '100%', minWidth: NODE_WIDTH, height: '100%', background: bg }}
+      className={`relative border px-3 py-3 transition-colors ${border}`}
     >
+      <NodeResizer
+        isVisible={selected}
+        minWidth={NODE_WIDTH}
+        minHeight={56}
+        lineStyle={{ borderColor: color('--border-strong') }}
+        handleStyle={{
+          backgroundColor: color('--accent'),
+          borderColor: color('--accent'),
+          width: 6, height: 6, borderRadius: 2,
+        }}
+      />
       {handles}
       {children}
     </div>
