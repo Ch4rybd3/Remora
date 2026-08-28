@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PageHelp } from '../help/pageHelp'
 import {
   Cpu, ChevronLeft, Menu, CheckCircle2, Info, List, Terminal,
 } from '../ui/icons'
@@ -98,12 +99,13 @@ export default function Memory() {
       {/* ── Page header ─────────────────────────────────────────────────── */}
       <div className="shrink-0 border-b border-hairline bg-panel/50 px-5 py-4 flex items-center gap-3">
         <Cpu size={16} className="text-accent" />
-        <div>
+        <div className="flex-1 min-w-0">
           <h1 className="text-prose font-bold text-fg leading-tight">Memory Analysis</h1>
           <p className="text-label text-fg-secondary/50 mt-0.5">
             Upload memory dumps and run Volatility3 analysis
           </p>
         </div>
+        <PageHelp route="/artifacts/memory" />
         <div className="ml-auto">
           {currentCase ? (
             <div className="flex items-center gap-1.5 text-label text-accent/70 bg-accent/5 border border-accent/15 rounded-control px-2.5 py-1.5">

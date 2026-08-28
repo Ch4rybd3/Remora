@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PageHelp } from '../help/pageHelp'
 import { Lock } from '../ui/icons'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import BinaryFileList from '../components/binary/BinaryFileList'
@@ -33,6 +34,7 @@ export default function BinaryAnalysis() {
           <span className="text-label font-semibold tracking-widest uppercase text-fg-secondary/50">
             Binary Files
           </span>
+          <span className="ml-auto"><PageHelp route="/artifacts/binary" /></span>
         </div>
         <div className="flex-1 overflow-hidden">
           <BinaryFileList

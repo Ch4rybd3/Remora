@@ -157,3 +157,19 @@ are deliberately not migrated:
 A new screen that needs a table starts from the specimen in `/design`, not from
 the nearest file that happens to have one.
 
+### Page help
+
+Every page carries a `?`. What it says lives in `src/help/pageHelp.tsx`, keyed
+by route, not inline in the page — the answers are documentation and want to be
+written as prose, and keeping them together makes it obvious which pages have
+none.
+
+`<PageHelp route="..." />` renders nothing when a route has no entry, so adding
+the button to a page before writing its help is harmless. A test asserts every
+key matches a real route: a typo renders nothing at all, silently, and nobody
+notices until an analyst asks where the help went.
+
+Write what someone arriving cold actually needs — the query syntax, the command
+to copy an image onto the server, which action leaves the network. Not a
+restatement of the labels already on screen.
+

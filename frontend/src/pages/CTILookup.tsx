@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
+import { PageHelp } from '../help/pageHelp'
 import { useQuery } from '@tanstack/react-query'
 import Globe from 'react-globe.gl'
 import {
@@ -978,6 +979,7 @@ export default function CTILookup() {
         <div className="px-3 py-2.5 border-b border-hairline shrink-0">
           <p className="text-label font-semibold uppercase tracking-widest text-fg-secondary/50 flex items-center gap-1.5">
             <Shield size={10} /> CTI Intelligence
+            <span className="ml-auto"><PageHelp route="/artifacts/cti" /></span>
           </p>
           {currentCase && <p className="text-label text-fg-secondary/25 mt-0.5 truncate">{currentCase.title}</p>}
         </div>
