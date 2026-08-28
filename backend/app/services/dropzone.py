@@ -37,14 +37,16 @@ from ..models.ez_artifacts import ImportedCollection, ImportedFile
 from ..models.ingest import ORIGIN_ARCHIVE, ORIGIN_DROPZONE, IngestedFile
 from ..services.archives import ARCHIVE_EXTS, ArchiveError, extract_all, is_archive
 from ..services.ez_detection import detect
+from ..services.ingest.dispatch import has_handler
+from ..services.ingest.identify import identify
 
 # Folder holding files already ingested, inside each case folder
 PROCESSED_DIRNAME = ".processed"
 # Case-less drop folder
 INBOX_DIRNAME = "_inbox"
 
-# Same set the Collection Import upload endpoint accepts — flat artifacts plus
-# every archive container the archives service can open.
+# Kept for the API's "what does this accept?" answer and for the tests that
+# pinned it. It is no longer the gate: see `DroppedFile.supported`.
 FLAT_EXTS = {".csv", ".json", ".txt", ".log", ".evtx", ".eml",
              ".pcap", ".pcapng", ".cap"}
 SUPPORTED_EXTS = FLAT_EXTS | ARCHIVE_EXTS
@@ -159,10 +161,24 @@ class DroppedFile:
     mtime:    float
     detected: str | None      # human-readable category label, None if unknown
 
+    #: Internal kind from the signature, or None when nothing recognised it.
+    kind:     str | None = None
+
     @property
     def supported(self) -> bool:
+        """
+        Whether the pipeline will pick this file up.
+
+        This used to be an extension whitelist, which meant a memory image, a
+        disk image or a PE dropped into the case folder was **silently
+        ignored** - the drop folder claimed to be the single entry point while
+        refusing half the artifact types, on the strength of a filename. The
+        gate is now identification: anything the signature table recognises is
+        accepted, and whether a parser exists for it is a separate question the
+        ingest queue answers per file.
+        """
         # is_archive() handles two-part suffixes like .tar.gz that Path.suffix misses
-        return self.path.suffix.lower() in FLAT_EXTS or is_archive(self.name)
+        return (self.kind is not None and self.kind != "unknown") or is_archive(self.name)
 
 
 def _is_ignorable(p: Path) -> bool:
@@ -186,10 +202,14 @@ def list_dropped(folder: Path) -> list[DroppedFile]:
             st = p.stat()
         except OSError:
             continue
-        result = detect(p.name)
+        # Read the bytes rather than the name. `detect()` matches on the
+        # filename and is kept only for the label an analyst already knows.
+        found = identify(p)
+        legacy = detect(p.name)
         out.append(DroppedFile(
             path=p, name=p.name, size=st.st_size, mtime=st.st_mtime,
-            detected=result.category_label if result else None,
+            detected=(legacy.category_label if legacy else None) or found.label,
+            kind=found.kind,
         ))
     return out
 
@@ -302,26 +322,38 @@ def ingest_files(
                 ))
             continue
 
+        # Widening the drop folder gate to everything identifiable means large
+        # artifacts now reach here. Copying a 64 GB memory image or a disk
+        # acquisition into the collection directory would double it on disk for
+        # nothing: no parser reads it from there, and disk images are read in
+        # place by design. Provenance is still recorded below, and the original
+        # still moves to .processed/, so the file is listed and findable.
+        if not has_handler(identify(src).kind):
+            print(f"[dropzone] {src.name}: kept in place, no parser copies it", flush=True)
+            continue
+
         shutil.copy2(src, extracted_dir / safe_name)
         rows.append(_row(safe_name, size))
 
-    if not rows:
-        return collection_id, []
+    # Note: no early return when `rows` is empty. A batch of files nothing
+    # parses still has to leave provenance and still has to be moved out of the
+    # watched folder, or every poll would rediscover it forever.
 
-    col = ImportedCollection(
-        id=collection_id,
-        case_id=case.id,
-        filename=(files[0].name if len(files) == 1 else f"{len(rows)} files ({source_label})"),
-        file_size=total_size,
-        uploaded_at=datetime.utcnow(),
-        status="processing",
-        total_files=len(rows),
-        processed_files=0,
-    )
-    db.add(col)
-    for r in rows:
-        db.add(r)
-    db.commit()
+    if rows:
+        col = ImportedCollection(
+            id=collection_id,
+            case_id=case.id,
+            filename=(files[0].name if len(files) == 1 else f"{len(rows)} files ({source_label})"),
+            file_size=total_size,
+            uploaded_at=datetime.utcnow(),
+            status="processing",
+            total_files=len(rows),
+            processed_files=0,
+        )
+        db.add(col)
+        for r in rows:
+            db.add(r)
+        db.commit()
 
     # ── Provenance ───────────────────────────────────────────────────────────
     # One `ingested_files` row per file the analyst actually dropped, plus one
@@ -341,7 +373,7 @@ def ingest_files(
         try:
             ing = ingest_service.record(
                 db, case_id=case.id, path=src,
-                collection_id=collection_id,
+                collection_id=collection_id if rows else None,
                 origin=origin, origin_detail=origin_detail,
             )
             provenance[src] = ing.id
@@ -353,7 +385,7 @@ def ingest_files(
             try:
                 ingest_service.record(
                     db, case_id=case.id, path=member, original_name=member.name,
-                    collection_id=collection_id, parent_id=ing.id,
+                    collection_id=collection_id if rows else None, parent_id=ing.id,
                     origin=ORIGIN_ARCHIVE, origin_detail=src.name,
                 )
             except Exception as e:

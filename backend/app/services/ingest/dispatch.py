@@ -106,11 +106,56 @@ def _to_pcap(db: Session, case_id: str, path: Path, filename: str) -> ParseResul
                        row_count=int(artifact.row_count or 0))
 
 
+def _to_memory(db: Session, case_id: str, path: Path, filename: str) -> ParseResult:
+    """
+    Register a dump whose format already says which OS it came from.
+
+    `parsed` rather than `indexed`: Volatility runs in a daemon thread and the
+    plugin output is not queryable when this returns.
+    """
+    from ...routers.memory import register_memory_dump
+
+    os_type = "linux" if identify(path, name=filename).kind == "memory_dump_linux" else "windows"
+    register_memory_dump(path, case_id, filename, os_type, db)
+    return ParseResult(STATE_PARSED)
+
+
+#: Kinds the pipeline recognises but cannot act on without something only a
+#: person can supply. Saying which is worth far more than a generic "no parser":
+#: the analyst learns what to do instead, on the row, at the moment they look.
+_RAW_MEMORY_NOTE = (
+    "A raw memory image does not record which OS it came from, and guessing "
+    "would queue the wrong Volatility plugins. Upload it from the Memory page, "
+    "where the OS is chosen."
+)
+_BINARY_NOTE = (
+    "Binaries are encrypted at rest under a password you choose, which the drop "
+    "folder cannot ask for. Upload it from the Binary Analysis page."
+)
+_IMAGE_NOTE = (
+    "Disk images are read in place from the images directory and never copied - "
+    "a full acquisition is far too large. Point the Disk Images page at it."
+)
+
+_NEEDS_INPUT: dict[str, str] = {
+    "memory_dump": _RAW_MEMORY_NOTE,
+    "pe":       _BINARY_NOTE,
+    "elf":      _BINARY_NOTE,
+    "macho":    _BINARY_NOTE,
+    "ewf":      _IMAGE_NOTE,
+    "vmdk":     _IMAGE_NOTE,
+    "vhd":      _IMAGE_NOTE,
+    "vhdx":     _IMAGE_NOTE,
+    "qcow":     _IMAGE_NOTE,
+    "ad1":      _IMAGE_NOTE,
+    "disk_raw": _IMAGE_NOTE,
+}
+
+
 #: Detected kind to handler. A kind absent from this table is stored and listed
 #: but not parsed - `unsupported`, which is the honest answer while its parser
-#: has not shipped. Memory dumps, binaries and disk images are deliberately
-#: absent: their routers still own that work and wiring them here without moving
-#: it would parse them twice.
+#: has not shipped. Binaries and raw disk images are deliberately absent: they
+#: need something only a person can supply, and `_NEEDS_INPUT` above says what.
 _HANDLERS: dict[str, Handler] = {
     "csv":    _to_explorer,
     "json":   _to_explorer,
@@ -122,6 +167,8 @@ _HANDLERS: dict[str, Handler] = {
     "eml":    _to_mail,
     "pcap":   _to_pcap,
     "pcapng": _to_pcap,
+    "memory_dump_windows": _to_memory,
+    "memory_dump_linux":   _to_memory,
 }
 
 HANDLED_KINDS = frozenset(_HANDLERS)
@@ -151,9 +198,10 @@ def parse(db: Session, *, case_id: str, path: Path, filename: str,
 
     if handler is None:
         route = route_for(resolved)
-        detail = (f"'{resolved}' is recognised but its parser has not shipped yet"
-                  if route.pending else
-                  f"Nothing parses '{resolved}' yet")
+        detail = _NEEDS_INPUT.get(resolved) or (
+            f"'{resolved}' is recognised but its parser has not shipped yet"
+            if route.pending else
+            f"Nothing parses '{resolved}' yet")
         return ParseResult(STATE_UNSUPPORTED, error=detail)
 
     try:

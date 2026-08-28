@@ -42,7 +42,7 @@ def _pad(head: bytes, size: int = 512) -> bytes:
     (b"EVF\x09\x0d\x0a\xff\x00" + b"\x00" * 16,      "ewf"),
     (b"vhdxfile" + b"\x00" * 32,                     "vhdx"),
     (b"QFI\xfb" + b"\x00" * 32,                      "qcow"),
-    (b"PAGEDU64" + b"\x00" * 32,                     "memory_dump"),
+    (b"PAGEDU64" + b"\x00" * 32,                     "memory_dump_windows"),
     (b"\x7fELF" + b"\x00" * 32,                      "elf"),
     (b"7z\xbc\xaf\x27\x1c" + b"\x00" * 32,           "archive_7z"),
     (b"PK\x03\x04" + b"\x00" * 32,                   "archive_zip"),

@@ -247,3 +247,73 @@ def test_kinds_the_routers_still_own_are_absent():
     """
     for kind in ("memory_dump", "pe", "elf", "ewf", "vmdk", "disk_raw"):
         assert not dispatch_mod.has_handler(kind), kind
+
+
+# ─── Kinds that need a person ─────────────────────────────────────────────────
+
+def test_a_crash_dump_says_which_os_so_it_can_be_parsed(db_session, monkeypatch, tmp_path):
+    """
+    A Windows crash dump and a LiME image are self-describing; a raw dump is
+    not. Splitting them by signature is what lets two of the three be handled
+    without asking the analyst anything.
+    """
+    seen: list[str] = []
+
+    def memory(db, case_id, path, filename):
+        seen.append(filename)
+        return dispatch_mod.ParseResult(STATE_PARSED)
+
+    monkeypatch.setattr(dispatch_mod, "_HANDLERS", {
+        "memory_dump_windows": memory, "memory_dump_linux": memory,
+    })
+
+    win = tmp_path / "crash.bin"
+    win.write_bytes(b"PAGEDU64" + b"\x00" * 128)
+    assert dispatch_mod.parse(db_session, case_id="c1", path=win,
+                              filename="crash.bin").state == STATE_PARSED
+
+    lime = tmp_path / "capture.bin"
+    lime.write_bytes(b"EMiL" + b"\x00" * 128)
+    assert dispatch_mod.parse(db_session, case_id="c1", path=lime,
+                              filename="capture.bin").state == STATE_PARSED
+
+    assert seen == ["crash.bin", "capture.bin"]
+
+
+def test_a_raw_dump_says_what_to_do_instead_of_no_parser(db_session, tmp_path):
+    """
+    Guessing the OS would queue the wrong Volatility plugins and produce
+    confident wrong output. Saying so on the row beats a generic refusal.
+    """
+    path = tmp_path / "memdump.raw"
+    path.write_bytes(b"\x00\x11\x22\x33" * 64)
+
+    result = dispatch_mod.parse(db_session, case_id="c1", path=path,
+                                filename="memdump.raw")
+    assert result.state == STATE_UNSUPPORTED
+    assert "which OS" in (result.error or "")
+    assert "Memory page" in (result.error or "")
+
+
+def test_a_binary_explains_the_password_it_cannot_be_given(db_session, tmp_path):
+    head = bytearray(b"\x00" * 512)
+    head[0:2]       = b"MZ"
+    head[0x3C:0x40] = (0x80).to_bytes(4, "little")
+    head[0x80:0x84] = b"PE\x00\x00"
+    path = tmp_path / "dropper.exe"
+    path.write_bytes(bytes(head))
+
+    result = dispatch_mod.parse(db_session, case_id="c1", path=path,
+                                filename="dropper.exe")
+    assert result.state == STATE_UNSUPPORTED
+    assert "password" in (result.error or "")
+
+
+def test_a_disk_image_explains_that_it_is_read_in_place(db_session, tmp_path):
+    path = tmp_path / "acquisition.E01"
+    path.write_bytes(b"EVF\x09\x0d\x0a\xff\x00" + b"\x00" * 128)
+
+    result = dispatch_mod.parse(db_session, case_id="c1", path=path,
+                                filename="acquisition.E01")
+    assert result.state == STATE_UNSUPPORTED
+    assert "read in place" in (result.error or "")

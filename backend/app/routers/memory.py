@@ -310,6 +310,57 @@ async def upload_dump(
     return dump
 
 
+def register_memory_dump(
+    source_path: Path,
+    case_id:     str,
+    filename:    str,
+    os_type:     str,
+    db:          Session,
+) -> MemoryDump:
+    """
+    Register a dump that arrived through the ingestion pipeline.
+
+    Extracted from `upload_dump` so the drop folder and the browser produce the
+    same record. Default plugins are queued exactly as they are for an upload -
+    the OS is what decides which, and the caller has to have established it.
+
+    The analysis runs in a daemon thread rather than a FastAPI background task:
+    this is called from the ingest pipeline, which has no request to hang off.
+    """
+    import shutil as _shutil
+    import threading
+
+    dump_id   = str(uuid.uuid4())
+    dest_dir  = _dump_dir(case_id)
+    dest_path = dest_dir / f"{dump_id}_{Path(filename).name}"
+    _shutil.copy2(source_path, dest_path)
+
+    dump = MemoryDump(
+        id        = dump_id,
+        case_id   = case_id,
+        filename  = filename,
+        file_path = str(dest_path),
+        os_type   = os_type,
+        file_size = dest_path.stat().st_size,
+        status    = "uploaded",
+    )
+    db.add(dump)
+    db.flush()
+
+    plugin_ids: list[int] = []
+    for plugin_name in DEFAULT_PLUGINS.get(os_type, []):
+        pr = MemoryPluginResult(dump_id=dump_id, plugin_name=plugin_name,
+                                status="pending", is_custom=False)
+        db.add(pr)
+        db.flush()
+        plugin_ids.append(pr.id)
+    db.commit()
+
+    threading.Thread(target=_run_plugins_background, args=(dump_id, plugin_ids),
+                     name=f"memory-{dump_id[:8]}", daemon=True).start()
+    return dump
+
+
 @router.get("/{case_id}/dumps", response_model=list[MemoryDumpOut])
 def list_dumps(case_id: str, db: Session = Depends(get_db)):
     _get_case_or_404(case_id, db)

@@ -110,9 +110,9 @@ _SIGNATURES: list[tuple[int, bytes, str, str]] = [
     (0, b"ADSEGMENTEDFILE\x00",     "ad1",            "AccessData logical image (AD1)"),
 
     # ── Memory ───────────────────────────────────────────────────────────────
-    (0, b"PAGEDU64",                "memory_dump",    "Windows crash dump (64-bit)"),
-    (0, b"PAGEDUMP",                "memory_dump",    "Windows crash dump (32-bit)"),
-    (0, b"EMiL",                    "memory_dump",    "Memory image (ELF-less)"),
+    (0, b"PAGEDU64",                "memory_dump_windows", "Windows crash dump (64-bit)"),
+    (0, b"PAGEDUMP",                "memory_dump_windows", "Windows crash dump (32-bit)"),
+    (0, b"EMiL",                    "memory_dump_linux",   "LiME memory image"),
 
     # ── Executables ──────────────────────────────────────────────────────────
     (0, b"\x7fELF",                 "elf",            "ELF executable"),
@@ -202,7 +202,7 @@ _EXTENSIONS: dict[str, tuple[str, str]] = {
     ".mem":     ("memory_dump",     "Memory image"),
     ".raw":     ("memory_dump",     "Raw image"),
     ".vmem":    ("memory_dump",     "VMware memory image"),
-    ".lime":    ("memory_dump",     "LiME memory image"),
+    ".lime":    ("memory_dump_linux", "LiME memory image"),
     ".dd":      ("disk_raw",        "Raw disk image"),
     ".img":     ("disk_raw",        "Raw disk image"),
     ".001":     ("disk_raw",        "Raw disk image (split)"),

@@ -103,8 +103,14 @@ _ROUTES: dict[str, Route] = {
                       pages=("/cases/{case_id}/disk-images",)),
 
     # ── Memory ──────────────────────────────────────────────────────────────
+    # Raw dumps carry no signature saying which OS they came from, so they
+    # cannot be parsed without an analyst choosing one. The two below can.
     "memory_dump": Route(DEST_MEMORY, parser="volatility",
                          pages=("/cases/{case_id}/memory", "/artifacts/explorer")),
+    "memory_dump_windows": Route(DEST_MEMORY, parser="volatility",
+                                 pages=("/cases/{case_id}/memory", "/artifacts/explorer")),
+    "memory_dump_linux":   Route(DEST_MEMORY, parser="volatility",
+                                 pages=("/cases/{case_id}/memory", "/artifacts/explorer")),
     # A page file holds memory but no Volatility profile reads it directly.
     # Kept and listed so it can be carved later; not parsed.
     "pagefile":  Route(DEST_MEMORY, parser=None, to_explorer=False,
