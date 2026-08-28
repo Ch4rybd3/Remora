@@ -205,72 +205,6 @@ export function PaginationBar({ page, pages, total, pageSize, onPage, onPageSize
   )
 }
 
-// ── Row detail panel ──────────────────────────────────────────────────────────
-
-export function renderDetailValue(val: string): React.ReactNode {
-  if (!val) return <span className="opacity-20 italic">empty</span>
-  const trimmed = val.trimStart()
-  if ((trimmed.startsWith('{') || trimmed.startsWith('[')) && val.trimEnd().endsWith(trimmed.startsWith('{') ? '}' : ']')) {
-    try {
-      const parsed = JSON.parse(val)
-      return (
-        <pre className="text-label font-mono text-fg/70 whitespace-pre-wrap break-all leading-relaxed">
-          {JSON.stringify(parsed, null, 2)}
-        </pre>
-      )
-    } catch { /* fall through */ }
-  }
-  return <span className="font-mono break-all">{val}</span>
-}
-
-export function RowDetail({ row, columns, onClose }: {
-  row: Record<string, string>; columns: string[]; onClose: () => void
-}) {
-  const [search, setSearch] = useState('')
-  const sq = search.toLowerCase()
-  const filteredCols = sq
-    ? columns.filter(c => c.toLowerCase().includes(sq) || (row[c] ?? '').toLowerCase().includes(sq))
-    : columns
-
-  return (
-    <div className="border-t border-hairline bg-panel/60 px-4 py-3">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-label font-semibold text-fg-secondary/60 uppercase tracking-widest">Row Detail</span>
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search size={9} className="absolute left-2 top-1/2 -translate-y-1/2 text-fg-secondary/30" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="filter fields…"
-              className="bg-fg/5 border border-hairline rounded-control pl-5 pr-3 py-0.5 text-label text-fg placeholder:text-fg-secondary/30 outline-none focus:border-strong w-36 transition-colors"
-            />
-            {search && (
-              <button onClick={() => setSearch('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-fg-secondary/40 hover:text-fg">
-                <X size={8} />
-              </button>
-            )}
-          </div>
-          <button onClick={onClose} className="text-fg-secondary/40 hover:text-fg transition-colors"><X size={13} /></button>
-        </div>
-      </div>
-      {sq && filteredCols.length === 0 && (
-        <p className="text-label text-fg-secondary/30 italic py-1">No fields match "{search}"</p>
-      )}
-      <div className="rounded-control border border-hairline overflow-hidden">
-        {filteredCols.map((col, i) => (
-          <div key={col} className={`flex text-label ${i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-            <span className="w-52 shrink-0 px-3 py-1 text-fg-secondary/50 border-r border-hairline font-mono truncate" title={col}>{col}</span>
-            <span className="flex-1 px-3 py-1 text-fg/70">
-              {renderDetailValue(row[col] ?? '')}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 // ── ColResizeHandle ───────────────────────────────────────────────────────────
 
 export function ColResizeHandle({ col, onStart, onReset }: {
@@ -475,7 +409,10 @@ export function GroupRowsFetcher({ caseId, meta, baseFilters, groupFilters, orde
 
 // ── ArtifactTableView ─────────────────────────────────────────────────────────
 
-export function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKeys, exportedKeys, onPinToggle }: {
+export function ArtifactTableView({
+  caseId, meta, state, onStateChange, pinnedKeys, exportedKeys, onPinToggle,
+  selectedKey, onSelectRow,
+}: {
   caseId:        string
   meta:          CsvArtifactMeta
   state:         TabState
@@ -483,8 +420,11 @@ export function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKe
   pinnedKeys:    Set<string>
   exportedKeys:  Set<string>
   onPinToggle:   (key: string, row: Record<string, string>) => void
+  /** The row currently open in the detail panel, by its pin key. */
+  selectedKey:   string | null
+  /** Clicking a row hands it to the page, which shows it on the right. */
+  onSelectRow:   (row: Record<string, string> | null, columns: string[], key: string) => void
 }) {
-  const [expandedRow,    setExpandedRow]    = useState<string | null>(null)
   const [showFilters,    setShowFilters]    = useState(false)
   const [localSearch,    setLocalSearch]    = useState(state.filters.q ?? '')
   const [draggingCol,    setDraggingCol]    = useState<string | null>(null)
@@ -764,8 +704,9 @@ export function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKe
   // ── Filter helpers ────────────────────────────────────────────────────────
   const updateFilters = useCallback((patch: Partial<ArtifactRowFilters>) => {
     onStateChange({ filters: { ...state.filters, ...patch } })
-    setExpandedRow(null)
-  }, [state.filters, onStateChange])
+    // The open row is almost certainly no longer in the result set.
+    onSelectRow(null, [], '')
+  }, [state.filters, onStateChange, onSelectRow])
 
   const handleSearch = (val: string) => {
     setLocalSearch(val)
@@ -1054,16 +995,15 @@ export function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKe
               const key        = makeRowKey(meta.id, row)
               const isPinned   = pinnedKeys.has(key)
               const isExported = exportedKeys.has(key)
-              const rowKey     = `${idx}`
               return (
                 <>
                   <tr key={idx}
-                    onClick={() => setExpandedRow(r => r === rowKey ? null : rowKey)}
+                    onClick={() => onSelectRow(selectedKey === key ? null : row, allCols, key)}
                     className={`border-b cursor-pointer transition-colors group ${ isPinned
                         ? 'border-accent/20 bg-accent/[0.04] hover:bg-accent/[0.07]'
                         : isExported
                           ? 'border-severity-low/10 bg-severity-low/[0.02] hover:bg-severity-low/[0.04]'
-                          : expandedRow === rowKey
+                          : selectedKey === key
                             ? 'border-strong/[0.04] bg-accent/5'
                             : 'border-strong/[0.04] hover:bg-white/[0.025]'
                     }`}>
@@ -1086,13 +1026,6 @@ export function ArtifactTableView({ caseId, meta, state, onStateChange, pinnedKe
                       </td>
                     ))}
                   </tr>
-                  {expandedRow === rowKey && (
-                    <tr key={`${rowKey}-detail`}>
-                      <td colSpan={orderedCols.length + 1} className="p-0">
-                        <RowDetail row={row} columns={allCols} onClose={() => setExpandedRow(null)} />
-                      </td>
-                    </tr>
-                  )}
                 </>
               )
             })}
