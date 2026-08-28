@@ -7,7 +7,7 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 
-import { AlertCircle, HelpCircle, Terminal, X } from '../../ui/icons'
+import { AlertCircle, HelpCircle, Play, Terminal, X } from '../../ui/icons'
 
 export const RQL_KW_BOOL    = new Set(['AND','OR','NOT'])
 export const RQL_KW_OP      = new Set(['IN','BETWEEN','CONTAINS','STARTSWITH','ENDSWITH','REGEX','CIDR','LAST'])
@@ -37,16 +37,16 @@ export function highlightRQL(q: string): React.ReactNode[] {
 
 export const RQL_EXAMPLES = [
   { label: 'Equality',       q: 'EventID = "4624"' },
-  { label: 'ET / OU',        q: 'EventID = "4624" AND Channel = "Security"' },
-  { label: 'Contient',       q: 'Computer contains "DC" AND CommandLine contains "powershell"' },
-  { label: 'Liste IN',       q: 'EventID IN ("4624", "4625", "4648", "4768")' },
+  { label: 'AND / OR',       q: 'EventID = "4624" AND Channel = "Security"' },
+  { label: 'Contains',       q: 'Computer contains "DC" AND CommandLine contains "powershell"' },
+  { label: 'IN list',        q: 'EventID IN ("4624", "4625", "4648", "4768")' },
   { label: 'NOT IN',         q: 'EventID NOT IN ("4634", "4647")' },
   { label: 'Wildcard',       q: 'Computer = "DC-*" AND User = "adm?n"' },
   { label: 'Numeric range',  q: 'EventID BETWEEN 4600 AND 4700' },
-  { label: 'Comparaison',    q: 'ProcessId > 1000 AND ProcessId <= 9999' },
+  { label: 'Comparison',     q: 'ProcessId > 1000 AND ProcessId <= 9999' },
   { label: 'Regex',          q: 'CommandLine REGEX "powershell.*-enc.*"' },
   { label: 'CIDR',           q: 'IpAddress CIDR "10.0.0.0/8"' },
-  { label: 'Dernier 2h',     q: '@timestamp LAST 2 h' },
+  { label: 'Last 2h',        q: '@timestamp LAST 2 h' },
   { label: 'Full-text',      q: '~ "mimikatz"' },
   { label: 'Wildcard col',  q: '* contains "mimikatz"' },
   { label: 'Wildcard REGEX',q: '* REGEX "^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$"' },
@@ -58,10 +58,12 @@ export const RQL_MAX_HEIGHT = 120
 
 // ── RQLBar ────────────────────────────────────────────────────────────────────
 
-export function RQLBar({ value, onChange, onRun, error, columns, hasActiveFilters }: {
+export function RQLBar({ value, onChange, onRun, dirty, error, columns, hasActiveFilters }: {
   value:            string
   onChange:         (v: string) => void
   onRun:            (v: string) => void
+  /** The box has been edited since the last run - results below are stale. */
+  dirty:            boolean
   error:            string | null
   columns:          string[]
   hasActiveFilters: boolean
@@ -135,17 +137,25 @@ export function RQLBar({ value, onChange, onRun, error, columns, hasActiveFilter
       <div className="flex items-center gap-2 px-3 pt-2 pb-1">
         <Terminal size={10} className="text-accent/60 shrink-0" />
         <span className="text-label font-semibold uppercase tracking-widest text-accent/60">RQL Query</span>
-        <span className="text-label text-fg-secondary/25 ml-1">Enter to run - Tab to complete</span>
+        {dirty ? (
+          <button onClick={() => onRun(value)}
+            className="ml-1 flex items-center gap-1 text-label text-severity-medium hover:text-severity-medium/70 transition-colors">
+            <Play size={9} />
+            Not applied - press Enter to run
+          </button>
+        ) : (
+          <span className="text-label text-fg-secondary/25 ml-1">Enter to run - Tab to complete</span>
+        )}
         <div className="ml-auto flex items-center gap-1">
           {value && (
             <button onClick={() => { onChange(''); onRun('') }}
-              className="p-1 text-fg-secondary/30 hover:text-fg transition-colors" title="Effacer">
+              className="p-1 text-fg-secondary/30 hover:text-fg transition-colors" title="Clear query">
               <X size={10} />
             </button>
           )}
           <button onClick={() => setShowHelp(h => !h)}
             className={`p-1 transition-colors ${showHelp ? 'text-accent' : 'text-fg-secondary/40 hover:text-fg'}`}
-            title="Exemples">
+            title="Query examples">
             <HelpCircle size={12} />
           </button>
         </div>
@@ -172,7 +182,7 @@ export function RQLBar({ value, onChange, onRun, error, columns, hasActiveFilter
           onScroll={syncScroll}
           placeholder='EventID = "4624" AND Computer contains "DC" ...'
           rows={1}
-          className={`rql-input relative w-full resize-none font-mono text-label leading-relaxed bg-transparent border rounded-control px-2.5 py-1.5 outline-none transition-colors placeholder:text-fg-secondary/20 overflow-y-auto overflow-x-hidden ${error ? 'border-severity-critical/40 text-transparent caret-severity-critical' : value ? 'border-accent/25 text-transparent caret-white' : 'border-hairline text-fg/80'}`}
+          className={`rql-input relative w-full resize-none font-mono text-label leading-relaxed bg-transparent border rounded-control px-2.5 py-1.5 outline-none transition-colors placeholder:text-fg-secondary/20 overflow-y-auto overflow-x-hidden ${error ? 'border-severity-critical/40 text-transparent caret-severity-critical' : dirty ? 'border-severity-medium/40 text-transparent caret-white' : value ? 'border-accent/25 text-transparent caret-white' : 'border-hairline text-fg/80'}`}
           style={{
             minHeight:    32,
             maxHeight:    RQL_MAX_HEIGHT,
