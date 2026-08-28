@@ -72,7 +72,7 @@ structural data blocks.
 - Figure size auto-scales to graph bounding box (10–20 in wide, 6–14 in high), DPI 150.
 - Falls back to `[Attack graph not available — no data recorded]` if the case has no graph nodes, or if matplotlib is not installed.
 
-**Markdown**: replaced with placeholder text `_[Attach the attack graph image — export it from the Attack Graph tab]_` — no image embedding in MD.
+**Markdown**: replaced with a placeholder — no image embedding in MD. Use **Export PNG** in the Attack Graph tab to download the same image the DOCX embeds, and attach it manually.
 
 **Prerequisite**: the case must have an Attack Graph built (Attack Graph tab → save nodes/edges). If the graph is empty, the placeholder is used even in DOCX.
 
