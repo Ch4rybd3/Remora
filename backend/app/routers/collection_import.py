@@ -15,6 +15,7 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
+from ..config import settings
 from ..core.deps import get_current_user
 from ..database import SessionLocal, get_db
 from ..models.csv_artifact import CsvArtifactFile
@@ -33,8 +34,7 @@ router = APIRouter()
 
 # Storage: data/cases/<case_id>/collections/<collection_id>/
 def _collection_dir(case_id: str, collection_id: str) -> Path:
-    base = Path("/app/data") if Path("/app/data").exists() else Path("data")
-    p = base / "cases" / case_id / "collections" / collection_id
+    p = settings.case_data_path / "cases" / case_id / "collections" / collection_id
     p.mkdir(parents=True, exist_ok=True)
     return p
 

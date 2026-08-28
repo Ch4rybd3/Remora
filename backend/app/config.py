@@ -62,6 +62,11 @@ class Settings(BaseSettings):
     app_name: str = "Remora"
     database_url: str = f"sqlite:///{BASE_DIR}/data/remora.db"
     evidence_store_path: Path = BASE_DIR / "data" / "evidences"
+    # Root for per-case working data (collection imports and their extracted
+    # files). Overridable so tests do not write into the source tree - running
+    # the backend from `backend/` used to create a `backend/data/` holding real
+    # evidence, one `git add -A` away from being committed.
+    case_data_path: Path = Path("/app/data") if Path("/app/data").exists() else BASE_DIR / "data"
     templates_path: Path = BASE_DIR / "templates"
     max_upload_size_mb: int = 500
 

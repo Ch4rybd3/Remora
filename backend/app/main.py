@@ -57,6 +57,7 @@ from .routers import dropzone as dropzone_router
 from .routers import email_analysis as email_analysis_router
 from .routers import evtx as evtx_router
 from .routers import incident_log as incident_log_router
+from .routers import ingest as ingest_router
 from .routers import knowledge as knowledge_router
 from .routers import memory as memory_router
 from .routers import mitre as mitre_router
@@ -415,9 +416,33 @@ def _bootstrap_tools() -> None:
     _setup_cti_tools()
 
 
+def _bootstrap_drop_folder() -> None:
+    """
+    Clear upload staging left behind by interrupted requests.
+
+    A file under `.incoming/` is the remains of a request that never finished.
+    It is incomplete by definition, was never announced to anyone, and cannot
+    be resumed - so the only correct thing to do with it is delete it.
+    """
+    from .models.case import Case
+    from .services.ingest.dropfolder import sweep_incoming
+
+    db = SessionLocal()
+    try:
+        removed = sum(sweep_incoming(case) for case in db.query(Case).all())
+        if removed:
+            print(f"[remora] cleared {removed} interrupted upload(s) from staging", flush=True)
+    except Exception as e:
+        # Never let housekeeping stop the application from starting.
+        print(f"[remora] drop folder staging sweep failed: {e}", flush=True)
+    finally:
+        db.close()
+
+
 def bootstrap() -> None:
     _bootstrap_schema()
     _bootstrap_seeds()
+    _bootstrap_drop_folder()
     _bootstrap_tools()
 
 
@@ -474,6 +499,7 @@ app.include_router(connectors_router.router,           prefix="/api/v1", **_auth
 app.include_router(cti_router.router,                  prefix="/api/v1", **_auth)
 app.include_router(collection_import_router.router,    prefix="/api/v1", **_auth)
 app.include_router(dropzone_router.router,             prefix="/api/v1", **_auth)
+app.include_router(ingest_router.router,               prefix="/api/v1", **_auth)
 app.include_router(pcap_router.router,                 prefix="/api/v1", **_auth)
 app.include_router(disk_images_router.router,          prefix="/api/v1", **_auth)
 app.include_router(backup_router.router,               prefix="/api/v1", **_auth)
