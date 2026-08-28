@@ -3,7 +3,7 @@ import { PageShell } from '../ui/PageShell'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  FileText, Globe, Info, Loader2, Search, Shield, ShieldCheck, Table2, Trash2, Upload, X,
+  FileText, Globe, Info, Loader2, Search, Table2, Trash2, Upload, X,
 } from '../ui/icons'
 import { csvArtifactsApi, type CsvArtifactMeta } from '../api/csvArtifacts'
 import { timelineApi } from '../api/timeline'
@@ -13,6 +13,7 @@ import { PinnedPanel } from './artifact-explorer/PinnedPanel'
 import { RowDetailPanel, type SelectedRow } from './artifact-explorer/RowDetailPanel'
 import { SidePanel } from '../ui/SidePanel'
 import { ArtifactTableView } from './artifact-explorer/ArtifactTableView'
+import { CopyableName, CustodyActions } from '../components/custody/CustodyActions'
 import { EZBadge } from './artifact-explorer/EZBadge'
 import { OmniSearchView } from './artifact-explorer/OmniSearchView'
 import {
@@ -23,22 +24,24 @@ import { defaultTabState, type PinnedRow, type TabState } from './artifact-explo
 
 // ── Sidebar file row ──────────────────────────────────────────────────────────
 
-function FileSidebarRow({ meta, isOpen, onOpen, onDelete, onAddEvidence, addingEvidence }: {
-  meta: CsvArtifactMeta
-  isOpen: boolean
-  onOpen: () => void
+function FileSidebarRow({ meta, caseId, isOpen, onOpen, onDelete, onCustodyChange }: {
+  meta:     CsvArtifactMeta
+  caseId:   string
+  isOpen:   boolean
+  onOpen:   () => void
   onDelete: () => void
-  onAddEvidence: () => void
-  addingEvidence: boolean
+  onCustodyChange: () => void
 }) {
-  const hasEvidence = !!meta.evidence_id
   return (
     <div onClick={onOpen}
       className={`group relative px-3 py-2.5 cursor-pointer border-l-2 transition-colors ${isOpen ? 'bg-accent/5 border-l-accent/40' : 'border-l-transparent hover:bg-white/[0.03]'}`}>
-      <div className="flex items-start gap-2 pr-12">
+      <div className="flex items-start gap-2 pr-14">
         <FileText size={12} className="mt-0.5 shrink-0 text-fg-secondary/30" />
         <div className="flex-1 min-w-0">
-          <p className="text-label text-fg/80 truncate leading-snug font-mono">{meta.original_name}</p>
+          {/* Clicking the name copies it - it is what gets pasted into a
+              command line most often. Opening the file is the row's job. */}
+          <CopyableName value={meta.original_name}
+            className="block w-full text-label text-fg/80 leading-snug font-mono" />
           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
             {meta.ez_label
               ? <EZBadge label={meta.ez_label} />
@@ -55,23 +58,17 @@ function FileSidebarRow({ meta, isOpen, onOpen, onDelete, onAddEvidence, addingE
           <p className="text-label text-fg-secondary/25 mt-0.5">{fmtRelative(meta.uploaded_at)}</p>
         </div>
       </div>
-      {/* Add to Evidence button */}
-      <button
-        onClick={e => { e.stopPropagation(); if (!hasEvidence) onAddEvidence() }}
-        title={hasEvidence ? 'Linked to the chain of custody' : 'Add to the chain of custody'}
-        disabled={addingEvidence}
-        className={`absolute right-7 top-2.5 transition-all ${ hasEvidence
-            ? 'opacity-100 text-severity-low/70 cursor-default'
-            : 'opacity-0 group-hover:opacity-100 text-fg-secondary/40 hover:text-severity-low cursor-pointer'
-        } disabled:opacity-40`}
-      >
-        {addingEvidence
-          ? <Loader2 size={11} className="animate-spin" />
-          : hasEvidence
-            ? <ShieldCheck size={11} />
-            : <Shield size={11} />
-        }
-      </button>
+
+      {/* The shared control, so preserving here means exactly what it means in
+          the Collection tab - including the IOC option and the withdrawal the
+          bespoke button that used to live here could not offer. */}
+      <div className="absolute right-7 top-2" onClick={e => e.stopPropagation()}>
+        <CustodyActions
+          caseId={caseId} kind="artifact" sourceId={meta.id}
+          name={meta.original_name} evidenceId={meta.evidence_id}
+          showCopy={false} onChange={onCustodyChange} />
+      </div>
+
       <button onClick={e => { e.stopPropagation(); onDelete() }}
         className="absolute right-2 top-2.5 opacity-0 group-hover:opacity-100 text-fg-secondary/40 hover:text-severity-critical transition-all">
         <Trash2 size={11} />
@@ -248,18 +245,6 @@ export default function ArtifactExplorer() {
       })
     },
   })
-
-  const [addingEvidenceId, setAddingEvidenceId] = useState<string | null>(null)
-
-  const handleAddEvidence = useCallback(async (artifactId: string) => {
-    if (!caseId) return
-    setAddingEvidenceId(artifactId)
-    try {
-      await csvArtifactsApi.addEvidence(caseId, artifactId)
-      qc.invalidateQueries({ queryKey: ['csv-artifacts', caseId] })
-    } catch { /* silently ignore errors */ }
-    finally { setAddingEvidenceId(null) }
-  }, [caseId, qc])
 
   // The row open in the detail panel. Held here rather than in the table so the
   // panel on the right can show it while the table keeps its scroll position.
@@ -499,12 +484,11 @@ export default function ArtifactExplorer() {
             </p>
           )}
           {filteredSidebarFiles.map(f => (
-            <FileSidebarRow key={f.id} meta={f}
+            <FileSidebarRow key={f.id} meta={f} caseId={caseId!}
               isOpen={openTabs.includes(f.id)}
               onOpen={() => openFile(f.id)}
               onDelete={() => deleteMutation.mutate(f.id)}
-              onAddEvidence={() => handleAddEvidence(f.id)}
-              addingEvidence={addingEvidenceId === f.id} />
+              onCustodyChange={() => qc.invalidateQueries({ queryKey: ['csv-artifacts', caseId] })} />
           ))}
         </div>
 

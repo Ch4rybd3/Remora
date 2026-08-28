@@ -7,6 +7,7 @@ import { CopyableName, CustodyActions } from '../../custody/CustodyActions'
 import { useNavigate } from 'react-router-dom'
 import { TIMEZONE_OPTIONS } from '../../../context/TimezoneContext'
 import DropFolderPanel from '../DropFolderPanel'
+import IngestQueuePanel from '../IngestQueuePanel'
 import CustodyPanel from '../../custody/CustodyPanel'
 
 interface Props { caseId: string }
@@ -692,6 +693,10 @@ export default function CollectionImportTab({ caseId }: Props) {
 
       {/* Drop folder — ingestion without going through the browser */}
       <DropFolderPanel caseId={caseId} />
+
+      {/* What the pipeline has seen, whichever door it came through, and the
+          actions the states that need an analyst call for. */}
+      <IngestQueuePanel caseId={caseId} />
 
       {/* What survives the 90-day expiry, and the only screen where withdrawing
           something shows the consequence next to the item. */}
