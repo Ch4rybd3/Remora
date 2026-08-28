@@ -16,14 +16,11 @@ function NodeInternalsSync({ trigger, nodeIds }: { trigger: number; nodeIds: str
   }, [trigger])  
   return null
 }
-import { ArrowLeft, Save, Plus, Trash2, GitBranch, Wand2, Link2Off, ArrowDown, ArrowRight, ImageDown, SquareDashed, Spline } from '../ui/icons'
+import { ArrowLeft, Save, Plus, Trash2, GitBranch, Wand2, Link2Off, ArrowDown, ArrowRight, ImageDown, SquareDashed } from '../ui/icons'
 import { playbooksApi, type PlaybookNode, type PlaybookEdge } from '../api/playbooks'
 import { NODE_TYPES, LayoutDirContext } from '../components/playbook/PlaybookNodes'
-import {
-  EDGE_TYPES, EDGE_SHAPES, PlaybookEdgeEditContext,
-  edgeShape, edgeWaypoints,
-  type EdgeShape, type PlaybookEdgeData,
-} from '../components/playbook/PlaybookEdges'
+import { EDGE_TYPES, EdgeEditContext, edgeWaypoints } from '../components/graph/ReshapableEdge'
+import { EdgeShapePicker, useEdgeShaping } from '../components/graph/useEdgeShaping'
 import { applyElkLayout } from '../utils/elkLayout'
 import { renderPlaybookToCanvas } from '../utils/playbookExport'
 import Modal from '../components/ui/Modal'
@@ -239,17 +236,6 @@ export default function PlaybookEditor() {
   // The edge components mutate their own `data` through this context, so the
   // canvas stays the single owner of the edge list.
 
-  const updateEdgeData = useCallback((edgeId: string, patch: PlaybookEdgeData) => {
-    setEdges(eds => eds.map(e =>
-      e.id === edgeId ? { ...e, data: { ...(e.data ?? {}), ...patch } } : e,
-    ))
-  }, [])
-
-  // `snap` is a module-level helper, so this memo only changes with the setter
-  const edgeEditApi = useMemo(
-    () => ({ updateEdgeData, editable: true, snap }),
-    [updateEdgeData],
-  )
 
   // ── Add node at viewport center ───────────────────────────────────────────
 
@@ -467,20 +453,11 @@ export default function PlaybookEditor() {
     () => edges.filter(e => selEdgeIds.has(e.id)),
     [edges, selEdgeIds],
   )
-  const currentShape: EdgeShape | null =
-    liveSelEdges.length > 0 ? edgeShape(liveSelEdges[0]) : null
-  const selWaypointCount = liveSelEdges.reduce((n, e) => n + edgeWaypoints(e).length, 0)
 
-  const applyEdgeShape = (shape: EdgeShape) =>
-    setEdges(eds => eds.map(e =>
-      selEdgeIds.has(e.id) ? { ...e, data: { ...(e.data ?? {}), shape } } : e,
-    ))
-
-  /** Drop every bend point of the selected links — back to a plain connection. */
-  const resetEdgeShape = () =>
-    setEdges(eds => eds.map(e =>
-      selEdgeIds.has(e.id) ? { ...e, data: { ...(e.data ?? {}), waypoints: [] } } : e,
-    ))
+  const {
+    edgeEditApi, currentShape, waypointCount: selWaypointCount,
+    applyShape: applyEdgeShape, clearWaypoints: resetEdgeShape,
+  } = useEdgeShaping(setEdges, liveSelEdges, snap)
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -596,37 +573,13 @@ export default function PlaybookEditor() {
               {selNodeCount > 1 ? `Delete (${selNodeCount})` : 'Delete node'}
             </button>
           )}
-          {/* ── Link shape ─────────────────────────────────────────────── */}
-          {selEdgeCount > 0 && (
-            <div
-              className="flex items-center gap-1 px-2 py-1 rounded-control border border-hairline bg-white/[0.02]"
-              title="Double-click an edge to add a waypoint, then drag it to route around a node"
-            >
-              <Spline size={11} className="text-fg-secondary shrink-0" />
-              {EDGE_SHAPES.map(sh => (
-                <button
-                  key={sh.value}
-                  onClick={() => applyEdgeShape(sh.value)}
-                  title={sh.hint}
-                  className={`text-label px-1.5 py-0.5 rounded-control transition-colors ${ currentShape === sh.value
-                      ? 'bg-accent/10 text-accent'
-                      : 'text-fg-secondary hover:text-fg hover:bg-fg/5'
-                  }`}
-                >
-                  {sh.label}
-                </button>
-              ))}
-              {selWaypointCount > 0 && (
-                <button
-                  onClick={resetEdgeShape}
-                  title="Remove every waypoint from the selected edges"
-                  className="text-label px-1.5 py-0.5 rounded-control text-fg-secondary hover:text-fg hover:bg-fg/5 transition-colors border-l border-hairline ml-0.5 pl-2"
-                >
-                  ✕ {selWaypointCount} pt{selWaypointCount > 1 ? 's' : ''}
-                </button>
-              )}
-            </div>
-          )}
+          {/* ── Link shape — shared with the attack graph ───────────────── */}
+          <EdgeShapePicker
+            currentShape={currentShape}
+            waypointCount={selWaypointCount}
+            onApply={applyEdgeShape}
+            onClear={resetEdgeShape}
+          />
           {selEdgeCount > 0 && (
             <button
               className="btn-danger text-label flex items-center gap-1"
@@ -665,7 +618,7 @@ export default function PlaybookEditor() {
         {/* ── Canvas ──────────────────────────────────────────────────── */}
         <div ref={canvasRef} className="flex-1 bg-canvas">
           <LayoutDirContext.Provider value={layoutDir}>
-          <PlaybookEdgeEditContext.Provider value={edgeEditApi}>
+          <EdgeEditContext.Provider value={edgeEditApi}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -691,7 +644,7 @@ export default function PlaybookEditor() {
             <MiniMap nodeColor={() => '#2DD4BF'} />
             <NodeInternalsSync trigger={updateInternalsTrigger} nodeIds={nodes.map(n => n.id)} />
           </ReactFlow>
-          </PlaybookEdgeEditContext.Provider>
+          </EdgeEditContext.Provider>
           </LayoutDirContext.Provider>
         </div>
       </div>

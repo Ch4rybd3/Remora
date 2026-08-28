@@ -218,3 +218,24 @@ that gap and widened the shell rather than carving out an exception.
 
 The check also rejects a stale exemption: a page listed here that has since
 started using the shell, or that no longer exists.
+
+### Graph canvases
+
+`components/graph/` holds what the playbook editor and the attack graph share.
+Both are ReactFlow canvases with the same needs, and for three sprints only one
+of them had the answers — because they lived inside the playbook page.
+
+- `ReshapableEdge` — edges that carry waypoints. A generated layout routes an
+  edge straight through whatever is in the way, and the layout cannot know which
+  nodes an analyst considers important. So the analyst bends the edge:
+  double-click to add a waypoint, drag it to route around a node, double-click
+  it to remove it. Three shapes: curve, orthogonal, straight.
+- `useEdgeShaping` — the state and handlers behind that, plus `EdgeShapePicker`,
+  the toolbar control. A canvas passes its own grid step so a dragged waypoint
+  lands on the grid.
+
+A new canvas starts from these. Anything a canvas needs that is not about *its*
+domain belongs here, not in the page that happened to need it first — that is
+exactly how the attack graph ended up with default edges that crossed each
+other while the playbook next door could route around anything.
+
