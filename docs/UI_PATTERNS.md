@@ -274,3 +274,17 @@ looked at the graph.
 
 A snapshot failure never fails the save: the graph is the data, the picture is a
 convenience.
+
+**Edges set their own stroke.** ReactFlow resolves it from a CSS variable
+declared on `.react-flow`, which is an *ancestor* of the viewport — and the
+export rasterises the viewport alone, so anything inherited from above it may
+not survive the clone. That is why playbook edges came out invisible while the
+attack graph's did not: the attack graph was accidentally using ReactFlow's
+built-in edge, which the export happened to handle. `index.css` also puts the
+`--xy-*` variables on the Remora palette, so a built-in edge type follows the
+theme rather than ReactFlow's grey.
+
+**A canvas never spells an edge type.** It imports `DEFAULT_EDGE_TYPE`. Naming
+it by hand is how the attack graph asked for a type that was not registered:
+React Flow fell back to its built-in edge without complaining, and the shape
+controls sat on screen governing nothing.

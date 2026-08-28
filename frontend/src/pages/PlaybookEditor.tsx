@@ -19,7 +19,7 @@ function NodeInternalsSync({ trigger, nodeIds }: { trigger: number; nodeIds: str
 import { ArrowLeft, Save, Plus, Trash2, GitBranch, Wand2, Link2Off, ArrowDown, ArrowRight, ImageDown, SquareDashed } from '../ui/icons'
 import { playbooksApi, type PlaybookNode, type PlaybookEdge } from '../api/playbooks'
 import { NODE_TYPES, LayoutDirContext } from '../components/playbook/PlaybookNodes'
-import { EDGE_TYPES, EdgeEditContext, edgeWaypoints } from '../components/graph/ReshapableEdge'
+import { DEFAULT_EDGE_TYPE, EDGE_TYPES, EdgeEditContext, edgeWaypoints } from '../components/graph/ReshapableEdge'
 import { EdgeShapePicker, useEdgeShaping } from '../components/graph/useEdgeShaping'
 import { exportGraphPng } from '../components/graph/exportGraphImage'
 import { FRAME_COLORS } from '../components/graph/FrameNode'
@@ -585,7 +585,7 @@ export default function PlaybookEditor() {
             onNodeDoubleClick={(_, node) => openEditNode(node)}
             nodeTypes={NODE_TYPES}
             edgeTypes={EDGE_TYPES}
-            defaultEdgeOptions={{ type: 'smoothstep', animated: true }}
+            defaultEdgeOptions={{ type: DEFAULT_EDGE_TYPE, animated: true }}
             {...CANVAS_INTERACTION}
             fitView
             style={{ background: color('--surface-canvas') }}

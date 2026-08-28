@@ -23,7 +23,7 @@ import type { TimelineEvent, Asset, IOC } from '../../../types'
 import { AG_NODE_TYPES, NODE_WIDTH, type AGNodeData } from '../../attack_graph/AttackGraphNodes'
 import Modal from '../../ui/Modal'
 import { applyElkLayout } from '../../../utils/elkLayout'
-import { EDGE_TYPES, EdgeEditContext } from '../../graph/ReshapableEdge'
+import { DEFAULT_EDGE_TYPE, EDGE_TYPES, EdgeEditContext } from '../../graph/ReshapableEdge'
 import { EdgeShapePicker, useEdgeShaping } from '../../graph/useEdgeShaping'
 import {
   CANVAS_INTERACTION, GRAPH_GRID, useGraphClipboard,
@@ -169,7 +169,7 @@ export default function AttackGraphTab({ caseId }: Props) {
   const { edgeEditApi, currentShape, waypointCount, applyShape, clearWaypoints } =
     useEdgeShaping(setEdges, selectedEdges, snapToGridStep)
   const onConnect: OnConnect = useCallback((p: Connection) =>
-    setEdges(es => addEdge({ ...p, type: 'reshapable', animated: true }, es)), [])
+    setEdges(es => addEdge({ ...p, type: DEFAULT_EDGE_TYPE, animated: true }, es)), [])
 
   // ── Viewport center helper ────────────────────────────────────────────────
   /** Convert the canvas center (screen px) to flow-space coordinates. */
@@ -537,7 +537,7 @@ export default function AttackGraphTab({ caseId }: Props) {
             onSelectionChange={({ nodes: selN, edges: selE }) => { setSelectedNodes(selN); setSelectedEdges(selE) }}
             nodeTypes={AG_NODE_TYPES}
             edgeTypes={EDGE_TYPES}
-            defaultEdgeOptions={{ type: 'reshapable', animated: true }}
+            defaultEdgeOptions={{ type: DEFAULT_EDGE_TYPE, animated: true }}
             {...CANVAS_INTERACTION}
             fitView
             fitViewOptions={{ padding: 0.25 }}

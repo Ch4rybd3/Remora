@@ -132,6 +132,20 @@
   }
 }
 
+/* ── React Flow ─────────────────────────────────────────────────────────────── */
+/* ReactFlow reads these from `.react-flow`. Left at their defaults the edges are
+   a grey that belongs to no palette here, and the connection line while dragging
+   likewise. Setting them keeps every canvas on the Remora theme, including the
+   built-in edge types this project does not override. */
+.react-flow {
+  --xy-edge-stroke: rgb(var(--accent) / 0.45);
+  --xy-edge-stroke-selected: rgb(var(--accent));
+  --xy-edge-stroke-width: 1.5;
+  --xy-connectionline-stroke: rgb(var(--accent) / 0.6);
+  --xy-connectionline-stroke-width: 1.5;
+  --xy-attribution-background-color: transparent;
+}
+
 /* ── React Flow controls & minimap ──────────────────────────────────────────── */
 .react-flow__controls {
   background: rgb(var(--surface-overlay)) !important;

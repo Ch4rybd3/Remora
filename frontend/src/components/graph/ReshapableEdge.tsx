@@ -282,7 +282,23 @@ export function ReshapableEdge({
 
   return (
     <>
-      <BaseEdge id={id} path={path} markerEnd={markerEnd} style={style} />
+      <BaseEdge
+        id={id}
+        path={path}
+        markerEnd={markerEnd}
+        /* The stroke is set here rather than left to ReactFlow's stylesheet,
+           which resolves it from a CSS variable declared on `.react-flow` — an
+           ancestor of the viewport. Exporting rasterises the viewport alone, so
+           anything inherited from above it is not guaranteed to survive the
+           clone, and the edges came out invisible. Setting it explicitly also
+           puts the colour on the Remora palette instead of ReactFlow's grey.
+           A caller-supplied style still wins. */
+        style={{
+          stroke: selected ? color('--accent') : color('--accent', 0.45),
+          strokeWidth: selected ? 2 : 1.5,
+          ...style,
+        }}
+      />
 
       {/* Fat invisible hit area: double-click anywhere on the link to bend it */}
       {editable && (
@@ -348,7 +364,20 @@ export function ReshapableEdge({
 // 'smoothstep' is overridden so playbooks saved before reshaping existed pick
 // up the new renderer without a migration.
 
+/**
+ * The type name a canvas gives new edges.
+ *
+ * Exported so no canvas has to spell it. Naming it by hand is how the attack
+ * graph ended up asking for a type that did not exist and silently getting
+ * ReactFlow's built-in edge instead — the shape controls were there, they just
+ * governed nothing.
+ */
+export const DEFAULT_EDGE_TYPE = 'reshapable'
+
 export const EDGE_TYPES = {
+  [DEFAULT_EDGE_TYPE]: ReshapableEdge,
+  /** 'smoothstep' is overridden so playbooks saved before reshaping existed
+   *  pick up the new renderer without a migration. Same for 'playbook'. */
   smoothstep: ReshapableEdge,
   playbook:   ReshapableEdge,
 }
