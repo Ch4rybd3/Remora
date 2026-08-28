@@ -13,10 +13,15 @@ backend/.venv/
 # ── Runtime data ──────────────────────────────────────────────────────────────
 # data/ holds the SQLite DB, uploaded forensic files, evidence, memory dumps,
 # knowledge vaults, note images — none of this should ever be committed.
-data/*
+# `**/` on purpose: a bare `data/*` matches only the repository root, and a
+# `backend/data/` - which the backend creates when run from its own directory -
+# would be committed. That directory holds evidence.
+# Contents are ignored rather than the directory itself, so git still descends
+# and the placeholder negations below keep working.
+**/data/*
 # Allow directory placeholders so the folder structure survives a fresh clone
-!data/.gitkeep
-!data/*/.gitkeep
+!**/data/.gitkeep
+!**/data/*/.gitkeep
 
 # Default host-side drop folder (DROPZONE_HOST_PATH in .env) — holds the raw
 # artifacts analysts drop in, same sensitivity as data/.

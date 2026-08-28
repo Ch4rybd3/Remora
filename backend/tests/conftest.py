@@ -18,6 +18,7 @@ os.environ.update(
     DATABASE_URL=f"sqlite:///{_TMP / 'test.db'}",
     EVIDENCE_STORE_PATH=str(_TMP / "evidences"),
     DROPZONE_PATH=str(_TMP / "dropzone"),
+    CASE_DATA_PATH=str(_TMP / "case-data"),
     DROPZONE_AUTO_INGEST="false",
     SKIP_TOOL_SETUP="true",
     DEFAULT_ADMIN_PASSWORD="test-admin-password",

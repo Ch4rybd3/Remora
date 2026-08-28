@@ -34,6 +34,7 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..models.case import Case
 from ..models.ez_artifacts import ImportedCollection, ImportedFile
+from ..models.ingest import ORIGIN_ARCHIVE, ORIGIN_DROPZONE, IngestedFile
 from ..services.archives import ARCHIVE_EXTS, ArchiveError, extract_all, is_archive
 from ..services.ez_detection import detect
 
@@ -55,7 +56,7 @@ _IGNORED_PREFIXES = ("~$", ".~", ".goutputstream")
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
 
-def _mkdir_shared(p: Path) -> Path:
+def mkdir_shared(p: Path) -> Path:
     """
     Create a drop folder writable by whoever is dropping files into it.
 
@@ -74,11 +75,11 @@ def _mkdir_shared(p: Path) -> Path:
 
 def dropzone_root() -> Path:
     """Root of the drop folder, created on first access."""
-    return _mkdir_shared(Path(settings.dropzone_path))
+    return mkdir_shared(Path(settings.dropzone_path))
 
 
 def inbox_dir() -> Path:
-    return _mkdir_shared(dropzone_root() / INBOX_DIRNAME)
+    return mkdir_shared(dropzone_root() / INBOX_DIRNAME)
 
 
 def _slugify(text: str) -> str:
@@ -118,14 +119,14 @@ def case_dropzone_dir(case: Case, create: bool = True) -> Path:
             if create:
                 # Re-apply on every lookup so folders created before the
                 # permission fix (or with a stricter umask) become droppable.
-                _mkdir_shared(child)
-                _mkdir_shared(child / PROCESSED_DIRNAME)
+                mkdir_shared(child)
+                mkdir_shared(child / PROCESSED_DIRNAME)
             return child
 
     p = root / case_folder_name(case)
     if create:
-        _mkdir_shared(p)
-        _mkdir_shared(p / PROCESSED_DIRNAME)
+        mkdir_shared(p)
+        mkdir_shared(p / PROCESSED_DIRNAME)
     return p
 
 
@@ -210,6 +211,8 @@ def ingest_files(
     files: list[Path],
     db: Session,
     source_label: str = "drop folder",
+    origin: str = ORIGIN_DROPZONE,
+    origin_detail: str | None = None,
 ) -> tuple[str, list[ImportedFile]]:
     """
     Register dropped files as a Collection Import and hand them to the shared
@@ -229,6 +232,9 @@ def ingest_files(
     rows: list[ImportedFile] = []
     total_size = 0
     seen: dict[str, int] = {}
+    # Members unpacked from each archive, so the provenance pass below can link
+    # them to the container the analyst actually dropped.
+    archive_members: dict[Path, list[Path]] = {}
 
     def _row(rel_name: str, size: int | None) -> ImportedFile:
         """Build an ImportedFile row for a file sitting at `extracted/<rel_name>`."""
@@ -287,7 +293,9 @@ def ingest_files(
                 continue
             # Walk what actually landed on disk rather than re-reading the
             # archive index — unsafe entries were dropped during extraction.
-            for entry in sorted(p for p in sub.rglob("*") if p.is_file()):
+            members = sorted(p for p in sub.rglob("*") if p.is_file())
+            archive_members[src] = members
+            for entry in members:
                 rows.append(_row(
                     str(entry.relative_to(extracted_dir)),
                     entry.stat().st_size,
@@ -315,11 +323,47 @@ def ingest_files(
         db.add(r)
     db.commit()
 
+    # ── Provenance ───────────────────────────────────────────────────────────
+    # One `ingested_files` row per file the analyst actually dropped, plus one
+    # per archive member, linked back to its container. Written after the
+    # collection is committed so `collection_id` points at a row that exists,
+    # and before the originals move so each file is hashed where it was found.
+    #
+    # Imported here rather than at module scope: `services.ingest.dropfolder`
+    # imports this module for the folder layout, and a top-level import would
+    # close the cycle.
+    from .ingest import service as ingest_service
+
+    provenance: dict[Path, str] = {}
+    for src in files:
+        if not src.exists():
+            continue
+        try:
+            ing = ingest_service.record(
+                db, case_id=case.id, path=src,
+                collection_id=collection_id,
+                origin=origin, origin_detail=origin_detail,
+            )
+            provenance[src] = ing.id
+        except Exception as e:   # provenance must never block an ingest
+            print(f"[dropzone] could not record provenance for {src.name}: {e}", flush=True)
+            continue
+
+        for member in archive_members.get(src, []):
+            try:
+                ingest_service.record(
+                    db, case_id=case.id, path=member, original_name=member.name,
+                    collection_id=collection_id, parent_id=ing.id,
+                    origin=ORIGIN_ARCHIVE, origin_detail=src.name,
+                )
+            except Exception as e:
+                print(f"[dropzone] could not record member {member.name}: {e}", flush=True)
+
     # Move originals out of the watched folder only after the DB is committed,
     # so a crash mid-scan leaves the file in place to be retried.
     case_dir = case_dropzone_dir(case)
     processed = case_dir / PROCESSED_DIRNAME
-    _mkdir_shared(processed)
+    mkdir_shared(processed)
     for src in files:
         if not src.exists():
             continue
@@ -329,8 +373,14 @@ def ingest_files(
             target = processed / f"{src.stem}_{stamp}{src.suffix}"
         try:
             shutil.move(str(src), str(target))
+            ingested_id = provenance.get(src)
+            if ingested_id:
+                row = db.get(IngestedFile, ingested_id)
+                if row:
+                    row.stored_path = str(target.relative_to(dropzone_root()))
         except OSError as e:
             print(f"[dropzone] could not archive {src.name}: {e}", flush=True)
+    db.commit()
 
     print(f"[dropzone] case {case.id}: queued {len(rows)} file(s) from {source_label}", flush=True)
     return collection_id, rows
