@@ -32,6 +32,20 @@ const ALLOW_FILES = new Set(['src/styles/tokens.css'])
  * The list may shrink. Nothing may be added to it: a new file needing a colour
  * value imports `palette` from styles/tokens.
  */
+/**
+ * Files whose literal colours are deliberate, not debt.
+ *
+ * These paint something that is not Remora's interface and must not follow its
+ * theme. Distinguished from the debt list on purpose: the debt list is expected
+ * to shrink to nothing, this one is not.
+ */
+const INTENTIONAL_LITERALS = new Set([
+  // The sandboxed email preview renders the message as its recipient saw it —
+  // a white page with black text, whatever theme the analyst is using. Theming
+  // it would misrepresent the artefact.
+  'src/pages/EmailAnalysis.tsx',
+])
+
 const LITERAL_COLOR_DEBT = new Set([
   'src/components/case/tabs/AttackGraphTab.tsx',
   'src/components/case/tabs/CollectionImportTab.tsx',
@@ -94,7 +108,8 @@ for (const file of files) {
     const n = i + 1
 
     // Literal hex colours
-    if (!LITERAL_COLOR_DEBT.has(rel) && (!isTokenConsumer || !line.includes('var(--'))) {
+    const literalsAllowed = LITERAL_COLOR_DEBT.has(rel) || INTENTIONAL_LITERALS.has(rel)
+    if (!literalsAllowed && (!isTokenConsumer || !line.includes('var(--'))) {
       for (const m of line.matchAll(/#[0-9a-fA-F]{3,8}\b/g)) {
         if (/(^|[^&])#[0-9a-fA-F]{3,8}/.test(m[0])) add(rel, n, 'literal-color', m[0])
       }
