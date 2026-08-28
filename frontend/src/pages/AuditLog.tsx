@@ -132,9 +132,9 @@ export default function AuditLog() {
       <div className="px-6 py-5 border-b border-hairline flex items-center gap-3 shrink-0">
         <Shield size={18} className="text-accent" />
         <div>
-          <h1 className="text-fg font-semibold text-prose">Journal d'audit</h1>
+          <h1 className="text-fg font-semibold text-prose">Audit log</h1>
           <p className="text-fg-secondary text-label mt-0.5">
-            Toutes les actions administratives de la plateforme
+            Every administrative action taken on the platform
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -240,7 +240,7 @@ export default function AuditLog() {
                 onChange={e => setFilter('action', e.target.value)}
                 className="bg-panel border border-hairline rounded-control px-2 py-1.5 text-label text-fg focus:outline-none focus:border-accent/50"
               >
-                <option value="">Toutes</option>
+                <option value="">All</option>
                 {/* Group by prefix */}
                 {Array.from(new Set((meta?.actions ?? []).map(a => a.split('.')[0]))).sort().map(prefix => (
                   <option key={prefix} value={prefix}>{prefix}</option>

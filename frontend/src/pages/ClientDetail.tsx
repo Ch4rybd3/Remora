@@ -67,7 +67,7 @@ function EditClientModal({ client, docTemplates, onClose }: {
             <input className="input" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
           </div>
           <div>
-            <label className="label">Secteur</label>
+            <label className="label">Industry</label>
             <input className="input" value={form.industry} onChange={e => setForm(f => ({ ...f, industry: e.target.value }))} />
           </div>
         </div>

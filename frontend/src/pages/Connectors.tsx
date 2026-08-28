@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PageShell } from '../ui/PageShell'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plug, CheckCircle2, XCircle, Loader2, Eye, EyeOff,
@@ -257,28 +258,13 @@ export default function Connectors() {
   const total      = Object.keys(CONNECTOR_META).length
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
-
-      {/* Page header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-2.5 mb-1">
-            <Plug size={18} className="text-accent" />
-            <h1 className="text-title font-semibold text-fg">Connectors</h1>
-          </div>
-          <p className="text-ui text-fg-secondary/50">
-            Configure API keys for external threat intelligence and data sources.
-            Keys are stored server-side and never exposed to the browser after saving.
-          </p>
-        </div>
-
-        <div className="shrink-0 text-right">
-          <p className="text-title font-bold text-accent font-mono">
-            {configured.length}<span className="text-fg-secondary/30 text-prose">/{total}</span>
-          </p>
-          <p className="text-label text-fg-secondary/40">configured</p>
-        </div>
-      </div>
+    <PageShell
+      route="/config/connectors"
+      title="Connectors"
+      meta={`${configured.length}/${total} configured`}
+      subtitle="API keys are stored server-side and never returned to the browser"
+    >
+      <div className="max-w-3xl mx-auto space-y-6">
 
       {/* Cards */}
       <div className="space-y-4">
@@ -290,6 +276,7 @@ export default function Connectors() {
           />
         ))}
       </div>
-    </div>
+      </div>
+    </PageShell>
   )
 }

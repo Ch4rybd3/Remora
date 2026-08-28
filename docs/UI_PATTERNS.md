@@ -47,6 +47,7 @@ the design system. `frontend/src/components/ui/` holds older composite widgets
 
 | Primitive | Contract |
 |---|---|
+| `PageShell` | The shape of every page: header, toolbar, and the three content columns. |
 | `Panel` / `PanelHeader` | A surface: square, hairline, no fill shift, no shadow. Panels do not nest. |
 | `DataTable` | Every table in the product. Hairline rows, no zebra, mono headers, sticky by default. |
 | `Toolbar` / `ToolbarGroup` / `ToolbarSpacer` / `ToolbarLabel` | A row with hierarchy. Everything that is not the primary action is `.btn-ghost`; related controls sit in a group separated by a hairline. |
@@ -172,4 +173,34 @@ notices until an analyst asks where the help went.
 Write what someone arriving cold actually needs — the query syntax, the command
 to copy an image onto the server, which action leaves the network. Not a
 restatement of the labels already on screen.
+
+### PageShell
+
+Twenty-five pages each invented their own header — some an `<h1>`, some a
+toolbar strip, some a mono label. None of the differences meant anything, and
+the cost was not only visual: the `?` had to be threaded into eight different
+shapes by hand, and a page wanting a selection panel rebuilt the three-column
+layout from scratch.
+
+```tsx
+<PageShell route="/templates" title="Case Templates" meta="12" actions={…} toolbar={…}>
+  …
+</PageShell>
+```
+
+**One prop drives the icon and the help.** `route` looks up `NAV_ICON` and
+`PAGE_HELP`, so a page cannot show one destination's icon beside another
+destination's help. A route with no help entry simply gets no `?`.
+
+`fullHeight` drops the padded, scrolling wrapper for content that manages its
+own space — a matrix, a graph, a virtualised table. Without it those inherit a
+gutter they did not ask for and a second scrollbar.
+
+The slots are fixed. A page needing a different arrangement is a gap in the
+design system to raise, not a local exception to make.
+
+**Migrated so far**: Users, Templates, Report Templates, Playbooks, Clients,
+Connectors, Vault Management. The rest still carry their own headers; each is
+its own small piece of surgery because each header is a different shape, which
+is the whole reason this exists.
 

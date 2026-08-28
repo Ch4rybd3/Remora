@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PageShell } from '../ui/PageShell'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   FileText, Plus, Edit2, Trash2, Save, X, AlertCircle,
@@ -251,23 +252,20 @@ export default function Templates() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-title font-bold text-accent">Case Templates</h1>
-          <p className="text-fg-secondary text-ui mt-1">
-            Stored as YAML in{' '}
-            <code className="font-mono text-label bg-fg/5 px-1.5 py-0.5 rounded-control">templates/</code>
-          </p>
-        </div>
+    <PageShell
+      route="/templates"
+      title="Case Templates"
+      subtitle={"Stored as YAML in templates/"}
+      actions={(
         <button
-          className="btn-primary flex items-center gap-2"
+          className="btn-primary flex items-center gap-1.5"
           onClick={() => { setYamlError(null); setCreateOpen(true) }}
         >
-          <Plus size={15} /> New Template
+          <Plus size={13} /> New Template
         </button>
-      </div>
-
+      )}
+    >
+      <div className="max-w-4xl mx-auto">
       {isLoading ? (
         <div className="text-fg-secondary text-ui">Loading…</div>
       ) : templates.length === 0 ? (
@@ -331,6 +329,7 @@ export default function Templates() {
           onSaved={() => setTtpTarget(null)}
         />
       )}
-    </div>
+      </div>
+    </PageShell>
   )
 }

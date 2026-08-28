@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
+import { PageShell } from '../ui/PageShell'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   FileOutput, Upload, Trash2, Tag, Info,
@@ -391,35 +392,22 @@ export default function ReportTemplates() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-title font-bold text-accent flex items-center gap-2">
-            <FileOutput size={22} />
-            Report Templates
-          </h1>
-          <p className="text-fg-secondary text-ui mt-1">
-            Import DOCX or Markdown templates with <code className="font-mono text-label bg-fg/5 px-1.5 py-0.5 rounded-control">{'{{tags}}'}</code> to generate formatted incident reports.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            className="btn-secondary text-label flex items-center gap-1.5"
-            onClick={() => setShowRef(r => !r)}
-          >
-            <Info size={12} />
-            Tag reference
+    <PageShell
+      route="/report-templates"
+      title="Report Templates"
+      subtitle={"DOCX or Markdown templates with {{tags}}, rendered into a formatted incident report"}
+      actions={(
+        <>
+          <button className="btn-ghost flex items-center gap-1.5" onClick={() => setShowRef((r) => !r)}>
+            <Info size={12} /> Tag reference
           </button>
-          <button
-            className="btn-primary flex items-center gap-2 text-ui"
-            onClick={() => setShowUpload(u => !u)}
-          >
-            <Upload size={14} />
-            Import template
+          <button className="btn-primary flex items-center gap-1.5" onClick={() => setShowUpload((u) => !u)}>
+            <Upload size={13} /> Import template
           </button>
-        </div>
-      </div>
+        </>
+      )}
+    >
+      <div className="max-w-4xl mx-auto space-y-6">
 
       {/* Tag reference panel */}
       <TagReference open={showRef} onClose={() => setShowRef(false)} />
@@ -449,6 +437,7 @@ export default function ReportTemplates() {
           ))}
         </div>
       )}
-    </div>
+      </div>
+    </PageShell>
   )
 }

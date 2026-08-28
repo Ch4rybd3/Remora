@@ -308,7 +308,7 @@ export default function TemplateFormModal({ open, onClose, onSave, isSaving, err
               onClick={addSection}
               className="flex items-center gap-1 text-label px-2 py-1 rounded-control border border-accent/20 text-accent/70 hover:bg-accent/10 transition-colors"
             >
-              <Plus size={10} /> Ajouter section
+              <Plus size={10} /> Add section
             </button>
           </div>
           <div className="space-y-2">
