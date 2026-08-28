@@ -51,8 +51,6 @@ Applies to any free-form query language box (today: RQL in the Artifact Explorer
 
 ---
 
----
-
 ## Primitives
 
 They live in `frontend/src/ui/`, alongside the icon registry — that directory is
