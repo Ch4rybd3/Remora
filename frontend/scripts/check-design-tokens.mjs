@@ -44,6 +44,13 @@ const INTENTIONAL_LITERALS = new Set([
   // a white page with black text, whatever theme the analyst is using. Theming
   // it would misrepresent the artefact.
   'src/pages/EmailAnalysis.tsx',
+
+  // Zone colours are a choice an analyst makes and we persist in the graph
+  // JSON, alongside existing playbooks that already hold these exact values.
+  // A token would re-resolve per theme, so the same report exported twice
+  // would show different colours — and would silently change the meaning of
+  // graphs saved before the tokens existed.
+  'src/components/graph/FrameNode.tsx',
 ])
 
 const LITERAL_COLOR_DEBT = new Set([

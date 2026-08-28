@@ -61,7 +61,8 @@ structural data blocks.
 #### `{{attack_graph}}` — Attack graph rendering
 
 **DOCX**: replaced with an actual **PNG image** (6 inches wide, embedded inline).
-- Rendered server-side with **matplotlib (Agg backend)** from the ReactFlow `AttackGraph` model (`nodes` + `edges` stored in DB).
+- Uses the **snapshot the browser stored** when the analyst last saved the graph — the canvas exactly as arranged.
+- Falls back to rendering server-side with **matplotlib (Agg backend)** from the stored `nodes` + `edges` when no snapshot exists (a graph saved before snapshots, or one whose tab was never opened).
 - Visual style mirrors the Attack Graph tab: dark background (`#0B121F`), rounded-rect nodes, directional arrows.
 - Node colours per type:
   - `timeline` → green border `#9FEF00`

@@ -3,9 +3,12 @@ Attack Graph API — one graph per case, stored as React Flow nodes/edges JSON.
 """
 from __future__ import annotations
 
+# A canvas screenshot; anything past this is not a graph, it is a mistake.
+MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024
+
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -39,22 +42,55 @@ def get_attack_graph(case_id: str, db: Session = Depends(get_db)):
     return graph
 
 
+@router.put("/cases/{case_id}/attack-graph/snapshot", status_code=204)
+async def save_attack_graph_snapshot(
+    case_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Store a PNG of the canvas, rasterised by the browser that drew it.
+
+    The server can redraw this graph from the stored coordinates, and still does
+    when no snapshot exists — but a redrawing never quite matches the screen.
+    Keeping what the analyst actually saw is what lets the report embed the
+    picture they arranged rather than an approximation of it.
+    """
+    _get_case(case_id, db)
+    png = await request.body()
+    if not png.startswith(b"\x89PNG"):
+        raise HTTPException(status_code=400, detail="Body must be a PNG image")
+    if len(png) > MAX_SNAPSHOT_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Snapshot exceeds {MAX_SNAPSHOT_BYTES // 1024 // 1024} MB",
+        )
+
+    graph = db.query(AttackGraph).filter(AttackGraph.case_id == case_id).first()
+    if not graph:
+        raise HTTPException(status_code=404, detail="This case has no attack graph yet")
+
+    graph.snapshot_png = png
+    graph.snapshot_at = datetime.now(UTC)
+    db.commit()
+    return Response(status_code=204)
+
+
 @router.get("/cases/{case_id}/attack-graph/png")
 def export_attack_graph_png(case_id: str, db: Session = Depends(get_db)):
     """
-    The graph as a PNG, rendered by the same code the DOCX report uses.
+    The graph as a PNG.
 
-    One renderer, two callers: what an analyst downloads here is pixel-identical
-    to what the report embeds. A second client-side renderer would drift, and a
-    report that no longer matches the screen it came from is worse than no
-    export at all.
+    Prefers the snapshot the browser stored, which is the canvas as the analyst
+    arranged it. Falls back to rendering server-side when no snapshot exists —
+    a graph saved before this feature, or one whose tab was never opened.
     """
     case = _get_case(case_id, db)
     graph = db.query(AttackGraph).filter(AttackGraph.case_id == case_id).first()
     if not graph or not graph.nodes:
         raise HTTPException(status_code=404, detail="This case has no attack graph yet")
 
-    png = render_attack_graph_png(graph.nodes, graph.edges or [])
+    png = graph.snapshot_png or render_attack_graph_png(graph.nodes, graph.edges or [])
     if png is None:
         raise HTTPException(
             status_code=503,

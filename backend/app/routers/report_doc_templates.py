@@ -1306,7 +1306,10 @@ def generate_report(
     ag = db.query(AttackGraph).filter(AttackGraph.case_id == case_id).first()
     png_bytes: bytes | None = None
     if ag and ag.nodes:
-        png_bytes = render_attack_graph_png(ag.nodes, ag.edges or [])
+        # Prefer the canvas the analyst actually saw. The server-side render
+        # is a redrawing from coordinates and never quite matches it; it stays
+        # as the fallback for graphs saved before snapshots existed.
+        png_bytes = ag.snapshot_png or render_attack_graph_png(ag.nodes, ag.edges or [])
 
     docx_bytes = _render_docx(tpl.file_path, case, ctx, png_bytes)
     mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
