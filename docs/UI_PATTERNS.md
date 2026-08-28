@@ -35,7 +35,19 @@ When a page has a left file-list sidebar (like Logs, Chainsaw, MFT, USN):
 - All level chips appear **colored/active** when filter is empty (conveys "everything shown")
 - Level chip is dimmed only when another level is exclusively selected
 
----
+## Query Commit Model
+Applies to any free-form query language box (today: RQL in the Artifact Explorer).
+
+- **Typing never runs the query.** A long expression passes through many states
+  that parse but mean something else, and running them discards the result set
+  the analyst is narrowing down.
+- **Enter runs it.** So do the example buttons and the clear (X) button, which
+  are explicit acts, not editing.
+- **Stale results must be visible.** While the box differs from the query that
+  produced the rows on screen, the border shifts to `severity-medium` and the
+  header hint becomes a clickable *Not applied - press Enter to run*.
+- Cheap incremental controls - the plain search box, column filters - stay
+  debounced. The rule is about expression languages, not about all input.
 
 ## Chain of Custody Actions
 Any page that lists artifacts renders `components/custody/CustodyActions` and

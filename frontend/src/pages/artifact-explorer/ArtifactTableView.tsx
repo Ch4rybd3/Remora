@@ -432,7 +432,6 @@ export function ArtifactTableView({
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [localRql,       setLocalRql]       = useState(state.rql ?? '')
   const [rqlError,       setRqlError]       = useState<string | null>(null)
-  const rqlTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const colDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -639,22 +638,15 @@ export function ArtifactTableView({
   }, [groupColsKey])
 
   // ── RQL handlers ──────────────────────────────────────────────────────────
+  // Typing is deliberately inert: a long query passes through many states that
+  // are syntactically valid but semantically wrong, and running those would
+  // throw away the very results being narrowed down. Only Enter commits.
   const handleRqlChange = useCallback((val: string) => {
     setLocalRql(val)
     setRqlError(null)
-    if (rqlTimer.current) clearTimeout(rqlTimer.current)
-    if (!val.trim()) {
-      onStateChange({ rql: '' })
-      return
-    }
-    // Debounce 600ms
-    rqlTimer.current = setTimeout(() => {
-      onStateChange({ rql: val, filters: { ...state.filters, page: 1 } })
-    }, 600)
-  }, [onStateChange, state.filters])
+  }, [])
 
   const handleRqlRun = useCallback((val: string) => {
-    if (rqlTimer.current) clearTimeout(rqlTimer.current)
     setLocalRql(val)
     setRqlError(null)
     onStateChange({ rql: val, filters: { ...state.filters, page: 1 } })
@@ -776,6 +768,7 @@ export function ArtifactTableView({
         value={localRql}
         onChange={handleRqlChange}
         onRun={handleRqlRun}
+        dirty={localRql !== (state.rql ?? '')}
         error={rqlError}
         columns={allCols}
         hasActiveFilters={activeColCount > 0 || !!state.filters.q}

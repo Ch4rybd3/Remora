@@ -193,7 +193,9 @@ storage layout and its own hashing (or none). There is no single answer to
 - SHA-256 on every file; magic-byte identification (`python-magic`) taking priority over the extension, so a `.txt` that is really an EVTX is routed correctly.
 - `ingested_files` table: the single source of truth for provenance (origin, hash, detected type, routing decision, source timezone, state, error).
 - Declarative routing table (see `INGESTION.md`).
-- **The drop folder becomes the only ingestion path.** The 14 upload endpoints are reduced to thin wrappers that write into the case drop folder and return; no ingestion logic remains in routers.
+- **The drop folder becomes the only ingestion path, reached two ways** (`INGESTION.md` §2): directly on the host (`cp`, `scp`, a mounted share) and from the Collection tab. The tab's upload is a courier - it writes into `.incoming/`, renames the finished file into the case folder, returns `202`, and holds no parsing or storage logic. Unitary import is removed, not deprecated.
+- The eight artifact upload endpoints (`binary`, `case_emails`, `collection_import`, `csv_artifacts`, `email_analysis`, `evidences`, `evtx`, `memory`) are consolidated. Platform content - report templates, rule packs, avatars, vault - keeps its own path and is out of scope.
+- The Collection tab is rebuilt around the ingest queue: state per file, force a type on `unidentified`, retry a `failed`, set the source timezone before parsing.
 - **Source timezone** per collection and per file. The existing `TimezoneContext` is display-only; this adds the missing input side, so mixed local/UTC exports stay coherent.
 - `_inbox` reassignment from the Collection tab.
 - Storage moves CSV → **Parquet**, partitioned by case and artifact type. Immediate query win with no architectural change: today `read_csv_auto` re-scans the whole file on every request.
@@ -202,7 +204,9 @@ storage layout and its own hashing (or none). There is no single answer to
 ### Exit criteria
 - Every ingestion path produces an `ingested_files` row.
 - The same file dropped twice into one case is rejected as a duplicate, with the original referenced.
-- No router contains parsing or storage logic.
+- No router contains parsing or storage logic for case artifacts.
+- An artifact uploaded from the Collection tab and the same artifact dropped by `scp` produce `ingested_files` rows differing only in `origin` and `origin_detail`.
+- A browser upload interrupted mid-request leaves nothing ingestible behind.
 - Explorer queries run against `ArtifactStore`, not against `duckdb` directly.
 
 ---
