@@ -389,52 +389,81 @@ the file is on disk the ambiguity cannot be resolved from the data.
 
 ## 9. Storage
 
-**CSV → Parquet**, partitioned by case and artifact kind.
+**CSV → Parquet, materialised on first query.**
 
-`routers/csv_artifacts.py:160` opens an in-memory DuckDB connection and calls
-`read_csv_auto` **on every request** — the full file is re-scanned and re-parsed
-for each page of results. Parquet is columnar, typed and compressed; the same
-queries touch only the projected columns.
+Every query used to run `CREATE TEMP TABLE _src AS SELECT * FROM
+read_csv_auto(...)`. That re-reads and re-parses the *entire* CSV on every page
+turn, every sort, every filter change - so a 30 MB artifact paid full parse cost
+to return 100 rows, and the cost did not fall as the analyst narrowed the query.
 
-Consequences:
-- No architectural change. DuckDB reads Parquet natively.
-- No feature loss. RQL, dynamic column detection, date-column auto-detection and timeline pinning are untouched.
-- The current CSV files remain readable; conversion happens on access.
+The first query converts the file once; every query after it reads the Parquet.
+Columnar and typed: a filter on one column touches one column, and nothing is
+re-parsed.
+
+Measured on a synthetic 400,000-row, 28 MB artifact:
+
+| | |
+|---|---|
+| Three filtered pages, scanning the CSV | 1.29 s |
+| One-off conversion | 0.57 s |
+| Three filtered pages, from Parquet | 0.11 s |
+
+**About 12× on queries**, with the conversion paying for itself after roughly
+one and a half of them. (That artifact is repetitive enough to compress from
+28 MB to 420 KB; real ones will not shrink nearly that far.)
+
+The conversion runs through the same `read_csv_auto` call the queries used to,
+so DuckDB infers exactly the same types and no comparison changes meaning -
+which is the only reason this is safe to introduce underneath a running product.
+A test asserts the two paths return identical rows.
+
+The cache is **derived data**. It lives outside the evidence and collection
+directories, is keyed by a hash of the source path rather than by the path
+itself - a cache directory should not become a second, unmanaged record of who
+was investigated for what - and is dropped when the artifact is deleted.
+Deleting it by hand costs one re-conversion and nothing else. `ARTIFACT_STORE_PARQUET=false`
+falls back to scanning the CSV.
+
+A conversion is written under a `.partial` name and renamed in, so a crash
+mid-write cannot leave a file that looks like a valid cache. A conversion that
+fails at all is logged and the query falls back to the CSV: a cache that cannot
+be built is a performance problem, never a correctness one.
+
+---
 
 ## 10. ECS normalisation
 
-Each parser emits **two** tables:
+A common field vocabulary across artifact types, so a query means the same thing
+whatever produced the row. This is a specification, not a product: adopting it
+does not imply Elasticsearch. Deferred until after the store boundary lands.
 
-1. **Raw** — the parser's native columns, preserved verbatim. This is what the Explorer shows today and what an analyst needs when a field only exists in one artifact type.
-2. **Normalised (ECS)** — `@timestamp`, `event.category`, `event.action`, `event.outcome`, `host.name`, `user.name`, `process.name`, `process.pid`, `process.parent.pid`, `process.command_line`, `file.path`, `file.hash.sha256`, `source.ip`, `destination.ip`, plus `remora.artifact_kind` and `remora.ingested_file_id` for provenance.
-
-ECS is a published schema, independent of Elasticsearch. Adopting it costs a
-mapping per parser and delivers what actually matters: **cross-artifact
-correlation and a real super-timeline**, where a Shimcache entry, a Sysmon
-process creation and a Prefetch execution sit on one sortable axis.
-
-The Explorer gains a second mode — *unified view* — alongside the existing
-per-artifact view.
+---
 
 ## 11. `ArtifactStore`
 
-All Explorer queries go through one interface:
+The boundary that makes the engine replaceable. `services/store/base.py`.
 
 ```python
-class ArtifactStore(Protocol):
-    def schema(self, artifact_id: str) -> list[Column]: ...
-    def search(self, artifact_id: str, query: Query, page: Page) -> ResultSet: ...
-    def aggregate(self, artifact_id: str, spec: AggSpec) -> list[Bucket]: ...
-    def get_by_id(self, artifact_id: str, row_id: str) -> dict: ...
+schema(source)                                   -> Schema
+search(source, columns, query, sort, page)       -> Page
+aggregate(source, columns, query, group_by)      -> list[Group]
+find(source, columns, text, limit, regex)        -> (count, rows)
 ```
 
-`DuckDBArtifactStore` is the implementation. No router imports `duckdb`.
+Four operations. The router asks nothing else, and holds no DuckDB code at all -
+it used to hold four functions, each opening its own connection.
 
-This is what keeps the Elasticsearch/OpenSearch question open: with the
-interface and the ECS schema in place, that backend becomes an additional
-implementation rather than a rewrite. Without them, any such migration means
-rebuilding the RQL parser, the column detection and the pinning integration
-from scratch.
+**Why this exists.** DuckDB is right for this product today: embedded, reads
+files in place, costs nothing when idle, which matters for a tool meant to run
+on an analyst's laptop. But "should Remora move to Elasticsearch?" will be asked
+again, and the honest answer depends on scale nobody has yet. This boundary
+makes that a decision about one module rather than a rewrite - an Elasticsearch
+backend implements these four methods and the rest of the product does not
+notice.
+
+The roadmap named `get_by_id` as a fifth. It is not there: a CSV row has no
+identity, and a row number would be an identifier that changes when the file is
+re-sorted. The Explorer opens rows from the page it already holds.
 
 ---
 

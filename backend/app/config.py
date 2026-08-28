@@ -88,6 +88,13 @@ class Settings(BaseSettings):
     # still in progress is never read half-written.
     dropzone_stable_seconds: int = 15
 
+    # ── Artifact store ────────────────────────────────────────────────────────
+    # Materialise CSV artifacts as Parquet on first query. Every query used to
+    # re-parse the whole CSV; Parquet is columnar and typed, so a filter on one
+    # column touches one column. The cache is derived data - deleting it costs
+    # one re-conversion. Set false to fall back to scanning the CSV directly.
+    artifact_store_parquet: bool = True
+
     # ── Chain of custody ──────────────────────────────────────────────────────
     # Password on the archive an evidence item is wrapped in when it is flagged
     # as an IOC. Deliberately well-known and shown in the interface: this is
