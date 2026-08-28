@@ -11,7 +11,6 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-import duckdb
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
@@ -21,6 +20,11 @@ from ..database import get_db
 from ..models.case import Case
 from ..models.csv_artifact import CsvArtifactFile
 from ..models.user import User
+
+# Aliased: `Query` at module scope is FastAPI's, used in every endpoint
+# signature below.
+from ..services.store import Query as StoreQuery
+from ..services.store import drop_cache, get_store
 
 router = APIRouter(tags=["csv-artifacts"])
 
@@ -145,232 +149,12 @@ def _convert_to_flat_csv(raw: bytes, filename: str) -> bytes:
     return raw
 
 
-# ── DuckDB helpers ────────────────────────────────────────────────────────────
+# ── Artifact queries ─────────────────────────────────────────────────────────
+# Every question about an artifact's contents goes through `ArtifactStore`.
+# This file used to hold four DuckDB functions, each opening its own connection
+# and re-parsing the whole CSV to answer one page of one query. See
+# `services/store/` for what replaced them and why.
 
-def _normalize_col(name: str) -> str:
-    """Replace whitespace in a column name with underscores so it works in RQL."""
-    import re as _re
-    return _re.sub(r'\s+', '_', name)
-
-
-def _duck_inspect(file_path: str) -> tuple[list[str], int]:
-    """Return (normalized_column_names, row_count) using DuckDB's CSV scanner."""
-    conn = duckdb.connect()
-    try:
-        _load_normalized(conn, file_path)
-        cols  = [row[0] for row in conn.execute("DESCRIBE _src").fetchall()]
-        count = conn.execute("SELECT COUNT(*) FROM _src").fetchone()[0]
-        return cols, count
-    except Exception:
-        return [], 0
-    finally:
-        conn.close()
-
-
-def _load_normalized(conn, file_path: str) -> None:
-    """
-    Create temp table _src from the CSV and rename any column that contains spaces
-    to its underscore-normalized form so RQL identifiers always match.
-    """
-    conn.execute(
-        "CREATE TEMP TABLE _src AS SELECT * FROM read_csv_auto(?, ignore_errors=true)",
-        [file_path],
-    )
-    raw_cols = [row[0] for row in conn.execute("DESCRIBE _src").fetchall()]
-    for raw in raw_cols:
-        norm = _normalize_col(raw)
-        if norm != raw:
-            conn.execute(f'ALTER TABLE _src RENAME COLUMN "{raw}" TO "{norm}"')
-
-
-def _build_where(
-    columns:    list[str],
-    q:          str | None,
-    col_filters: dict | None,
-    rql:        str | None = None,
-) -> tuple[str, list]:
-    """Build a SQL WHERE clause and parameter list from filter inputs."""
-    from ..services.rql_parser import RQLSyntaxError, parse_rql
-    parts:  list[str] = []
-    params: list      = []
-
-    if q:
-        col_conds = [f'CAST("{c}" AS VARCHAR) ILIKE ?' for c in columns]
-        parts.append("(" + " OR ".join(col_conds) + ")")
-        params.extend([f"%{q}%"] * len(columns))
-
-    if col_filters:
-        valid = set(columns)
-        for col, flt in col_filters.items():
-            if col not in valid:
-                continue
-            mode = flt.get("mode", "contains")
-            val  = str(flt.get("value", ""))
-            if not val:
-                continue
-            # Support multi-value: "4624, 4625" → ["4624", "4625"]
-            values = [v.strip() for v in val.split(",") if v.strip()]
-            if not values:
-                continue
-            qcol = f'CAST("{col}" AS VARCHAR)'
-            if len(values) == 1:
-                v = values[0]
-                if   mode == "contains":  parts.append(f"{qcol} ILIKE ?");     params.append(f"%{v}%")
-                elif mode == "=":         parts.append(f"{qcol} = ?");          params.append(v)
-                elif mode == "!contains": parts.append(f"{qcol} NOT ILIKE ?");  params.append(f"%{v}%")
-                elif mode == "!=":        parts.append(f"{qcol} != ?");         params.append(v)
-            else:
-                # Multiple values → OR for positive modes, AND NOT for negative modes
-                if mode == "contains":
-                    sub = " OR ".join(f"{qcol} ILIKE ?" for _ in values)
-                    parts.append(f"({sub})")
-                    params.extend(f"%{v}%" for v in values)
-                elif mode == "=":
-                    placeholders = ", ".join("?" for _ in values)
-                    parts.append(f"{qcol} IN ({placeholders})")
-                    params.extend(values)
-                elif mode == "!contains":
-                    sub = " AND ".join(f"{qcol} NOT ILIKE ?" for _ in values)
-                    parts.append(f"({sub})")
-                    params.extend(f"%{v}%" for v in values)
-                elif mode == "!=":
-                    placeholders = ", ".join("?" for _ in values)
-                    parts.append(f"{qcol} NOT IN ({placeholders})")
-                    params.extend(values)
-
-    # RQL query (combined AND with other filters)
-    if rql and rql.strip():
-        try:
-            rql_sql, rql_params = parse_rql(rql.strip(), columns)
-            if rql_sql:
-                parts.append(f"({rql_sql})")
-                params.extend(rql_params)
-        except RQLSyntaxError:
-            raise   # let the caller handle it
-        except Exception as exc:
-            raise RQLSyntaxError(f"RQL error: {exc}") from exc
-
-    where = "WHERE " + " AND ".join(parts) if parts else ""
-    return where, params
-
-
-def _query_rows(
-    file_path:   str,
-    columns:     list[str],
-    q:           str | None,
-    col_filters: dict | None,
-    sort_col:    str | None,
-    sort_dir:    str,
-    date_column: str | None,
-    page:        int,
-    page_size:   int,
-    rql:         str | None = None,
-) -> tuple[int, int, list[dict]]:
-    """
-    Query a CSV file via DuckDB.
-    Returns (total_filtered, total_pages, rows_for_page).
-    """
-    conn = duckdb.connect()
-    try:
-        _load_normalized(conn, file_path)
-
-        where, params = _build_where(columns, q, col_filters, rql)
-
-        sc = sort_col if sort_col and sort_col in columns else date_column
-        order = f'ORDER BY CAST("{sc}" AS VARCHAR) {sort_dir.upper()}' if sc else ""
-
-        total = conn.execute(f"SELECT COUNT(*) FROM _src {where}", params).fetchone()[0]
-        pages = max(1, (total + page_size - 1) // page_size)
-        offset = (page - 1) * page_size
-
-        col_select = ", ".join(f'CAST("{c}" AS VARCHAR) AS "{c}"' for c in columns)
-        rows_raw   = conn.execute(
-            f"SELECT {col_select} FROM _src {where} {order} LIMIT {page_size} OFFSET {offset}",
-            params,
-        ).fetchall()
-
-        rows = [dict(zip(columns, row, strict=True)) for row in rows_raw]
-        return total, pages, rows
-    finally:
-        conn.close()
-
-
-def _query_groups(
-    file_path:   str,
-    columns:     list[str],
-    group_by:    list[str],
-    q:           str | None,
-    col_filters: dict | None,
-    rql:         str | None = None,
-) -> list[dict]:
-    """
-    Return GROUP BY aggregation using DuckDB — no row limit, runs natively in-engine.
-    Returns list of { "values": { col: val, ... }, "count": int }.
-    """
-    valid      = set(columns)
-    group_cols = [c for c in group_by if c in valid]
-    if not group_cols:
-        return []
-
-    conn = duckdb.connect()
-    try:
-        _load_normalized(conn, file_path)
-
-        where, params = _build_where(columns, q, col_filters, rql)
-
-        group_select = ", ".join(f'CAST("{c}" AS VARCHAR) AS "{c}"' for c in group_cols)
-        group_clause = ", ".join(f'CAST("{c}" AS VARCHAR)' for c in group_cols)
-        order_clause = ", ".join(f'CAST("{c}" AS VARCHAR) ASC' for c in group_cols)
-
-        rows_raw = conn.execute(
-            f'SELECT {group_select}, COUNT(*) AS _count '
-            f'FROM _src {where} '
-            f'GROUP BY {group_clause} '
-            f'ORDER BY {order_clause}',
-            params,
-        ).fetchall()
-
-        return [
-            {"values": dict(zip(group_cols, row[: len(group_cols)], strict=True)), "count": row[len(group_cols)]}
-            for row in rows_raw
-        ]
-    finally:
-        conn.close()
-
-
-def _omni_query(file_path: str, columns: list[str], q: str, limit: int, regex: bool = False) -> tuple[int, list[dict]]:
-    """Search a single CSV file via DuckDB. Returns (hit_count, first_N_rows)."""
-    if not columns:
-        return 0, []
-    conn = duckdb.connect()
-    try:
-        _load_normalized(conn, file_path)
-        if regex:
-            col_conds = " OR ".join(f'regexp_matches(CAST("{c}" AS VARCHAR), ?)' for c in columns)
-            params_fp = [q] * len(columns)
-        else:
-            col_conds = " OR ".join(f'CAST("{c}" AS VARCHAR) ILIKE ?' for c in columns)
-            params_fp = [f"%{q}%"] * len(columns)
-
-        count = conn.execute(f"SELECT COUNT(*) FROM _src WHERE {col_conds}", params_fp).fetchone()[0]
-
-        if count == 0:
-            return 0, []
-
-        col_select = ", ".join(f'CAST("{c}" AS VARCHAR) AS "{c}"' for c in columns)
-        rows_raw = conn.execute(
-            f"SELECT {col_select} FROM _src WHERE {col_conds} LIMIT {limit}",
-            params_fp,
-        ).fetchall()
-
-        return count, [dict(zip(columns, row, strict=True)) for row in rows_raw]
-    except Exception:
-        return 0, []
-    finally:
-        conn.close()
-
-
-# ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/cases/{case_id}/artifacts")
 def list_artifacts(case_id: str, db: Session = Depends(get_db)) -> list[dict]:
@@ -420,7 +204,8 @@ def omni_search(
 
     for a in artifacts:
         cols = json.loads(a.columns)
-        hit_count, hits = _omni_query(a.file_path, cols, q, limit, regex=regex)
+        hit_count, hits = get_store().find(
+            a.file_path, cols, q, limit=limit, regex=regex)
         if hit_count > 0:
             total_hits += hit_count
             results.append({
@@ -469,7 +254,8 @@ async def upload_artifact(
     with open(file_path, "wb") as fh:
         fh.write(raw)
 
-    cols, row_count = _duck_inspect(file_path)
+    schema = get_store().schema(file_path)
+    cols, row_count = schema.columns, schema.row_count
     date_col        = _detect_date_column(cols)
 
     ez_label    = None
@@ -527,11 +313,13 @@ def get_rows(
             pass
 
     try:
-        total, pages, rows = _query_rows(
-            a.file_path, cols, q, parsed_cf,
-            sort_col, sort_dir, a.date_column,
-            page, page_size, rql,
+        result = get_store().search(
+            a.file_path, cols,
+            StoreQuery(text=q, column_filters=parsed_cf, rql=rql),
+            sort_col=sort_col or a.date_column, sort_dir=sort_dir,
+            page=page, page_size=page_size,
         )
+        total, pages, rows = result.total, result.pages, result.rows
     except RQLSyntaxError as exc:
         raise HTTPException(status_code=422, detail={"rql_error": str(exc)})
 
@@ -574,7 +362,12 @@ def get_groups(
             pass
 
     try:
-        groups = _query_groups(a.file_path, cols, group_cols, q, parsed_cf, rql)
+        groups = [
+            {"values": g.values, "count": g.count}
+            for g in get_store().aggregate(
+                a.file_path, cols, StoreQuery(text=q, column_filters=parsed_cf, rql=rql),
+                group_cols)
+        ]
     except RQLSyntaxError as exc:
         raise HTTPException(status_code=422, detail={"rql_error": str(exc)})
 
@@ -697,6 +490,10 @@ def delete_artifact(
     current_user: User    = Depends(get_current_user),
 ):
     a = _get_artifact_or_404(artifact_id, case_id, db)
+    # Drop the Parquet conversion too. It is derived data, but leaving it would
+    # accumulate silently and, worse, could be served to a later artifact that
+    # happened to be written to the same path.
+    drop_cache(Path(str(a.file_path)))
     try:
         os.unlink(a.file_path)
     except OSError:
@@ -745,7 +542,8 @@ def register_csv_artifact(
     if existing:
         return existing
 
-    cols, row_count = _duck_inspect(path_str)
+    schema = get_store().schema(path_str)
+    cols, row_count = schema.columns, schema.row_count
     date_col        = _detect_date_column(cols)
 
     ez_label    = None

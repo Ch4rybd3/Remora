@@ -207,7 +207,7 @@ storage layout and its own hashing (or none). There is no single answer to
 - No router contains parsing or storage logic for case artifacts.
 - An artifact uploaded from the Collection tab and the same artifact dropped by `scp` produce `ingested_files` rows differing only in `origin` and `origin_detail`.
 - A browser upload interrupted mid-request leaves nothing ingestible behind.
-- Explorer queries run against `ArtifactStore`, not against `duckdb` directly.
+- Explorer queries run against `ArtifactStore`, not against `duckdb` directly. **Done** - `services/store/`, four operations, no DuckDB left in any router.
 
 ---
 
