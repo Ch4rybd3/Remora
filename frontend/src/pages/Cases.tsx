@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { PageHelp } from '../help/pageHelp'
+import { PageShell } from '../ui/PageShell'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, FolderOpen, Building2 } from '../ui/icons'
@@ -106,17 +106,17 @@ export default function Cases() {
   const typeTabs: (CaseType | 'all')[] = ['all', 'ir', 'ctf', 'pentest', 'sample']
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-title font-bold text-accent">Cases</h1>
-          <PageHelp route="/cases" />
-          <p className="text-fg-secondary text-ui mt-1">{cases.length} total</p>
-        </div>
-        <button className="btn-primary flex items-center gap-2" onClick={openModal}>
-          <Plus size={16} /> New Case
+    <PageShell
+      route="/cases"
+      title="Cases"
+      meta={`${cases.length} total`}
+      actions={(
+        <button className="btn-primary flex items-center gap-1.5" onClick={openModal}>
+          <Plus size={13} /> New Case
         </button>
-      </div>
+      )}
+    >
+      <div className="max-w-6xl mx-auto">
 
       {/* Search + filters */}
       <div className="space-y-3 mb-6">
@@ -357,6 +357,7 @@ export default function Cases() {
           </div>
         </div>
       </Modal>
-    </div>
+      </div>
+    </PageShell>
   )
 }

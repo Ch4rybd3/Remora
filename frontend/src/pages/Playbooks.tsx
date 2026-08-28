@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { PageShell } from '../ui/PageShell'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Plus, GitBranch, Edit2, Trash2, Copy, Download, Upload } from '../ui/icons'
@@ -74,37 +75,27 @@ export default function Playbooks() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-title font-bold text-accent flex items-center gap-2">
-            <GitBranch size={22} /> Playbooks
-          </h1>
-          <p className="text-fg-secondary text-ui mt-1">{playbooks.length} playbook(s)</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            ref={importRef}
-            type="file"
-            accept=".json"
-            className="hidden"
-            onChange={handleImportFile}
-          />
+    <PageShell
+      route="/playbooks"
+      title="Playbooks"
+      meta={`${playbooks.length} playbook${playbooks.length > 1 ? 's' : ''}`}
+      actions={(
+        <>
+          <input ref={importRef} type="file" accept=".json" className="hidden" onChange={handleImportFile} />
           <button
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-control border border-hairline text-label text-fg-secondary hover:text-fg hover:border-strong transition-colors"
+            className="btn-ghost flex items-center gap-1.5"
             onClick={() => importRef.current?.click()}
             title="Import a playbook from a JSON file"
           >
             <Upload size={13} /> Import JSON
           </button>
-          <button
-            className="btn-primary flex items-center gap-2"
-            onClick={() => navigate('/playbooks/new/edit')}
-          >
-            <Plus size={15} /> New Playbook
+          <button className="btn-primary flex items-center gap-1.5" onClick={() => navigate('/playbooks/new/edit')}>
+            <Plus size={13} /> New Playbook
           </button>
-        </div>
-      </div>
+        </>
+      )}
+    >
+      <div className="max-w-4xl mx-auto">
 
       {isLoading && <p className="text-fg-secondary text-ui">Loading…</p>}
 
@@ -179,6 +170,7 @@ export default function Playbooks() {
         title="Delete playbook"
         message={`"${deleteTarget_?.name}" will be permanently deleted.`}
       />
-    </div>
+      </div>
+    </PageShell>
   )
 }

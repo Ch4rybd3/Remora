@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { PageShell } from '../ui/PageShell'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Edit2, KeyRound, ShieldCheck } from '../ui/icons'
+import { Plus, Trash2, Edit2, KeyRound } from '../ui/icons'
 import { usersApi, type AuthUser } from '../api/auth'
 import { useAuth } from '../context/AuthContext'
 import { DataTable } from '../ui/DataTable'
@@ -64,18 +65,17 @@ export default function Users() {
   })
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-title font-bold text-accent flex items-center gap-2">
-            <ShieldCheck size={22} /> Gestion des utilisateurs
-          </h1>
-          <p className="text-fg-secondary text-ui mt-1">{users.length} account{users.length > 1 ? 's' : ''}</p>
-        </div>
-        <button className="btn-primary flex items-center gap-2" onClick={() => setCreateOpen(true)}>
-          <Plus size={15} /> New user
+    <PageShell
+      route="/users"
+      title="Users"
+      meta={`${users.length} account${users.length > 1 ? 's' : ''}`}
+      actions={(
+        <button className="btn-primary flex items-center gap-1.5" onClick={() => setCreateOpen(true)}>
+          <Plus size={13} /> New user
         </button>
-      </div>
+      )}
+    >
+      <div className="max-w-4xl mx-auto">
 
       <Panel className="overflow-hidden">
         <DataTable
@@ -245,6 +245,7 @@ export default function Users() {
         title="Delete the user"
         message={`The account "${deleteTarget?.username}" will be permanently deleted.`}
       />
-    </div>
+      </div>
+    </PageShell>
   )
 }

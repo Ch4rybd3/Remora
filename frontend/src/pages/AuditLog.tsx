@@ -1,11 +1,12 @@
 import { useState, useCallback, useRef } from 'react'
+import { PageShell } from '../ui/PageShell'
 import { useQuery } from '@tanstack/react-query'
 import { DataTable } from '../ui/DataTable'
 import { auditApi, type AuditFilters, type AuditLogEntry } from '../api/audit'
 import { fmtDateTime } from '../utils/dateUtils'
 import {
   Search, ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
-  Filter, X, RefreshCw, Shield,
+  Filter, X, RefreshCw,
 } from '../ui/icons'
 
 // ── Action badge colours ─────────────────────────────────────────────────────
@@ -126,30 +127,18 @@ export default function AuditLog() {
   const page  = filters.page ?? 1
 
   return (
-    <div className="h-full flex flex-col bg-canvas overflow-hidden">
-
-      {/* Header */}
-      <div className="px-6 py-5 border-b border-hairline flex items-center gap-3 shrink-0">
-        <Shield size={18} className="text-accent" />
-        <div>
-          <h1 className="text-fg font-semibold text-prose">Journal d'audit</h1>
-          <p className="text-fg-secondary text-label mt-0.5">
-            Toutes les actions administratives de la plateforme
-          </p>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          {isFetching && (
-            <RefreshCw size={13} className="text-fg-secondary animate-spin" />
-          )}
-          <button
-            onClick={() => refetch()}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-label rounded-control bg-fg/5 text-fg-secondary hover:text-fg transition-colors"
-          >
-            <RefreshCw size={12} />
-            Actualiser
-          </button>
-        </div>
-      </div>
+    <PageShell
+      route="/audit"
+      title="Audit log"
+      subtitle="Every administrative action taken on the platform"
+      actions={(
+        <button onClick={() => refetch()} className="btn-ghost flex items-center gap-1.5">
+          <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} /> Refresh
+        </button>
+      )}
+      fullHeight
+    >
+      <div className="h-full flex flex-col min-h-0 overflow-hidden">
 
       {/* Toolbar */}
       <div className="px-6 py-3 border-b border-hairline space-y-2 shrink-0">
@@ -240,7 +229,7 @@ export default function AuditLog() {
                 onChange={e => setFilter('action', e.target.value)}
                 className="bg-panel border border-hairline rounded-control px-2 py-1.5 text-label text-fg focus:outline-none focus:border-accent/50"
               >
-                <option value="">Toutes</option>
+                <option value="">All</option>
                 {/* Group by prefix */}
                 {Array.from(new Set((meta?.actions ?? []).map(a => a.split('.')[0]))).sort().map(prefix => (
                   <option key={prefix} value={prefix}>{prefix}</option>
@@ -427,6 +416,7 @@ export default function AuditLog() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </PageShell>
   )
 }

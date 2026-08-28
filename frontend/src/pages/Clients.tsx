@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PageShell } from '../ui/PageShell'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Building2, Plus, FileStack, Star, FolderOpen, FileText, Trash2, Check } from '../ui/icons'
@@ -38,12 +39,12 @@ function NewClientModal({ open, onClose, templates }: {
                  placeholder="Ex: Acme Corp" />
         </div>
         <div>
-          <label className="label">Secteur</label>
+          <label className="label">Industry</label>
           <input className="input" value={industry} onChange={e => setIndustry(e.target.value)}
                  placeholder="Finance, Healthcare, Industry..." />
         </div>
         <div>
-          <label className="label">Template de documentation</label>
+          <label className="label">Documentation template</label>
           <select className="input" value={docTemplateId} onChange={e => setDocTemplateId(e.target.value)}>
             <option value="">None - free-form base</option>
             {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -137,7 +138,7 @@ function TemplateEditor({ tpl, onSaved, onCancel }: {
           onClick={() => setSlots(prev => [...prev, emptySlot()])}
           className="mt-2 text-label text-accent hover:underline flex items-center gap-1"
         >
-          <Plus size={12} /> Ajouter un emplacement
+          <Plus size={12} /> Add a slot
         </button>
         <p className="text-label text-fg-secondary/40 mt-1">
           e.g. Network diagram, RACI, Machine inventory, Country contacts...
@@ -265,26 +266,22 @@ export default function Clients() {
   const { data: templates = [] } = useQuery({ queryKey: ['clientDocTemplates'], queryFn: clientsApi.listDocTemplates })
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-title font-bold text-accent flex items-center gap-2">
-            <Building2 size={22} />
-            Clients
-          </h1>
-          <p className="text-fg-secondary text-ui mt-1">
-            Organisations selectable when creating a case, each with its own document knowledge base.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button className="btn-secondary flex items-center gap-2 text-ui" onClick={() => setShowTemplates(true)}>
-            <FileStack size={14} /> Templates
+    <PageShell
+      route="/config/clients"
+      title="Clients"
+      subtitle={"Organisations selectable when creating a case, each with its own knowledge base"}
+      actions={(
+        <>
+          <button className="btn-ghost flex items-center gap-1.5" onClick={() => setShowTemplates(true)}>
+            <FileStack size={13} /> Templates
           </button>
-          <button className="btn-primary flex items-center gap-2 text-ui" onClick={() => setShowNew(true)}>
-            <Plus size={14} /> New client
+          <button className="btn-primary flex items-center gap-1.5" onClick={() => setShowNew(true)}>
+            <Plus size={13} /> New client
           </button>
-        </div>
-      </div>
+        </>
+      )}
+    >
+      <div className="max-w-6xl mx-auto space-y-6">
 
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -303,6 +300,7 @@ export default function Clients() {
 
       <NewClientModal open={showNew} onClose={() => setShowNew(false)} templates={templates} />
       {showTemplates && <TemplatesPanel onClose={() => setShowTemplates(false)} />}
-    </div>
+      </div>
+    </PageShell>
   )
 }

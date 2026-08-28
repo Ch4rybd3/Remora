@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
+import { PageShell } from '../ui/PageShell'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Archive, Upload, Trash2, Download, Pencil, X, Check,
@@ -463,27 +464,20 @@ export default function VaultManagement() {
   })
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
-
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-title font-bold text-accent flex items-center gap-2">
-            <Archive size={22} />
-            Vault Management
-          </h1>
-          <p className="text-fg-secondary text-ui mt-1">
-            Shared reference file library - tools, IOCs, scripts, rules, playbooks.
-          </p>
-        </div>
+    <PageShell
+      route="/config/vaults"
+      title="Vault Management"
+      subtitle={"Shared reference file library - tools, IOCs, scripts, rules, playbooks."}
+      actions={(
         <button
-          className="btn-primary flex items-center gap-2 text-ui shrink-0"
-          onClick={() => setShowUpload(u => !u)}
+          className="btn-primary flex items-center gap-1.5"
+          onClick={() => setShowUpload((u) => !u)}
         >
-          <Upload size={14} />
-          Import a vault
+          <Upload size={13} /> Import a vault
         </button>
-      </div>
+      )}
+    >
+      <div className="max-w-4xl mx-auto space-y-6">
 
       {/* Upload form */}
       {showUpload && (
@@ -532,6 +526,7 @@ export default function VaultManagement() {
           ))}
         </div>
       )}
-    </div>
+      </div>
+    </PageShell>
   )
 }
