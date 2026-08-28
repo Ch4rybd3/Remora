@@ -21,6 +21,8 @@ import { playbooksApi, type PlaybookNode, type PlaybookEdge } from '../api/playb
 import { NODE_TYPES, LayoutDirContext } from '../components/playbook/PlaybookNodes'
 import { EDGE_TYPES, EdgeEditContext, edgeWaypoints } from '../components/graph/ReshapableEdge'
 import { EdgeShapePicker, useEdgeShaping } from '../components/graph/useEdgeShaping'
+import { CANVAS_INTERACTION, useGraphClipboard } from '../components/graph/useGraphClipboard'
+import { color } from '../styles/tokens'
 import { applyElkLayout } from '../utils/elkLayout'
 import { renderPlaybookToCanvas } from '../utils/playbookExport'
 import Modal from '../components/ui/Modal'
@@ -131,7 +133,6 @@ export default function PlaybookEditor() {
   const idCounter    = useRef(1)
   const rfInstance   = useRef<ReactFlowInstance | null>(null)
   const canvasRef    = useRef<HTMLDivElement>(null)
-  const clipboardRef = useRef<{ nodes: Node[]; edges: Edge[] } | null>(null)
 
   // ── Load existing playbook ─────────────────────────────────────────────────
 
@@ -389,48 +390,15 @@ export default function PlaybookEditor() {
     }
   }
 
-  // ── Copy / paste (Ctrl+C / Ctrl+V) ──────────────────────────────────────
+  // ── Copy / paste — shared with the attack graph ──────────────────────────
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const ctrl = e.ctrlKey || e.metaKey
-      if (!ctrl) return
-
-      if (e.key === 'c' && selNodes.length > 0) {
-        const selectedIds = new Set(selNodes.map(n => n.id))
-        const internalEdges = edges.filter(
-          ed => selectedIds.has(ed.source) && selectedIds.has(ed.target),
-        )
-        clipboardRef.current = { nodes: selNodes, edges: internalEdges }
-      }
-
-      if (e.key === 'v' && clipboardRef.current) {
-        const { nodes: cbNodes, edges: cbEdges } = clipboardRef.current
-        const idMap = new Map<string, string>()
-        const OFFSET = 40
-        const newNodes: Node[] = cbNodes.map(n => {
-          const newId = `node-${Date.now()}-${idCounter.current++}`
-          idMap.set(n.id, newId)
-          return {
-            ...n,
-            id: newId,
-            position: { x: n.position.x + OFFSET, y: n.position.y + OFFSET },
-            selected: true,
-          }
-        })
-        const newEdges: Edge[] = cbEdges.map(ed => ({
-          ...ed,
-          id: `edge-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          source: idMap.get(ed.source) ?? ed.source,
-          target: idMap.get(ed.target) ?? ed.target,
-        }))
-        setNodes(nds => [...nds.map(n => ({ ...n, selected: false })), ...newNodes])
-        setEdges(eds => [...eds, ...newEdges])
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [selNodes, edges])
+  useGraphClipboard({
+    selectedNodes: selNodes,
+    edges,
+    setNodes,
+    setEdges,
+    makeNodeId: () => `node-${Date.now()}-${idCounter.current++}`,
+  })
 
   const switchLayout = (dir: 'DOWN' | 'RIGHT') => {
     setLayoutDir(dir)
@@ -631,13 +599,9 @@ export default function PlaybookEditor() {
             nodeTypes={NODE_TYPES}
             edgeTypes={EDGE_TYPES}
             defaultEdgeOptions={{ type: 'smoothstep', animated: true }}
-            snapToGrid
-            snapGrid={[MOVE_SNAP, MOVE_SNAP]}
-            selectionOnDrag
-            panOnDrag={[1, 2]}
+            {...CANVAS_INTERACTION}
             fitView
-            deleteKeyCode="Delete"
-            style={{ background: '#0B121F' }}
+            style={{ background: color('--surface-canvas') }}
           >
             <Background variant={BackgroundVariant.Dots} gap={GRID} size={1.5} color="#1e2e42" />
             <Controls />
