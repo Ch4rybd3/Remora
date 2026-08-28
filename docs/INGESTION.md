@@ -123,6 +123,25 @@ A file is only picked up once its size and mtime are unchanged across two
 consecutive polls, so a large copy in progress is never ingested half-written.
 This behaviour already exists in `services/dropzone.py` and is preserved.
 
+### What the folder accepts
+
+**Anything the signature table recognises.** Not an extension whitelist - that
+was the original gate, and it meant a memory image, a disk acquisition or a PE
+copied into the case folder was *silently ignored*: the drop folder claimed to
+be the single entry point while refusing half the artifact types, on the
+strength of a filename.
+
+Whether a parser exists is a separate question, answered per file in the ingest
+queue. A recognised artifact with no parser is listed as `unsupported` with the
+reason attached, which is worth far more than never appearing at all.
+
+A file whose kind has no handler is **not copied into the collection
+directory**. Duplicating a 64 GB memory image there would gain nothing: no
+parser reads it from that location, and disk images are read in place by
+design. Provenance is still recorded and the original still moves to
+`.processed/`, so the file is listed, hashed and findable - and can be
+preserved in the chain of custody like anything else.
+
 ---
 
 ## 4. State machine
@@ -251,7 +270,8 @@ Declarative table, not a chain of `if` statements. One row per kind.
 | SRUDB.dat | — | SrumECmd |
 | `ActivitiesCache.db` | — | WxTCmd |
 | E01 / VMDK / VHDX / QCOW / raw | Disk Images | filesystem listing → CSV |
-| Memory dump | Memory Analysis | Volatility plugins → CSV |
+| Windows crash dump / LiME image | Memory Analysis | Volatility plugins → CSV |
+| Raw memory dump | Memory Analysis | none — see below |
 | EML / MSG / PST | Mail Analysis | headers, attachments, IOCs → CSV |
 | PCAP / PCAPNG | PCAP | flows, DNS, HTTP → CSV |
 | PE / ELF / Mach-O | Binary Analysis | metadata, imports, sections → CSV |
@@ -295,6 +315,18 @@ A kind with no handler is `unsupported`, not an error: the file is stored and
 listed, it is simply not queryable yet. A handler that raises produces `failed`
 with the reason attached - a parser crash is a fact about one file, never a
 reason to lose it or to stop the batch it arrived in.
+
+### Kinds that need a person
+
+Three artifact types are recognised and deliberately **not** parsed by the
+pipeline, because acting on them requires something only an analyst can supply.
+Each says so on its row rather than showing a generic "no parser":
+
+| Kind | What is missing |
+|---|---|
+| Raw memory dump | Which OS it came from. Guessing would queue the wrong Volatility plugins and produce confident wrong output. A Windows crash dump (`PAGEDU64`) and a LiME image (`EMiL`) *are* self-describing, so those two are handled - which is why identification splits them into separate kinds. |
+| PE / ELF / Mach-O | The password the binary is encrypted under at rest. The drop folder cannot ask for one. |
+| Disk image | Nothing, but it must not be copied: acquisitions are read in place from the images directory, and a full one is far too large to duplicate. |
 
 ### Type-hint folders
 Sub-folders such as `evtx/`, `registry/`, `memory/` are **optional hints, never

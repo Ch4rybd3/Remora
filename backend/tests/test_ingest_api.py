@@ -251,3 +251,71 @@ def test_the_queue_reports_what_was_ingested(auth_client, db_session, api_case):
     names = {f["original_name"] for f in body["files"]}
     assert "Listed.evtx" in names
     assert body["summary"]
+
+
+# ─── The drop folder accepts what it can identify ─────────────────────────────
+
+def test_a_memory_image_dropped_in_is_no_longer_ignored(auth_client, db_session, api_case):
+    """
+    The gate used to be an extension whitelist, so a memory image, a disk image
+    or a PE copied into the case folder was silently ignored - the drop folder
+    claimed to be the single entry point while refusing half the artifact types
+    on the strength of a filename.
+    """
+    from app.models.case import Case
+    from app.models.ingest import IngestedFile
+
+    case = db_session.query(Case).filter(Case.id == api_case).one()
+    (dz.case_dropzone_dir(case) / "memdump.raw").write_bytes(b"\x11\x22" * 512)
+    (dz.case_dropzone_dir(case) / "crash.bin").write_bytes(b"PAGEDU64" + b"\x00" * 256)
+
+    auth_client.post(f"/api/v1/cases/{api_case}/dropzone/scan",
+                     params={"include_unstable": True})
+
+    names = {
+        r.original_name: r
+        for r in db_session.query(IngestedFile).filter(IngestedFile.case_id == api_case).all()
+    }
+    assert "crash.bin" in names
+    assert names["crash.bin"].detected_kind == "memory_dump_windows"
+
+
+def test_an_unparseable_artifact_is_not_copied_into_the_collection(
+    auth_client, db_session, api_case
+):
+    """
+    Copying a 64 GB acquisition into the collection directory would double it
+    on disk for nothing: no parser reads it from there, and disk images are
+    read in place by design.
+    """
+    from app.config import settings
+    from app.models.case import Case
+
+    case = db_session.query(Case).filter(Case.id == api_case).one()
+    (dz.case_dropzone_dir(case) / "acquisition.E01").write_bytes(
+        b"EVF\x09\x0d\x0a\xff\x00" + b"\x00" * 256)
+
+    auth_client.post(f"/api/v1/cases/{api_case}/dropzone/scan",
+                     params={"include_unstable": True})
+
+    collections = settings.case_data_path / "cases" / api_case / "collections"
+    copies = list(collections.rglob("acquisition.E01")) if collections.exists() else []
+    assert copies == []
+
+
+def test_it_is_still_moved_out_of_the_watched_folder(auth_client, db_session, api_case):
+    """
+    Otherwise every poll rediscovers it, and the queue fills with duplicates of
+    a file nobody asked to import twice.
+    """
+    from app.models.case import Case
+
+    case = db_session.query(Case).filter(Case.id == api_case).one()
+    folder = dz.case_dropzone_dir(case)
+    (folder / "image.vhdx").write_bytes(b"vhdxfile" + b"\x00" * 256)
+
+    auth_client.post(f"/api/v1/cases/{api_case}/dropzone/scan",
+                     params={"include_unstable": True})
+
+    assert not (folder / "image.vhdx").exists()
+    assert (folder / ".processed" / "image.vhdx").exists()
