@@ -54,7 +54,6 @@ const LITERAL_COLOR_DEBT = new Set([
   'src/components/case/tabs/ReportTab.tsx',
   'src/components/knowledge/NoteGraph.tsx',
   'src/components/layout/TopBar.tsx',
-  'src/components/playbook/PlaybookEdges.tsx',
   'src/components/playbook/PlaybookNodes.tsx',
   'src/components/playbook/StepAssigneePicker.tsx',
   'src/components/ui/MarkdownEditor.tsx',

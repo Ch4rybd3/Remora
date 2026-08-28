@@ -1,4 +1,16 @@
 /**
+ * Reshapable graph edges, shared by the playbook editor and the attack graph.
+ *
+ * A generated layout routes an edge straight through whatever happens to be in
+ * the way. Rather than making the layout smarter — it cannot know which nodes
+ * an analyst considers important — an edge carries waypoints: double-click to
+ * add one, drag it to route around a node, double-click it to remove it.
+ *
+ * Nothing here is about playbooks. It lived under components/playbook/ only
+ * because that is where it was first needed, which is why the attack graph
+ * spent three sprints with default edges that crossed each other.
+ */
+/**
  * Playbook edges — reshapeable links.
  *
  * A link is no longer a fixed curve between two handles: the analyst can bend
@@ -12,11 +24,12 @@
  * stores edges as free-form JSON) and render identically in the read-only
  * views — the case Playbook tab, the report panel and the PNG export.
  *
- * Editing is opt-in: a canvas that provides `PlaybookEdgeEditContext` gets
+ * Editing is opt-in: a canvas that provides `EdgeEditContext` gets
  * draggable handles; everywhere else the edge is just drawn.
  */
 
 import { createContext, useContext, useCallback } from 'react'
+import { color } from '../../styles/tokens'
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 import {
   BaseEdge, useReactFlow,
@@ -30,7 +43,7 @@ export interface Waypoint { x: number; y: number }
 
 export type EdgeShape = 'curve' | 'step' | 'straight'
 
-export interface PlaybookEdgeData {
+export interface GraphEdgeData {
   waypoints?: Waypoint[]
   shape?:     EdgeShape
   [key: string]: unknown
@@ -49,7 +62,7 @@ const CORNER_R = 16
 
 interface EdgeEditApi {
   /** Merge a patch into `edge.data`. Absent (no-op) in read-only canvases. */
-  updateEdgeData: (edgeId: string, patch: PlaybookEdgeData) => void
+  updateEdgeData: (edgeId: string, patch: GraphEdgeData) => void
   editable: boolean
   /** Snap a waypoint coordinate — the canvas passes its own grid step. */
   snap?: (v: number) => number
@@ -57,17 +70,17 @@ interface EdgeEditApi {
 
 const NOOP_API: EdgeEditApi = { updateEdgeData: () => {}, editable: false }
 
-export const PlaybookEdgeEditContext = createContext<EdgeEditApi>(NOOP_API)
+export const EdgeEditContext = createContext<EdgeEditApi>(NOOP_API)
 
 // ── Geometry helpers ──────────────────────────────────────────────────────────
 
 export function edgeWaypoints(edge: Pick<Edge, 'data'>): Waypoint[] {
-  const wps = (edge.data as PlaybookEdgeData | undefined)?.waypoints
+  const wps = (edge.data as GraphEdgeData | undefined)?.waypoints
   return Array.isArray(wps) ? wps.filter(p => typeof p?.x === 'number' && typeof p?.y === 'number') : []
 }
 
 export function edgeShape(edge: Pick<Edge, 'data'>): EdgeShape {
-  const s = (edge.data as PlaybookEdgeData | undefined)?.shape
+  const s = (edge.data as GraphEdgeData | undefined)?.shape
   return s === 'step' || s === 'straight' ? s : 'curve'
 }
 
@@ -168,10 +181,10 @@ export function ReshapableEdge({
   sourcePosition, targetPosition,
   markerEnd, style, data, selected,
 }: EdgeProps) {
-  const { updateEdgeData, editable, snap } = useContext(PlaybookEdgeEditContext)
+  const { updateEdgeData, editable, snap } = useContext(EdgeEditContext)
   const { screenToFlowPosition } = useReactFlow()
 
-  const d         = (data ?? {}) as PlaybookEdgeData
+  const d         = (data ?? {}) as GraphEdgeData
   const waypoints = edgeWaypoints({ data: d })
   const shape     = edgeShape({ data: d })
 
@@ -265,7 +278,7 @@ export function ReshapableEdge({
     }
   }
 
-  const accent = (style?.stroke as string) || '#2DD4BF'
+  const accent = (style?.stroke as string) || color('--accent')
 
   return (
     <>
@@ -293,7 +306,7 @@ export function ReshapableEdge({
             <circle
               key={`mid-${m.index}`}
               cx={m.x} cy={m.y} r={4}
-              fill="#0B121F"
+              fill={color('--surface-canvas')}
               stroke={accent}
               strokeOpacity={0.5}
               strokeWidth={1.5}
@@ -316,7 +329,7 @@ export function ReshapableEdge({
               key={`wp-${i}`}
               cx={w.x} cy={w.y} r={6}
               fill={accent}
-              stroke="#0B121F"
+              stroke={color('--surface-canvas')}
               strokeWidth={2}
               style={{ pointerEvents: 'all', cursor: 'grab' }}
               onPointerDown={e => startDrag(e, i)}

@@ -20,6 +20,8 @@ import type { TimelineEvent, Asset, IOC } from '../../../types'
 import { AG_NODE_TYPES, NODE_WIDTH, type AGNodeData } from '../../attack_graph/AttackGraphNodes'
 import Modal from '../../ui/Modal'
 import { applyElkLayout } from '../../../utils/elkLayout'
+import { EDGE_TYPES, EdgeEditContext } from '../../graph/ReshapableEdge'
+import { EdgeShapePicker, useEdgeShaping } from '../../graph/useEdgeShaping'
 
 interface Props { caseId: string }
 
@@ -109,6 +111,7 @@ export default function AttackGraphTab({ caseId }: Props) {
   const [editOpen, setEditOpen]   = useState(false)
   const [editForm, setEditForm]   = useState<EditForm>({ label: '', notes: '' })
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [selectedEdges, setSelectedEdges] = useState<Edge[]>([])
   const [laying,    setLaying]    = useState(false)
   const saveTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** Captured ReactFlow instance — used to get viewport center for new nodes. */
@@ -152,8 +155,13 @@ export default function AttackGraphTab({ caseId }: Props) {
   }, [])
 
   const onEdgesChange: OnEdgesChange = useCallback(ch => setEdges(es => applyEdgeChanges(ch, es)), [])
+
+  // The canvas snaps to a 20px grid, so a dragged waypoint should land on it too.
+  const snapToGridStep = useCallback((v: number) => Math.round(v / 20) * 20, [])
+  const { edgeEditApi, currentShape, waypointCount, applyShape, clearWaypoints } =
+    useEdgeShaping(setEdges, selectedEdges, snapToGridStep)
   const onConnect: OnConnect = useCallback((p: Connection) =>
-    setEdges(es => addEdge({ ...p, type: 'smoothstep', animated: true, style: { stroke: '#2DD4BF80', strokeWidth: 1.5 } }, es)), [])
+    setEdges(es => addEdge({ ...p, type: 'reshapable', animated: true }, es)), [])
 
   // ── Viewport center helper ────────────────────────────────────────────────
   /** Convert the canvas center (screen px) to flow-space coordinates. */
@@ -341,8 +349,14 @@ export default function AttackGraphTab({ caseId }: Props) {
           </>
         )}
 
-        {/* Right: auto-layout + save */}
+        {/* Right: edge shaping, auto-layout, save */}
         <div className="ml-auto flex items-center gap-2">
+          <EdgeShapePicker
+            currentShape={currentShape}
+            waypointCount={waypointCount}
+            onApply={applyShape}
+            onClear={clearWaypoints}
+          />
           <button
             onClick={runLayout}
             disabled={laying || nodes.length === 0}
@@ -412,6 +426,7 @@ export default function AttackGraphTab({ caseId }: Props) {
 
         {/* Canvas */}
         <div ref={canvasRef} className="flex-1 min-w-0">
+          <EdgeEditContext.Provider value={edgeEditApi}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -422,8 +437,10 @@ export default function AttackGraphTab({ caseId }: Props) {
             onNodeClick={(_, node) => setSelected(prev => prev?.id === node.id ? null : node)}
             onPaneClick={() => setSelected(null)}
             onNodeDoubleClick={(_, node) => openEdit(node)}
+            onSelectionChange={({ edges: sel }) => setSelectedEdges(sel)}
             nodeTypes={AG_NODE_TYPES}
-            defaultEdgeOptions={{ type: 'smoothstep', animated: true, style: { stroke: '#2DD4BF60', strokeWidth: 1.5 } }}
+            edgeTypes={EDGE_TYPES}
+            defaultEdgeOptions={{ type: 'reshapable', animated: true }}
             snapToGrid
             snapGrid={[20, 20]}
             fitView
@@ -446,6 +463,7 @@ export default function AttackGraphTab({ caseId }: Props) {
               style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8 }}
             />
           </ReactFlow>
+          </EdgeEditContext.Provider>
         </div>
 
         {/* Right panel — Timeline */}

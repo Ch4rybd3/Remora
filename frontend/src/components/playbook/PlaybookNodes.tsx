@@ -355,9 +355,9 @@ export const NODE_TYPES = {
 }
 
 // ── Edge types ────────────────────────────────────────────────────────────────
-// Edges live in PlaybookEdges.tsx (they carry their own reshaping logic).
+// Edges live in components/graph/ReshapableEdge.tsx — shared with the attack graph.
 // Re-exported here so the existing `import { NODE_TYPES, EDGE_TYPES }` call
 // sites keep working.
 
-export { EDGE_TYPES, PlaybookEdgeEditContext } from './PlaybookEdges'
-export type { EdgeShape, Waypoint, PlaybookEdgeData } from './PlaybookEdges'
+export { EDGE_TYPES, EdgeEditContext } from '../graph/ReshapableEdge'
+export type { EdgeShape, Waypoint, GraphEdgeData } from '../graph/ReshapableEdge'

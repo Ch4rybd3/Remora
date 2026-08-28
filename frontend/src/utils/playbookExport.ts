@@ -8,7 +8,7 @@ import type { LayoutDir } from '../components/playbook/PlaybookNodes'
 import {
   edgeShape, edgeWaypoints, orthogonalPoints,
   type EdgeShape, type Waypoint,
-} from '../components/playbook/PlaybookEdges'
+} from '../components/graph/ReshapableEdge'
 
 // ── Palette (mirrors PlaybookNodes.tsx + Tailwind config) ─────────────────────
 
