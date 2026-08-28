@@ -97,7 +97,8 @@ Single source of truth for provenance.
 | `case_id` | FK, `ondelete="CASCADE"` |
 | `collection_id` | FK — groups a batch/archive into one logical import |
 | `original_name` | As dropped |
-| `origin` | `dropzone` \| `upload` \| `archive` \| `connector` |
+| `origin` | `dropzone` \| `upload` \| `archive` \| `connector` \| `legacy` |
+| | `legacy` means the file predates this table. Which of the fourteen endpoints it came through was never recorded, and claiming one would be fabricating provenance - so "unknown" is a value, not a blank. |
 | `origin_detail` | Parent archive path, uploading user, connector name |
 | `size_bytes` | |
 | `sha256` | Indexed |
@@ -327,7 +328,19 @@ Rules:
 ## 14. Migration from the current state
 
 1. Ship the ingest service alongside the existing endpoints; both write `ingested_files`.
-2. Backfill `ingested_files` from existing `ImportedCollection` / `ImportedFile` rows and from files already on disk (hash and identify in a background job).
+2. Backfill `ingested_files` from existing `ImportedFile` rows, in a background
+   thread at startup - off the boot path, because hashing every artifact on a
+   large installation is minutes of IO and an upgrade that looks like a hang is
+   worse than one that fills in slowly. Idempotent, so an interrupted run
+   resumes on the next start.
+   - Where the bytes still exist they are re-identified from the signature. The
+     recorded category came from the old filename matching, which is precisely
+     the answer this pipeline exists to stop trusting.
+   - Where they do not - collections expire after 90 days - the row is still
+     written, with the weaker recorded category labelled `extension` so it can
+     be overridden. That a file was ingested is itself a fact about the
+     investigation; losing it because the artifact was cleaned up would defeat
+     the point of the table.
 3. Convert upload endpoints to wrappers, one module per PR.
 4. Remove the dead parsing code from routers.
 5. Convert stored CSV to Parquet lazily, on first access.

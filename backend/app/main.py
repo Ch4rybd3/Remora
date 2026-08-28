@@ -1,5 +1,6 @@
 import logging
 import sys
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -505,11 +506,37 @@ app.include_router(disk_images_router.router,          prefix="/api/v1", **_auth
 app.include_router(backup_router.router,               prefix="/api/v1", **_auth)
 
 
+def _start_provenance_backfill() -> None:
+    """
+    Give pre-pipeline imports their `ingested_files` rows, in the background.
+
+    Off the startup path on purpose: the pass hashes every artifact still on
+    disk, which on a large installation is minutes of IO. Blocking boot on it
+    would mean an upgrade looks like a hang. It is idempotent, so an interrupted
+    run simply resumes on the next start.
+    """
+    def _run() -> None:
+        from .services.ingest.backfill import backfill_all
+
+        db = SessionLocal()
+        try:
+            written = backfill_all(db)
+            if written:
+                print(f"[ingest] backfilled provenance for {written} file(s)", flush=True)
+        except Exception as e:
+            print(f"[ingest] provenance backfill failed: {e}", flush=True)
+        finally:
+            db.close()
+
+    threading.Thread(target=_run, name="ingest-backfill", daemon=True).start()
+
+
 @app.on_event("startup")
 def _on_startup() -> None:
     bootstrap()
     # Watch the drop folder for artifacts dropped outside the browser.
     dropzone_router.start_poller()
+    _start_provenance_backfill()
 
 
 @app.get("/api/v1/health")

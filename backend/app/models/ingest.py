@@ -65,9 +65,15 @@ ORIGIN_DROPZONE  = "dropzone"   # copied onto the host: cp, scp, rsync, a mount
 ORIGIN_UPLOAD    = "upload"     # the Collection tab's drop area
 ORIGIN_ARCHIVE   = "archive"    # unpacked from a container already ingested
 ORIGIN_CONNECTOR = "connector"  # pulled by an integration
+# Ingested before this table existed, by one of the fourteen upload endpoints.
+# Which door it used was never recorded, and inventing an answer would be
+# fabricating provenance in a tool whose output is meant to survive scrutiny.
+# "We do not know" is the only honest value, so it is a value.
+ORIGIN_LEGACY    = "legacy"
 
 ALL_ORIGINS = frozenset({
     ORIGIN_DROPZONE, ORIGIN_UPLOAD, ORIGIN_ARCHIVE, ORIGIN_CONNECTOR,
+    ORIGIN_LEGACY,
 })
 
 # ─── Detection sources ────────────────────────────────────────────────────────
