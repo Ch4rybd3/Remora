@@ -5,7 +5,6 @@ Performance: DuckDB reads CSV files directly via its optimised columnar scanner.
 Filters, sorts and pagination are pushed down to SQL — no full in-memory load.
 Benchmarks on a 500 k-row CSV: ~300 ms with filters vs ~8 s for the Python fallback.
 """
-import hashlib
 import json
 import os
 import uuid
@@ -591,58 +590,47 @@ def get_groups(
 def add_evidence_for_artifact(
     case_id:      str,
     artifact_id:  str,
+    body:         dict | None = None,
     db:           Session = Depends(get_db),
     current_user: User    = Depends(get_current_user),
 ) -> dict:
     """
-    Create an Evidence record from this artifact and link it for Chain of Custody tracking.
-    Idempotent — returns existing evidence if already linked.
+    Preserve this artifact as evidence. Idempotent.
+
+    Delegates to `services/custody.py` rather than building the record here.
+    This endpoint used to create an Evidence row without copying the file, so
+    the "preserved" artifact lived on inside a collection that expires after 90
+    days - the record outlived the thing it documented. Promotion now copies
+    the bytes into the evidence store, identically to every other page, which
+    is the entire reason the service exists.
+
+    Body is optional: `{"as_ioc": true}` wraps the copy in a
+    password-protected archive.
     """
-    from ..models.evidence import AcquisitionMethod, Evidence, EvidenceType
+    from ..models.evidence import Evidence
+    from ..services.custody import PromotionError, promote
 
     a = _get_artifact_or_404(artifact_id, case_id, db)
 
-    # Idempotent: if already linked return existing record
     if a.evidence_id:
         ev = db.query(Evidence).filter(Evidence.id == a.evidence_id).first()
         if ev:
             return _evidence_dto(ev)
 
-    size = 0
-    sha256 = ""
+    case = db.query(Case).filter(Case.id == case_id).first()
     try:
-        size    = os.path.getsize(a.file_path)
-        sha256  = hashlib.sha256(Path(a.file_path).read_bytes()).hexdigest()
-    except Exception:
-        pass
+        ev = promote(
+            db,
+            case_id=case_id,
+            case_title=str(case.title) if case else "",
+            kind="artifact",
+            source_id=artifact_id,
+            username=str(current_user.username),
+            as_ioc=bool((body or {}).get("as_ioc")),
+        )
+    except PromotionError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from None
 
-    now_str = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    coc_entry = (
-        f"[{now_str}] Registered in the Artifact Explorer by {current_user.username}.\n"
-        f"  File: {a.original_name} - {a.row_count} rows\n"
-    )
-
-    ev = Evidence(
-        case_id            = case_id,
-        name               = a.original_name,
-        evidence_type      = EvidenceType.log,
-        acquisition_method = AcquisitionMethod.logical_copy,
-        original_filename  = a.original_name,
-        file_size          = size,
-        sha256_hash        = sha256,
-        collected_at       = a.uploaded_at,
-        collected_by       = current_user.username,
-        chain_of_custody   = coc_entry,
-        description        = f"Artifact imported through the Artifact Explorer. {a.row_count} rows.",
-        tags               = a.ez_category or "",
-    )
-    db.add(ev)
-    db.flush()
-
-    a.evidence_id = ev.id
-    db.commit()
-    db.refresh(ev)
-    print(f"[csv_artifacts] evidence {ev.id} created for artifact {artifact_id}", flush=True)
     return _evidence_dto(ev)
 
 

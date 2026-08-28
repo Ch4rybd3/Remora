@@ -13,6 +13,8 @@ export interface ImportedFile {
   error_message: string | null
   imported_at: string | null
   added_to_evidence: boolean
+  /** Set once preserved in the chain of custody, which suspends `expires_at`. */
+  evidence_id: string | null
   expires_at: string | null
   csv_artifact_id: string | null
   source_timezone: string | null

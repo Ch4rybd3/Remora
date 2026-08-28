@@ -52,6 +52,7 @@ from .routers import collection_import as collection_import_router
 from .routers import connectors as connectors_router
 from .routers import csv_artifacts as csv_artifacts_router
 from .routers import cti as cti_router
+from .routers import custody as custody_router
 from .routers import dashboard as dashboard_router
 from .routers import disk_images as disk_images_router
 from .routers import dropzone as dropzone_router
@@ -501,6 +502,7 @@ app.include_router(cti_router.router,                  prefix="/api/v1", **_auth
 app.include_router(collection_import_router.router,    prefix="/api/v1", **_auth)
 app.include_router(dropzone_router.router,             prefix="/api/v1", **_auth)
 app.include_router(ingest_router.router,               prefix="/api/v1", **_auth)
+app.include_router(custody_router.router,              prefix="/api/v1", **_auth)
 app.include_router(pcap_router.router,                 prefix="/api/v1", **_auth)
 app.include_router(disk_images_router.router,          prefix="/api/v1", **_auth)
 app.include_router(backup_router.router,               prefix="/api/v1", **_auth)

@@ -55,6 +55,20 @@ def _extracted_path(case_id: str, collection_id: str, filename: str) -> Path:
             / collection_id / "extracted" / filename)
 
 
+def _relative_stored_path(path: Path) -> str:
+    """
+    Store the path relative to its root, never absolute.
+
+    An absolute path recorded inside a container stops resolving the moment the
+    mount layout changes - and a provenance record that cannot find its own
+    file is the failure this table exists to prevent.
+    """
+    try:
+        return str(path.relative_to(settings.case_data_path))
+    except ValueError:
+        return str(path)
+
+
 def backfill_case(db: Session, case_id: str, commit: bool = True) -> int:
     """
     Write the missing `ingested_files` rows for one case. Returns how many.
@@ -85,7 +99,7 @@ def backfill_case(db: Session, case_id: str, commit: bool = True) -> int:
             case_id=case_id,
             collection_id=old.collection_id,
             original_name=name,
-            stored_path=str(path) if path.exists() else None,
+            stored_path=_relative_stored_path(path) if path.exists() else None,
             size_bytes=old.file_size or 0,
             origin=ORIGIN_LEGACY,
             origin_detail="imported before the ingestion pipeline",

@@ -549,6 +549,9 @@ def _file_dto(f: ImportedFile, source_timezone: str | None = None) -> dict:
         "error_message": f.error_message,
         "imported_at": f.imported_at.isoformat() if f.imported_at else None,
         "added_to_evidence": f.added_to_evidence,
+        # Present once the file is preserved in the chain of custody, which is
+        # what suspends the expiry above.
+        "evidence_id": f.evidence_id,
         "expires_at": f.expires_at.isoformat() if f.expires_at else None,
         "csv_artifact_id": f.csv_artifact_id,
         "source_timezone": source_timezone,

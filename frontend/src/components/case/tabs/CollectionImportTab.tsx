@@ -3,9 +3,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronRight, Globe } from '../../../ui/icons'
 import { DataTable, type Column } from '../../../ui/DataTable'
 import { collectionImportApi, type ImportedCollection, type ImportedFile, type GroupSummary } from '../../../api/collectionImport'
+import { CopyableName, CustodyActions } from '../../custody/CustodyActions'
 import { useNavigate } from 'react-router-dom'
 import { TIMEZONE_OPTIONS } from '../../../context/TimezoneContext'
 import DropFolderPanel from '../DropFolderPanel'
+import CustodyPanel from '../../custody/CustodyPanel'
 
 interface Props { caseId: string }
 
@@ -208,12 +210,13 @@ function TzPicker({ f, caseId }: { f: ImportedFile; caseId: string }) {
 }
 
 /** Column set for the files inside one collection. */
-function fileColumns(caseId: string): Column<ImportedFile>[] {
+function fileColumns(caseId: string, onCustodyChange: () => void): Column<ImportedFile>[] {
   return [
     { key: 'file', header: 'File', mono: true,
       render: (f) => (
-        <span className="block max-w-[280px] truncate text-fg-secondary" title={f.filename}>
-          {f.filename.split('/').pop()}
+        <span className="block max-w-[280px]" title={f.filename}>
+          <CopyableName value={f.filename.split('/').pop() ?? f.filename}
+            className="block w-full text-fg-secondary" />
         </span>
       ) },
     { key: 'category', header: 'Category',
@@ -240,10 +243,22 @@ function fileColumns(caseId: string): Column<ImportedFile>[] {
           {f.expires_at && !f.added_to_evidence
             ? new Date(f.expires_at).toLocaleDateString()
             : f.added_to_evidence
-              ? <span className="text-accent" title="Kept as evidence">∞</span>
+              ? <span className="text-accent" title="Preserved in the chain of custody - does not expire">∞</span>
               : '—'}
         </span>
       ) },
+    // The same component every artifact page uses, so preserving a file means
+    // the same thing here as it does in the Explorer.
+    { key: 'custody', header: '', width: 'w-16', align: 'right',
+      render: (f) =>
+        f.csv_artifact_id
+          ? <CustodyActions
+              caseId={caseId} kind="artifact" sourceId={f.csv_artifact_id}
+              name={f.filename.split('/').pop() ?? f.filename}
+              evidenceId={f.evidence_id}
+              showCopy={false}
+              onChange={onCustodyChange} />
+          : null },
   ]
 }
 
@@ -437,7 +452,10 @@ function CollectionCard({ cols, caseId }: { cols: ImportedCollection[]; caseId: 
             density="compact"
             rows={col.files}
             rowKey={(f) => f.id}
-            columns={fileColumns(caseId)}
+            columns={fileColumns(caseId, () => {
+              qc.invalidateQueries({ queryKey: ['collection-imports', caseId] })
+              qc.invalidateQueries({ queryKey: ['custody', caseId] })
+            })}
             empty="No file in this collection."
           />
         </div>
@@ -674,6 +692,10 @@ export default function CollectionImportTab({ caseId }: Props) {
 
       {/* Drop folder — ingestion without going through the browser */}
       <DropFolderPanel caseId={caseId} />
+
+      {/* What survives the 90-day expiry, and the only screen where withdrawing
+          something shows the consequence next to the item. */}
+      <CustodyPanel caseId={caseId} />
 
       {/* Supported tools legend */}
       <div className="flex flex-wrap gap-2 text-label text-fg-muted items-center">

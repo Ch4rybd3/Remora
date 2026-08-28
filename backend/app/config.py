@@ -88,6 +88,16 @@ class Settings(BaseSettings):
     # still in progress is never read half-written.
     dropzone_stable_seconds: int = 15
 
+    # ── Chain of custody ──────────────────────────────────────────────────────
+    # Password on the archive an evidence item is wrapped in when it is flagged
+    # as an IOC. Deliberately well-known and shown in the interface: this is
+    # containment, not confidentiality. It stops an analyst double-clicking a
+    # live sample after downloading it, and stops endpoint protection silently
+    # quarantining one out of the evidence store - which destroys evidence.
+    # Configurable so an organisation can align it with its own convention
+    # ("infected" is the common one).
+    ioc_archive_password: str = "Remora"
+
     # ── Disk images ───────────────────────────────────────────────────────────
     # Comma-separated directories the disk image explorer may read from,
     # normally a read-only host bind mount. Images are read in place: a full
