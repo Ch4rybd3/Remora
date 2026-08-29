@@ -197,6 +197,7 @@ export const NAV_ICON: Record<string, LucideIcon> = {
   '/config/vaults':         Archive,
   '/users':                 Users,
   '/audit':                 ShieldCheck,
+  '/account':               User,          // the signed-in user's own account
   '/design':                Palette,      // design system gallery    // Audit — was Shield, shared with CTI Lookup
 }
 

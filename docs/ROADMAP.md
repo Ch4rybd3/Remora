@@ -230,7 +230,10 @@ storage layout and its own hashing (or none). There is no single answer to
 ## S17 — Security and multi-tenancy
 
 ### Scope
-- **MFA (TOTP)**: enrolment with QR code, recovery codes, per-role enforcement policy, admin reset.
+- **MFA (TOTP)**: enrolment with QR code, recovery codes, per-role enforcement policy, admin reset. **Shipped, except enforcement and admin reset**, which are deliberate follow-ups: a policy that forces MFA on a role can lock an installation out of its own admin account, and an admin reset is a documented bypass of the factor - both need their own thought rather than being bundled in.
+  - Two-step enrolment: the secret is stored on setup, MFA switches on only once a code is proved. One step would lock out anyone whose phone clock is wrong.
+  - Login returns an `mfa`-scoped token, never a session, and `get_current_user` refuses that scope. A client that ignores `mfa_required` gets nothing.
+  - The secret is encrypted at rest; a code is never accepted twice; failures are counted on the user row so a restart does not reset the budget.
 - **New roles.** Note the design change: `read_only` and `executive` are **not ranks**. `core/deps.py` currently models roles as a linear `ROLE_RANK`, which cannot express "sees everything but writes nothing" or "sees KPIs only". This sprint replaces the rank comparison with an explicit permission set; the existing three roles become named bundles of permissions so behaviour is unchanged.
   - `read_only` — full read, zero write.
   - `executive` — dashboard, KPIs and reports only; no artifact-level access.

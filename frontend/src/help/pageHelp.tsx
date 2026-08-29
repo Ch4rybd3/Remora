@@ -24,6 +24,27 @@ const Code = ({ children }: { children: ReactNode }) => (
 )
 
 export const PAGE_HELP: Record<string, HelpEntry> = {
+  '/account': {
+    title: 'Your account',
+    content: (
+      <>
+        <p>
+          Two-factor authentication is enrolled here, by you. An administrator cannot
+          do it for you - a factor someone else set up is not a second factor.
+        </p>
+        <p>
+          Recovery codes are shown once, at enrolment. They are stored hashed, so
+          nothing can display them again. Each one signs you in if you lose your phone
+          and works exactly once.
+        </p>
+        <p>
+          Turning the factor off needs your password <em>and</em> a current code. An
+          unattended browser is exactly what a second factor exists to survive.
+        </p>
+      </>
+    ),
+  },
+
   '/artifacts/explorer': {
     title: 'Querying artifacts',
     wide: true,

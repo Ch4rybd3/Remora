@@ -2,6 +2,7 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import Layout from './components/layout/Layout'
 import Login from './pages/Login'
+import Account from './pages/Account'
 import Dashboard from './pages/Dashboard'
 import DesignSystem from './pages/DesignSystem'
 import Cases from './pages/Cases'
@@ -76,6 +77,7 @@ export default function App() {
         <Route path="/config/chainsaw-rules" element={<ChainsawRules />} />
         <Route path="/config/vaults" element={<VaultManagement />} />
         <Route path="/design" element={<DesignSystem />} />
+        <Route path="/account" element={<Account />} />
         <Route
           path="/users"
           element={

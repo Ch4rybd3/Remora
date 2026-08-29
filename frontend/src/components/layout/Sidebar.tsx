@@ -271,7 +271,11 @@ export default function Sidebar() {
       {/* User info + logout */}
       <div className="px-4 py-3 border-t border-hairline space-y-3">
         {user && (
-          <div className="flex items-center gap-2">
+          // The whole identity block is the way to your own account. Two-factor
+          // enrolment lives there, and it is not user administration - a factor
+          // an admin enrolled for you is not a second factor.
+          <NavLink to="/account"
+            className="flex items-center gap-2 rounded-control -mx-1 px-1 py-1 hover:bg-white/[0.04] transition-colors">
             <div className="w-7 h-7 rounded-pill bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0">
               <span className="text-label font-bold text-accent">
                 {user.username[0].toUpperCase()}
@@ -283,7 +287,7 @@ export default function Sidebar() {
                 {user.role}
               </span>
             </div>
-          </div>
+          </NavLink>
         )}
         <button
           onClick={handleLogout}

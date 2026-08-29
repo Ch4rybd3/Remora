@@ -30,6 +30,16 @@ def get_current_user(
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # A token issued between the password and the second factor proves half a
+    # login. Accepting it here would make MFA optional for anyone who stopped
+    # reading the response. Absent scope means the token predates the field.
+    if payload.get("scope", "access") != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="This token does not authorise a session",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     user = db.query(User).filter(User.id == user_id, User.is_active.is_(True)).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
