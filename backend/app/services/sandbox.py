@@ -59,12 +59,19 @@ class Limits:
     """
     What one invocation may consume.
 
-    The defaults suit a single artifact, not a disk image: a parser that needs
-    more than five minutes or two gigabytes on one file has met input it cannot
-    handle, and failing is a better answer than a container that dies.
+    The wall-clock ceiling is derived from the size of the input rather than
+    fixed - see `for_input`. A flat number is wrong in both directions at once:
+    long enough for a 2 GB `$MFT` is long enough for a hostile 4 KB file to pin
+    a core for an hour, and short enough to contain that file kills legitimate
+    work on the `$MFT`.
     """
-    wall_seconds:  int = 300
-    cpu_seconds:   int = 300
+    wall_seconds:  int = 900
+    #: CPU seconds, summed across threads. Deliberately a multiple of the wall
+    #: budget: `RLIMIT_CPU` counts every thread, so a parser using four cores
+    #: burns four CPU-seconds per second of wall clock and would be killed at a
+    #: quarter of its time with a signal nobody could interpret. This is a
+    #: backstop against a process that ignores the clock, not the primary limit.
+    cpu_seconds:   int = 900 * 4
     memory_bytes:  int = 2 * 1024 ** 3
     #: Per file, enforced by the kernel. A parser that exceeds it gets SIGXFSZ.
     file_bytes:    int = 2 * 1024 ** 3
@@ -72,6 +79,32 @@ class Limits:
     output_bytes:  int = 4 * 1024 ** 3
     open_files:    int = 256
     processes:     int = 64
+
+    @classmethod
+    def for_input(cls, size_bytes: int, **overrides: int) -> Limits:
+        """
+        Limits proportionate to the artifact being parsed.
+
+        Real numbers from the tools these contain: EVTXECmd on a few hundred
+        megabytes of Security.evtx, or MFTECmd on a gigabyte `$MFT`, runs for
+        tens of minutes on ordinary hardware. A ceiling that kills those is not
+        a safety measure, it is a broken product - the analyst sees an artifact
+        that "failed" and has no way to tell it from a corrupt one.
+
+        So: a floor that covers most artifacts outright, growing with size, and
+        a hard maximum. The maximum exists because the input is hostile and
+        "however long it takes" is not a limit.
+        """
+        base = settings.parser_base_seconds
+        gigabytes = size_bytes / (1024 ** 3)
+        wall = int(base + gigabytes * settings.parser_seconds_per_gigabyte)
+        wall = min(max(wall, base), settings.parser_max_seconds)
+        return cls(
+            wall_seconds=wall,
+            cpu_seconds=wall * settings.parser_cpu_multiplier,
+            memory_bytes=settings.parser_memory_mb * 1024 * 1024,
+            **overrides,
+        )
 
 
 @dataclass
@@ -253,11 +286,7 @@ def run(
     """
     if not argv:
         raise SandboxError("Nothing to run")
-    limits = limits or Limits(
-        wall_seconds=settings.parser_timeout_seconds,
-        cpu_seconds=settings.parser_timeout_seconds,
-        memory_bytes=settings.parser_memory_mb * 1024 * 1024,
-    )
+    limits = limits or Limits.for_input(0)
     workdir.mkdir(parents=True, exist_ok=True)
 
     program = shutil.which(argv[0]) or argv[0]

@@ -229,3 +229,44 @@ def test_an_unknown_sandbox_account_refuses_to_run(tmp_path: Path):
 def test_the_sandbox_account_may_not_be_root(tmp_path: Path):
     with pytest.raises(sandbox.SandboxError, match="is root"):
         sandbox.run(_python("pass"), workdir=tmp_path, sandbox_user="root")
+
+
+# ─── How long a parser is given ───────────────────────────────────────────────
+
+def test_a_small_artifact_gets_the_floor():
+    """
+    Most artifacts are small and the floor covers them outright. It is not
+    tight: .NET spends the first seconds starting up before reading anything.
+    """
+    limits = sandbox.Limits.for_input(2 * 1024 * 1024)
+    # The floor plus the couple of seconds two megabytes are worth - the point
+    # is that a small artifact is not given a small budget.
+    assert 900 <= limits.wall_seconds < 960
+
+
+def test_a_large_artifact_gets_proportionately_longer():
+    """
+    MFTECmd on a gigabyte `$MFT` runs for tens of minutes on ordinary hardware.
+    A ceiling that kills that is not a safety measure - the analyst sees an
+    artifact that "failed" and cannot tell it from a corrupt one.
+    """
+    small = sandbox.Limits.for_input(10 * 1024 * 1024)
+    large = sandbox.Limits.for_input(2 * 1024 ** 3)
+    assert large.wall_seconds > small.wall_seconds
+    assert large.wall_seconds >= 3600      # at least an hour for 2 GB
+
+
+def test_there_is_still_a_hard_maximum():
+    """The input is hostile. "However long it takes" is not a limit."""
+    enormous = sandbox.Limits.for_input(500 * 1024 ** 3)
+    assert enormous.wall_seconds == 4 * 3600
+
+
+def test_the_cpu_budget_allows_more_than_one_core():
+    """
+    `RLIMIT_CPU` sums every thread. Equal to the wall budget, a parser using
+    four cores would be killed at a quarter of its time with a signal nobody
+    could interpret - which is exactly what the first version of this did.
+    """
+    limits = sandbox.Limits.for_input(1024 ** 3)
+    assert limits.cpu_seconds >= limits.wall_seconds * 2
