@@ -36,6 +36,11 @@ def create_user(
         )
     if db.query(User).filter(User.username == payload.username).first():
         raise HTTPException(status_code=409, detail="Username already taken")
+    # Checked rather than left to the unique constraint, which surfaces as an
+    # unhandled 500 the interface cannot explain.
+    if payload.email and db.query(User).filter(User.email == payload.email).first():
+        raise HTTPException(
+            status_code=409, detail=f"'{payload.email}' is already used by another account")
     user = User(
         username=payload.username,
         email=payload.email,

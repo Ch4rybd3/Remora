@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { PageShell } from '../ui/PageShell'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Edit2, KeyRound } from '../ui/icons'
+import { AlertCircle, Plus, Trash2, Edit2, KeyRound } from '../ui/icons'
 import { usersApi, type AuthUser } from '../api/auth'
 import {
   ALL_ROLES, ROLE_COLORS, ROLE_DESCRIPTIONS, ROLE_LABELS,
@@ -21,6 +21,33 @@ import { fmtDateTimeShort } from '../utils/dateUtils'
  * roles: "sees everything, writes nothing" has no position on a line.
  */
 
+/**
+ * Whatever the backend refused with, as something worth showing.
+ *
+ * Every mutation on this page used to fail in silence: the button said
+ * "Creating", went back to "Create", and nothing appeared. An action that fails
+ * without saying so is indistinguishable from a broken product.
+ */
+function errorMessage(error: unknown): string {
+  const detail = (error as any)?.response?.data?.detail
+  if (typeof detail === 'string') return detail
+  // FastAPI validation errors arrive as a list of field problems.
+  if (Array.isArray(detail)) {
+    return detail.map((d: any) => d?.msg ?? String(d)).join('. ')
+  }
+  return (error as any)?.message ?? 'The request was refused'
+}
+
+function ErrorNote({ error }: { error: unknown }) {
+  if (!error) return null
+  return (
+    <p className="flex items-start gap-1.5 text-label text-severity-critical">
+      <AlertCircle size={11} className="mt-0.5 shrink-0" />
+      {errorMessage(error)}
+    </p>
+  )
+}
+
 export default function Users() {
   const { user: me } = useAuth()
   const qc = useQueryClient()
@@ -34,8 +61,16 @@ export default function Users() {
   const [form, setForm] = useState({ username: '', email: '', password: '', role: 'analyst' })
   const [newPw, setNewPw] = useState('')
 
+  // `reset()` on open, so a failure from the previous attempt is not the first
+  // thing shown the next time the dialog appears.
   const create = useMutation({
-    mutationFn: () => usersApi.create(form),
+    mutationFn: () => usersApi.create({
+      ...form,
+      // Send nothing rather than an empty string. The backend normalises it
+      // too, but a deployment where only the frontend is new must not write a
+      // value that collides on the unique constraint.
+      email: form.email.trim() || undefined,
+    }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); setCreateOpen(false); setForm({ username: '', email: '', password: '', role: 'analyst' }) },
   })
 
@@ -66,7 +101,7 @@ export default function Users() {
       title="Users"
       meta={`${users.length} account${users.length > 1 ? 's' : ''}`}
       actions={(
-        <button className="btn-primary flex items-center gap-1.5" onClick={() => setCreateOpen(true)}>
+        <button className="btn-primary flex items-center gap-1.5" onClick={() => { create.reset(); setCreateOpen(true) }}>
           <Plus size={13} /> New user
         </button>
       )}
@@ -177,7 +212,7 @@ export default function Users() {
             <input className="input" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
           </div>
           <div>
-            <label className="label">Mot de passe *</label>
+            <label className="label">Password *</label>
             <input className="input" type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
           </div>
           <div>
@@ -191,6 +226,7 @@ export default function Users() {
               {ROLE_DESCRIPTIONS[form.role as Role]}
             </p>
           </div>
+          <ErrorNote error={create.error} />
           <div className="flex justify-end gap-3 pt-2">
             <button className="btn-secondary" onClick={() => setCreateOpen(false)}>Cancel</button>
             <button className="btn-primary" onClick={() => create.mutate()} disabled={!form.username || !form.password || create.isPending}>
@@ -217,6 +253,7 @@ export default function Users() {
               {ROLE_DESCRIPTIONS[editTarget.role]}
             </p>
           )}
+          <ErrorNote error={updateRole.error} />
           <div className="flex justify-end gap-3">
             <button className="btn-secondary" onClick={() => setEditTarget(null)}>Cancel</button>
             <button className="btn-primary" onClick={() => editTarget && updateRole.mutate({ id: editTarget.id, role: editTarget.role })} disabled={updateRole.isPending}>
@@ -227,12 +264,13 @@ export default function Users() {
       </Modal>
 
       {/* Change password */}
-      <Modal open={!!pwTarget} onClose={() => setPwTarget(null)} title={`Mot de passe — ${pwTarget?.username}`} size="sm">
+      <Modal open={!!pwTarget} onClose={() => setPwTarget(null)} title={`Password - ${pwTarget?.username}`} size="sm">
         <div className="space-y-4">
           <div>
             <label className="label">New password</label>
             <input className="input" type="password" value={newPw} onChange={e => setNewPw(e.target.value)} />
           </div>
+          <ErrorNote error={changePw.error} />
           <div className="flex justify-end gap-3">
             <button className="btn-secondary" onClick={() => setPwTarget(null)}>Cancel</button>
             <button className="btn-primary" onClick={() => changePw.mutate()} disabled={!newPw || changePw.isPending}>
