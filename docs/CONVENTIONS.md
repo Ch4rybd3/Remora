@@ -242,6 +242,27 @@ Consequences for anyone adding an endpoint:
 The frontend mirrors the table in `auth/roles.ts` so it does not offer buttons
 that come back 403. That copy is a convenience, never the enforcement.
 
+### Client scoping
+
+An account may be restricted to a set of clients. **No clients attached means
+unrestricted** - the restriction is opt-in, so introducing it changed nothing
+for any account that existed, and adding a client never silently widens
+anybody. "Empty means nothing" would have locked every user out on the day it
+shipped.
+
+Enforced the same structural way: almost all case data hangs off
+`/api/v1/cases/{case_id}/...`, so the same dependency that checks permissions
+reads the case id from the path. A new artifact page under a case is scoped the
+moment it exists, and nothing in the artifact routers knows clients exist.
+
+Four endpoints aggregate across cases and filter explicitly: the case list, the
+client list, the dashboard and the audit trail. `tests/test_client_scoping.py`
+walks every route carrying a case or client id and fails if one is not covered.
+
+Out-of-scope access answers **404, not 403**. Which client an incident belongs
+to is itself information, and a refusal that differs from "does not exist"
+tells a scoped account that something is there.
+
 ## 7. Security
 
 - Never execute anything from the drop folder outside the sandbox described in `INGESTION.md`: non-root, no network, wall-clock timeout, output quota.

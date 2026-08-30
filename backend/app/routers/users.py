@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from ..core import permissions
+from ..core import permissions, scoping
 from ..core.deps import assert_can_manage, get_current_user, require_admin
 from ..database import get_db
 from ..models.user import User
@@ -142,3 +142,56 @@ def delete_user(
               resource_name=user.username, request=request)
     db.delete(user)
     db.commit()
+
+
+@router.put("/{user_id}/clients", response_model=UserRead)
+def set_user_clients(
+    user_id: str,
+    body: dict,
+    request: Request,
+    db: Session = Depends(get_db),
+    current: User = Depends(require_admin),
+):
+    """
+    Restrict an account to a set of clients, or lift the restriction.
+
+    Body: `{"client_ids": ["...", "..."]}`. An **empty list means
+    unrestricted** - the same rule as the model: no attached clients is the
+    absence of a restriction, not the absence of access. That is what lets
+    scoping exist without having locked out every account on the day it
+    shipped.
+
+    An administrator who is themselves scoped cannot hand out a client they
+    cannot see, which would otherwise be a way to widen their own reach by
+    proxy through an account they then log in as.
+    """
+    from ..models.client import Client
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    assert_can_manage(current, user)
+
+    requested = [str(c) for c in (body or {}).get("client_ids") or []]
+    actor_scope = scoping.scoped_client_ids(current)
+    if actor_scope is not None:
+        outside = [c for c in requested if c not in actor_scope]
+        if outside:
+            raise HTTPException(
+                status_code=403,
+                detail="Cannot grant access to a client you do not have yourself",
+            )
+
+    clients = db.query(Client).filter(Client.id.in_(requested)).all() if requested else []
+    missing = set(requested) - {str(c.id) for c in clients}
+    if missing:
+        raise HTTPException(status_code=404, detail=f"Unknown client: {', '.join(sorted(missing))}")
+
+    user.clients = clients
+    audit_log(db, user=current, action="user.clients_set",
+              resource_type="user", resource_id=user_id,
+              resource_name=user.username, request=request,
+              details={"client_ids": sorted(requested) or "unrestricted"})
+    db.commit()
+    db.refresh(user)
+    return user

@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from ..core import scoping
 from ..core.deps import get_current_user
 from ..database import get_db
 from ..models.asset import Asset
@@ -125,8 +126,15 @@ def get_dashboard_stats(
 
     # ── Cases ──────────────────────────────────────────────────────────────────
 
-    # All cases (lightweight — only what we need)
-    all_cases = db.query(Case).order_by(Case.updated_at.desc()).all()
+    # Filtered explicitly: the dashboard aggregates across cases, so there is
+    # no case id in the path for the scoping dependency to check. Counting
+    # cases a scoped account cannot open would leak how many its clients do not
+    # have. See `core/scoping.py`.
+    all_cases = (
+        scoping.filter_cases(db.query(Case), current_user)
+        .order_by(Case.updated_at.desc())
+        .all()
+    )
     total_cases = len(all_cases)
 
     status_map:   dict[str, int] = {}

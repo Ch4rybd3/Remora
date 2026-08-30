@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { PageShell } from '../ui/PageShell'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { AlertCircle, Plus, Trash2, Edit2, KeyRound } from '../ui/icons'
+import { AlertCircle, Building2, Plus, Trash2, Edit2, KeyRound } from '../ui/icons'
 import { usersApi, type AuthUser } from '../api/auth'
+import { clientsApi } from '../api/clients'
 import {
   ALL_ROLES, ROLE_COLORS, ROLE_DESCRIPTIONS, ROLE_LABELS,
   canManage, mayAssignRole, type Role,
@@ -60,6 +61,27 @@ export default function Users() {
 
   const [form, setForm] = useState({ username: '', email: '', password: '', role: 'analyst' })
   const [newPw, setNewPw] = useState('')
+  const [scopeTarget, setScopeTarget] = useState<AuthUser | null>(null)
+  const [scopeIds, setScopeIds] = useState<string[]>([])
+
+  const { data: clients } = useQuery({
+    queryKey: ['clients'],
+    queryFn:  () => clientsApi.list(),
+  })
+
+  const setScope = useMutation({
+    mutationFn: () => usersApi.setClients(scopeTarget!.id, scopeIds),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] })
+      setScopeTarget(null)
+    },
+  })
+
+  const openScope = (u: AuthUser) => {
+    setScope.reset()
+    setScopeIds(u.clients?.map(c => c.id) ?? [])
+    setScopeTarget(u)
+  }
 
   // `reset()` on open, so a failure from the previous attempt is not the first
   // thing shown the next time the dialog appears.
@@ -154,6 +176,23 @@ export default function Users() {
               ),
             },
             {
+              key: 'clients',
+              header: 'Client access',
+              width: 'w-48',
+              hideBelow: 'lg',
+              render: (u) => (
+                u.clients?.length
+                  ? <span className="text-label text-fg-secondary truncate block"
+                      title={u.clients.map(c => c.name).join(', ')}>
+                      {u.clients.map(c => c.name).join(', ')}
+                    </span>
+                  // Not "none": an account with no clients attached sees every
+                  // case. Writing "none" here would read as the opposite of
+                  // what it means.
+                  : <span className="text-label text-fg-muted">All clients</span>
+              ),
+            },
+            {
               key: 'last_login',
               header: 'Last login',
               width: 'w-44',
@@ -174,6 +213,15 @@ export default function Users() {
                     title="Change the role"
                   >
                     <Edit2 size={13} />
+                  </button>
+                )}
+                {canManage(me, u) && (
+                  <button
+                    onClick={() => openScope(u)}
+                    className="text-fg-secondary hover:text-accent transition-colors"
+                    title="Client access"
+                  >
+                    <Building2 size={13} />
                   </button>
                 )}
                 {(u.id === me?.id || canManage(me, u)) && (
@@ -258,6 +306,47 @@ export default function Users() {
             <button className="btn-secondary" onClick={() => setEditTarget(null)}>Cancel</button>
             <button className="btn-primary" onClick={() => editTarget && updateRole.mutate({ id: editTarget.id, role: editTarget.role })} disabled={updateRole.isPending}>
               Save
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Client scope */}
+      <Modal open={!!scopeTarget} onClose={() => setScopeTarget(null)}
+        title={`Client access - ${scopeTarget?.username}`} size="sm">
+        <div className="space-y-4">
+          <p className="text-label text-fg-secondary">
+            Restrict this account to the clients below. <strong>Selecting none
+            means unrestricted</strong> - the account sees every case, which is
+            how every account starts.
+          </p>
+
+          <div className="max-h-60 overflow-y-auto border border-hairline rounded-control divide-y divide-hairline">
+            {(clients ?? []).map(c => (
+              <label key={c.id}
+                className="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-white/[0.03]">
+                <input
+                  type="checkbox"
+                  checked={scopeIds.includes(c.id)}
+                  onChange={e => setScopeIds(ids =>
+                    e.target.checked ? [...ids, c.id] : ids.filter(i => i !== c.id))} />
+                <span className="text-ui text-fg">{c.name}</span>
+              </label>
+            ))}
+          </div>
+
+          <p className="text-label text-fg-muted">
+            {scopeIds.length === 0
+              ? 'Unrestricted - sees every case.'
+              : `Restricted to ${scopeIds.length} client${scopeIds.length > 1 ? 's' : ''}.`}
+          </p>
+
+          <ErrorNote error={setScope.error} />
+          <div className="flex justify-end gap-3">
+            <button className="btn-secondary" onClick={() => setScopeTarget(null)}>Cancel</button>
+            <button className="btn-primary" disabled={setScope.isPending}
+              onClick={() => setScope.mutate()}>
+              {setScope.isPending ? 'Saving...' : 'Save'}
             </button>
           </div>
         </div>

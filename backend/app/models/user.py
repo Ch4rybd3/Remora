@@ -2,9 +2,18 @@ import enum
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Table,
+    Text,
+)
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..database import Base
 
@@ -24,6 +33,22 @@ class UserRole(str, enum.Enum):
     read_only = "read_only"
     #: Case list, dashboard and reports. No artifact-level access at all.
     executive = "executive"
+
+
+#: Which clients an account is restricted to.
+#:
+#: **An account with no rows here sees everything.** That is what lets scoping
+#: be introduced without touching a single existing account: the restriction is
+#: opt-in, and the absence of one is the current behaviour rather than a
+#: lockout. It also means adding a client does not silently widen anybody.
+user_clients = Table(
+    "user_clients",
+    Base.metadata,
+    Column("user_id", String, ForeignKey("users.id", ondelete="CASCADE"),
+           primary_key=True),
+    Column("client_id", String, ForeignKey("clients.id", ondelete="CASCADE"),
+           primary_key=True),
+)
 
 
 class User(Base):
@@ -61,3 +86,6 @@ class User(Base):
     mfa_failed_attempts: Mapped[int | None] = mapped_column(Integer, default=0, nullable=True)
     mfa_locked_until:    Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     mfa_enrolled_at:     Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    #: Empty means unrestricted. See `user_clients` above and `core/scoping.py`.
+    clients = relationship("Client", secondary=user_clients, lazy="selectin")

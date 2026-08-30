@@ -3,7 +3,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
 
-from ..core import permissions
+from ..core import permissions, scoping
 from ..database import get_db
 from ..models.user import User, UserRole
 from ..services.auth_service import decode_access_token
@@ -43,6 +43,7 @@ def get_current_user(
 def enforce_permissions(
     request: Request,
     user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> User:
     """
     The one place a role is checked.
@@ -53,6 +54,19 @@ def enforce_permissions(
     its own second factor, and both of those are POSTs.
     """
     permissions.enforce(request, user.role)
+
+    # Almost every route carrying case data has the case id in its path, so
+    # checking it here scopes a new artifact page the moment it exists. The
+    # endpoints that aggregate across cases filter explicitly - see
+    # `core/scoping.py` and the test that asserts that list is complete.
+    case_id = request.path_params.get("case_id")
+    if case_id:
+        scoping.assert_case_in_scope(db, user, str(case_id))
+
+    client_id = request.path_params.get("client_id")
+    if client_id:
+        scoping.assert_client_in_scope(user, str(client_id))
+
     return user
 
 

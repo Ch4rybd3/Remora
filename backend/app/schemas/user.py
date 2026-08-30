@@ -75,6 +75,13 @@ class UserChangePassword(BaseModel):
         return _validate_password(v)
 
 
+class ScopedClient(BaseModel):
+    id: str
+    name: str
+
+    model_config = {"from_attributes": True}
+
+
 class UserRead(BaseModel):
     id: str
     username: str
@@ -83,6 +90,10 @@ class UserRead(BaseModel):
     is_active: bool
     created_at: datetime
     last_login: datetime | None
+    #: Clients this account is restricted to. **Empty means unrestricted** -
+    #: see `core/scoping.py`. Sent so the interface can say which, rather than
+    #: leaving an administrator to guess why a colleague sees fewer cases.
+    clients: list[ScopedClient] = []
 
     model_config = {"from_attributes": True}
 

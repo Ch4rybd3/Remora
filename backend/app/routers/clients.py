@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from ..config import settings
+from ..core import scoping
 from ..core.deps import get_current_user
 from ..database import get_db
 from ..models.case import Case
@@ -109,8 +110,15 @@ def delete_doc_template(
 # ── Clients ──────────────────────────────────────────────────────────────────
 
 @router.get("/", response_model=list[ClientSummary])
-def list_clients(db: Session = Depends(get_db)):
-    clients = db.query(Client).order_by(Client.is_default.desc(), Client.name).all()
+def list_clients(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    query = db.query(Client)
+    allowed = scoping.scoped_client_ids(current_user)
+    if allowed is not None:
+        query = query.filter(Client.id.in_(allowed))
+    clients = query.order_by(Client.is_default.desc(), Client.name).all()
     return [
         ClientSummary(
             id=c.id, name=c.name, is_default=c.is_default, industry=c.industry,

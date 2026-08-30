@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from ..config import settings
+from ..core import scoping
 from ..core.deps import get_current_user
 from ..database import get_db
 from ..models.case import Case, CaseStatus
@@ -22,8 +23,17 @@ router = APIRouter(prefix="/cases", tags=["cases"])
 
 
 @router.get("/", response_model=list[CaseSummary])
-def list_cases(db: Session = Depends(get_db)):
-    cases = db.query(Case).order_by(Case.updated_at.desc()).all()
+def list_cases(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Filtered explicitly: this query does not carry a case id in the path, so
+    # the scoping dependency has nothing to check. See `core/scoping.py`.
+    cases = (
+        scoping.filter_cases(db.query(Case), current_user)
+        .order_by(Case.updated_at.desc())
+        .all()
+    )
     result = []
     for case in cases:
         result.append(CaseSummary(

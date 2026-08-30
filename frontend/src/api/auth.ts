@@ -1,6 +1,11 @@
 import api from './client'
 import type { Role } from '../auth/roles'
 
+export interface ScopedClient {
+  id: string
+  name: string
+}
+
 export interface AuthUser {
   id: string
   username: string
@@ -9,6 +14,8 @@ export interface AuthUser {
   is_active: boolean
   created_at: string
   last_login: string | null
+  /** Clients this account is restricted to. **Empty means unrestricted.** */
+  clients: ScopedClient[]
 }
 
 /**
@@ -68,4 +75,7 @@ export const usersApi = {
   changePassword: (id: string, new_password: string) =>
     api.post<AuthUser>(`/users/${id}/password`, { new_password }).then(r => r.data),
   delete: (id: string) => api.delete(`/users/${id}`),
+  /** An empty list lifts the restriction rather than removing all access. */
+  setClients: (id: string, client_ids: string[]) =>
+    api.put<AuthUser>(`/users/${id}/clients`, { client_ids }).then(r => r.data),
 }
