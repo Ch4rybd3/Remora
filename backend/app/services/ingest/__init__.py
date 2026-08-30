@@ -9,7 +9,7 @@ can be tested in one place and cannot disagree between entry points.
 # `dispatch_file`, not `dispatch`: the submodule is called dispatch, and a
 # function of the same name would shadow it for anyone writing
 # `from app.services.ingest import dispatch`.
-from .dispatch import HANDLED_KINDS, ParseResult, dispatch_file, has_handler, parse
+from .dispatch import ParseResult, dispatch_file, handled_kinds, has_handler, parse
 from .identify import Identification, identify, identify_bytes
 from .routing import (
     ARCHIVE_KINDS,
@@ -29,7 +29,6 @@ from .service import (
 
 __all__ = [
     "ARCHIVE_KINDS",
-    "HANDLED_KINDS",
     "KNOWN_KINDS",
     "Identification",
     "ParseResult",
@@ -39,6 +38,7 @@ __all__ = [
     "destination_pages",
     "dispatch_file",
     "find_duplicate",
+    "handled_kinds",
     "force_kind",
     "identify",
     "has_handler",
