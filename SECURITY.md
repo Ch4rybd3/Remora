@@ -52,13 +52,29 @@ These are real and listed deliberately rather than left for a reader to find.
   reach any case. S17.
 - **Static file mounts are unauthenticated.** `/note-images` and
   `/knowledge-assets` rely on UUID paths for obscurity, not on authorisation.
-- **Parsers currently run in the application process.** The sandbox described in
-  [docs/INGESTION.md](docs/INGESTION.md) section 12 — a dedicated non-root user,
-  no network access, wall-clock timeouts, output quotas — lands in S16, alongside
-  the Eric Zimmerman tools. Until then, treat the host as being able to see
-  anything a malformed artifact could reach through a parser.
-- **Disk images are mounted read-only** but are parsed with `dissect.target`
-  in-process, with the same caveat.
+- **Parser execution is sandboxed** (`backend/app/services/sandbox.py`). The
+  Eric Zimmerman tools parse Windows artifacts natively, which means Remora
+  executes code against files that came out of a compromised machine. What is
+  enforced, each layer independently sufficient for what it stops:
+
+  | | |
+  |---|---|
+  | Not root | `setuid` to `remora-parser` before `exec` |
+  | No network | seccomp filter refusing `socket()` for every domain but `AF_UNIX` |
+  | No privilege regain | `PR_SET_NO_NEW_PRIVS` |
+  | Bounded time | wall-clock timeout, then the whole process group is killed |
+  | Bounded memory, CPU, output | `RLIMIT_AS`, `RLIMIT_CPU`, `RLIMIT_FSIZE`, plus a measured total |
+  | No shell | argv list, never a string, never `shell=True` |
+
+  A network namespace was considered and rejected: it requires `CAP_SYS_ADMIN`,
+  a far larger hole than the one it closes. The seccomp filter needs no
+  privilege and is stricter - a namespace with no interfaces still lets a
+  process create a socket.
+
+  `Result.applied` records what was actually enforced for a given run, so a
+  deployment where the sandbox is weaker than intended can say so rather than
+  looking identical to one where it is not. The tests assert the containment
+  against the kernel by running real processes, not against mocks.
 
 ## Handling evidence
 

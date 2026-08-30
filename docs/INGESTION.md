@@ -474,11 +474,29 @@ Windows-artifact parsing possible here. It also means Remora will execute code
 against attacker-controlled input. That question **will** be asked publicly, so
 the answer is designed in rather than retrofitted:
 
-- Dedicated non-root user; no write access outside the per-run scratch directory.
-- **No network namespace access.** A parser has no reason to reach the network.
-- Wall-clock timeout per invocation; the process group is killed on expiry.
+- Dedicated non-root user (`remora-parser`, created by the backend image); no
+  write access outside the per-run scratch directory, which is handed to it at
+  execution time.
+- **No network.** Implemented with a seccomp filter, not a network namespace.
+
+  A namespace needs `CAP_SYS_ADMIN`, which Docker does not grant by default and
+  which it would be absurd to add: the capability that lets a process mount
+  filesystems and enter other namespaces is a far larger hole than the one it
+  would close. A seccomp filter needs no privilege at all - any process may
+  install one after setting `no_new_privs` - and is stricter in one useful way:
+  a namespace with no interfaces still lets a process *create* a socket, while
+  this makes the attempt fail.
+
+  `AF_UNIX` stays allowed. Language runtimes create local sockets for their own
+  plumbing, and denying those breaks the parser rather than containing it. A
+  Unix socket cannot reach a network.
+
+  A syscall arriving on an architecture the filter does not recognise is
+  refused rather than allowed - the direction to be wrong in, because the
+  alternative is a filter that matches nothing and looks like it works.
+- Wall-clock timeout per invocation; the **process group** is killed on expiry, not the process - a parser that forked would otherwise leave children running after the one we know about is gone.
 - Output size quota; exceeding it fails the run rather than filling the disk.
-- Memory limit via cgroup.
+- Memory limit via `RLIMIT_AS`, CPU via `RLIMIT_CPU` (which survives a process that ignores signals), output via `RLIMIT_FSIZE` per file plus a total measured after the run.
 - Input path is passed positionally and never interpolated into a shell — parsers are invoked with an argv list, never through `shell=True`.
 - Tool versions are pinned and vendored; the versions used are recorded on the `ingested_files` row so a parse is reproducible.
 - Failure is `state=failed` with the captured stderr. A crashing parser never takes down ingestion for the rest of the collection.
