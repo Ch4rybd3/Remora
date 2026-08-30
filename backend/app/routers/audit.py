@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from ..core import scoping
 from ..core.deps import require_admin
 from ..database import get_db
 from ..models.audit import AuditLog
@@ -34,6 +35,13 @@ def list_audit(
     _current:      User        = Depends(require_admin),
 ):
     q = db.query(AuditLog)
+
+    # Audit entries carry the case they were recorded against. A scoped
+    # administrator is still scoped: the trail would otherwise name cases,
+    # clients and artifact filenames they cannot open.
+    visible = scoping.visible_case_ids(db, _current)
+    if visible is not None:
+        q = q.filter(or_(AuditLog.case_id.is_(None), AuditLog.case_id.in_(visible)))
 
     if search:
         pat = f"%{search}%"
