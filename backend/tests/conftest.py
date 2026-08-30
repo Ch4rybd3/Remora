@@ -21,6 +21,9 @@ os.environ.update(
     CASE_DATA_PATH=str(_TMP / "case-data"),
     DROPZONE_AUTO_INGEST="false",
     SKIP_TOOL_SETUP="true",
+    # `remora-parser` is created by the backend image; the test
+    # environment may be anywhere, and `nobody` exists everywhere.
+    PARSER_SANDBOX_USER="nobody",
     DEFAULT_ADMIN_PASSWORD="test-admin-password",
     CORS_ORIGINS="http://testserver",
 )

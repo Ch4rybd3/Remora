@@ -31,6 +31,12 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     unar \
     && rm -rf /var/lib/apt/lists/*
 
+# ── Parser sandbox account ────────────────────────────────────────────────────
+# Eric Zimmerman parsers run as this user, never as root. It owns nothing, has
+# no login shell and no home: everything it may write is a per-run scratch
+# directory handed to it at execution time. See backend/app/services/sandbox.py.
+RUN useradd --system --no-create-home --shell /usr/sbin/nologin remora-parser
+
 # ── Dependency layer (cached unless requirements.txt changes) ─────────────────
 WORKDIR /app
 COPY backend/requirements.txt ./backend/requirements.txt

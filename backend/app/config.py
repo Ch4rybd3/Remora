@@ -88,6 +88,16 @@ class Settings(BaseSettings):
     # still in progress is never read half-written.
     dropzone_stable_seconds: int = 15
 
+    # ── Parser sandbox ────────────────────────────────────────────────────────
+    # Unprivileged account the Eric Zimmerman parsers run as. Created by the
+    # backend image; override where the deployment differs. See
+    # services/sandbox.py for what else is enforced.
+    parser_sandbox_user: str = "remora-parser"
+    #: Wall-clock ceiling per invocation. A parser that needs longer than this
+    #: on one artifact has met input it cannot handle.
+    parser_timeout_seconds: int = 300
+    parser_memory_mb: int = 2048
+
     # ── Artifact store ────────────────────────────────────────────────────────
     # Materialise CSV artifacts as Parquet on first query. Every query used to
     # re-parse the whole CSV; Parquet is columnar and typed, so a filter on one
