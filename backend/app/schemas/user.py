@@ -39,11 +39,31 @@ class UserCreate(BaseModel):
     def password_strength(cls, v: str) -> str:
         return _validate_password(v)
 
+    @field_validator("email", mode="before")
+    @classmethod
+    def blank_email_is_no_email(cls, v: str | None) -> str | None:
+        """
+        An empty string is not an address, it is the absence of one.
+
+        `users.email` is unique and nullable. Stored as `""` the first account
+        without an address succeeds and **the second collides**, because a
+        unique constraint treats two empty strings as a duplicate and two NULLs
+        as distinct. That failed as an unhandled 500 with nothing shown in the
+        interface: the form said "Creating", then went back to "Create".
+        """
+        return v.strip() or None if isinstance(v, str) else v
+
 
 class UserUpdate(BaseModel):
     email: str | None = None
     role: UserRole | None = None
     is_active: bool | None = None
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def blank_email_is_no_email(cls, v: str | None) -> str | None:
+        """Clearing the field must store NULL, not the collision-prone `""`."""
+        return v.strip() or None if isinstance(v, str) else v
 
 
 class UserChangePassword(BaseModel):
