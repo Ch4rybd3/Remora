@@ -2,9 +2,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from ..core.deps import ROLE_RANK, assert_can_manage, get_current_user, require_admin
+from ..core import permissions
+from ..core.deps import assert_can_manage, get_current_user, require_admin
 from ..database import get_db
-from ..models.user import User, UserRole
+from ..models.user import User
 from ..schemas.user import UserChangePassword, UserCreate, UserRead, UserUpdate
 from ..services.audit_service import audit_log
 from ..services.auth_service import hash_password
@@ -27,8 +28,8 @@ def create_user(
     db: Session = Depends(get_db),
     current: User = Depends(require_admin),
 ):
-    # An actor cannot create an account ranked above their own
-    if ROLE_RANK[payload.role] > ROLE_RANK[current.role]:
+    # Only an owner may hand out `owner`.
+    if not permissions.may_assign_role(current.role, payload.role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Cannot create an account with role '{payload.role.value}'",
@@ -69,8 +70,7 @@ def update_user(
     if user.id == current.id and payload.is_active is False:
         raise HTTPException(status_code=400, detail="Cannot deactivate your own account")
 
-    # An actor cannot assign a role ranked above their own
-    if payload.role and ROLE_RANK[payload.role] > ROLE_RANK[current.role]:
+    if payload.role and not permissions.may_assign_role(current.role, payload.role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Cannot assign role '{payload.role.value}'",
@@ -102,8 +102,9 @@ def change_password(
 
     # Anyone may change their own password
     if current.id != user_id:
-        # Otherwise the actor must be admin/owner AND outrank the target
-        if ROLE_RANK[current.role] < ROLE_RANK[UserRole.admin]:
+        # Otherwise the actor must administer users, and be allowed to act on
+        # this particular account.
+        if not permissions.has(current.role, permissions.PERM_USERS):
             raise HTTPException(status_code=403, detail="Access denied")
         assert_can_manage(current, user)
 

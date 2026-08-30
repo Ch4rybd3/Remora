@@ -10,9 +10,20 @@ from ..database import Base
 
 
 class UserRole(str, enum.Enum):
-    admin = "admin"
-    owner = "owner"
-    analyst = "analyst"
+    """
+    Roles are **not a rank**. See `core/permissions.py`.
+
+    `read_only` and `executive` do not sit above or below an analyst; they sit
+    sideways. Modelling them as ranks is what the previous `ROLE_RANK` could not
+    do: "sees everything, writes nothing" has no position on a line.
+    """
+    admin     = "admin"
+    owner     = "owner"
+    analyst   = "analyst"
+    #: Everything an analyst can see, and nothing they can change.
+    read_only = "read_only"
+    #: Case list, dashboard and reports. No artifact-level access at all.
+    executive = "executive"
 
 
 class User(Base):
@@ -22,7 +33,10 @@ class User(Base):
     username = Column(String(64), unique=True, nullable=False, index=True)
     email = Column(String(255), unique=True, nullable=True)
     hashed_password = Column(String(255), nullable=False)
-    role = Column(SAEnum(UserRole), default=UserRole.analyst, nullable=False)
+    # `length` is explicit because SQLAlchemy sizes an enum column to its
+    # longest member: it was VARCHAR(7), which fit "analyst" and nothing
+    # longer. SQLite would not have complained; another database would.
+    role = Column(SAEnum(UserRole, length=32), default=UserRole.analyst, nullable=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=lambda: datetime.now(UTC))
     last_login = Column(DateTime, nullable=True)

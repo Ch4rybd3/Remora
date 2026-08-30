@@ -3,14 +3,9 @@ import { ThemeSelector } from './ThemeSelector'
 import { VersionFooter } from './VersionFooter'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { NAV_ICON, LogOut, Clock, AlertTriangle, ChevronDown, Download } from '../../ui/icons'
+import { ROLE_COLORS, ROLE_LABELS } from '../../auth/roles'
 import { useAuth } from '../../context/AuthContext'
 import { useTimezone, TIMEZONE_OPTIONS, type TzOption } from '../../context/TimezoneContext'
-
-const ROLE_COLORS: Record<string, string> = {
-  admin:   'bg-severity-critical/10 text-severity-critical border-severity-critical/20',
-  owner:   'bg-accent/10 text-accent border-accent/20',
-  analyst: 'bg-severity-low/10 text-severity-low border-severity-low/20',
-}
 
 interface NavItem {
   to: string
@@ -284,7 +279,7 @@ export default function Sidebar() {
             <div className="flex-1 min-w-0">
               <p className="text-label font-medium text-fg truncate">{user.username}</p>
               <span className={`text-label font-mono px-1.5 py-0.5 rounded-control border ${ROLE_COLORS[user.role]}`}>
-                {user.role}
+                {ROLE_LABELS[user.role]}
               </span>
             </div>
           </NavLink>
