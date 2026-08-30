@@ -120,6 +120,43 @@ def _to_memory(db: Session, case_id: str, path: Path, filename: str) -> ParseRes
     return ParseResult(STATE_PARSED)
 
 
+def _to_ez_parsed(db: Session, case_id: str, path: Path, filename: str) -> ParseResult:
+    """
+    Run the Eric Zimmerman tool for this artifact and index what it produced.
+
+    This is the `raw -> parsed -> Explorer` chain: a registry-derived artifact
+    or an `$MFT` arrives as bytes nothing could query, and leaves as a table.
+
+    A tool that emits several CSVs from one input - AmcacheParser writes one per
+    entry type - registers all of them. Returning only the first would hide
+    entire artifact classes behind a successful-looking parse.
+    """
+    import tempfile
+
+    from ...routers.csv_artifacts import register_csv_artifact
+    from . import ez_parsers
+
+    kind = identify(path, name=filename).kind
+    with tempfile.TemporaryDirectory(prefix="ez-") as scratch:
+        outcome = ez_parsers.run(kind, path, Path(scratch))
+        if not outcome.ok:
+            return ParseResult(STATE_FAILED, error=outcome.error)
+
+        artifact_id = None
+        rows = 0
+        for csv_path in outcome.csv_files:
+            artifact = register_csv_artifact(csv_path, case_id, db)
+            if artifact is None:
+                continue
+            artifact_id = artifact_id or str(artifact.id)
+            rows += int(artifact.row_count or 0)
+
+    if artifact_id is None:
+        return ParseResult(STATE_FAILED,
+                           error=f"{outcome.tool} produced output nothing could read")
+    return ParseResult(STATE_INDEXED, artifact_id=artifact_id, row_count=rows)
+
+
 #: Kinds the pipeline recognises but cannot act on without something only a
 #: person can supply. Saying which is worth far more than a generic "no parser":
 #: the analyst learns what to do instead, on the row, at the moment they look.
@@ -137,6 +174,12 @@ _IMAGE_NOTE = (
     "large to duplicate. Open it from the Disk Images page; the drop folder is "
     "a readable location, so it does not need to be moved anywhere."
 )
+
+def _unhandled_notes() -> dict[str, str]:
+    from . import ez_parsers
+
+    return dict(ez_parsers.UNHANDLED_NOTE)
+
 
 _NEEDS_INPUT: dict[str, str] = {
     "memory_dump": _RAW_MEMORY_NOTE,
@@ -172,7 +215,25 @@ _HANDLERS: dict[str, Handler] = {
     "memory_dump_linux":   _to_memory,
 }
 
-HANDLED_KINDS = frozenset(_HANDLERS)
+# The Eric Zimmerman parsers, added from their own table so the two stay in
+# step: a recipe without a handler would be a tool nothing ever calls.
+def _register_ez_handlers() -> None:
+    from . import ez_parsers
+
+    for kind in ez_parsers.PARSEABLE_KINDS:
+        _HANDLERS.setdefault(kind, _to_ez_parsed)
+
+
+_register_ez_handlers()
+
+def handled_kinds() -> frozenset[str]:
+    """
+    Everything with a parser, computed rather than frozen at import.
+
+    The Eric Zimmerman handlers register themselves below, so a constant taken
+    here would be missing every one of them - and would look right.
+    """
+    return frozenset(_HANDLERS)
 
 
 def has_handler(kind: str) -> bool:
@@ -199,7 +260,7 @@ def parse(db: Session, *, case_id: str, path: Path, filename: str,
 
     if handler is None:
         route = route_for(resolved)
-        detail = _NEEDS_INPUT.get(resolved) or (
+        detail = _NEEDS_INPUT.get(resolved) or _unhandled_notes().get(resolved) or (
             f"'{resolved}' is recognised but its parser has not shipped yet"
             if route.pending else
             f"Nothing parses '{resolved}' yet")

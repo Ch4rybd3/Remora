@@ -135,17 +135,18 @@ def test_mail_is_recognised_without_an_extension(db_session, handlers, tmp_path)
 
 # ─── Nothing is lost ──────────────────────────────────────────────────────────
 
-def test_a_kind_with_no_handler_is_unsupported_not_an_error(db_session, handlers, tmp_path):
+def test_a_kind_with_no_handler_says_what_is_missing(db_session, handlers, tmp_path):
     """
-    Registry hives are recognised; RECmd lands in S16. `unsupported` says so
-    honestly - the file is stored and listed, it is simply not queryable yet.
+    A registry hive is recognised and deliberately not parsed: which keys
+    matter is an analyst's decision, not a default. The row says so, rather
+    than showing a failure indistinguishable from a corrupt file.
     """
     path = tmp_path / "SYSTEM"
     path.write_bytes(HIVE)
 
     result = dispatch_mod.parse(db_session, case_id="c1", path=path, filename="SYSTEM")
     assert result.state == STATE_UNSUPPORTED
-    assert "has not shipped" in (result.error or "")
+    assert "which keys matter" in (result.error or "")
     assert handlers == []
 
 
@@ -236,7 +237,7 @@ def test_every_handled_kind_has_a_route():
     """
     from app.services.ingest.routing import KNOWN_KINDS
 
-    assert dispatch_mod.HANDLED_KINDS <= KNOWN_KINDS
+    assert dispatch_mod.handled_kinds() <= KNOWN_KINDS
 
 
 def test_kinds_the_routers_still_own_are_absent():

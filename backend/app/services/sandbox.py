@@ -45,6 +45,7 @@ import shutil
 import signal
 import struct
 import subprocess
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -73,12 +74,22 @@ class Limits:
     #: backstop against a process that ignores the clock, not the primary limit.
     cpu_seconds:   int = 900 * 4
     memory_bytes:  int = 2 * 1024 ** 3
-    #: Per file, enforced by the kernel. A parser that exceeds it gets SIGXFSZ.
-    file_bytes:    int = 2 * 1024 ** 3
-    #: Total across the scratch directory, measured after the run.
+    #: Total across the scratch directory. Watched **during** the run, not only
+    #: measured after it: a parser that writes 500 GB fills the disk long
+    #: before it exits, and a quota checked at the end would report a failure
+    #: from a container that had already run out of space.
     output_bytes:  int = 4 * 1024 ** 3
-    open_files:    int = 256
-    processes:     int = 64
+    #: How often the watchdog measures. Two seconds is enough to catch runaway
+    #: output and cheap enough not to matter next to a parse that runs for
+    #: minutes.
+    output_check_seconds: float = 2.0
+    open_files:    int = 4096
+    #: Threads count against `RLIMIT_NPROC` on Linux, and .NET starts dozens
+    #: before it reads a byte: a garbage collector per core, a thread pool, a
+    #: finalizer. The first version of this used 64 and every parser failed to
+    #: exec with EAGAIN. Generous enough for a runtime, still a bound on a fork
+    #: bomb.
+    processes:     int = 2048
 
     @classmethod
     def for_input(cls, size_bytes: int, **overrides: int) -> Limits:
@@ -315,7 +326,12 @@ def run(
 
         resource.setrlimit(resource.RLIMIT_CPU, (limits.cpu_seconds, limits.cpu_seconds))
         resource.setrlimit(resource.RLIMIT_AS, (limits.memory_bytes, limits.memory_bytes))
-        resource.setrlimit(resource.RLIMIT_FSIZE, (limits.file_bytes, limits.file_bytes))
+        # No RLIMIT_FSIZE. .NET's JIT maps its executable pages through a file
+        # it truncates to a large size, and the limit applies to that offset -
+        # so any value small enough to be a quota kills the runtime with
+        # SIGXFSZ before it reads an artifact. Disabling the JIT's W^X mapping
+        # would trade a real hardening measure for a disk quota; the watchdog
+        # in `run` provides the quota without giving anything up.
         resource.setrlimit(resource.RLIMIT_NOFILE, (limits.open_files, limits.open_files))
         resource.setrlimit(resource.RLIMIT_NPROC, (limits.processes, limits.processes))
         # No core dumps: a crash on a memory image would write gigabytes of the
@@ -343,6 +359,7 @@ def run(
     }
 
     started = time.monotonic()
+    overrun: list[str] = []
     process = subprocess.Popen(   # noqa: S603 - argv list, never a shell
         [program, *argv[1:]],
         cwd=str(workdir),
@@ -354,6 +371,14 @@ def run(
         text=True,
         errors="replace",
     )
+
+    watchdog = threading.Thread(
+        target=_watch_output,
+        args=(process, workdir, limits, overrun),
+        name=f"sandbox-quota-{process.pid}",
+        daemon=True,
+    )
+    watchdog.start()
 
     stopped_by = None
     try:
@@ -367,7 +392,11 @@ def run(
 
     duration = time.monotonic() - started
     produced = _directory_size(workdir)
-    if stopped_by is None and produced > limits.output_bytes:
+    # The watchdog wins: it knows the run was killed for output rather than
+    # having simply finished, which the exit code alone cannot say.
+    if overrun:
+        stopped_by = overrun[0]
+    elif stopped_by is None and produced > limits.output_bytes:
         stopped_by = f"produced {produced} bytes, over the {limits.output_bytes} limit"
 
     return Result(
@@ -379,6 +408,27 @@ def run(
         stopped_by=stopped_by,
         applied=applied,
     )
+
+
+def _watch_output(process: subprocess.Popen, workdir: Path,
+                  limits: Limits, overrun: list[str]) -> None:
+    """
+    Kill the run if it writes more than its quota, while it is writing it.
+
+    Measuring only after the process exits is too late: filling a disk is not
+    something you notice afterwards, it is something the rest of the container
+    notices first.
+    """
+    while process.poll() is None:
+        time.sleep(limits.output_check_seconds)
+        if process.poll() is not None:
+            return
+        produced = _directory_size(workdir)
+        if produced > limits.output_bytes:
+            overrun.append(
+                f"produced {produced} bytes, over the {limits.output_bytes} limit")
+            _kill_group(process.pid)
+            return
 
 
 def _kill_group(pid: int) -> None:

@@ -416,6 +416,7 @@ def _bootstrap_tools() -> None:
     _setup_binary()
     _setup_chainsaw()
     _setup_cti_tools()
+    _setup_ez_tools()
 
 
 def _bootstrap_drop_folder() -> None:
@@ -439,6 +440,29 @@ def _bootstrap_drop_folder() -> None:
         print(f"[remora] drop folder staging sweep failed: {e}", flush=True)
     finally:
         db.close()
+
+
+def _setup_ez_tools() -> None:
+    """
+    Fetch the Eric Zimmerman parsers if they are not already present.
+
+    One tool failing to download must not stop the application: the other nine
+    still parse, and the ingest queue says which artifact types are unavailable
+    and why.
+    """
+    from .services import ez_tools
+
+    try:
+        status = ez_tools.setup()
+    except Exception as e:
+        print(f"[remora] EZ tool setup failed: {e}", flush=True)
+        return
+    unavailable = {k: v for k, v in status.items() if v.startswith("unavailable")}
+    installed = [k for k, v in status.items() if v == "installed"]
+    if installed:
+        print(f"[remora] installed EZ tools: {', '.join(installed)}", flush=True)
+    for name, reason in unavailable.items():
+        print(f"[remora] {name} {reason}", flush=True)
 
 
 def bootstrap() -> None:

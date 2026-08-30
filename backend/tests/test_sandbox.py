@@ -186,13 +186,33 @@ def test_output_beyond_the_quota_fails_the_run(tmp_path: Path):
     assert "over the" in result.stopped_by
 
 
-def test_a_single_oversized_file_is_stopped_by_the_kernel(tmp_path: Path):
+def test_runaway_output_is_stopped_while_it_is_being_written(tmp_path: Path):
+    """
+    Not after. Filling a disk is not something you notice afterwards; it is
+    something the rest of the container notices first.
+
+    `RLIMIT_FSIZE` would be the obvious tool and cannot be used: .NET maps its
+    JIT pages through a file it truncates to a large size, so any value small
+    enough to be a quota kills the runtime before it reads an artifact.
+    """
     result = sandbox.run(
-        _python("open('big.bin','wb').write(b'x' * (5 * 1024 * 1024))"),
+        _python(
+            "import time\n"
+            "with open('big.bin','wb') as f:\n"
+            "    for _ in range(200):\n"
+            "        f.write(b'x' * (1024 * 1024)); f.flush()\n"
+            "        time.sleep(0.05)\n"
+            "print('FINISHED WRITING')\n"
+        ),
         workdir=tmp_path,
-        limits=sandbox.Limits(file_bytes=1024 * 1024, output_bytes=10 ** 9),
+        limits=sandbox.Limits(wall_seconds=60, output_bytes=8 * 1024 * 1024,
+                              output_check_seconds=0.2),
     )
-    assert not result.ok
+    assert result.stopped_by is not None
+    assert "over the" in result.stopped_by
+    assert "FINISHED WRITING" not in result.stdout
+    # Killed early rather than allowed to write all 200 MB.
+    assert (tmp_path / "big.bin").stat().st_size < 100 * 1024 * 1024
 
 
 def test_what_was_enforced_is_reported(tmp_path: Path):

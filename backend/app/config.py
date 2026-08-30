@@ -88,6 +88,13 @@ class Settings(BaseSettings):
     # still in progress is never read half-written.
     dropzone_stable_seconds: int = 15
 
+    # ── Eric Zimmerman tools ──────────────────────────────────────────────────
+    # Fetched on first start rather than baked into the image - 50 MB of
+    # third-party binaries in every layer, rebuilt on every release, is a poor
+    # trade. Point this at a directory holding the extracted tools and nothing
+    # is downloaded, which is also the answer for an air-gapped workstation.
+    ez_tools_path: Path = BASE_DIR / "data" / "ez-tools"
+
     # ── Parser sandbox ────────────────────────────────────────────────────────
     # Unprivileged account the Eric Zimmerman parsers run as. Created by the
     # backend image; override where the deployment differs. See

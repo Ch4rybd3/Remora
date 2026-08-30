@@ -515,7 +515,47 @@ the answer is designed in rather than retrofitted:
 - Output size quota; exceeding it fails the run rather than filling the disk.
 - Memory limit via `RLIMIT_AS`, CPU via `RLIMIT_CPU` (which survives a process that ignores signals), output via `RLIMIT_FSIZE` per file plus a total measured after the run.
 - Input path is passed positionally and never interpolated into a shell — parsers are invoked with an argv list, never through `shell=True`.
-- Tool versions are pinned and vendored; the versions used are recorded on the `ingested_files` row so a parse is reproducible.
+- Tool archives are **hash-pinned**. A binary fetched from a third-party host
+  and run against evidence is exactly the thing that should be. A mismatch does
+  not install the tool - a changed release is the event that should stop, not
+  the one that should be waved through - and updating the pin is a decision
+  somebody makes rather than one that happens.
+- They are **not baked into the image**. 50 MB of third-party binaries in every
+  layer, rebuilt on every release, is a poor trade when the alternative is a
+  directory the operator can also fill by hand. That directory is the air-gap
+  answer too: a forensic workstation is often not on the internet, and a tool
+  that can only be installed by reaching out cannot be installed where it is
+  most needed. `EZ_TOOLS_PATH`.
+
+### Two tools do not run on Linux
+
+Verified by running all twelve under the sandbox:
+
+| Tool | Artifact | Why |
+|---|---|---|
+| `PECmd` | Prefetch | Windows 10 and later compress prefetch with MAM, and PECmd decompresses it through a Windows API with no Linux equivalent. |
+| `SrumECmd` | SRUM | SRUM lives in an ESE database, read through Windows-only libraries. |
+
+They are **not downloaded**. Shipping a parser that reports "not supported" on
+every artifact is worse than not having it: the analyst sees a failure and
+cannot tell it from a corrupt file. Both artifact types are still identified,
+kept, and preservable as evidence, and their rows say what is missing.
+
+### A registry hive is not one artifact
+
+The signature says "hive"; the name says which one - the same refinement
+identification does for SQLite and ESE containers, for the same reason.
+
+| Hive | Tool |
+|---|---|
+| `Amcache.hve` | AmcacheParser |
+| `SYSTEM` | AppCompatCacheParser (Shimcache) |
+| `NTUSER.DAT`, `UsrClass.dat` | SBECmd (Shellbags) |
+| `SOFTWARE`, `SECURITY`, `SAM` | **none, deliberately** |
+
+RECmd would read the last group and needs a batch file naming which keys to
+extract. Which keys matter is an analyst's decision; shipping a default would
+quietly define what "the registry" means for every investigation.
 - Failure is `state=failed` with the captured stderr. A crashing parser never takes down ingestion for the rest of the collection.
 
 ---
