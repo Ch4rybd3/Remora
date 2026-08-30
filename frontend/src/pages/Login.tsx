@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { AlertCircle, Eye, EyeOff } from '../ui/icons'
 
 export default function Login() {
-  const { login } = useAuth()
+  const { login, completeMfa } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const from = (location.state as any)?.from?.pathname ?? '/'
@@ -15,18 +15,51 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // The token issued between the password and the second factor. Held here and
+  // never written to storage: it is not a session, and keeping it beside one
+  // invites treating it as one.
+  const [mfaToken, setMfaToken] = useState<string | null>(null)
+  const [code, setCode] = useState('')
+
   const submit = async (e: FormEvent) => {
     e.preventDefault()
     setError(null)
     setLoading(true)
     try {
-      await login(username, password)
+      const outcome = await login(username, password)
+      if (outcome.mfaRequired) {
+        setMfaToken(outcome.mfaToken)
+        setCode('')
+        return
+      }
       navigate(from, { replace: true })
     } catch (err: any) {
-      setError(err.response?.data?.detail ?? 'Connexion impossible')
+      setError(err.response?.data?.detail ?? 'Could not sign in')
     } finally {
       setLoading(false)
     }
+  }
+
+  const submitCode = async (e: FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setLoading(true)
+    try {
+      await completeMfa(mfaToken!, code)
+      navigate(from, { replace: true })
+    } catch (err: any) {
+      setError(err.response?.data?.detail ?? 'Could not verify that code')
+      setCode('')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const restart = () => {
+    setMfaToken(null)
+    setCode('')
+    setPassword('')
+    setError(null)
   }
 
   return (
@@ -57,7 +90,7 @@ export default function Login() {
         {/* Card */}
         <div className="card p-8 border-hairline">
           <h2 className="text-fg font-semibold text-ui uppercase tracking-wide mb-6">
-            Connexion
+            {mfaToken ? 'Two-factor authentication' : 'Sign in'}
           </h2>
 
           {error && (
@@ -67,54 +100,95 @@ export default function Login() {
             </div>
           )}
 
-          <form onSubmit={submit} className="space-y-4">
-            <div>
-              <label className="label">Username</label>
-              <input
-                className="input"
-                autoComplete="username"
-                placeholder="admin"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                required
-              />
-            </div>
+          {mfaToken ? (
+            <form onSubmit={submitCode} className="space-y-4">
+              <p className="text-label text-fg-secondary">
+                Enter the six-digit code from your authenticator app, or one of your
+                recovery codes.
+              </p>
 
-            <div>
-              <label className="label">Mot de passe</label>
-              <div className="relative">
+              <div>
+                <label className="label">Code</label>
                 <input
-                  className="input pr-10"
-                  type={showPw ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
+                  className="input font-mono tracking-[0.3em] text-center"
+                  // `one-time-code` lets a phone offer the code from its SMS or
+                  // authenticator, and stops a password manager filling it.
+                  autoComplete="one-time-code"
+                  inputMode="text"
+                  autoFocus
+                  placeholder="000000"
+                  value={code}
+                  onChange={e => setCode(e.target.value)}
                   required
                 />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-secondary hover:text-fg transition-colors"
-                  onClick={() => setShowPw(v => !v)}
-                  tabIndex={-1}
-                >
-                  {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
               </div>
-            </div>
 
-            <button
-              type="submit"
-              disabled={loading || !username || !password}
-              className="btn-primary w-full mt-2 py-2.5 text-ui"
-            >
-              {loading ? 'Connexion…' : 'Se connecter'}
-            </button>
-          </form>
+              <button
+                type="submit"
+                disabled={loading || !code.trim()}
+                className="btn-primary w-full mt-2 py-2.5 text-ui"
+              >
+                {loading ? 'Verifying…' : 'Verify'}
+              </button>
+
+              <button
+                type="button"
+                onClick={restart}
+                className="w-full text-label text-fg-secondary hover:text-fg transition-colors"
+              >
+                Start over
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={submit} className="space-y-4">
+              <div>
+                <label className="label">Username</label>
+                <input
+                  className="input"
+                  autoComplete="username"
+                  placeholder="admin"
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="label">Password</label>
+                <div className="relative">
+                  <input
+                    className="input pr-10"
+                    type={showPw ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-secondary hover:text-fg transition-colors"
+                    onClick={() => setShowPw(v => !v)}
+                    tabIndex={-1}
+                  >
+                    {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || !username || !password}
+                className="btn-primary w-full mt-2 py-2.5 text-ui"
+              >
+                {loading ? 'Signing in…' : 'Sign in'}
+              </button>
+            </form>
+          )}
         </div>
 
         <p className="text-center text-fg-secondary/40 text-label mt-6">
-          Sessions valides 24h
+          Sessions last 24 hours
         </p>
       </div>
     </div>

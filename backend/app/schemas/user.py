@@ -73,6 +73,15 @@ class LoginPayload(BaseModel):
 
 
 class TokenResponse(BaseModel):
-    access_token: str
+    """
+    A finished login, or a login waiting on its second factor.
+
+    One shape rather than two so the client has one branch to write: when
+    `mfa_required` is set there is no session yet, and `mfa_token` is what the
+    code check is presented with.
+    """
+    access_token: str | None = None
     token_type: str = "bearer"
-    user: UserRead
+    user: UserRead | None = None
+    mfa_required: bool = False
+    mfa_token: str | None = None
