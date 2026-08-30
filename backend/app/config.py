@@ -93,10 +93,21 @@ class Settings(BaseSettings):
     # backend image; override where the deployment differs. See
     # services/sandbox.py for what else is enforced.
     parser_sandbox_user: str = "remora-parser"
-    #: Wall-clock ceiling per invocation. A parser that needs longer than this
-    #: on one artifact has met input it cannot handle.
-    parser_timeout_seconds: int = 300
-    parser_memory_mb: int = 2048
+    # The wall-clock ceiling grows with the size of the artifact. A flat number
+    # is wrong in both directions at once: long enough for a 2 GB $MFT is long
+    # enough for a hostile 4 KB file to pin a core for an hour, and short enough
+    # to contain that file kills legitimate work on the $MFT.
+    #
+    # EVTXECmd on a few hundred megabytes of Security.evtx, or MFTECmd on a
+    # gigabyte $MFT, runs for tens of minutes on ordinary hardware.
+    parser_base_seconds: int = 900              # 15 min, covers most artifacts
+    parser_seconds_per_gigabyte: int = 1800     # +30 min per GB
+    parser_max_seconds: int = 4 * 3600          # hard stop; the input is hostile
+    # RLIMIT_CPU sums every thread, so a parser on four cores burns four
+    # CPU-seconds per second of wall clock. Equal to the wall budget it would be
+    # killed at a quarter of its time, with a signal nobody could interpret.
+    parser_cpu_multiplier: int = 4
+    parser_memory_mb: int = 4096
 
     # ── Artifact store ────────────────────────────────────────────────────────
     # Materialise CSV artifacts as Parquet on first query. Every query used to

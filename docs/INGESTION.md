@@ -494,7 +494,24 @@ the answer is designed in rather than retrofitted:
   A syscall arriving on an architecture the filter does not recognise is
   refused rather than allowed - the direction to be wrong in, because the
   alternative is a filter that matches nothing and looks like it works.
-- Wall-clock timeout per invocation; the **process group** is killed on expiry, not the process - a parser that forked would otherwise leave children running after the one we know about is gone.
+- **The wall-clock ceiling grows with the size of the artifact.** A flat number
+  is wrong in both directions at once: long enough for a 2 GB `$MFT` is long
+  enough for a hostile 4 KB file to pin a core for an hour, and short enough to
+  contain that file kills legitimate work on the `$MFT`. EVTXECmd on a few
+  hundred megabytes of `Security.evtx`, or MFTECmd on a gigabyte `$MFT`, runs
+  for tens of minutes on ordinary hardware.
+
+  15 minutes as a floor, plus 30 minutes per gigabyte, capped at 4 hours. The
+  cap exists because the input is hostile and "however long it takes" is not a
+  limit.
+- The **process group** is killed on expiry, not the process - a parser that
+  forked would otherwise leave children running after the one we know about is
+  gone.
+- The CPU budget is a **multiple** of the wall budget. `RLIMIT_CPU` sums every
+  thread, so a parser using four cores burns four CPU-seconds per second of
+  wall clock; equal to the wall budget it would be killed at a quarter of its
+  time, with a signal nobody could interpret. It is a backstop against a
+  process that ignores the clock, not the primary limit.
 - Output size quota; exceeding it fails the run rather than filling the disk.
 - Memory limit via `RLIMIT_AS`, CPU via `RLIMIT_CPU` (which survives a process that ignores signals), output via `RLIMIT_FSIZE` per file plus a total measured after the run.
 - Input path is passed positionally and never interpolated into a shell — parsers are invoked with an argv list, never through `shell=True`.
