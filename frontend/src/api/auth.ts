@@ -1,10 +1,11 @@
 import api from './client'
+import type { Role } from '../auth/roles'
 
 export interface AuthUser {
   id: string
   username: string
   email: string | null
-  role: 'admin' | 'owner' | 'analyst'
+  role: Role
   is_active: boolean
   created_at: string
   last_login: string | null

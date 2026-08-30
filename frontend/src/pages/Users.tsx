@@ -3,6 +3,10 @@ import { PageShell } from '../ui/PageShell'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, Edit2, KeyRound } from '../ui/icons'
 import { usersApi, type AuthUser } from '../api/auth'
+import {
+  ALL_ROLES, ROLE_COLORS, ROLE_DESCRIPTIONS, ROLE_LABELS,
+  canManage, mayAssignRole, type Role,
+} from '../auth/roles'
 import { useAuth } from '../context/AuthContext'
 import { DataTable } from '../ui/DataTable'
 import { Panel } from '../ui/Panel'
@@ -10,20 +14,12 @@ import Modal from '../components/ui/Modal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { fmtDateTimeShort } from '../utils/dateUtils'
 
-const ROLE_COLORS: Record<string, string> = {
-  admin:   'bg-severity-critical/10 text-severity-critical border-severity-critical/20',
-  owner:   'bg-accent/10 text-accent border-accent/20',
-  analyst: 'bg-severity-low/10 text-severity-low border-severity-low/20',
-}
-
-const ROLE_RANK: Record<string, number> = { analyst: 0, admin: 1, owner: 2 }
-
-/** True when `actor` may manage the `target` account. */
-function canManage(actor: AuthUser | null, target: AuthUser): boolean {
-  if (!actor) return false
-  if (actor.id === target.id) return false
-  return ROLE_RANK[actor.role] > ROLE_RANK[target.role]
-}
+/**
+ * Role management, using the shared rules in `auth/roles`.
+ *
+ * The rank comparison that used to live here could not express the two new
+ * roles: "sees everything, writes nothing" has no position on a line.
+ */
 
 export default function Users() {
   const { user: me } = useAuth()
@@ -100,7 +96,7 @@ export default function Users() {
               width: 'w-28',
               render: (u) => (
                 <span className={`text-label font-mono px-2 py-0.5 rounded-control border ${ROLE_COLORS[u.role]}`}>
-                  {u.role}
+                  {ROLE_LABELS[u.role]}
                 </span>
               ),
             },
@@ -187,10 +183,13 @@ export default function Users() {
           <div>
             <label className="label">Role</label>
             <select className="input" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
-              {['analyst', 'admin', 'owner']
-                .filter(r => ROLE_RANK[r] <= ROLE_RANK[me?.role ?? 'analyst'])
-                .map(r => <option key={r} value={r}>{r}</option>)}
+              {ALL_ROLES
+                .filter(r => mayAssignRole(me?.role, r))
+                .map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
             </select>
+            <p className="text-label text-fg-muted mt-1">
+              {ROLE_DESCRIPTIONS[form.role as Role]}
+            </p>
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button className="btn-secondary" onClick={() => setCreateOpen(false)}>Cancel</button>
@@ -209,10 +208,15 @@ export default function Users() {
             defaultValue={editTarget?.role}
             onChange={e => setEditTarget(t => t ? { ...t, role: e.target.value as any } : null)}
           >
-            {['analyst', 'admin', 'owner']
-              .filter(r => ROLE_RANK[r] <= ROLE_RANK[me?.role ?? 'analyst'])
-              .map(r => <option key={r} value={r}>{r}</option>)}
+            {ALL_ROLES
+              .filter(r => mayAssignRole(me?.role, r))
+              .map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
           </select>
+          {editTarget && (
+            <p className="text-label text-fg-muted -mt-2">
+              {ROLE_DESCRIPTIONS[editTarget.role]}
+            </p>
+          )}
           <div className="flex justify-end gap-3">
             <button className="btn-secondary" onClick={() => setEditTarget(null)}>Cancel</button>
             <button className="btn-primary" onClick={() => editTarget && updateRole.mutate({ id: editTarget.id, role: editTarget.role })} disabled={updateRole.isPending}>

@@ -19,7 +19,7 @@ from sqlalchemy import text
 
 from .__version__ import __version__, build_info
 from .config import settings
-from .core.deps import get_current_user
+from .core.deps import enforce_permissions, get_current_user
 from .database import Base, SessionLocal, engine
 from .db_migrate import run_migrations
 from .models import attack_graph as _ag_models  # ensure tables are registered
@@ -469,7 +469,9 @@ app.include_router(auth.router, prefix="/api/v1")
 # Protected — all routes below require a valid JWT
 # Annotated as Any because mypy cannot match a narrowly-inferred dict against
 # include_router's heterogeneous keyword signature when expanded with **.
-_auth: dict[str, Any] = {"dependencies": [Depends(get_current_user)]}
+# Every authenticated router carries the permission check, so a role is
+# enforced once rather than 121 times. See core/permissions.py.
+_auth: dict[str, Any] = {"dependencies": [Depends(enforce_permissions)]}
 
 app.include_router(cases.router, prefix="/api/v1", **_auth)
 app.include_router(iocs.router, prefix="/api/v1", **_auth)

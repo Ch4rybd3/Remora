@@ -216,6 +216,32 @@ commented-out code, `// TODO` without an issue number.
 
 ---
 
+### Roles and permissions
+
+Roles are **not a rank**. `core/permissions.py` holds a permission set per role;
+`ROLE_RANK` is gone. A rank cannot express "sees everything, writes nothing" or
+"sees KPIs only" - those sit sideways from an analyst, not above or below.
+
+Enforcement is **default-deny, applied once**, as a dependency on every
+authenticated router. Not per endpoint: there are 121 write endpoints, and
+before this exactly two routers checked a role. Guarding them individually works
+until the first one somebody forgets, and a read-only account that can write is
+worse than no read-only account, because it is trusted.
+
+Consequences for anyone adding an endpoint:
+
+- **A new write endpoint is guarded the moment it exists.** Nothing to remember.
+- **A POST that only reads must be declared** in `READING_POST_PATHS` or
+  `READING_POST_PATTERNS`, or read-only accounts cannot use it. Keep both lists
+  short enough to check by eye.
+- **A new route is invisible to an executive** until it is added to the golden
+  list in `tests/test_permissions.py`. That test walks every route in the
+  application and fails when the set changes, which forces the decision rather
+  than letting a route leak in unnoticed.
+
+The frontend mirrors the table in `auth/roles.ts` so it does not offer buttons
+that come back 403. That copy is a convenience, never the enforcement.
+
 ## 7. Security
 
 - Never execute anything from the drop folder outside the sandbox described in `INGESTION.md`: non-root, no network, wall-clock timeout, output quota.

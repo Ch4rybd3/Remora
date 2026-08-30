@@ -4,6 +4,7 @@ import {
 } from 'react'
 import api from '../api/client'
 import { authApi, type AuthUser } from '../api/auth'
+import { can as roleCan, type Permission } from '../auth/roles'
 
 interface AuthState {
   user: AuthUser | null
@@ -22,6 +23,8 @@ interface AuthContextValue extends AuthState {
   /** Finish a login that stopped at the second factor. */
   completeMfa: (mfaToken: string, code: string) => Promise<void>
   logout: () => void
+  /** Mirrors the backend permission table. The backend is what enforces it. */
+  can: (permission: Permission) => boolean
   isAdmin: boolean
   isOwnerOrAdmin: boolean
 }
@@ -99,12 +102,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => api.interceptors.response.eject(id)
   }, [logout])
 
+  const can = useCallback(
+    (permission: Permission) => roleCan(state.user?.role, permission),
+    [state.user?.role],
+  )
+
   // owner is a superset of admin — both get full admin access
   const isAdmin = state.user?.role === 'admin' || state.user?.role === 'owner'
   const isOwnerOrAdmin = isAdmin
 
   return (
-    <AuthContext.Provider value={{ ...state, login, completeMfa, logout, isAdmin, isOwnerOrAdmin }}>
+    <AuthContext.Provider value={{ ...state, login, completeMfa, logout, can, isAdmin, isOwnerOrAdmin }}>
       {children}
     </AuthContext.Provider>
   )
