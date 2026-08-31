@@ -155,12 +155,16 @@ def test_one_unreadable_archive_does_not_stop_the_rest(auth_client, db_session, 
                                 params={"include_unstable": True})
     assert response.status_code == 200, response.text
 
-    rows = {
-        row.original_name: row
-        for row in db_session.query(IngestedFile).filter(IngestedFile.case_id == case_id)
-    }
-    assert "good.csv" in rows, "a readable file was skipped because another failed"
-    # And the failure is visible rather than silent.
-    assert "corrupt.zip" in rows
-    assert rows["corrupt.zip"].state == "failed"
-    assert rows["corrupt.zip"].error
+    rows = list(db_session.query(IngestedFile).filter(IngestedFile.case_id == case_id))
+    names = [row.original_name for row in rows]
+    assert "good.csv" in names, "a readable file was skipped because another failed"
+
+    # Exactly one row for the archive. The first version of this recorded it
+    # twice - once here and once in the provenance pass - and the second was
+    # marked `duplicate` by its own hash. Collecting into a dict by name hid
+    # that, and which of the two survived depended on row order, so the test
+    # passed locally and failed in CI.
+    archive_rows = [row for row in rows if row.original_name == "corrupt.zip"]
+    assert len(archive_rows) == 1, f"expected one row, got {[r.state for r in archive_rows]}"
+    assert archive_rows[0].state == "failed"
+    assert archive_rows[0].error
