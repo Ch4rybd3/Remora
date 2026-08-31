@@ -506,7 +506,7 @@ function DropZone({ onFiles }: { onFiles: (files: File[]) => void }) {
       <p className="text-title mb-2">📂</p>
       <p className="text-fg-muted text-ui">Drop files here</p>
       <p className="text-fg-muted text-label mt-1">
-        Archive (ZIP, 7z, RAR, TAR…) <span className="text-fg-muted mx-1">ou</span> un ou plusieurs fichiers CSV
+        Archive (ZIP, 7z, RAR, TAR…) <span className="text-fg-muted mx-1">or</span> one or more files CSV
       </p>
     </div>
   )

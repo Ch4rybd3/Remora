@@ -4,7 +4,10 @@ import {
   FolderInput, RefreshCw, Copy, Check, Inbox, Trash2,
   AlertTriangle, Clock, ChevronRight,
 } from '../../ui/icons'
-import { dropzoneApi, type DropzoneFile } from '../../api/dropzone'
+import {
+  dropzoneApi, type CaseDropzone, type DropzoneFile, type DropzoneStatus,
+} from '../../api/dropzone'
+import { copyText } from '../../utils/clipboard'
 
 interface Props { caseId: string }
 
@@ -13,6 +16,31 @@ function fmtSize(bytes: number): string {
   if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`
   if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`
   return `${(bytes / 1024 ** 3).toFixed(2)} GB`
+}
+
+/**
+ * What the header says about the watcher.
+ *
+ * Reports the thread, not the setting. "auto - every 30s" while nothing is
+ * running is the message that let a KAPE archive sit untouched for five
+ * minutes with no way to tell why.
+ */
+function watcherSummary(dz: CaseDropzone, status?: DropzoneStatus): string {
+  if (!dz.auto_ingest) return 'manual scan only - press Scan now'
+
+  const watcher = dz.watcher ?? status?.watcher
+  const every = dz.poll_seconds ?? status?.poll_seconds ?? 30
+
+  if (!watcher?.running) {
+    return 'automatic ingestion is on, but the watcher is not running - restart the server'
+  }
+  if (watcher.last_error) {
+    return `last sweep failed: ${watcher.last_error}`
+  }
+  if (watcher.seconds_since_sweep === null) {
+    return `watching, first sweep due within ${every}s`
+  }
+  return `watching - last swept ${watcher.seconds_since_sweep}s ago, every ${every}s`
 }
 
 function FileRow({ f, action }: { f: DropzoneFile; action?: React.ReactNode }) {
@@ -92,10 +120,13 @@ export default function DropFolderPanel({ caseId }: Props) {
   const pending = dz.pending
   const ready   = pending.filter(f => f.supported && f.stable)
 
-  const copyPath = () => {
-    navigator.clipboard.writeText(dz.path)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+  const copyPath = async () => {
+    // `navigator.clipboard` only exists in a secure context, and Remora is
+    // routinely reached over plain HTTP on an internal network.
+    if (await copyText(dz.path)) {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    }
   }
 
   return (
@@ -109,7 +140,7 @@ export default function DropFolderPanel({ caseId }: Props) {
           <span className="text-label font-semibold text-fg shrink-0">Drop folder</span>
           {pending.length > 0 && (
             <span className="text-label px-1.5 py-0.5 rounded-control border bg-accent/10 text-accent border-accent/30 shrink-0">
-              {pending.length} en attente
+              {pending.length} waiting
             </span>
           )}
           {inbox.length > 0 && (
@@ -118,9 +149,7 @@ export default function DropFolderPanel({ caseId }: Props) {
             </span>
           )}
           <span className="text-label text-fg-secondary/35 truncate ml-1">
-            {dz.auto_ingest
-              ? `auto · balayage toutes les ${status?.poll_seconds ?? 30}s`
-              : 'scan manuel'}
+            {watcherSummary(dz, status)}
           </span>
         </button>
 
@@ -131,7 +160,7 @@ export default function DropFolderPanel({ caseId }: Props) {
           className="flex items-center gap-1 text-label px-2 py-1 rounded-control border border-hairline text-fg-secondary hover:text-accent hover:border-accent/40 transition-colors disabled:opacity-40"
         >
           <RefreshCw size={10} className={scan.isPending ? 'animate-spin' : ''} />
-          Scanner
+          Scan now
         </button>
       </div>
 
@@ -153,8 +182,8 @@ export default function DropFolderPanel({ caseId }: Props) {
             ingested exactly like a collection import, without going through the browser. This is
             the server-side path; it can also be mounted as a network drive (SMB share
             <code className="font-mono mx-0.5">dropzone</code>, enabled server-side).
-            {' '}A file is only processed after {dz.stable_seconds}s without modification,
-            pour ne jamais lire une copie en cours.
+            {' '}A file is only processed after {dz.stable_seconds}s without changing, so a
+            copy still in progress is never read half-written.
             {dz.processed_count > 0 && (
               <> {dz.processed_count} file{dz.processed_count > 1 ? 's' : ''} already processed
                 (archived in
@@ -166,7 +195,7 @@ export default function DropFolderPanel({ caseId }: Props) {
           {pending.length > 0 && (
             <div className="mx-3 mb-3 rounded-control border border-hairline">
               <p className="px-2.5 py-1.5 text-label uppercase tracking-widest text-fg-secondary/40">
-                En attente dans ce case
+                Waiting in this case folder
               </p>
               {pending.map(f => <FileRow key={f.name} f={f} />)}
               {ready.length === 0 && (
@@ -231,7 +260,7 @@ export default function DropFolderPanel({ caseId }: Props) {
 
           {pending.length === 0 && inbox.length === 0 && (
             <p className="px-3 pb-3 text-label text-fg-secondary/30 italic">
-              Dossier vide — rien en attente.
+              Nothing waiting in this folder.
             </p>
           )}
 

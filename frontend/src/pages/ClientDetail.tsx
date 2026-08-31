@@ -297,7 +297,7 @@ export default function ClientDetail() {
         onClick={() => navigate('/cases')}
         className="flex items-center gap-2 text-label text-fg-secondary/60 hover:text-accent transition-colors"
       >
-        <FolderOpen size={13} /> Voir les cases de ce client
+        <FolderOpen size={13} /> View this client's cases
       </button>
 
       {/* Knowledge base */}

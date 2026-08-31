@@ -268,7 +268,7 @@ function PlaybookReference({ caseId }: { caseId: string }) {
         <StickyNote size={28} className="text-fg-secondary/15" />
         <p className="text-label text-fg-secondary/40">No playbook attached to this case.</p>
         <p className="text-label text-fg-secondary/25">
-          Attache un playbook depuis l'onglet Playbook pour voir tes notes ici.
+          Attach a playbook from the Playbook tab to see your notes here.
         </p>
       </div>
     )

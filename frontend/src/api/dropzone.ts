@@ -11,10 +11,27 @@ export interface DropzoneFile {
   mtime:     number
 }
 
+/**
+ * Whether the folder is really being watched, not what the setting says.
+ *
+ * A file waiting forever because the thread never started looks identical to
+ * one about to be picked up, and the analyst has no way to tell them apart.
+ */
+export interface WatcherState {
+  running:              boolean
+  started_at:           number | null
+  last_sweep:           number | null
+  last_error:           string | null
+  sweeps:               number
+  seconds_since_sweep:  number | null
+}
+
 export interface CaseDropzone {
   path:            string
   folder_name:     string
   auto_ingest:     boolean
+  poll_seconds?:   number
+  watcher?:        WatcherState
   stable_seconds:  number
   pending:         DropzoneFile[]
   processed_count: number
@@ -25,6 +42,7 @@ export interface DropzoneStatus {
   inbox_dir:      string
   auto_ingest:    boolean
   poll_seconds:   number
+  watcher?:       WatcherState
   stable_seconds: number
   supported_exts: string[]
   inbox:          DropzoneFile[]

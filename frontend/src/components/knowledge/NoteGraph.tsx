@@ -281,7 +281,7 @@ export default function NoteGraph({ currentPath, onNodeClick }: Props) {
         <p className="text-label text-fg-secondary/30 italic text-center">
           Create notes with{' '}
           <code className="bg-fg/5 px-1 rounded-control font-mono">[[wikilinks]]</code>
-          {' '}pour voir le graphe.
+          {' '}to see the graph.
         </p>
       </div>
     )
