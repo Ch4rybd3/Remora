@@ -33,7 +33,11 @@ jobs:
       # Accented characters are a proxy for French, not a proof of English, so
       # reviewers still reject unaccented French. The gate catches the
       # regression that is easy to miss.
-      - name: Source is English
+      # Accented characters. The companion check for French that carries no
+      # accent - "Scanner", "Fichiers", "Effacer", "attente" - is
+      # `npm run check:english` in the frontend job. This one alone missed
+      # French seven times in this project before that existed.
+      - name: Source is English (accents)
         run: |
           if grep -rIn "[éèêàùçôîœâêûïëäöüñ]" backend/app frontend/src \
                --include='*.py' --include='*.ts' --include='*.tsx'; then
@@ -132,6 +136,9 @@ jobs:
       # Tailwind drops classes it does not recognise without a word, so a
       # renamed colour never fails the build — the element just renders
       # unstyled. This turns that silent failure into a loud one.
+      - name: English only
+        run: npm run check:english
+
       - name: Design tokens
         run: npm run check:design
 

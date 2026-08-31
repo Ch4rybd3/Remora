@@ -428,7 +428,7 @@ export default function DiskImageExplorer() {
                   )}
                   {partError && (
                     <p className="px-4 py-2 text-label text-severity-critical">
-                      {(partError as any)?.response?.data?.detail ?? 'Ouverture impossible.'}
+                      {(partError as any)?.response?.data?.detail ?? 'Could not open the image.'}
                     </p>
                   )}
                   {partitions.map(p => (
@@ -594,7 +594,7 @@ export default function DiskImageExplorer() {
               )}
               {extract.isError && (
                 <p className="text-label text-severity-critical">
-                  {(extract.error as any)?.response?.data?.detail ?? 'Extraction impossible.'}
+                  {(extract.error as any)?.response?.data?.detail ?? 'Could not extract.'}
                 </p>
               )}
               {downloadError && (

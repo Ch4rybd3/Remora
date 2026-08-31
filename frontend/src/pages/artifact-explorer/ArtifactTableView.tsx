@@ -286,7 +286,7 @@ export function GroupByBar({ groupByCols, onRemove, onAdd, onClear, isDragging }
         <button
           onClick={onClear}
           className="ml-auto text-label text-fg-secondary/30 hover:text-severity-critical transition-colors shrink-0 flex items-center gap-0.5">
-          <X size={8} /> Effacer
+          <X size={8} /> Clear
         </button>
       )}
     </div>
@@ -391,7 +391,7 @@ export function GroupRowsFetcher({ caseId, meta, baseFilters, groupFilters, orde
         <tr>
           <td colSpan={colSpanAll} className="py-1 border-b border-strong/[0.03]">
             <div className="flex items-center gap-1.5 text-label text-fg-secondary/40" style={{ paddingLeft: indent + 12 }}>
-              <span>{total.toLocaleString()} lignes</span>
+              <span>{total.toLocaleString()} rows</span>
               <div className="flex items-center gap-0.5 ml-2">
                 <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
                   className="p-0.5 rounded-control hover:text-fg disabled:opacity-20"><ChevronLeft size={10} /></button>
@@ -844,7 +844,7 @@ export function ArtifactTableView({
 
         <div className="ml-auto text-label text-fg-secondary/40 whitespace-nowrap">
           {groupActive
-            ? <><span className="text-fg/60">{(groupData?.total_groups ?? 0).toLocaleString()}</span> groupes · {meta.row_count.toLocaleString()} lignes</>
+            ? <><span className="text-fg/60">{(groupData?.total_groups ?? 0).toLocaleString()}</span> groups · {meta.row_count.toLocaleString()} rows</>
             : total < meta.row_count
             ? <><span className="text-fg/60">{total.toLocaleString()}</span> / {meta.row_count.toLocaleString()} rows</>
             : <><span className="text-fg/60">{total.toLocaleString()}</span> rows</>

@@ -492,7 +492,7 @@ function SendEmailToTimeline({ result, caseId, filename }: {
             className="flex items-center gap-1 text-label px-2 py-1 rounded-control border border-accent/30 text-accent bg-accent/5 hover:bg-accent/10 transition-colors disabled:opacity-40 shrink-0"
           >
             {send.isPending ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}
-            Envoyer
+            Send
           </button>
         )}
       </div>

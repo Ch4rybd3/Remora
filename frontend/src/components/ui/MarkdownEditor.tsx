@@ -535,7 +535,7 @@ export function LiveEditor({
           <div className="px-3 py-1 border-t border-hairline flex items-center gap-3 text-label text-fg-secondary/30">
             <span>↑↓ naviguer</span>
             <span>Enter to insert</span>
-            <span>Esc annuler</span>
+            <span>Esc to cancel</span>
           </div>
         </div>
       )}

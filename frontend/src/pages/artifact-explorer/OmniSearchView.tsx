@@ -124,7 +124,7 @@ export function OmniFileGroup({ file, query, onOpen }: {
         >
           {expanded
             ? 'Collapse'
-            : `▼ Voir ${file.rows.length - 8} ligne${file.rows.length - 8 > 1 ? 's' : ''} de plus (${file.rows.length} au total)`
+            : `▼ Show ${file.rows.length - 8} more row${file.rows.length - 8 > 1 ? 's' : ''} (${file.rows.length} total)`
           }
         </button>
       )}

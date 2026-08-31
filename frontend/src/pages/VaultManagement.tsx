@@ -511,7 +511,7 @@ export default function VaultManagement() {
         <div className="card p-8 text-center">
           <p className="text-fg-secondary text-ui">No vault matches "{search}"</p>
           <button className="text-label text-accent mt-2 hover:underline" onClick={() => setSearch('')}>
-            Effacer la recherche
+            Clear search
           </button>
         </div>
       ) : (

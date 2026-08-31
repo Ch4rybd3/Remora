@@ -46,7 +46,7 @@ function DetailPanel({ entry, onClose }: { entry: AuditLogEntry; onClose: () => 
       <div className="grid grid-cols-2 gap-x-8 gap-y-1.5">
         {[
           ['Timestamp',      fmtDateTime(entry.timestamp)],
-          ['Utilisateur',    entry.username ?? '—'],
+          ['User',           entry.username ?? '—'],
           ['Role',           entry.user_role ?? '-'],
           ['Action',         entry.action],
           ['Type ressource', entry.resource_type ?? '—'],
@@ -210,7 +210,7 @@ export default function AuditLog() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 pt-1">
             {/* Username */}
             <div className="flex flex-col gap-1">
-              <label className="text-label text-fg-secondary uppercase tracking-wider">Utilisateur</label>
+              <label className="text-label text-fg-secondary uppercase tracking-wider">User</label>
               <select
                 value={filters.username ?? ''}
                 onChange={e => setFilter('username', e.target.value)}

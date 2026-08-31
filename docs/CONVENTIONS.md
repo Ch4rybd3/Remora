@@ -31,6 +31,23 @@ of English. Reviewers still reject unaccented French (`Erreur`, `Fichier`, `Cas`
 
 ---
 
+
+### The accent gate is not enough
+
+CI rejects accented characters in source. That check alone missed French
+**seven times** in this project - `Scanner`, `Fichiers`, `Effacer`,
+`Identifiants incorrects`, `Mot de passe`, `en attente`, `Voir`, `Envoyer`. None
+of them carry an accent, and every one reached the interface.
+
+`npm run check:english` matches whole French words instead, and runs in CI
+alongside the accent check. The word list is deliberately short: every entry has
+to be a word that could never legitimately appear in English UI text, because a
+gate that cries wolf gets disabled. Words identical in both languages - note,
+message, date, table, type - are excluded on purpose, as is `scan`, which is
+English and appears in Volatility plugin names.
+
+Neither gate is a substitute for reading the diff.
+
 ## 2. Git
 
 ### Branches

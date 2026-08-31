@@ -763,7 +763,7 @@ export default function PcapExplorer() {
             </div>
             {streamError && following !== null && (
               <p className="px-2 py-1 text-label text-severity-critical border-b border-hairline shrink-0">
-                {(streamError as any)?.response?.data?.detail ?? 'Reconstruction impossible.'}
+                {(streamError as any)?.response?.data?.detail ?? 'Could not reassemble the stream.'}
               </p>
             )}
             {frameNo === null ? (
@@ -776,7 +776,7 @@ export default function PcapExplorer() {
               </div>
             ) : frameError ? (
               <p className="p-3 text-label text-severity-critical">
-                {(frameError as any)?.response?.data?.detail ?? 'Dissection impossible.'}
+                {(frameError as any)?.response?.data?.detail ?? 'Could not dissect the frame.'}
               </p>
             ) : frame ? (
               <ProtocolTree frame={frame} onHighlight={setHighlight} />

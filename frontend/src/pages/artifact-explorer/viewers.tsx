@@ -47,7 +47,7 @@ export function ArtifactRedirectView({ meta, caseId, type }: { meta: CsvArtifact
           onClick={() => { setCurrentCase({ id: caseId, title: '' }); navigate(dest) }}
           className="mt-2 px-4 py-2 text-label font-medium bg-white/[0.05] border border-hairline hover:bg-white/[0.08] transition-colors"
         >
-          Ouvrir {label} →
+          Open {label} →
         </button>
       </div>
     </div>
@@ -90,7 +90,7 @@ export function TextArtifactView({ meta, caseId }: { meta: CsvArtifactMeta; case
             className="bg-fg/5 border border-hairline rounded-control pl-6 pr-3 py-1 text-label text-fg placeholder:text-fg-secondary/30 outline-none focus:border-strong w-52"
           />
         </div>
-        <span className="text-label text-fg-secondary/30 shrink-0">{lines.length.toLocaleString()} lignes</span>
+        <span className="text-label text-fg-secondary/30 shrink-0">{lines.length.toLocaleString()} lines</span>
       </div>
       <div className="flex-1 overflow-y-auto overflow-x-auto font-mono text-label text-fg/65 leading-5 px-4 py-3 bg-canvas">
         {lines.map((line, i) => (
