@@ -243,13 +243,22 @@ Order of precedence: `magic bytes` → `structural sniff` → `folder hint` →
 - CSV / JSON / JSONL / TXT — content sniff; delimiter and header detection.
 
 ### Archives
-Archives are unpacked recursively and **each member is re-routed independently**
-through the full pipeline. The archive itself gets an `ingested_files` row with
-`state=routed`, and members reference it through `origin=archive` and
-`origin_detail`. Depth is capped and the total uncompressed size is capped —
-a decompression bomb must not be able to fill the evidence store.
 
----
+Unpacked recursively, every member re-entering identification on its own.
+
+**ZIP extraction falls back to the `7z` binary.** Python's `zipfile` knows the
+name of every ZIP compression method and implements four. Method 9, Deflate64,
+is what 7-Zip and several Windows tools produce for large archives, and the
+stdlib raises `NotImplementedError: That compression method is not supported` -
+which is what a 400 MB KAPE triage arrived as. `p7zip` is already in the image
+for `.7z` and `.rar` and reads Deflate64, so the fallback costs a line rather
+than a dependency.
+
+**An archive nobody can read must not stop the sweep.** That exception escaped
+and killed the whole drop folder pass, so every other artifact in the folder
+waited behind it, with the reason only in the container log. Every archive
+failure now leaves as `ArchiveError`, the file gets a `failed` row carrying the
+reason, and the sweep continues.
 
 ## 6. Routing
 

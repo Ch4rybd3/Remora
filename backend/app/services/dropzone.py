@@ -35,7 +35,7 @@ from ..config import settings
 from ..models.case import Case
 from ..models.ez_artifacts import ImportedCollection, ImportedFile
 from ..models.ingest import ORIGIN_ARCHIVE, ORIGIN_DROPZONE, IngestedFile
-from ..services.archives import ARCHIVE_EXTS, ArchiveError, extract_all, is_archive
+from ..services.archives import ARCHIVE_EXTS, extract_all, is_archive
 from ..services.ez_detection import detect
 from ..services.ingest.dispatch import has_handler
 from ..services.ingest.identify import identify
@@ -226,6 +226,30 @@ def is_stable(f: DroppedFile, now: float) -> bool:
 
 # ─── Ingestion ────────────────────────────────────────────────────────────────
 
+def _record_unreadable(db: Session, case: Case, src: Path, reason: str,
+                      collection_id: str, origin: str, origin_detail: str | None) -> None:
+    """
+    Leave a trace of a file that could not be opened.
+
+    Otherwise an archive that fails to extract simply is not there: it stays in
+    the folder, is retried on every sweep, and nothing in the interface says why
+    it never arrives.
+    """
+    from ..models.ingest import STATE_FAILED
+    from .ingest import service as ingest_service
+
+    try:
+        row = ingest_service.record(
+            db, case_id=case.id, path=src,
+            origin=origin, origin_detail=origin_detail,
+        )
+        row.state = STATE_FAILED
+        row.error = reason[:500]
+        db.commit()
+    except Exception as e:
+        print(f"[dropzone] could not record the failure for {src.name}: {e}", flush=True)
+
+
 def ingest_files(
     case: Case,
     files: list[Path],
@@ -308,8 +332,13 @@ def ingest_files(
             sub = extracted_dir / (_slugify(Path(safe_name).stem) or f"archive-{len(rows)}")
             try:
                 extract_all(src, sub, src.name)
-            except ArchiveError as e:
+            except Exception as e:
+                # Deliberately broad. An archive nobody can read is a fact about
+                # one file; letting it escape stopped the whole sweep, so every
+                # other artifact in the folder waited forever behind it with the
+                # reason only in the container log.
                 print(f"[dropzone] archive {src.name} could not be read: {e}", flush=True)
+                _record_unreadable(db, case, src, str(e), collection_id, origin, origin_detail)
                 continue
             # Walk what actually landed on disk rather than re-reading the
             # archive index — unsafe entries were dropped during extraction.
