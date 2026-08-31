@@ -34,8 +34,13 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..models.case import Case
 from ..models.ez_artifacts import ImportedCollection, ImportedFile
-from ..models.ingest import ORIGIN_ARCHIVE, ORIGIN_DROPZONE, IngestedFile
-from ..services.archives import ARCHIVE_EXTS, ArchiveError, extract_all, is_archive
+from ..models.ingest import (
+    ORIGIN_ARCHIVE,
+    ORIGIN_DROPZONE,
+    STATE_FAILED,
+    IngestedFile,
+)
+from ..services.archives import ARCHIVE_EXTS, extract_all, is_archive
 from ..services.ez_detection import detect
 from ..services.ingest.dispatch import has_handler
 from ..services.ingest.identify import identify
@@ -255,6 +260,10 @@ def ingest_files(
     # Members unpacked from each archive, so the provenance pass below can link
     # them to the container the analyst actually dropped.
     archive_members: dict[Path, list[Path]] = {}
+    # Files that could not be opened, with the reason, applied to their row in
+    # the same pass. An archive nobody can read is a fact about one file: it is
+    # recorded and the rest of the folder keeps ingesting.
+    unreadable: dict[Path, str] = {}
 
     def _row(rel_name: str, size: int | None) -> ImportedFile:
         """Build an ImportedFile row for a file sitting at `extracted/<rel_name>`."""
@@ -308,8 +317,17 @@ def ingest_files(
             sub = extracted_dir / (_slugify(Path(safe_name).stem) or f"archive-{len(rows)}")
             try:
                 extract_all(src, sub, src.name)
-            except ArchiveError as e:
+            except Exception as e:
+                # Deliberately broad. An archive nobody can read is a fact about
+                # one file; letting it escape stopped the whole sweep, so every
+                # other artifact in the folder waited forever behind it with the
+                # reason only in the container log.
                 print(f"[dropzone] archive {src.name} could not be read: {e}", flush=True)
+                # Remembered rather than recorded here. The provenance pass
+                # below writes exactly one row per dropped file; writing another
+                # one at this point produced two rows for the same archive, the
+                # second of them marked `duplicate` by its own hash.
+                unreadable[src] = str(e)
                 continue
             # Walk what actually landed on disk rather than re-reading the
             # archive index — unsafe entries were dropped during extraction.
@@ -377,6 +395,10 @@ def ingest_files(
                 origin=origin, origin_detail=origin_detail,
             )
             provenance[src] = ing.id
+            if src in unreadable:
+                ing.state = STATE_FAILED
+                ing.error = unreadable[src][:500]
+                db.add(ing)
         except Exception as e:   # provenance must never block an ingest
             print(f"[dropzone] could not record provenance for {src.name}: {e}", flush=True)
             continue

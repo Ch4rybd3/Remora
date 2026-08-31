@@ -181,17 +181,54 @@ def _7z_extract(path: Path, dest: Path) -> None:
 # ── Per-format backends ──────────────────────────────────────────────────────
 
 def _zip_list(path: Path) -> list[str]:
+    """
+    Entry names in a ZIP.
+
+    Listing works for compression methods the stdlib cannot *decompress*, since
+    the central directory is uncompressed - so a Deflate64 archive lists fine
+    and only fails on extraction. Both paths fall back to the CLI regardless,
+    so the two agree about what the archive contains.
+    """
     try:
         with zipfile.ZipFile(path) as zf:
             return _safe_entries([i.filename for i in zf.infolist() if not i.is_dir()])
-    except zipfile.BadZipFile as e:
+    except (zipfile.BadZipFile, NotImplementedError, RuntimeError) as e:
+        if _7z_bin():
+            return _safe_entries(_7z_list(path))
         raise ArchiveError(f"Invalid ZIP archive: {e}") from e
 
 
 def _zip_extract(path: Path, dest: Path) -> None:
-    with zipfile.ZipFile(path) as zf:
-        for name in _safe_entries(zf.namelist()):
-            zf.extract(name, dest)
+    """
+    Extract a ZIP, falling back to the `7z` binary.
+
+    Python's `zipfile` knows the *name* of every compression method and
+    implements only four. Method 9 - Deflate64 - is what 7-Zip and several
+    Windows tools produce for large archives, and the stdlib raises
+    `NotImplementedError: That compression method is not supported`, which is
+    exactly what a 400 MB KAPE triage arrived as.
+
+    `p7zip` is already in the image for `.7z` and `.rar`. It reads Deflate64,
+    so the fallback is a line rather than a dependency.
+
+    Every failure leaves here as `ArchiveError`. A `NotImplementedError` escaping
+    this function killed the entire drop folder sweep - one archive nobody could
+    read stopped every other file in the folder from being ingested, silently.
+    """
+    try:
+        with zipfile.ZipFile(path) as zf:
+            for name in _safe_entries(zf.namelist()):
+                zf.extract(name, dest)
+        return
+    except (zipfile.BadZipFile, NotImplementedError, RuntimeError, OSError) as e:
+        reason = e
+    except Exception as e:   # noqa: BLE001 - see the docstring
+        reason = e
+
+    if _7z_bin():
+        _7z_extract(path, dest)
+        return
+    raise ArchiveError(f"Could not extract the ZIP archive: {reason}") from reason
 
 
 def _tar_list(path: Path) -> list[str]:
@@ -234,7 +271,7 @@ def _sevenz_list(path: Path) -> list[str]:
     except ArchiveError:
         raise
     except Exception as e:
-        raise ArchiveError(f"Archive 7z illisible: {e}") from e
+        raise ArchiveError(f"Could not read the 7z archive: {e}") from e
 
 
 def _sevenz_extract(path: Path, dest: Path) -> None:
@@ -262,7 +299,7 @@ def _rar_list(path: Path) -> list[str]:
         pass
     except Exception as e:
         if not _7z_bin():
-            raise ArchiveError(f"Archive RAR illisible: {e}") from e
+            raise ArchiveError(f"Could not read the RAR archive: {e}") from e
     if _7z_bin():
         return _safe_entries(_7z_list(path))
     raise ArchiveError("No RAR backend available (install unar or p7zip-full)")
