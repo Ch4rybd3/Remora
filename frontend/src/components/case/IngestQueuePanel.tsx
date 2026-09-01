@@ -18,6 +18,11 @@ import { CopyableName, CustodyActions } from '../custody/CustodyActions'
 /** Colour per state. Only the ones that mean something to an analyst stand out. */
 const STATE_STYLE: Record<IngestState, string> = {
   indexed:      'text-accent',
+  // Not a warning. The file reached a page where it is useful, which is what
+  // routing it was for - a hive is browsable rather than tabular, and colouring
+  // that like `unsupported` said the pipeline had failed at something it had
+  // deliberately not attempted.
+  browsable:    'text-accent',
   routed:       'text-accent/70',
   parsed:       'text-accent/70',
   identified:   'text-fg-secondary',

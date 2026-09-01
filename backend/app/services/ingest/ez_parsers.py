@@ -157,8 +157,9 @@ UNHANDLED_NOTE: dict[str, str] = {
     "registry_hive": (
         "A registry hive holds everything, and which keys matter is an analyst's "
         "decision rather than a default - shipping one would quietly define what "
-        "'the registry' means for every investigation. Amcache and Shimcache are "
-        "parsed from their own artifacts."
+        "'the registry' means for every investigation. Browse it key by key in "
+        "the Registry Explorer. Amcache and Shimcache are parsed from their own "
+        "artifacts."
     ),
     "prefetch": (
         "Prefetch on Windows 10 and later is MAM-compressed, and PECmd decompresses "

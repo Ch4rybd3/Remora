@@ -20,6 +20,7 @@ import {
 } from '../api/pcap'
 import { timelineApi } from '../api/timeline'
 import { useCurrentCase } from '../context/CurrentCaseContext'
+import { fmtBytes } from '../utils/formatUtils'
 import { parseArtifactTimestamp } from '../utils/dateUtils'
 
 const PAGE_SIZE = 200
@@ -213,12 +214,6 @@ function HexDump({ hex, highlight }: {
 }
 
 // ── Follow stream ─────────────────────────────────────────────────────────────
-
-function fmtBytes(n: number): string {
-  if (n < 1024) return `${n} o`
-  if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} Ko`
-  return `${(n / 1024 ** 2).toFixed(1)} Mo`
-}
 
 /** Printable-ASCII rendering; non-printable bytes shown as dots, like Wireshark. */
 function toAscii(bytes: Uint8Array): string {

@@ -27,6 +27,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from ...models.ingest import (
+    STATE_BROWSABLE,
     STATE_FAILED,
     STATE_INDEXED,
     STATE_PARSED,
@@ -239,6 +240,14 @@ def _to_memory(ctx: Context) -> ParseResult:
     return ParseResult(STATE_PARSED)
 
 
+#: Kinds a module opens as they stand, when no parser claims them. Not a
+#: failure and not a gap: the file reached a page where it is useful, which is
+#: the whole point of routing it.
+_BROWSABLE_IN: dict[str, str] = {
+    "registry_hive": "Browse it key by key in the Registry Explorer.",
+}
+
+
 def _to_ez_parsed(ctx: Context) -> ParseResult:
     """
     Run the Eric Zimmerman tool for this artifact and index what it produced.
@@ -261,6 +270,13 @@ def _to_ez_parsed(ctx: Context) -> ParseResult:
     from . import ez_parsers
 
     kind = identify(ctx.path, name=ctx.filename).kind
+
+    if not ez_parsers.supports(kind, ctx.filename) and kind in _BROWSABLE_IN:
+        # A `SOFTWARE` hive has no tool and needs none. Calling that `failed`
+        # put a red row in the queue for a file that had arrived exactly where
+        # it belongs.
+        return ParseResult(STATE_BROWSABLE, error=_BROWSABLE_IN[kind])
+
     out_dir = ctx.parsed_dir()
 
     with tempfile.TemporaryDirectory(prefix="ez-") as scratch:

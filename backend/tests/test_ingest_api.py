@@ -101,8 +101,11 @@ def test_the_forceable_kinds_come_from_the_routing_table(auth_client):
 
     assert by_name["evtx"]["destination"] == "logs"
     assert by_name["evtx"]["available"] is True
-    # Recognised but its parser lands in S16.
-    assert by_name["registry_hive"]["available"] is False
+    # A hive has a destination now - the Registry Explorer - so it is no longer
+    # the example of something recognised and unusable.
+    assert by_name["registry_hive"]["available"] is True
+    # Recognised, and nothing reads it yet.
+    assert by_name["ntfs_logfile"]["available"] is False
 
 
 def test_the_drop_path_is_reported_for_manual_copies(auth_client, api_case):

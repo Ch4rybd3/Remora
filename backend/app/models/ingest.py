@@ -42,11 +42,20 @@ STATE_UNIDENTIFIED = "unidentified"    # no signature matched. Recoverable.
 STATE_ROUTED       = "routed"          # destination chosen, record created
 STATE_PARSED       = "parsed"          # converted to tabular form
 STATE_INDEXED      = "indexed"         # queryable in the Artifact Explorer
+# Stored, and a module opens it as it stands - no table, and none wanted. A
+# registry hive is the case this exists for: `SOFTWARE` holds thousands of
+# unrelated facts and which of them matter is an analyst's decision, so Remora
+# supplies the navigation instead of the conclusions. Reporting that as
+# `unsupported` said the pipeline had no answer when it had a better one than a
+# table would have been. Terminal.
+STATE_BROWSABLE    = "browsable"
 STATE_FAILED       = "failed"          # parser crashed / timed out. Recoverable.
 STATE_UNSUPPORTED  = "unsupported"     # known type, no handler yet
 
 #: States a file will never leave without an analyst acting on it.
-TERMINAL_STATES = frozenset({STATE_DUPLICATE, STATE_INDEXED, STATE_UNSUPPORTED})
+TERMINAL_STATES = frozenset({
+    STATE_DUPLICATE, STATE_INDEXED, STATE_BROWSABLE, STATE_UNSUPPORTED,
+})
 
 #: States the Collection tab offers an action for: force a type, retry.
 RECOVERABLE_STATES = frozenset({STATE_UNIDENTIFIED, STATE_FAILED})
@@ -54,7 +63,7 @@ RECOVERABLE_STATES = frozenset({STATE_UNIDENTIFIED, STATE_FAILED})
 ALL_STATES = frozenset({
     STATE_DISCOVERED, STATE_HASHED, STATE_DUPLICATE, STATE_IDENTIFIED,
     STATE_UNIDENTIFIED, STATE_ROUTED, STATE_PARSED, STATE_INDEXED,
-    STATE_FAILED, STATE_UNSUPPORTED,
+    STATE_BROWSABLE, STATE_FAILED, STATE_UNSUPPORTED,
 })
 
 # ─── Origins ──────────────────────────────────────────────────────────────────

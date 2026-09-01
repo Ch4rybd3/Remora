@@ -117,6 +117,39 @@ export const PAGE_HELP: Record<string, HelpEntry> = {
     ),
   },
 
+  '/artifacts/registry': {
+    title: 'Browsing a hive',
+    content: (
+      <>
+        <P>
+          Hives arrive through the drop folder like every other artifact —
+          nothing is uploaded from this page. Pick one and navigate it key by
+          key.
+        </P>
+        <P>
+          Remora does not decide which keys matter. Shipping a list of
+          &ldquo;interesting&rdquo; ones would quietly define what the registry
+          means for every investigation run on this tool, and that is the
+          analyst&apos;s call. <Code>Amcache</Code>, Shimcache and the shellbags
+          in the user hives <em>are</em> parsed into tables, and those appear in
+          the Artifact Explorer.
+        </P>
+        <P>
+          Search walks the hive from the root and matches key names, value names
+          and value data. It stops on a budget rather than running for minutes
+          on a large <Code>SOFTWARE</Code> hive, and says so when it does.
+        </P>
+        <P>
+          Two things this does <strong>not</strong> do, both of which Registry
+          Explorer does: transaction logs are never replayed, so a hive
+          collected mid-write is read as it stands and flagged; and deleted keys
+          are not carved out of unallocated space. Replaying a log means writing
+          to evidence.
+        </P>
+      </>
+    ),
+  },
+
   '/artifacts/images': {
     title: 'Disk images',
     wide: true,

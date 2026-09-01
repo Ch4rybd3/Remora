@@ -148,11 +148,11 @@ preserved in the chain of custody like anything else.
 
 ```
 discovered ──► hashed ──► identified ──► routed ──► parsed ──► indexed
-                  │            │            │          │
-                  │            ▼            │          ▼
-                  │      unidentified       │       failed
-                  ▼                         ▼
-              duplicate                 unsupported
+                  │            │            │  │       │
+                  │            ▼            │  │       ▼
+                  │      unidentified       │  │    failed
+                  ▼                         │  ▼
+              duplicate       unsupported ◄─┘  browsable
 ```
 
 | State | Meaning |
@@ -166,7 +166,14 @@ discovered ──► hashed ──► identified ──► routed ──► pars
 | `parsed` | Raw artifact converted to a tabular form. |
 | `indexed` | Available in the Artifact Explorer. |
 | `failed` | Parser crashed, timed out, or exceeded its output quota. Recoverable: the error is stored and the file can be retried. |
+| `browsable` | Stored, and a module opens it as it stands. No table, and none wanted. Terminal. |
 | `unsupported` | Recognised type with no handler yet. Stored, listed, not parsed. |
+
+`browsable` and `unsupported` are easy to confuse and mean opposite things. A
+registry hive is `browsable`: it reached a page where it is useful and nothing
+further is needed. It used to be reported as `failed`, which put a red row in
+the ingest queue for a file that had arrived exactly where it belonged. See
+§17.
 
 Design rule: **no state discards the file.** Unrecognised input is a soft
 signal, never an error. A single mandatory pipeline that rejects files becomes
@@ -752,3 +759,73 @@ it at `<collection>/extracted/_parsed/`. Inside the collection, so deleting the
 collection removes it; named so the batch stage skips it, or it would identify
 its own CSVs as artifacts and parse them again. The sandbox's scratch directory
 is still temporary - only the output is not.
+
+---
+
+## 17. Registry hives
+
+### Why there is no "registry parser"
+
+A hive is not one artifact. `SOFTWARE` is a filesystem of its own holding
+thousands of unrelated facts, and which of them matter is a decision that
+belongs to the analyst and the investigation. Shipping a list of "interesting
+keys" would quietly define what *the registry* means for every case run on this
+tool, and an analyst would have no way to tell what the list left out.
+
+So Remora supplies the navigation and not the conclusions. The Registry
+Explorer (`/artifacts/registry`) walks a hive key by key, the way the tool of
+that name does, and the analyst decides what is worth looking at.
+
+Three hives are the exception, and only because they hold **one** artifact each
+rather than a filesystem: `Amcache.hve` (AmcacheParser), `SYSTEM`
+(AppCompatCacheParser, for shimcache) and the user hives (SBECmd, for
+shellbags). Those produce tables, and appear in the Artifact Explorer as well.
+
+### No table of its own
+
+The hives the page lists are `ingested_files` rows whose `detected_kind` is
+`registry_hive` — the same rows the ingest queue shows, read from where the
+pipeline stored them. A second table would be a second thing to keep in step,
+and would survive the collection its files came from. Deleting a collection
+therefore removes its hives from this page with no extra work (§15).
+
+### Read-only, and it matters more here
+
+The file is opened `rb` and nothing writes. A hive copied off a live machine is
+often *dirty* — Windows was mid-write when it was collected — and the recovery
+a live system performs on mount is exactly the kind of modification an evidence
+copy must not undergo.
+
+Two things this deliberately does not do, both of which Registry Explorer does.
+They are surfaced on the hive itself rather than buried in documentation,
+because an analyst arriving from that tool will otherwise assume both:
+
+* **Transaction logs are not replayed.** A dirty hive is reported as dirty and
+  read as it stands, so its newest writes may be missing. Replaying `.LOG1` and
+  `.LOG2` means writing to the artifact.
+* **Deleted keys are not recovered.** Unallocated cells are not carved.
+
+### The dirty flag is computed, not inherited
+
+`dissect.regf` assigns `RegistryHive.dirty = (computed_checksum ==
+stored_checksum)` — which is the condition for the hive being **valid** — and
+reports it as dirty. Remora computes the XOR-32 over the base block itself
+rather than depending on that, because a hive wrongly called clean is one whose
+missing writes nobody goes looking for, and because a fix upstream would
+silently flip an inherited inversion.
+
+### Search is bounded twice
+
+By the number of hits wanted and by the number of keys visited. A `SOFTWARE`
+hive holds hundreds of thousands of keys and an unbounded walk holds a worker
+for minutes. When the budget stops it, the result says so — a partial answer
+that looks complete is worse than a short one that admits it.
+
+### Testing
+
+`backend/tests/hive_builder.py` builds a minimal but genuinely well-formed hive
+in memory: a base block with a real checksum, one hbin, `nk` keys indexed by
+`li`, and `vk` values. The tests read it with the same code the product uses.
+There is no small hive to check in — a real one is megabytes and carries
+somebody's machine in it — and asserting against a mocked parser would test the
+mock.

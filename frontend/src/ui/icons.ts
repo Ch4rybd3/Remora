@@ -86,6 +86,7 @@ import {
   Folder,
   FolderInput,
   FolderOpen,
+  FolderTree,
   GitBranch,
   Globe,
   GripVertical,
@@ -182,6 +183,7 @@ export const NAV_ICON: Record<string, LucideIcon> = {
   '/artifacts/filesystem':  ScrollText,     // Logs — was HardDrive, shared with Disk Images
   '/artifacts/pcap':        Network,
   '/artifacts/images':      HardDrive,      // Disk Images — keeps the drive
+  '/artifacts/registry':    FolderTree,     // Registry Explorer — a tree of keys
   '/artifacts/memory':      Cpu,
   '/artifacts/binary':      Binary,
   '/artifacts/cti':         Radar,          // CTI Lookup — was Shield, shared with Audit
@@ -263,6 +265,7 @@ export {
   Folder,
   FolderInput,
   FolderOpen,
+  FolderTree,
   GitBranch,
   Globe,
   GripVertical,
