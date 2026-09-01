@@ -163,13 +163,48 @@ def test_the_whole_process_group_is_killed(tmp_path: Path):
 
 
 def test_a_memory_hog_is_refused(tmp_path: Path):
+    """
+    Bounded by address space, which is what a non-.NET runaway hits.
+
+    `memory_bytes` is the *managed heap* limit handed to .NET, and address
+    space is a multiple of it - see the note on `Limits`. Setting the two equal
+    is what killed MFTECmd on a 2 GB `$MFT`: .NET reserves far more address
+    space than it uses, so a ceiling low enough to bound real memory bounds the
+    runtime out of existence.
+    """
     result = sandbox.run(
         _python("x = bytearray(600 * 1024 * 1024); print('ALLOCATED')"),
         workdir=tmp_path,
-        limits=sandbox.Limits(memory_bytes=128 * 1024 * 1024),
+        limits=sandbox.Limits(memory_bytes=32 * 1024 * 1024,
+                              address_space_multiplier=4),   # 128 MB of address space
     )
     assert "ALLOCATED" not in result.stdout
     assert not result.ok
+
+
+def test_dotnet_is_given_a_heap_limit_not_an_address_space_one(tmp_path: Path):
+    """
+    The runtime reads `DOTNET_GCHeapHardLimit`, which bounds what is actually
+    used. Passing the same number as an address-space ceiling instead is the
+    mistake that made a 2 GB artifact look like a broken parser.
+    """
+    result = sandbox.run(
+        _python("import os; print('HEAP', os.environ.get('DOTNET_GCHeapHardLimit'))"),
+        workdir=tmp_path,
+        limits=sandbox.Limits(memory_bytes=0x40000000),      # 1 GB
+    )
+    assert "HEAP 40000000" in result.stdout
+
+
+def test_the_output_quota_grows_with_the_artifact(tmp_path: Path):
+    """
+    MFTECmd turns a 2 GB `$MFT` into an 886 MB CSV. A fixed ceiling either
+    kills that or is no ceiling at all for a small file.
+    """
+    small = sandbox.Limits.for_input(1024 * 1024)
+    large = sandbox.Limits.for_input(4 * 1024 ** 3)
+    assert large.output_bytes > small.output_bytes
+    assert small.output_bytes >= 4 * 1024 ** 3
 
 
 def test_output_beyond_the_quota_fails_the_run(tmp_path: Path):
