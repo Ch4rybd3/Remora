@@ -302,6 +302,16 @@ def _run_pending(
             col.processed_files = processed
         db.commit()
 
+    # Artifacts that are only useful in bulk - four hundred prefetch files are
+    # one table, not four hundred. Runs after the per-file pass and never
+    # raises: it must not undo an ingest that has already succeeded.
+    try:
+        from ..services.ingest import batch
+
+        batch.run(db, case_id, extracted_dir)
+    except Exception as e:
+        print(f"[collection_import] batch parsing failed: {e}", flush=True)
+
     return processed
 
 

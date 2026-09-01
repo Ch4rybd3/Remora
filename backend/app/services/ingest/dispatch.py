@@ -180,6 +180,25 @@ def _to_ez_parsed(db: Session, case_id: str, path: Path, filename: str) -> Parse
     return ParseResult(STATE_INDEXED, artifact_id=artifact_id, row_count=rows)
 
 
+def _to_batch(db: Session, case_id: str, path: Path, filename: str) -> ParseResult:
+    """
+    An artifact that is only useful alongside the others of its type.
+
+    Four hundred prefetch files are one table, not four hundred, so the parsing
+    happens once for the whole collection after the per-file pass - see
+    `services/ingest/batch.py`. The row says `parsed` rather than `indexed`:
+    the table exists at the end of the collection, not at the end of this call.
+    """
+    _ = db, case_id, path
+    from .python_parsers import parser_for
+
+    kind = identify(path, name=filename).kind
+    parser = parser_for(kind)
+    label = parser.label if parser else kind
+    return ParseResult(STATE_PARSED,
+                       error=f"Parsed with the rest of the {label} in this collection")
+
+
 #: Kinds the pipeline recognises but cannot act on without something only a
 #: person can supply. Saying which is worth far more than a generic "no parser":
 #: the analyst learns what to do instead, on the row, at the moment they look.
@@ -199,9 +218,15 @@ _IMAGE_NOTE = (
 )
 
 def _unhandled_notes() -> dict[str, str]:
+    """
+    Why a recognised kind is not parsed - minus the ones a batch parser now
+    covers. Telling an analyst prefetch cannot be read while reading it is
+    worse than saying nothing.
+    """
     from . import ez_parsers
+    from .python_parsers import HANDLED_KINDS
 
-    return dict(ez_parsers.UNHANDLED_NOTE)
+    return {k: v for k, v in ez_parsers.UNHANDLED_NOTE.items() if k not in HANDLED_KINDS}
 
 
 _NEEDS_INPUT: dict[str, str] = {
@@ -240,6 +265,13 @@ _HANDLERS: dict[str, Handler] = {
 
 # The Eric Zimmerman parsers, added from their own table so the two stay in
 # step: a recipe without a handler would be a tool nothing ever calls.
+def _register_batch_handlers() -> None:
+    from .python_parsers import HANDLED_KINDS
+
+    for kind in HANDLED_KINDS:
+        _HANDLERS.setdefault(kind, _to_batch)
+
+
 def _register_ez_handlers() -> None:
     from . import ez_parsers
 
@@ -249,6 +281,7 @@ def _register_ez_handlers() -> None:
         _HANDLERS.setdefault(kind, _to_ez_parsed)
 
 
+_register_batch_handlers()
 _register_ez_handlers()
 
 def handled_kinds() -> frozenset[str]:
