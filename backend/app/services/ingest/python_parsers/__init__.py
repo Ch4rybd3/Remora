@@ -19,7 +19,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import browsers, prefetch, scheduled_tasks
+from . import browsers, ese, prefetch, scheduled_tasks
 
 logger = logging.getLogger("remora.python_parsers")
 
@@ -67,6 +67,24 @@ def _parse_tasks(paths: list[Path], out_dir: Path, scratch: Path,
     return scheduled_tasks.parse_all(paths, out_dir, base)
 
 
+def _parse_srum(paths: list[Path], out_dir: Path, scratch: Path,
+                base: Path | None = None) -> list[Path]:
+    _ = scratch
+    return ese.parse_srum(paths, out_dir, base)
+
+
+def _parse_webcache(paths: list[Path], out_dir: Path, scratch: Path,
+                    base: Path | None = None) -> list[Path]:
+    _ = scratch
+    return ese.parse_webcache(paths, out_dir, base)
+
+
+def _dump_ese(paths: list[Path], out_dir: Path, scratch: Path,
+              base: Path | None = None) -> list[Path]:
+    _ = scratch
+    return ese.dump_tables(paths, out_dir, base)
+
+
 PARSERS: tuple[BatchParser, ...] = (
     BatchParser(
         kinds=frozenset({"prefetch"}),
@@ -88,6 +106,31 @@ PARSERS: tuple[BatchParser, ...] = (
         because="No Eric Zimmerman tool reads task definitions, and 272 of them "
                 "in a single triage were going unidentified. Persistence lives "
                 "here.",
+    ),
+    BatchParser(
+        kinds=frozenset({"srum"}),
+        label="SRUM",
+        run=_parse_srum,
+        because="SrumECmd is one of the two Eric Zimmerman tools that refuse to "
+                "run outside Windows, and SRUM answers how many bytes each "
+                "application put on the wire.",
+    ),
+    BatchParser(
+        kinds=frozenset({"browser_cache"}),
+        label="Web cache",
+        run=_parse_webcache,
+        because="WebCacheV01.dat is an ESE database, not SQLite, so the browser "
+                "parser cannot read it.",
+    ),
+    BatchParser(
+        # The catch-all for the format. A named artifact above keeps its own
+        # reader; everything else is dumped table by table rather than listed
+        # as unsupported forever.
+        kinds=frozenset({"ese", "search_index", "ntds"}),
+        label="ESE tables",
+        run=_dump_ese,
+        because="An ESE artifact with no dedicated reader is still readable "
+                "table by table, which beats waiting for one to be written.",
     ),
 )
 

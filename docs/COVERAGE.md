@@ -12,28 +12,30 @@ bucketing by whether `dispatch` has a handler for the result.
 
 ## 1. Where it stands
 
-Tier 1 has landed. Both measurements are on the same collection.
+Tiers 1 and 2 have landed. Every measurement is on the same collection.
 
-| | Files before | Files now | Bytes now |
-|---|---:|---:|---:|
-| **Parsed** — a table in the Explorer | 1,032 (50.1 %) | **1,919 (93.2 %)** | 2,622 MB (70.0 %) |
-| **Browsable** — a module opens it as it stands | 36 (1.7 %) | 36 (1.7 %) | 260 MB (6.9 %) |
-| **No handler** | 990 (48.1 %) | **103 (5.0 %)** | 863 MB (23.0 %) |
+| | Files before | Files now | Bytes before | Bytes now |
+|---|---:|---:|---:|---:|
+| **Parsed** — a table in the Explorer | 1,032 (50.1 %) | **1,922 (93.4 %)** | 2,621 MB (70.0 %) | **2,743 MB (73.2 %)** |
+| **Browsable** — a module opens it as it stands | 36 (1.7 %) | 36 (1.7 %) | 260 MB (6.9 %) | 260 MB (6.9 %) |
+| **No handler** | 990 (48.1 %) | **100 (4.9 %)** | 865 MB (23.1 %) | **743 MB (19.8 %)** |
 
 Parsed, by artifact type:
 
 | Kind | Files | Bytes | |
 |---|---:|---:|---|
-| recycle_bin | 538 | 0.1 MB | new |
+| recycle_bin | 538 | 0.1 MB | tier 1 |
 | prefetch | 439 | 13.5 MB | |
 | lnk | 281 | 0.3 MB | |
-| scheduled_task | 272 | 0.9 MB | new |
+| scheduled_task | 272 | 0.9 MB | tier 1 |
 | evtx | 178 | 405.8 MB | |
 | jumplist_auto | 79 | 3.9 MB | |
-| jumplist_custom | 79 | 0.5 MB | new |
+| jumplist_custom | 79 | 0.5 MB | tier 1 |
 | already tabular (log/json/text/csv) | 42 | 20.3 MB | |
 | browser history + cookies | 7 | 34.9 MB | |
 | windows_timeline | 2 | 11.3 MB | |
+| browser_cache (WebCacheV01) | 2 | 82.5 MB | tier 2 |
+| srum | 1 | 37.9 MB | tier 2 |
 | `$MFT` | 1 | 2,092.5 MB | |
 | `$J` | 1 | 38.3 MB | |
 
@@ -42,17 +44,18 @@ Browsable: 36 registry hives, 260 MB — the Registry Explorer (§17 of
 
 ### What is left
 
-103 files, and no group in it is large:
+100 files, and no group in it is large:
 
 | Kind | Files | Bytes | |
 |---|---:|---:|---|
 | unknown | 70 | 21.6 MB | mostly SQLite `-wal`/`-shm` sidecars, `.jsonlz4` session backups, NTFS metadata |
 | sqlite | 17 | 30.5 MB | tier 3 |
 | binary_blob | 11 | 626.6 MB | the RDP bitmap cache, tier 3 |
-| browser_cache | 2 | 82.5 MB | ESE, tier 2 |
 | ntfs_logfile | 1 | 64.0 MB | tier 4 |
-| srum | 1 | 37.9 MB | ESE, tier 2 |
 | empty | 1 | 0 | |
+
+The remaining bytes are almost entirely one artifact: the RDP bitmap cache, at
+627 MB of the 743 MB left.
 
 The SQLite sidecars are worth a note. A `-wal` file is not an artifact of its
 own — it belongs to the database beside it, and the browser parser already
@@ -154,22 +157,61 @@ Two supporting changes the above needed:
   never replaced, so the original name survives into the tool's own source
   column.
 
-### Tier 2 — one dependency unlocks a family
+### Tier 2 — one dependency unlocks a family — **done**
 
-**Cost: one pip package. Coverage: +6 files, +120 MB, and four artifact
-classes.**
+**Cost: one pip package. Coverage delivered: +3 files, +120 MB, and four
+artifact classes.**
 
-Adding `dissect.esedb` makes the whole ESE family readable at once:
+`dissect.esedb` makes the ESE family readable, and carries a SRUM helper that
+resolves the application and user id maps — the part that turns a table of
+integers into "discord.exe sent 88 MB for S-1-5-21-… at 19:22".
 
-| Artifact | In this triage | Value |
+| Artifact | In this triage | Reader |
 |---|---:|---|
-| SRUM (`SRUDB.dat`) | 37.9 MB | Per-application network bytes sent and received. The artifact for "what left the machine". |
-| `WebCacheV01.dat` | 82.5 MB | IE/Edge history and cache metadata. |
-| `Windows.edb` | — | Search index; content of indexed files. |
-| `NTDS.dit` | — | Domain accounts, on a DC collection. |
+| SRUM (`SRUDB.dat`) | 37.9 MB, 127k rows | One table per provider |
+| `WebCacheV01.dat` | 82.5 MB, 395 entries | One table, container name as a column |
+| `Windows.edb` | — | Generic table dump |
+| `NTDS.dit` | — | Generic table dump |
 
-SrumECmd is Windows-only, so SRUM needs a Python parser regardless. `dissect.esedb`
-is the same library `dissect.target` builds on and is the natural choice.
+**One table per SRUM provider**, not one merged table: the providers hold
+genuinely different columns — bytes on a wire, energy drawn from a battery —
+and merging them makes one wide table that is mostly empty. The reference
+database produced ten, `network_data` (22,778 rows) and `application` (65,860)
+being the two an analyst reaches for.
+
+**One table for the web cache**, because every `Container_N` shares a schema
+and differs only in what it holds. Which number History landed on varies by
+machine, so it becomes a column rather than a filename.
+
+**A generic table dump for the rest.** Not a good answer — the columns are
+whatever Microsoft called them and nothing is resolved — but a true one, and it
+means an ESE artifact nobody has written a reader for is queryable on the day
+it arrives rather than listed as unsupported indefinitely. `NTDS.dit` in
+particular needs the SYSTEM hive's boot key before anything in it decrypts;
+dumping the tables is honest about stopping short of that.
+
+Two things this got wrong first time, both found by running it against the real
+files rather than a fixture:
+
+* **Catching failures per file rather than per table.** One container in the
+  reference `WebCacheV01.dat` raises inside the library, and catching per file
+  threw away the other fifty-one — 185 entries recovered instead of 378.
+* **Reading records through `as_dict()`.** That helper walks the record's
+  fixed-column range, and on 16 of 52 containers the range's upper bound is
+  absent, so it raises before returning a value. Asking for the columns
+  actually wanted never touches that path: 378 entries became 395, with no
+  errors left at all.
+
+A third, smaller: about 4 % of SRUM `network_data` rows carry an application id
+that is not in the id map. Writing an empty cell for those lost the fact that
+the row *has* an id — the raw number correlates across rows, a blank does not —
+so an unresolved id keeps its number.
+
+**Bounded on purpose.** These parsers run in-process rather than in the parser
+sandbox, and an ESE database can be tens of gigabytes. Per-table row caps and a
+per-cell character cap are what stop a hostile or merely enormous file taking
+the worker with it. Moving the Python parsers behind the sandbox is worth doing
+and is not done.
 
 ### Tier 3 — real work, real value
 
@@ -205,11 +247,16 @@ is the same library `dissect.target` builds on and is the natural choice.
 | | Files | Bytes |
 |---|---:|---:|
 | Before tier 1 | 50.1 % | 70.0 % |
-| **After tier 1 (measured)** | **93.2 %** | **70.0 %** |
-| After tiers 1–3 (projected) | 94.4 % | 90.0 % |
+| After tier 1 (measured) | 93.2 % | 70.0 % |
+| **After tier 2 (measured)** | **93.4 %** | **73.2 %** |
+| After tier 3 (projected) | 94.4 % | 90.0 % |
 
 The tier 1 projection was 93.3 % and the result is 93.2 %; the difference is
 one `$I` record that had previously been counted as a shortcut.
+
+What tier 3 is worth is now easy to state: of the 743 MB still unread, **627 MB
+is the RDP bitmap cache** — one artifact, six files, and the only thing in the
+collection that reconstructs what an operator actually saw on a remote session.
 
 Tier 1 buys the file count; tiers 2 and 3 buy the bytes. The two are different
 questions and it is worth not confusing them: 439 prefetch files matter because

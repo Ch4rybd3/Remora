@@ -37,5 +37,11 @@ pyzipper>=0.3.6
 # Disk image forensics (E01/EWF, VMDK, VHDX, raw) + NTFS/FAT/ExtFS — pure Python
 dissect.target>=3.15
 
+# ESE databases: SRUM, WebCacheV01.dat, Windows.edb, NTDS.dit. One dependency
+# for four artifact classes, and it carries a SRUM helper that resolves the
+# application and user id maps — the part that makes SRUM readable rather than
+# a table of integers. SrumECmd is Windows-only, so this is not optional.
+dissect.esedb>=3.18
+
 # ── Schema migrations (docs/CONVENTIONS.md section 4) ────────────────────────
 alembic>=1.14
