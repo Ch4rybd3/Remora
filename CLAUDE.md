@@ -12,6 +12,7 @@ This file is an index. The authoritative rules live in `docs/`.
 | [docs/CONVENTIONS.md](docs/CONVENTIONS.md) | **Start here.** Language rule (English only), git and commit conventions, versioning, backend and frontend checklists, error handling, logging, styling and icon rules, time handling, security rules. |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Module layout, SQLAlchemy cascade behaviour, MITRE ATT&CK integration. |
 | [docs/UI_PATTERNS.md](docs/UI_PATTERNS.md) | Timeline pinning, file-sidebar selection, default filter state. Behavioural contracts, not styling. |
+| [docs/COVERAGE.md](docs/COVERAGE.md) | What is parsed out of a real triage, what is not, and what closing each gap costs. Measured, not estimated. |
 | [docs/INGESTION.md](docs/INGESTION.md) | Artifact ingestion pipeline: drop folder, hashing, magic-byte identification, routing, deduplication, source timezone, storage, ECS normalisation, parser sandbox. |
 | [docs/REPORT_TEMPLATES.md](docs/REPORT_TEMPLATES.md) | `{{ }}` tags available in DOCX and Markdown report templates. |
 | [docs/DESIGN_BRIEF.md](docs/DESIGN_BRIEF.md) | Design tokens, identity constraints, theme requirements. |
