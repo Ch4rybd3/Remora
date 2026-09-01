@@ -24,7 +24,7 @@ from ..models.user import User
 # Aliased: `Query` at module scope is FastAPI's, used in every endpoint
 # signature below.
 from ..services.store import Query as StoreQuery
-from ..services.store import drop_cache, get_store
+from ..services.store import SourceMissing, drop_cache, get_store
 
 router = APIRouter(tags=["csv-artifacts"])
 
@@ -171,6 +171,12 @@ def list_artifacts(case_id: str, db: Session = Depends(get_db)) -> list[dict]:
 def _artifact_dto(r: CsvArtifactFile) -> dict:
     return {
         "id":               r.id,
+        # Whether the bytes are still there. A record can outlive its file -
+        # the collection it came from was deleted, or a parser wrote into a
+        # directory that did not survive - and the row count was taken while
+        # the file existed, so the list would otherwise advertise a thousand
+        # rows for a table that opens with none.
+        "available":        os.path.exists(str(r.file_path)),
         "original_name":    r.original_name,
         "columns":          json.loads(r.columns),
         "row_count":        r.row_count,
@@ -322,6 +328,16 @@ def get_rows(
         total, pages, rows = result.total, result.pages, result.rows
     except RQLSyntaxError as exc:
         raise HTTPException(status_code=422, detail={"rql_error": str(exc)})
+    except SourceMissing:
+        # 410, not 404: the artifact record is right here, and saying "not
+        # found" would send the analyst looking for a row that exists. What is
+        # gone is the file behind it.
+        raise HTTPException(
+            status_code=410,
+            detail=f"'{a.original_name}' is registered but its file is no longer "
+                   f"on disk. It was most likely removed with the collection it "
+                   f"came from. Delete this entry, or import the artifact again.",
+        )
 
     return {
         "total":     total,

@@ -3,7 +3,7 @@ import { PageShell } from '../ui/PageShell'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  FileText, Globe, Info, Loader2, Search, Table2, Trash2, Upload, X,
+  AlertTriangle, FileText, Globe, Info, Loader2, Search, Table2, Trash2, Upload, X,
 } from '../ui/icons'
 import { csvArtifactsApi, type CsvArtifactMeta } from '../api/csvArtifacts'
 import { timelineApi } from '../api/timeline'
@@ -53,7 +53,15 @@ function FileSidebarRow({ meta, caseId, isOpen, onOpen, onDelete, onCustodyChang
                 {meta.source_timezone.split('/').pop()?.replace('_', ' ') ?? meta.source_timezone}
               </span>
             )}
-            <span className="text-label text-fg-secondary/40">{meta.row_count.toLocaleString()} rows</span>
+            {meta.available === false
+              ? <span
+                  title="This table is registered but its file is no longer on disk. It was most likely removed with the collection it came from."
+                  className="flex items-center gap-0.5 text-label font-semibold px-1.5 py-0.5 rounded-control border border-severity-medium/30 bg-severity-medium/10 text-severity-medium">
+                  <AlertTriangle size={7} />
+                  file missing
+                </span>
+              : <span className="text-label text-fg-secondary/40">{meta.row_count.toLocaleString()} rows</span>
+            }
           </div>
           <p className="text-label text-fg-secondary/25 mt-0.5">{fmtRelative(meta.uploaded_at)}</p>
         </div>

@@ -6,6 +6,7 @@ import { collectionImportApi, type ImportedCollection, type ImportedFile, type G
 import { CopyableName, CustodyActions } from '../../custody/CustodyActions'
 import { useNavigate } from 'react-router-dom'
 import { TIMEZONE_OPTIONS } from '../../../context/TimezoneContext'
+import DeleteCollectionDialog from '../DeleteCollectionDialog'
 import DropFolderPanel from '../DropFolderPanel'
 import IngestQueuePanel from '../IngestQueuePanel'
 import CustodyPanel from '../../custody/CustodyPanel'
@@ -283,9 +284,23 @@ function CollectionCard({ cols, caseId }: { cols: ImportedCollection[]; caseId: 
 
   const col = useMemo(() => mergeSession(cols), [cols])
 
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+
   const del = useMutation({
     mutationFn: () => Promise.all(col._sourceIds.map(id => collectionImportApi.delete(caseId, id))),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['collection-imports', caseId] }),
+    onSuccess: () => {
+      setConfirmingDelete(false)
+      // Deleting a collection removes records in five other modules, so their
+      // lists are stale too - refreshing only this one leaves the analyst
+      // looking at tables that no longer exist until they reload the page.
+      qc.invalidateQueries({ queryKey: ['collection-imports', caseId] })
+      qc.invalidateQueries({ queryKey: ['csv-artifacts', caseId] })
+      qc.invalidateQueries({ queryKey: ['artifacts', caseId] })
+      qc.invalidateQueries({ queryKey: ['evtx-files', caseId] })
+      qc.invalidateQueries({ queryKey: ['case-emails', caseId] })
+      qc.invalidateQueries({ queryKey: ['memory-dumps', caseId] })
+    },
+    onError: (e: Error) => alert(`The collection could not be deleted: ${e.message}`),
   })
 
   const groups = col.groups ?? []
@@ -300,6 +315,16 @@ function CollectionCard({ cols, caseId }: { cols: ImportedCollection[]; caseId: 
 
   return (
     <div className="border border-hairline bg-[#0d1927] overflow-hidden">
+      <DeleteCollectionDialog
+        open={confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
+        onConfirm={() => del.mutate()}
+        caseId={caseId}
+        collectionIds={col._sourceIds}
+        name={displayName(col.filename)}
+        busy={del.isPending}
+      />
+
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="px-4 py-3 border-b border-hairline">
         {/* Row 1: toggle + name + status + delete */}
@@ -318,7 +343,8 @@ function CollectionCard({ cols, caseId }: { cols: ImportedCollection[]; caseId: 
           </span>
           <button
             className="text-fg-muted hover:text-severity-critical text-label ml-1 shrink-0"
-            onClick={() => { if (confirm(col._sourceIds.length > 1 ? `Delete this session (${col._sourceIds.length} batches)?` : 'Delete this collection import?')) del.mutate() }}
+            title="Delete this collection and everything it produced"
+            onClick={() => setConfirmingDelete(true)}
           >✕</button>
         </div>
 

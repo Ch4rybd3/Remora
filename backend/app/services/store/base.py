@@ -24,6 +24,18 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 
+class SourceMissing(Exception):
+    """
+    The artifact's file is not where its record says.
+
+    Its own exception because the Explorer has to say something different about
+    it. Every other failure is a query problem the analyst can adjust; this one
+    means the bytes are gone, and reporting it as an empty result was how a
+    table could list a thousand rows and open with none - the count had been
+    read while the file still existed.
+    """
+
+
 @dataclass(frozen=True)
 class Query:
     """What to keep. All three narrow together, as AND."""

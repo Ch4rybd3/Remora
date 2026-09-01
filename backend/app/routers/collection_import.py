@@ -7,7 +7,6 @@ ingest, and status reporting.
 """
 from __future__ import annotations
 
-import shutil
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -15,13 +14,13 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
-from ..config import settings
 from ..core.deps import get_current_user
 from ..database import SessionLocal, get_db
 from ..models.csv_artifact import CsvArtifactFile
 from ..models.ez_artifacts import ImportedCollection, ImportedFile
 from ..models.ingest import STATE_FAILED as INGEST_FAILED
 from ..models.ingest import STATE_UNSUPPORTED as INGEST_UNSUPPORTED
+from ..services import collections as collections_service
 from ..services.archives import (
     ARCHIVE_EXTS_LABEL,
     ArchiveError,
@@ -31,13 +30,16 @@ from ..services.archives import (
     list_entries,
 )
 from ..services.ez_detection import detect
+from ..services.ingest.batch import PARSED_DIRNAME
 from ..services.ingest.dispatch import parse as dispatch_parse
 
 router = APIRouter()
 
 # Storage: data/cases/<case_id>/collections/<collection_id>/
+# The path itself is defined once, in the deletion service - two definitions of
+# where a collection lives is two chances for deletion to miss it.
 def _collection_dir(case_id: str, collection_id: str) -> Path:
-    p = settings.case_data_path / "cases" / case_id / "collections" / collection_id
+    p = collections_service.collection_dir(case_id, collection_id)
     p.mkdir(parents=True, exist_ok=True)
     return p
 
@@ -281,6 +283,12 @@ def _run_pending(
             db, case_id=case_id,
             path=file_path if file_path else extracted_dir / filename,
             filename=filename,
+            # Parser output goes inside the collection, never a temporary
+            # directory: the Explorer reads those CSVs in place, and deleting
+            # the collection has to take them with it.
+            out_dir=extracted_dir / PARSED_DIRNAME,
+            collection_id=collection_id,
+            source_file_id=file_id,
         )
 
         if result.state == INGEST_FAILED:
@@ -308,7 +316,8 @@ def _run_pending(
     try:
         from ..services.ingest import batch
 
-        batch.run(db, case_id, extracted_dir)
+        batch.run(db, case_id, extracted_dir, collection_id=collection_id)
+        db.commit()
     except Exception as e:
         print(f"[collection_import] batch parsing failed: {e}", flush=True)
 
@@ -427,6 +436,35 @@ def get_collection(
     }
 
 
+def _get_collection_or_404(case_id: str, collection_id: str,
+                           db: Session) -> ImportedCollection:
+    col = db.query(ImportedCollection).filter(
+        ImportedCollection.id == collection_id,
+        ImportedCollection.case_id == case_id,
+    ).first()
+    if not col:
+        raise HTTPException(404, "Collection not found")
+    return col
+
+
+@router.get("/cases/{case_id}/collection-imports/{collection_id}/deletion-plan")
+def collection_deletion_plan(
+    case_id: str,
+    collection_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    What deleting this collection would remove, per module.
+
+    Read-only. Deleting a collection now reaches into the Artifact Explorer,
+    the Logs module and the others it fed, so the confirmation says what it
+    will take rather than asking the analyst to guess.
+    """
+    col = _get_collection_or_404(case_id, collection_id, db)
+    return collections_service.plan(db, col).as_dict()
+
+
 @router.delete("/cases/{case_id}/collection-imports/{collection_id}")
 def delete_collection(
     case_id: str,
@@ -434,21 +472,15 @@ def delete_collection(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    col = db.query(ImportedCollection).filter(
-        ImportedCollection.id == collection_id,
-        ImportedCollection.case_id == case_id,
-    ).first()
-    if not col:
-        raise HTTPException(404, "Collection not found")
+    """
+    Remove the collection, its bytes, and every record it created.
 
-    # Remove extracted files from disk
-    dest_dir = _collection_dir(case_id, collection_id)
-    if dest_dir.exists():
-        shutil.rmtree(dest_dir, ignore_errors=True)
-
-    db.delete(col)
-    db.commit()
-    return {"ok": True}
+    Artifacts preserved in the chain of custody survive: their working copy is
+    moved out of the collection directory and their records are left in place.
+    """
+    col = _get_collection_or_404(case_id, collection_id, db)
+    removed = collections_service.delete(db, col)
+    return {"ok": True, "removed": removed.as_dict()}
 
 
 @router.patch("/cases/{case_id}/collection-imports/files/{file_id}/evidence")

@@ -30,6 +30,22 @@ export interface GroupSummary {
   total_rows: number
 }
 
+/** What deleting a collection would remove, per module. */
+export interface DeletionPlan {
+  /** Tables in the Artifact Explorer. */
+  tables: number
+  /** Files in the Logs module, with their events. */
+  event_logs: number
+  emails: number
+  memory_dumps: number
+  /** Rows in the collection's own ingest list. */
+  files: number
+  /** Kept: preserved in the chain of custody. */
+  preserved: number
+  bytes_on_disk: number
+  preserved_names: string[]
+}
+
 export interface ImportedCollection {
   id: string
   case_id: string
@@ -95,13 +111,34 @@ export const collectionImportApi = {
     return res.json()
   },
 
+  /**
+   * What deleting this collection would remove, per module.
+   *
+   * Read-only, and asked for before the confirmation is shown. Deletion now
+   * reaches into the Artifact Explorer, the Logs module and the others the
+   * import fed; a confirmation that does not say what it takes is not one.
+   */
+  async deletionPlan(caseId: string, collectionId: string): Promise<DeletionPlan> {
+    const headers = await authHeaders()
+    const res = await fetch(
+      `${BASE}/cases/${caseId}/collection-imports/${collectionId}/deletion-plan`,
+      { headers, credentials: 'include' },
+    )
+    if (!res.ok) throw new Error(await res.text())
+    return res.json()
+  },
+
   async delete(caseId: string, collectionId: string): Promise<void> {
     const headers = await authHeaders()
-    await fetch(`${BASE}/cases/${caseId}/collection-imports/${collectionId}`, {
+    const res = await fetch(`${BASE}/cases/${caseId}/collection-imports/${collectionId}`, {
       method: 'DELETE',
       headers,
       credentials: 'include',
     })
+    // Deletion is not reversible, so a failure has to surface. It used to be
+    // discarded, and a refused delete looked exactly like a successful one
+    // until the list refreshed with the collection still in it.
+    if (!res.ok) throw new Error(await res.text())
   },
 
   async markEvidence(caseId: string, fileId: string, added: boolean, evidenceId?: string): Promise<ImportedFile> {
