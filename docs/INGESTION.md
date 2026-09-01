@@ -536,6 +536,35 @@ the answer is designed in rather than retrofitted:
   that can only be installed by reaching out cannot be installed where it is
   most needed. `EZ_TOOLS_PATH`.
 
+### Parsers written here
+
+Two Eric Zimmerman tools refuse to run on Linux, and one of them reads the
+largest artifact class in a triage. `services/ingest/python_parsers/` fills
+those gaps.
+
+| Artifact | Why not an EZ tool | Measured on a real KAPE triage |
+|---|---|---|
+| Prefetch | PECmd needs a Windows decompression API | 439 files → 439 + 60,570 rows |
+| Browser history, cookies, downloads | No EZ tool reads browser databases | 7 databases → 50,347 rows |
+
+**They run in batch, not per file.** That is the important difference. Parsing
+439 prefetch files individually would register 439 artifacts in the Explorer,
+one row each - technically complete and completely unusable. An artifact type
+produces one table per collection, which is also what EvtxECmd does when
+pointed at a folder. `services/ingest/batch.py` runs after the per-file pass.
+
+Browser output is **normalised across browsers**: one table per question - what
+was visited, what was downloaded, which cookies existed - with the browser as a
+column. An analyst asking "was this URL visited" should not have to ask it once
+per product. Chromium counts microseconds from 1601 and Firefox from 1970;
+reading one with the other's epoch puts a 2026 visit in 1601, plausible enough
+to go unnoticed in a table and useless in a timeline.
+
+Saved passwords are never read. They are encrypted blobs, and decrypting them
+is a decision about the investigation rather than a parsing step. The database
+is copied before being opened, because SQLite replays the write-ahead log on
+open - which writes, and the log holds the most recent session.
+
 ### Two tools do not run on Linux
 
 Verified by running all twelve under the sandbox:

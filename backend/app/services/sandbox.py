@@ -73,7 +73,16 @@ class Limits:
     #: quarter of its time with a signal nobody could interpret. This is a
     #: backstop against a process that ignores the clock, not the primary limit.
     cpu_seconds:   int = 900 * 4
+    #: Bounds the **managed heap**, through `DOTNET_GCHeapHardLimit`.
+    #:
+    #: Not `RLIMIT_AS`, which bounds virtual address space. .NET reserves far
+    #: more of that than it uses by design, so any value low enough to be a
+    #: real memory limit kills the runtime: MFTECmd on a 2 GB `$MFT` needs
+    #: under a gigabyte of heap and dies at a 4 GB address-space ceiling.
     memory_bytes:  int = 2 * 1024 ** 3
+    #: Address space, as a backstop against a runaway that is not .NET. A
+    #: multiple of the heap limit rather than equal to it, for the reason above.
+    address_space_multiplier: int = 8
     #: Total across the scratch directory. Watched **during** the run, not only
     #: measured after it: a parser that writes 500 GB fills the disk long
     #: before it exits, and a quota checked at the end would report a failure
@@ -110,10 +119,16 @@ class Limits:
         gigabytes = size_bytes / (1024 ** 3)
         wall = int(base + gigabytes * settings.parser_seconds_per_gigabyte)
         wall = min(max(wall, base), settings.parser_max_seconds)
+
+        # Output scales with input for the same reason time does. MFTECmd turns
+        # a 2 GB `$MFT` into an 886 MB CSV; a fixed ceiling either kills that or
+        # is no ceiling at all for a small file.
+        floor = 4 * 1024 ** 3
         return cls(
             wall_seconds=wall,
             cpu_seconds=wall * settings.parser_cpu_multiplier,
             memory_bytes=settings.parser_memory_mb * 1024 * 1024,
+            output_bytes=max(floor, size_bytes * 4),
             **overrides,
         )
 
@@ -264,6 +279,13 @@ def _sandbox_account(username: str) -> tuple[int, int] | None:
 
 # ─── Running ──────────────────────────────────────────────────────────────────
 
+def _chown_directories(root: Path, uid: int, gid: int) -> None:
+    os.chown(root, uid, gid)
+    for item in root.rglob("*"):
+        if item.is_dir() and not item.is_symlink():
+            os.chown(item, uid, gid)
+
+
 def _directory_size(path: Path) -> int:
     total = 0
     for item in path.rglob("*"):
@@ -308,11 +330,17 @@ def run(
     applied = ["rlimits", "no-shell", "own-process-group"]
     if account:
         applied.append(f"uid={account[0]}")
-        # The scratch directory has to be writable by the account we drop to,
-        # or every parser fails on its first write with a permission error that
-        # looks like a broken tool.
+        # Every directory under the scratch path has to be writable by the
+        # account we drop to, or the parser fails on its first write with a
+        # permission error that reads as a broken tool. Recursive, because a
+        # caller that pre-created an output directory would otherwise hand over
+        # only the top level - which is exactly what happened.
+        #
+        # Directories only. A staged artifact may be a hard link to evidence,
+        # and chowning a link changes the original file's owner. The parser
+        # needs to read it, not own it.
         try:
-            os.chown(workdir, account[0], account[1])
+            _chown_directories(workdir, account[0], account[1])
         except OSError as e:
             raise SandboxError(f"Could not hand {workdir} to the sandbox account: {e}") from e
     use_seccomp = seccomp_available()
@@ -325,7 +353,8 @@ def run(
         os.setsid()
 
         resource.setrlimit(resource.RLIMIT_CPU, (limits.cpu_seconds, limits.cpu_seconds))
-        resource.setrlimit(resource.RLIMIT_AS, (limits.memory_bytes, limits.memory_bytes))
+        address_space = limits.memory_bytes * limits.address_space_multiplier
+        resource.setrlimit(resource.RLIMIT_AS, (address_space, address_space))
         # No RLIMIT_FSIZE. .NET's JIT maps its executable pages through a file
         # it truncates to a large size, and the limit applies to that offset -
         # so any value small enough to be a quota kills the runtime with
@@ -355,6 +384,9 @@ def run(
         # would be allowed, but a parser has no reason to expose one.
         "DOTNET_EnableDiagnostics": "0",
         "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
+        # The real memory bound. Hexadecimal, no 0x prefix, as the runtime
+        # expects. This is what `memory_bytes` means - see the note on it.
+        "DOTNET_GCHeapHardLimit": format(limits.memory_bytes, "x"),
         **(env or {}),
     }
 

@@ -207,22 +207,30 @@ def run(kind: str, source: Path, workdir: Path) -> ParseOutcome:
     out = workdir / "out"
     out.mkdir(exist_ok=True)
 
-    target = source
-    if recipe.args is not None and "-d" in recipe.args(source, out):
-        # A directory-reading tool gets a directory holding this artifact and
-        # nothing else, so a hive is not parsed together with its neighbours.
-        isolated = workdir / "input"
-        isolated.mkdir(exist_ok=True)
-        linked = isolated / source.name
-        if not linked.exists():
-            try:
-                linked.hardlink_to(source)
-            except OSError:
-                # Different filesystem, or a mount that forbids links. Copying
-                # an artifact is wasteful but correct; failing would be neither.
-                import shutil
-                shutil.copy2(source, linked)
-        target = isolated
+    # The artifact is always staged into the scratch directory, never read
+    # where it happens to live.
+    #
+    # Two reasons. The parser's ability to open it otherwise depends on the
+    # permissions of every directory above it, and when that fails MFTECmd
+    # prints "File not found" and exits **zero** - which reads as an artifact
+    # that produced nothing rather than one it could not open. And a parser
+    # that only ever sees a directory we prepared cannot see the rest of the
+    # drop folder, which is the point of a sandbox.
+    staged_dir = workdir / "input"
+    staged_dir.mkdir(exist_ok=True)
+    staged = staged_dir / source.name
+    if not staged.exists():
+        try:
+            # Free on the same filesystem, whatever the artifact's size. The
+            # link is never chowned: it shares an inode with evidence.
+            staged.hardlink_to(source)
+        except OSError:
+            import shutil
+            shutil.copy2(source, staged)
+
+    # A directory-reading tool gets a directory holding this artifact and
+    # nothing else, so a hive is never parsed together with its neighbours.
+    target = staged_dir if "-d" in recipe.args(source, out) else staged
 
     try:
         size = source.stat().st_size
@@ -251,9 +259,15 @@ def run(kind: str, source: Path, workdir: Path) -> ParseOutcome:
                             error=detail or f"{recipe.tool} exited {result.exit_code}")
 
     if not produced:
+        # Include what the tool said. Several of them report a fatal problem on
+        # stdout and exit zero - "File not found. Exiting" is the one that cost
+        # an afternoon - so an exit code alone explains nothing.
+        said = (result.stdout or result.stderr or "").strip().splitlines()
+        detail = said[-1][:300] if said else ""
         return ParseOutcome(False, tool=recipe.tool, tool_sha256=tool.sha256,
                             duration=result.duration,
-                            error=f"{recipe.tool} produced no output")
+                            error=f"{recipe.tool} produced no output"
+                                  + (f": {detail}" if detail else ""))
 
     return ParseOutcome(True, csv_files=produced, tool=recipe.tool,
                         tool_sha256=tool.sha256, duration=result.duration)
