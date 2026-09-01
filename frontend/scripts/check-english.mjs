@@ -39,6 +39,20 @@ const FRENCH = [
 
 const PATTERN = new RegExp(`(?<![\\w-])(${FRENCH.join('|')})(?![\\w-])`, 'gi')
 
+/**
+ * French byte units, which no word list can catch.
+ *
+ * `o` is octet, and `Ko`/`Mo`/`Go` are its multiples. As bare words they are
+ * unmatchable - `o` appears inside every other identifier and `Go` is an
+ * English verb - so they are caught in the one shape that is unambiguous: a
+ * number, a space, then the unit. Two shipped pages formatted every file size
+ * this way and both the accent gate and the word list read them as English.
+ *
+ * `frontend/src/utils/formatUtils.ts` has the correct formatter. Use it rather
+ * than writing a third one.
+ */
+const BYTE_UNITS = /\}\s*(o|Ko|Mo|Go|To)(?![\w-])/g
+
 /** Lines that are allowed to contain these words. */
 function exempt(line) {
   // An import path or a URL is not user-facing text.
@@ -68,6 +82,14 @@ for (const file of walk(SRC)) {
         file: relative(ROOT, file),
         line: index + 1,
         word: match[0],
+        text: line.trim().slice(0, 100),
+      })
+    }
+    for (const match of line.matchAll(BYTE_UNITS)) {
+      findings.push({
+        file: relative(ROOT, file),
+        line: index + 1,
+        word: `${match[1]} (French byte unit - use fmtBytes from utils/formatUtils)`,
         text: line.trim().slice(0, 100),
       })
     }

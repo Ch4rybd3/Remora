@@ -148,6 +148,7 @@ export default function Sidebar() {
         { to: '/artifacts/filesystem', label: 'Logs' },
         { to: '/artifacts/pcap', label: 'Network (PCAP)' },
         { to: '/artifacts/images', label: 'Disk Images' },
+        { to: '/artifacts/registry', label: 'Registry Explorer' },
         { to: '/artifacts/memory', label: 'Memory Analysis' },
         { to: '/artifacts/binary', label: 'Binary Analysis' },
         { to: '/artifacts/cti', label: 'CTI Lookup' },

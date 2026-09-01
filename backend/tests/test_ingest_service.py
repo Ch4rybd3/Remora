@@ -22,6 +22,7 @@ from app.models.ingest import (
     IngestedFile,
 )
 from app.services.ingest import service
+from app.services.ingest.routing import route_for
 
 EVTX  = b"ElfFile\x00" + b"\x00" * 128
 HIVE  = b"regf" + b"\x00" * 128
@@ -175,16 +176,35 @@ def test_a_kind_whose_parser_has_not_shipped_is_unsupported(
     db_session, case_id, tmp_path: Path
 ):
     """
-    Registry hives are recognised but RECmd lands in S16.
+    The NTFS transaction log is recognised and nothing reads it yet.
 
     `unsupported` is the honest answer: the file is stored and listed, it is
     simply not queryable yet. Refusing it would be a lie about what Remora can
     hold.
+
+    This used to be demonstrated with a registry hive. Hives are now browsable
+    key by key, so they are no longer an example of a kind nothing handles -
+    see `test_a_registry_hive_is_routed_to_the_browser`.
     """
     row = service.record(db_session, case_id=case_id,
-                         path=_write(tmp_path, "SYSTEM", HIVE))
-    assert row.detected_kind == "registry_hive"
+                         path=_write(tmp_path, "$LogFile", b"\x00" * 128))
+    assert row.detected_kind == "ntfs_logfile"
     assert row.state == STATE_UNSUPPORTED
+
+
+def test_a_registry_hive_is_routed_to_the_browser(db_session, case_id, tmp_path: Path):
+    """
+    A hive is not a gap in the pipeline any more.
+
+    Which keys matter is still an analyst's decision - Remora ships no list of
+    them - but supplying the navigation is not the same as refusing the file,
+    and the row should not read as one nothing could be done with.
+    """
+    row = service.record(db_session, case_id=case_id,
+                         path=_write(tmp_path, "SOFTWARE", HIVE))
+    assert row.detected_kind == "registry_hive"
+    assert row.state != STATE_UNSUPPORTED
+    assert "/artifacts/registry" in route_for("registry_hive").pages
 
 
 def test_forcing_a_kind_reroutes_the_file(db_session, case_id, tmp_path: Path):

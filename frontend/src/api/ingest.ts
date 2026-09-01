@@ -10,7 +10,10 @@ const BASE = '/api/v1'
 
 export type IngestState =
   | 'discovered' | 'hashed' | 'duplicate' | 'identified' | 'unidentified'
-  | 'routed' | 'parsed' | 'indexed' | 'failed' | 'unsupported'
+  | 'routed' | 'parsed' | 'indexed'
+  /** Stored, and a module opens it as it stands. A registry hive. Terminal. */
+  | 'browsable'
+  | 'failed' | 'unsupported'
 
 export interface IngestedFile {
   id:                string

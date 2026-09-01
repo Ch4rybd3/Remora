@@ -1,96 +1,113 @@
 import api from './client'
 
-export interface RegistryFile {
-  id:            string
-  case_id:       string
-  filename:      string
-  hive_type:     string
-  status:        'pending' | 'parsing' | 'ready' | 'error'
-  entry_count:   number | null
-  error_msg:     string | null
-  uploaded_at:   string
-  parsed_at:     string | null
-  added_to_evidence:      boolean
-  parse_progress:         number
-  parse_duration_seconds: number | null
-  columns:                string[]   // decoded from columns_json by server
+/**
+ * Registry Explorer.
+ *
+ * The hives listed here are ingest records, not a table of their own — the
+ * same rows the ingest queue shows. Nothing is uploaded from this page: a hive
+ * arrives through the drop folder like every other artifact.
+ */
+
+export interface RegistryHive {
+  id: string
+  name: string
+  size_bytes: number
+  sha256: string | null
+  collection_id: string | null
+  state: string
+  preserved: boolean
+  /** False once the file behind the record is gone — a deleted collection. */
+  available: boolean
+  created_at: string | null
 }
 
-export interface RegistryEntry {
-  row_num:    number
-  timestamp:  string | null
-  hive_path:  string | null
-  hive_type:  string | null
-  key_path:   string | null
+export interface RegistryHiveInfo extends RegistryHive {
+  /** The path Windows knew the hive by, from its header. */
+  internal_name: string
+  version: number
+  /** Collected mid-write. Read as it stands; its newest values may be missing. */
+  dirty: boolean
+  in_transaction: boolean
+  root_name: string
+  subkey_count: number
+  value_count: number
+  /** What this browser does not do, said on the hive rather than in a manual. */
+  limitations: string[]
+}
+
+export interface RegistryKey {
+  name: string
+  path: string
+  subkey_count: number
+  value_count: number
+  last_written: string | null
+}
+
+export interface RegistryValue {
+  name: string
+  type: string
+  size: number
+  preview: string
+  truncated: boolean
+}
+
+export interface RegistryValueDetail {
+  name: string
+  type: string
+  size: number
+  text: string
+  hex: string
+  truncated: boolean
+}
+
+export interface RegistrySearchHit {
+  key_path: string
   value_name: string | null
-  value_type: string | null
-  value_data: string | null
-  deleted:    string | null
-  raw_data:   Record<string, string>
+  matched: 'key' | 'value_name' | 'value_data'
+  preview: string
 }
 
-export interface PinnedRegistryEntry extends RegistryEntry {
-  _key:        string   // `${fileId}:reg:${row_num}`
-  _fileId:     string
-  _filename:   string
-  _sourceType: 'registry'
+export interface RegistrySearchResult {
+  query: string
+  /** The walk stopped on its budget. A partial answer, and it says so. */
+  exhausted: boolean
+  scanned: number
+  hits: RegistrySearchHit[]
 }
 
-export interface RegistryEntriesPage {
-  total:     number
-  page:      number
-  page_size: number
-  pages:     number
-  items:     RegistryEntry[]
-}
-
-export interface RegistrySummary {
-  total_entries:    number
-  hive_type:        string
-  oldest_timestamp: string | null
-  newest_timestamp: string | null
-  top_hive_types:   Array<{ hive_type: string; count: number }>
-  top_value_types:  Array<{ value_type: string; count: number }>
-  top_categories:   Array<{ category: string; count: number }>
-}
-
-export interface RegistryEntryFilters {
-  page?:       number
-  page_size?:  number
-  search?:     string
-  hive_type?:  string
-  value_type?: string
-  deleted?:    string
-  time_from?:  string
-  time_to?:    string
-  sort_dir?:   string
-}
+const base = (caseId: string) => `/cases/${caseId}/registry/hives`
 
 export const registryApi = {
-  upload: (caseId: string, file: File) => {
-    const fd = new FormData()
-    fd.append('file', file)
-    return api.post<RegistryFile>(`/registry/${caseId}/upload`, fd, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }).then(r => r.data)
+  async hives(caseId: string): Promise<RegistryHive[]> {
+    return (await api.get(base(caseId))).data
   },
 
-  listFiles: (caseId: string) =>
-    api.get<RegistryFile[]>(`/registry/${caseId}/files`).then(r => r.data),
+  async info(caseId: string, hiveId: string): Promise<RegistryHiveInfo> {
+    return (await api.get(`${base(caseId)}/${hiveId}`)).data
+  },
 
-  deleteFile: (caseId: string, fileId: string) =>
-    api.delete(`/registry/${caseId}/files/${fileId}`),
+  async keys(caseId: string, hiveId: string, path: string): Promise<RegistryKey[]> {
+    const res = await api.get(`${base(caseId)}/${hiveId}/keys`, { params: { path } })
+    return res.data.keys
+  },
 
-  summary: (caseId: string, fileId: string) =>
-    api.get<RegistrySummary>(`/registry/${caseId}/files/${fileId}/summary`).then(r => r.data),
+  async values(caseId: string, hiveId: string, path: string): Promise<RegistryValue[]> {
+    const res = await api.get(`${base(caseId)}/${hiveId}/values`, { params: { path } })
+    return res.data.values
+  },
 
-  entries: (caseId: string, fileId: string, filters: RegistryEntryFilters = {}) =>
-    api.get<RegistryEntriesPage>(`/registry/${caseId}/files/${fileId}/entries`, { params: filters })
-       .then(r => r.data),
+  async value(caseId: string, hiveId: string, path: string, name: string): Promise<RegistryValueDetail> {
+    const res = await api.get(`${base(caseId)}/${hiveId}/value`, { params: { path, name } })
+    return res.data
+  },
 
-  reparse: (caseId: string, fileId: string) =>
-    api.post<RegistryFile>(`/registry/${caseId}/files/${fileId}/reparse`).then(r => r.data),
-
-  addEvidence: (caseId: string, fileId: string) =>
-    api.post<RegistryFile>(`/registry/${caseId}/files/${fileId}/add-evidence`).then(r => r.data),
+  async search(
+    caseId: string, hiveId: string, q: string,
+    options: { values?: boolean; data?: boolean } = {},
+  ): Promise<RegistrySearchResult> {
+    const res = await api.get(`${base(caseId)}/${hiveId}/search`, {
+      params: { q, values: options.values ?? true, data: options.data ?? true },
+    })
+    return res.data
+  },
 }

@@ -70,7 +70,10 @@ _ROUTES: dict[str, Route] = {
     "ntfs_secure":    Route(None, parser=None, to_explorer=False),
 
     # ── Registry and execution artifacts (S16 parsers) ──────────────────────
-    "registry_hive":  Route(None, parser="recmd",   pending=True),
+    # Two destinations, like an EVTX. Amcache, SYSTEM and the user hives produce
+    # tables; every hive, those included, is browsable key by key.
+    "registry_hive":  Route(None, parser=None,
+                            pages=("/artifacts/registry", "/artifacts/explorer")),
     "registry_log":   Route(None, parser=None, to_explorer=False),
     "prefetch":       Route(None, parser="pecmd",   pending=True),
     "lnk":            Route(None, parser="lecmd",   pending=True),

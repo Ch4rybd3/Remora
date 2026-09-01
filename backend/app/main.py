@@ -66,6 +66,7 @@ from .routers import memory as memory_router
 from .routers import mitre as mitre_router
 from .routers import pcap as pcap_router
 from .routers import playbooks as playbooks_router
+from .routers import registry as registry_router
 from .routers import report_doc_templates as report_doc_templates_router
 from .routers import users as users_router
 from .routers import vault as vault_router
@@ -532,6 +533,7 @@ app.include_router(ingest_router.router,               prefix="/api/v1", **_auth
 app.include_router(custody_router.router,              prefix="/api/v1", **_auth)
 app.include_router(pcap_router.router,                 prefix="/api/v1", **_auth)
 app.include_router(disk_images_router.router,          prefix="/api/v1", **_auth)
+app.include_router(registry_router.router,             prefix="/api/v1", **_auth)
 app.include_router(backup_router.router,               prefix="/api/v1", **_auth)
 
 

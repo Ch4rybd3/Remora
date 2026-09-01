@@ -16,16 +16,10 @@ import {
   diskImagesApi, type DirEntry, type DiskImageFile, type Partition,
 } from '../api/diskImages'
 import { useCurrentCase } from '../context/CurrentCaseContext'
+import { fmtBytes } from '../utils/formatUtils'
 
 const PREVIEW_BYTES = 4096
 
-function fmtSize(n: number | null): string {
-  if (n === null || n === undefined) return ''
-  if (n < 1024) return `${n} o`
-  if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} Ko`
-  if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(1)} Mo`
-  return `${(n / 1024 ** 3).toFixed(2)} Go`
-}
 
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
@@ -415,7 +409,7 @@ export default function DiskImageExplorer() {
                   <span className="text-label font-mono text-fg/80 truncate">{img.name}</span>
                 </div>
                 <p className="text-label text-fg-secondary/35 mt-0.5 pl-[18px]">
-                  {img.format.toUpperCase()} · {fmtSize(img.size)}
+                  {img.format.toUpperCase()} · {fmtBytes(img.size)}
                 </p>
               </div>
 
@@ -447,7 +441,7 @@ export default function DiskImageExplorer() {
                           {p.fs_type && <span className="text-fg-secondary/40"> · {p.fs_type}</span>}
                           {p.label && <span className="text-fg-secondary/40"> · {p.label}</span>}
                         </span>
-                        <span className="ml-auto text-fg-secondary/25 shrink-0">{fmtSize(p.size)}</span>
+                        <span className="ml-auto text-fg-secondary/25 shrink-0">{fmtBytes(p.size)}</span>
                       </div>
 
                       {partition === p.number && p.browsable && (
@@ -529,7 +523,7 @@ export default function DiskImageExplorer() {
                   ),
                 },
                 { key: 'size',  header: 'Size',     width: 'w-24', align: 'right', mono: true,
-                  render: (e) => <span className="text-fg-muted">{e.is_dir ? '' : fmtSize(e.size)}</span> },
+                  render: (e) => <span className="text-fg-muted">{e.is_dir ? '' : fmtBytes(e.size)}</span> },
                 { key: 'mtime', header: 'Modified', width: 'w-40', mono: true, hideBelow: 'md',
                   render: (e) => <span className="text-fg-muted">{fmtDate(e.mtime)}</span> },
                 { key: 'btime', header: 'Created',  width: 'w-40', mono: true, hideBelow: 'lg',
@@ -545,14 +539,14 @@ export default function DiskImageExplorer() {
           <div className="flex items-center gap-2 px-2 py-1 border-b border-hairline shrink-0">
             <p className="text-label uppercase tracking-widest text-fg-secondary/35 truncate">
               {selected && !selected.is_dir
-                ? `${selected.name} — ${fmtSize(selected.size)}${preview && preview.total > preview.length ? ` (${fmtSize(preview.length)} shown)` : ''}`
+                ? `${selected.name} — ${fmtBytes(selected.size)}${preview && preview.total > preview.length ? ` (${fmtBytes(preview.length)} shown)` : ''}`
                 : 'Preview'}
             </p>
             {selected && !selected.is_dir && (
               <div className="ml-auto flex items-center gap-1 shrink-0">
                 <button onClick={copyPath} title="Copy the path"
                   className="flex items-center gap-1 text-label px-1.5 py-0.5 rounded-control border border-hairline text-fg-secondary hover:text-accent hover:border-accent/40 transition-colors">
-                  {copied ? <Check size={9} className="text-accent" /> : <Copy size={9} />} Chemin
+                  {copied ? <Check size={9} className="text-accent" /> : <Copy size={9} />} Path
                 </button>
                 <button onClick={() => computeHash()} disabled={hashing}
                   title="Calculer MD5 et SHA-256"
@@ -589,7 +583,7 @@ export default function DiskImageExplorer() {
               )}
               {extract.data && (
                 <p className="text-label text-accent/70">
-                  Extrait : {extract.data.filename} ({fmtSize(extract.data.size)}) — {extract.data.message}
+                  Extracted {extract.data.filename} ({fmtBytes(extract.data.size)}) — {extract.data.message}
                 </p>
               )}
               {extract.isError && (

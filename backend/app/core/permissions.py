@@ -100,7 +100,7 @@ ARTIFACT_SEGMENTS = frozenset({
     "chainsaw", "ingest", "collection-imports", "dropzone", "evidences",
     "custody", "vaults", "cti", "knowledge", "backup", "connectors", "audit",
     "iocs", "assets", "timeline", "incident-log", "attack-graph", "playbooks",
-    "ttp", "notes", "templates", "report-doc-templates",
+    "ttp", "notes", "templates", "report-doc-templates", "registry",
 })
 
 #: The only roots an account with no permissions at all may reach. An allowlist
