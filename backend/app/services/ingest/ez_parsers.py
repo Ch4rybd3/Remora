@@ -48,6 +48,15 @@ class Recipe:
     #: each row came from. Per-file parsing produced four hundred tables all
     #: named `..._EvtxECmd_Output.csv`.
     dir_args: Callable[[Path, Path], list[str]] | None = None
+    #: Extension **appended** when staging a file for the directory-reading
+    #: form of this tool.
+    #:
+    #: JLECmd decides what to read from the extension, and a third of the jump
+    #: lists in a real triage are named `.tmp` - caught mid-write - so without
+    #: this the tool walks past them. Appended rather than replaced so the
+    #: original name survives into the tool's own `SourceFile` column, which is
+    #: the whole point of running it over a directory.
+    stage_as: str | None = None
     notes: str = ""
 
 
@@ -80,6 +89,7 @@ RECIPES: dict[str, Recipe] = {
     "jumplist_auto": Recipe(
         tool="JLECmd", args=_file_in_dir_out(),
         dir_args=_file_in_dir_out("-d"),
+        stage_as=".automaticDestinations-ms",
         label="Jump list (JLECmd)", multi_output=True,
         notes="Automatic and custom destinations have different columns, so "
               "JLECmd writes one table for each. That is two tables, not two "
@@ -88,7 +98,16 @@ RECIPES: dict[str, Recipe] = {
     "jumplist_custom": Recipe(
         tool="JLECmd", args=_file_in_dir_out(),
         dir_args=_file_in_dir_out("-d"),
+        stage_as=".customDestinations-ms",
         label="Jump list (JLECmd)", multi_output=True,
+    ),
+    # The metadata half of a deleted file: its original path, its size, and
+    # when it went. RBCmd reads a directory of them into one table.
+    "recycle_bin": Recipe(
+        tool="RBCmd", args=_file_in_dir_out(),
+        dir_args=_file_in_dir_out("-d"),
+        label="Recycle Bin (RBCmd)",
+        notes="One row per deleted file, with the path it was deleted from.",
     ),
     "windows_timeline": Recipe(
         tool="WxTCmd", args=_file_in_dir_out(),
@@ -341,13 +360,52 @@ BATCH_KINDS: dict[str, Recipe] = {
 }
 
 
+def _stage_for_batch(source: Path, staged_dir: Path, base: Path | None,
+                     stage_as: str | None) -> None:
+    """
+    Stage one file for a directory-reading tool, keeping where it came from.
+
+    The relative path is mirrored rather than flattened, and that is not
+    tidiness. A `$I` record sits under the SID of the account that deleted the
+    file - `$Recycle.Bin/S-1-5-21-.../$IZUAP07.stl` - and flattening 538 of
+    them into one directory throws away *who* deleted each one. RBCmd reports
+    the path it read, so mirroring is what preserves the answer.
+
+    Falls back to a flat copy when the source is not under `base`, which is the
+    case for a file dropped on its own rather than inside a collection.
+    """
+    relative = None
+    if base is not None:
+        try:
+            relative = source.relative_to(base)
+        except ValueError:
+            relative = None
+
+    target_dir = staged_dir / relative.parent if relative else staged_dir
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    name = source.name + (stage_as or "")
+    target = target_dir / name
+    n = 1
+    while target.exists():
+        target = target_dir / f"{Path(name).stem}_{n}{Path(name).suffix}"
+        n += 1
+
+    try:
+        target.hardlink_to(source)
+    except OSError:
+        import shutil
+        shutil.copy2(source, target)
+
+
 def run_batch(kind: str, sources: list[Path], out_dir: Path,
-              scratch: Path) -> ParseOutcome:
+              scratch: Path, base: Path | None = None) -> ParseOutcome:
     """
     Parse every artifact of one kind together, producing one table.
 
-    `sources` are staged into a single directory the tool is pointed at, so it
-    reads exactly these files and nothing else that happens to sit near them.
+    `sources` are staged into a directory the tool is pointed at, so it reads
+    exactly these files and nothing else that happens to sit near them. `base`
+    is the collection root, used to keep each file's position in the tree.
     Output goes to `out_dir`, which outlives this call.
     """
     recipe = BATCH_KINDS.get(kind)
@@ -366,9 +424,10 @@ def run_batch(kind: str, sources: list[Path], out_dir: Path,
     out_dir.mkdir(parents=True, exist_ok=True)
 
     staged_dir = scratch / "input"
+    staged_dir.mkdir(parents=True, exist_ok=True)
     for source in sources:
         try:
-            _stage(source, staged_dir)
+            _stage_for_batch(source, staged_dir, base, recipe.stage_as)
         except OSError as e:
             # One unreadable file does not cost the other three hundred their
             # table. It stays in the ingest queue with its own row.

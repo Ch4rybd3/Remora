@@ -56,11 +56,13 @@ class _Job:
     """One parser and the kinds it claims, whichever family it comes from."""
     kinds: frozenset[str]
     label: str
-    #: (paths, out_dir, scratch) -> the CSVs written.
-    run:   Callable[[list[Path], Path, Path], list[Path]]
+    #: (paths, out_dir, scratch, base) -> the CSVs written. `base` is the
+    #: collection root, so a source column can say where a file sat.
+    run:   Callable[[list[Path], Path, Path, Path | None], list[Path]]
 
 
-def _ez_job(kinds: frozenset[str], recipe: ez_parsers.Recipe) -> _Job:
+def _ez_job(kinds: frozenset[str], recipe: ez_parsers.Recipe,
+            base: Path | None = None) -> _Job:
     """
     One Eric Zimmerman tool, run once over every artifact it reads.
 
@@ -72,8 +74,9 @@ def _ez_job(kinds: frozenset[str], recipe: ez_parsers.Recipe) -> _Job:
     """
     first = sorted(kinds)[0]
 
-    def run(paths: list[Path], out_dir: Path, scratch: Path) -> list[Path]:
-        outcome = ez_parsers.run_batch(first, paths, out_dir, scratch)
+    def run(paths: list[Path], out_dir: Path, scratch: Path,
+            _base: Path | None = None) -> list[Path]:
+        outcome = ez_parsers.run_batch(first, paths, out_dir, scratch, base=base)
         if not outcome.ok:
             raise RuntimeError(outcome.error or f"{recipe.tool} produced nothing")
         return outcome.csv_files
@@ -81,13 +84,17 @@ def _ez_job(kinds: frozenset[str], recipe: ez_parsers.Recipe) -> _Job:
     return _Job(kinds=kinds, label=recipe.label, run=run)
 
 
-def jobs() -> list[_Job]:
+def jobs(base: Path | None = None) -> list[_Job]:
     """
     Every batch parser, both families, in one list.
 
     Built on each call rather than frozen at import: the Eric Zimmerman table
     is consulted for which tools are installed, and a constant taken here would
     be decided before provisioning had run.
+
+    `base` is the collection root, passed through so a tool sees each artifact
+    where it sat rather than in a flat pile. Callers that only want the labels
+    omit it.
     """
     out = [_Job(kinds=p.kinds, label=p.label, run=p.run) for p in PARSERS]
 
@@ -97,7 +104,7 @@ def jobs() -> list[_Job]:
     for kind, recipe in ez_parsers.BATCH_KINDS.items():
         by_tool.setdefault(recipe.tool, set()).add(kind)
         recipes.setdefault(recipe.tool, recipe)
-    out += [_ez_job(frozenset(kinds), recipes[tool])
+    out += [_ez_job(frozenset(kinds), recipes[tool], base)
             for tool, kinds in sorted(by_tool.items())]
     return out
 
@@ -159,7 +166,7 @@ def run(db: Session, case_id: str, root: Path,
     out_root = root / PARSED_DIRNAME
 
     created: list[str] = []
-    for job in jobs():
+    for job in jobs(base=root):
         paths = [p for kind in sorted(job.kinds) for p in grouped.get(kind, [])]
         if not paths:
             continue
@@ -170,7 +177,7 @@ def run(db: Session, case_id: str, root: Path,
 
         with tempfile.TemporaryDirectory(prefix="batch-") as scratch:
             try:
-                produced = job.run(paths, out_dir, Path(scratch))
+                produced = job.run(paths, out_dir, Path(scratch), root)
             except Exception as e:
                 logger.warning("%s parser failed over %d files: %s",
                                job.label, len(paths), e)

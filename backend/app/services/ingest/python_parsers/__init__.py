@@ -19,7 +19,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import browsers, prefetch
+from . import browsers, prefetch, scheduled_tasks
 
 logger = logging.getLogger("remora.python_parsers")
 
@@ -29,14 +29,20 @@ class BatchParser:
     """One parser, run once over every file of its kind in a collection."""
     kinds:   frozenset[str]
     label:   str
-    #: (paths, out_dir, scratch) -> the CSVs written.
-    run:     Callable[[list[Path], Path, Path], list[Path]]
+    #: (paths, out_dir, scratch, base) -> the CSVs written.
+    #:
+    #: `base` is the collection root. It exists so a source column can say
+    #: where in the tree a file sat rather than only what it was called - which
+    #: for a `$I` record is the account that deleted the file, and for a task
+    #: is whether it came from the machine or a user profile.
+    run:     Callable[[list[Path], Path, Path, Path | None], list[Path]]
     #: Why this is here rather than an Eric Zimmerman tool.
     because: str
 
 
-def _parse_prefetch(paths: list[Path], out_dir: Path, scratch: Path) -> list[Path]:
-    _ = scratch
+def _parse_prefetch(paths: list[Path], out_dir: Path, scratch: Path,
+                    base: Path | None = None) -> list[Path]:
+    _ = scratch, base
     parsed, errors = [], {}
     for path in paths:
         try:
@@ -49,8 +55,16 @@ def _parse_prefetch(paths: list[Path], out_dir: Path, scratch: Path) -> list[Pat
     return prefetch.write_csv(parsed, errors, out_dir)
 
 
-def _parse_browsers(paths: list[Path], out_dir: Path, scratch: Path) -> list[Path]:
+def _parse_browsers(paths: list[Path], out_dir: Path, scratch: Path,
+                    base: Path | None = None) -> list[Path]:
+    _ = base
     return browsers.parse_all(paths, out_dir, scratch)
+
+
+def _parse_tasks(paths: list[Path], out_dir: Path, scratch: Path,
+                 base: Path | None = None) -> list[Path]:
+    _ = scratch
+    return scheduled_tasks.parse_all(paths, out_dir, base)
 
 
 PARSERS: tuple[BatchParser, ...] = (
@@ -66,6 +80,14 @@ PARSERS: tuple[BatchParser, ...] = (
         label="Browser activity",
         run=_parse_browsers,
         because="No Eric Zimmerman tool reads browser databases.",
+    ),
+    BatchParser(
+        kinds=frozenset({"scheduled_task"}),
+        label="Scheduled tasks",
+        run=_parse_tasks,
+        because="No Eric Zimmerman tool reads task definitions, and 272 of them "
+                "in a single triage were going unidentified. Persistence lives "
+                "here.",
     ),
 )
 

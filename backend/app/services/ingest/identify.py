@@ -143,6 +143,21 @@ _SIGNATURES: list[tuple[int, bytes, str, str]] = [
     (0, b"PK\x05\x06",              "archive_zip",    "ZIP archive (empty)"),
     (257, b"ustar",                 "archive_tar",    "TAR archive"),
 
+    # ── Recycle Bin metadata ─────────────────────────────────────────────────
+    # `$I` files carry a version number where other formats carry a magic, so
+    # the eight bytes below are a weak claim on their own - plenty of files
+    # begin with a small integer. `_valid_recycle_bin` is what makes this
+    # trustworthy: it checks the record actually adds up.
+    (0, b"\x02\x00\x00\x00\x00\x00\x00\x00", "recycle_bin",
+        "Recycle Bin metadata ($I, Windows 10/11)"),
+    (0, b"\x01\x00\x00\x00\x00\x00\x00\x00", "recycle_bin",
+        "Recycle Bin metadata ($I, Windows Vista-8.1)"),
+
+    # ── Scheduled tasks ──────────────────────────────────────────────────────
+    # A UTF-16 BOM followed by `<?x`. Every UTF-16 XML document starts this way,
+    # so `_valid_scheduled_task` confirms the Task schema before claiming it.
+    (0, b"\xff\xfe<\x00?\x00x\x00",  "scheduled_task", "Scheduled task"),
+
     # ── Documents that turn up in triage output ──────────────────────────────
     (0, b"%PDF-",                   "pdf",            "PDF document"),
 ]
@@ -186,11 +201,74 @@ _REFINERS: dict[str, Callable[[bytes], tuple[str, str] | None]] = {
 }
 
 
+#: The Task Scheduler schema, as it appears in a UTF-16 task definition. Every
+#: one of the 272 tasks in the reference triage carries it.
+_TASK_SCHEMA = "schemas.microsoft.com/windows/2004/02/mit/task".encode("utf-16-le")
+
+
+def _valid_scheduled_task(head: bytes) -> bool:
+    """A UTF-16 XML document is only a task if it declares the task schema."""
+    return _TASK_SCHEMA in head
+
+
+def _valid_recycle_bin(head: bytes) -> bool:
+    """
+    Confirm a `$I` record by making its own fields agree.
+
+    The file is a version, a size, a FILETIME and the original path of the
+    deleted file - and nothing that identifies the format. So the check is that
+    the record adds up: the declared path length has to account for exactly the
+    bytes present, and the path has to look like a Windows path.
+
+    This is what makes the detection independent of where the file came from.
+    `$I` files are named after the **deleted** file's extension - `$IZJNHSA.zip`
+    is 212 bytes of metadata about a deleted ZIP, not a ZIP - so before this
+    existed, 223 of the 538 in the reference triage were classified as archives
+    and handed to the unpacker.
+
+    Only files small enough to have been read whole are considered. `head` is
+    the first 4 KB; a real `$I` record is at most a few hundred bytes, so a
+    truncated read would make the length check meaningless rather than wrong.
+    """
+    if len(head) >= HEADER_BYTES or len(head) < 24:
+        return False
+
+    version = int.from_bytes(head[0:8], "little")
+    if version == 1:
+        # Fixed 544 bytes: 24 of header and a 260-character path.
+        return len(head) == 544 and _looks_like_windows_path(head[24:])
+    if version != 2:
+        return False
+
+    if len(head) < 28:
+        return False
+    characters = int.from_bytes(head[24:28], "little")
+    if not 1 <= characters <= 2048:
+        return False
+    if 28 + characters * 2 != len(head):
+        return False
+    return _looks_like_windows_path(head[28:])
+
+
+def _looks_like_windows_path(raw: bytes) -> bool:
+    """`C:\\...` in UTF-16, which is how every recorded deletion begins."""
+    if len(raw) < 6:
+        return False
+    letter = raw[0:1]
+    return (
+        raw[1] == 0
+        and letter.isalpha()
+        and raw[2:6] == b":\x00\\\x00"
+    )
+
+
 #: Extra confirmation for signatures short enough to collide with real data.
 #: A failed validator does not stop identification - the scan simply continues
 #: to the next signature, so the file still gets its best available answer.
 _VALIDATORS: dict[str, Callable[[bytes], bool]] = {
     "pe": _valid_pe,
+    "recycle_bin": _valid_recycle_bin,
+    "scheduled_task": _valid_scheduled_task,
 }
 
 
@@ -251,6 +329,12 @@ _EXTENSIONS: dict[str, tuple[str, str]] = {
     ".db":      ("sqlite",          "Database"),
     ".dat":     ("binary_blob",     "Binary file"),
     ".evtx":    ("evtx",            "Windows Event Log (EVTX)"),
+    # Last resort for a jump list the probe cannot recognise. An empty one is
+    # twelve bytes - a header claiming no entries, and no terminator - so there
+    # is nothing in the content to match. Real ones are caught by their
+    # embedded links, which is why this is a fallback and not the rule.
+    ".customdestinations-ms": ("jumplist_custom", "Jump list (custom destinations)"),
+    ".automaticdestinations-ms": ("jumplist_auto", "Jump list (automatic destinations)"),
     ".lnk":     ("lnk",             "Shortcut (LNK)"),
     ".pf":      ("prefetch",        "Prefetch"),
     ".hve":     ("registry_hive",   "Registry hive"),
@@ -379,6 +463,54 @@ def _refine_container(kind: str, name: str) -> tuple[str, str] | None:
     return None
 
 
+# ─── Structural probes ────────────────────────────────────────────────────────
+# For formats whose marker is not at a fixed offset, which the signature table
+# cannot express. Run after the table, so a real signature always wins, and
+# reported as `magic`: the answer came from the bytes, not from the name.
+
+#: A shell link header: its size field, then the LinkCLSID.
+_LNK_HEADER = bytes.fromhex("4c000000") + bytes.fromhex("0114020000000000c000000000000046")
+
+#: Terminates a `customDestinations-ms` file.
+_JUMPLIST_FOOTER = bytes.fromhex("abfbbfba")
+
+#: How far in to look for an embedded link. In the reference triage the first
+#: one starts between offset 36 and 274; the margin is for the header variants
+#: this collection happens not to contain.
+_EMBEDDED_LNK_WINDOW = 1024
+
+
+def _probe_custom_jumplist(head: bytes) -> Identification | None:
+    """
+    A `customDestinations-ms` file: shell links laid end to end after a short
+    header, terminated by `AB FB BF BA`.
+
+    Detected by content because the extension is not reliable. Of the 79 in the
+    reference triage, 52 are named `.tmp` or `.temp` - jump lists caught
+    mid-write - and all 52 hold real link data. Keying on the extension would
+    have found a third of them.
+
+    A link at offset 0 is a plain `.lnk` and the signature table has already
+    claimed it, so only an *embedded* one counts here.
+    """
+    offset = head.find(_LNK_HEADER, 1, _EMBEDDED_LNK_WINDOW)
+    if offset > 0:
+        return Identification("jumplist_custom", "Jump list (custom destinations)",
+                              DETECTED_BY_MAGIC)
+    # An empty jump list holds no links at all, only the header and the
+    # terminator. Checkable when the file is small enough to have been read
+    # whole, which an empty one always is.
+    if len(head) < HEADER_BYTES and head.endswith(_JUMPLIST_FOOTER):
+        return Identification("jumplist_custom", "Jump list (custom destinations, empty)",
+                              DETECTED_BY_MAGIC)
+    return None
+
+
+_PROBES: tuple[Callable[[bytes], Identification | None], ...] = (
+    _probe_custom_jumplist,
+)
+
+
 def identify_bytes(head: bytes, name: str, folder_hint: str | None = None) -> Identification:
     """
     Identify from an already-read header. Split out from `identify()` so the
@@ -398,6 +530,11 @@ def identify_bytes(head: bytes, name: str, folder_hint: str | None = None) -> Id
             if refined:
                 return Identification(refined[0], refined[1], DETECTED_BY_MAGIC)
             return Identification(kind, label, DETECTED_BY_MAGIC)
+
+    for probe in _PROBES:
+        found = probe(head)
+        if found:
+            return found
 
     lowered = Path(name).name.lower()
     if lowered in _EXACT_NAMES:

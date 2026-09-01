@@ -80,6 +80,13 @@ _ROUTES: dict[str, Route] = {
     "jumplist_auto":  Route(None, parser="jlecmd",  pending=True),
     "jumplist_custom": Route(None, parser="jlecmd", pending=True),
     "srum":           Route(None, parser="srumecmd", pending=True),
+    # 538 of the 2,058 files in the reference triage - the largest single group
+    # in it, and the record of what was deleted, from where, and when.
+    "recycle_bin":    Route(None, parser="rbcmd", pages=("/artifacts/explorer",)),
+    # 272 in the same triage, all previously unidentified. Persistence lives
+    # here, which makes them the artifacts it was worst to be missing.
+    "scheduled_task": Route(None, parser="scheduled_tasks",
+                            pages=("/artifacts/explorer",)),
     "windows_timeline": Route(None, parser="wxtcmd", pending=True),
     "ntds":           Route(None, parser=None, to_explorer=False),
     "search_index":   Route(None, parser=None, to_explorer=False),

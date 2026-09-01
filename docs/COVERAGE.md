@@ -12,28 +12,53 @@ bucketing by whether `dispatch` has a handler for the result.
 
 ## 1. Where it stands
 
-| | Files | | Bytes | |
-|---|---:|---:|---:|---:|
-| **Parsed** — a table in the Explorer | 1,032 | 50.1 % | 2,621 MB | 70.0 % |
-| **Browsable** — a module opens it as it stands | 36 | 1.7 % | 260 MB | 6.9 % |
-| **No handler** | 990 | 48.1 % | 865 MB | 23.1 % |
+Tier 1 has landed. Both measurements are on the same collection.
+
+| | Files before | Files now | Bytes now |
+|---|---:|---:|---:|
+| **Parsed** — a table in the Explorer | 1,032 (50.1 %) | **1,919 (93.2 %)** | 2,622 MB (70.0 %) |
+| **Browsable** — a module opens it as it stands | 36 (1.7 %) | 36 (1.7 %) | 260 MB (6.9 %) |
+| **No handler** | 990 (48.1 %) | **103 (5.0 %)** | 863 MB (23.0 %) |
 
 Parsed, by artifact type:
 
-| Kind | Files | Bytes |
-|---|---:|---:|
-| prefetch | 439 | 13.5 MB |
-| lnk | 282 | 0.3 MB |
-| evtx | 178 | 405.8 MB |
-| jumplist_auto | 79 | 3.9 MB |
-| already tabular (log/json/text/csv) | 43 | 20.3 MB |
-| browser history + cookies | 7 | 34.9 MB |
-| windows_timeline | 2 | 11.3 MB |
-| `$MFT` | 1 | 2,092.5 MB |
-| `$J` | 1 | 38.3 MB |
+| Kind | Files | Bytes | |
+|---|---:|---:|---|
+| recycle_bin | 538 | 0.1 MB | new |
+| prefetch | 439 | 13.5 MB | |
+| lnk | 281 | 0.3 MB | |
+| scheduled_task | 272 | 0.9 MB | new |
+| evtx | 178 | 405.8 MB | |
+| jumplist_auto | 79 | 3.9 MB | |
+| jumplist_custom | 79 | 0.5 MB | new |
+| already tabular (log/json/text/csv) | 42 | 20.3 MB | |
+| browser history + cookies | 7 | 34.9 MB | |
+| windows_timeline | 2 | 11.3 MB | |
+| `$MFT` | 1 | 2,092.5 MB | |
+| `$J` | 1 | 38.3 MB | |
 
 Browsable: 36 registry hives, 260 MB — the Registry Explorer (§17 of
 `INGESTION.md`).
+
+### What is left
+
+103 files, and no group in it is large:
+
+| Kind | Files | Bytes | |
+|---|---:|---:|---|
+| unknown | 70 | 21.6 MB | mostly SQLite `-wal`/`-shm` sidecars, `.jsonlz4` session backups, NTFS metadata |
+| sqlite | 17 | 30.5 MB | tier 3 |
+| binary_blob | 11 | 626.6 MB | the RDP bitmap cache, tier 3 |
+| browser_cache | 2 | 82.5 MB | ESE, tier 2 |
+| ntfs_logfile | 1 | 64.0 MB | tier 4 |
+| srum | 1 | 37.9 MB | ESE, tier 2 |
+| empty | 1 | 0 | |
+
+The SQLite sidecars are worth a note. A `-wal` file is not an artifact of its
+own — it belongs to the database beside it, and the browser parser already
+copies it along — so parsing it separately would be wrong. Labelling it as such
+instead of `unknown` would stop the ingest queue inviting an analyst to force a
+type on it. Small, and not done.
 
 ---
 
@@ -88,23 +113,46 @@ JLECmd already reads it in batch — these files simply never reach it.
 Ordered by coverage gained per unit of work and risk, not by how interesting
 the artifact is.
 
-### Tier 1 — identification, and one recipe row
+### Tier 1 — identification, and one recipe row — **done**
 
-**Cost: small. Coverage: +43 % of files.**
+**Cost: small. Coverage delivered: 50.1 % → 93.2 % of files.**
 
-1. **`$Recycle.Bin` `$I`** — identify by the `$I` name inside a `$Recycle.Bin`
-   path, validated structurally (version 1 or 2, a plausible path length) so a
-   file merely *called* `$I…` is not misread. Then one row in `RECIPES`:
-   `recycle_bin` → RBCmd with `-d`, which puts it in the batch stage and
-   produces one table with a `SourceFile` column, like the others.
-   Identification must also stop calling them archives — feeding 223
-   non-archives to the unpacker is wrong even though it is currently harmless.
-2. **`CustomDestinations`** — extension and folder-hint rules for
-   `.customdestinations-ms`. No parser work at all.
-3. **Scheduled Tasks** — folder hint plus a UTF-16 XML content check, and a
-   Python parser. No Eric Zimmerman tool reads these; the XML is
-   straightforward and the fields worth extracting are settled (task name,
-   author, trigger, action, principal, enabled).
+All three are matched on **content**, not on a filename or a folder. That was a
+deliberate constraint: a collection that is not KAPE names things differently,
+and an analyst exporting artifacts by hand names them worse. The detections
+below fire on bytes alone.
+
+1. **`$Recycle.Bin` `$I`** — the header is a version number, not a magic, so
+   the detection is **structural**: the declared path length has to account for
+   exactly the bytes present and the path has to look like a Windows path.
+   Nothing about the name or the folder is consulted. That check earns its
+   keep immediately — an empty `customDestinations-ms` is twelve bytes
+   beginning `02 00 00 00 00 00 00 00`, byte for byte the header of a version 2
+   `$I` record, and only the structural test separates them.
+   Then one row in `RECIPES`: `recycle_bin` → RBCmd with `-d`, in the batch
+   stage, one table with a source column.
+2. **`CustomDestinations`** — detected by an embedded shell-link header at a
+   non-zero offset, or by the `AB FB BF BA` terminator. Not the extension: 52
+   of the 79 in the reference triage are named `.tmp` or `.temp`, caught
+   mid-write, and every one holds real link data. The extension survives only
+   as a last resort for an empty jump list, where the content says nothing.
+3. **Scheduled Tasks** — a UTF-16 byte-order mark and `<?x`, confirmed by the
+   Task schema URI appearing in the head. Every UTF-16 XML document starts the
+   same way, so the schema check is what stops this swallowing them. A Python
+   parser produces one row per **action**: the question is "what runs?", so the
+   command is what gets filtered on. 272 tasks became 274 rows, half of them
+   COM handlers rather than executables.
+
+Two supporting changes the above needed:
+
+* **Staging mirrors the source tree.** A `$I` record sits under the SID of the
+  account that deleted the file; flattening 538 of them into one directory
+  throws away *who*. RBCmd reports the path it read, so mirroring preserves it.
+* **`Recipe.stage_as`** appends an extension when staging for a
+  directory-reading tool, because JLECmd decides what to read from the
+  extension and would otherwise walk past every `.tmp` jump list. Appended,
+  never replaced, so the original name survives into the tool's own source
+  column.
 
 ### Tier 2 — one dependency unlocks a family
 
@@ -154,13 +202,14 @@ is the same library `dissect.target` builds on and is the natural choice.
 
 ## 4. What this would leave
 
-With tiers 1–3 landed:
-
 | | Files | Bytes |
 |---|---:|---:|
-| Now | 50.1 % | 70.0 % |
-| After tier 1 | 93.3 % | 70.1 % |
-| After tiers 1–3 | 94.4 % | 90.0 % |
+| Before tier 1 | 50.1 % | 70.0 % |
+| **After tier 1 (measured)** | **93.2 %** | **70.0 %** |
+| After tiers 1–3 (projected) | 94.4 % | 90.0 % |
+
+The tier 1 projection was 93.3 % and the result is 93.2 %; the difference is
+one `$I` record that had previously been counted as a shortcut.
 
 Tier 1 buys the file count; tiers 2 and 3 buy the bytes. The two are different
 questions and it is worth not confusing them: 439 prefetch files matter because
