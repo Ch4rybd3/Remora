@@ -5,6 +5,16 @@ export interface CsvArtifactMeta {
   original_name: string
   columns: string[]
   row_count: number
+  /**
+   * Whether the file behind the record is still on disk.
+   *
+   * The row count was taken when the artifact was registered, so a table can
+   * advertise a thousand rows and open with none - the collection it came from
+   * was deleted, or an old parser wrote into a directory that did not survive.
+   * Marking it in the list is how that reads as a missing file rather than an
+   * empty artifact.
+   */
+  available: boolean
   date_column: string | null
   ez_label: string | null
   ez_category: string | null

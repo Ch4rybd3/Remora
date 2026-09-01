@@ -27,7 +27,7 @@ from pathlib import Path
 import duckdb
 
 from ...config import settings
-from .base import Group, Page, Query, Schema
+from .base import Group, Page, Query, Schema, SourceMissing
 
 
 #: Cache directory for materialised artifacts. Derived data only.
@@ -139,6 +139,12 @@ def _open(source: str) -> tuple[duckdb.DuckDBPyConnection, bool]:
     working cache.
     """
     path = Path(source)
+    if not path.exists():
+        # Checked before the cache is consulted. A Parquet conversion outlives
+        # the CSV it was made from, so without this a deleted artifact would
+        # answer queries from a stale cache and look healthy.
+        raise SourceMissing(str(path))
+
     conn = duckdb.connect()
     cached = materialise(path)
 
@@ -221,6 +227,8 @@ class DuckDBArtifactStore:
         try:
             conn, _ = _open(source)
         except Exception:
+            # Including SourceMissing. Registration asks for a schema before
+            # anything is displayed, and "no columns" is the right answer there.
             return Schema([], 0)
         try:
             columns = [row[0] for row in conn.execute("DESCRIBE _src").fetchall()]

@@ -27,6 +27,7 @@ from .models import audit as _audit_models  # ensure tables are registered
 from .models import binary as _binary_models  # ensure tables are registered
 from .models import chainsaw as _chainsaw_models  # ensure tables are registered
 from .models import client as _client_models  # ensure tables are registered
+from .models import collection_output as _collection_output_models  # ensure tables are registered
 from .models import connector as _connector_models  # ensure tables are registered
 from .models import csv_artifact as _csv_artifact_models  # ensure tables are registered
 from .models import email_file as _email_file_models  # ensure tables are registered

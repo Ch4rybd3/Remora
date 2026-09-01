@@ -37,20 +37,20 @@ def handlers(monkeypatch):
     """Record which parser was chosen, without running any of them."""
     calls: list[tuple[str, str]] = []
 
-    def explorer(db, case_id, path, filename):
-        calls.append(("explorer", filename))
+    def explorer(ctx):
+        calls.append(("explorer", ctx.filename))
         return dispatch_mod.ParseResult(STATE_INDEXED, artifact_id="art-1", row_count=42)
 
-    def logs(db, case_id, path, filename):
-        calls.append(("logs", filename))
+    def logs(ctx):
+        calls.append(("logs", ctx.filename))
         return dispatch_mod.ParseResult(STATE_PARSED)
 
-    def mail(db, case_id, path, filename):
-        calls.append(("mail", filename))
+    def mail(ctx):
+        calls.append(("mail", ctx.filename))
         return dispatch_mod.ParseResult(STATE_INDEXED, row_count=1)
 
-    def pcap(db, case_id, path, filename):
-        calls.append(("pcap", filename))
+    def pcap(ctx):
+        calls.append(("pcap", ctx.filename))
         return dispatch_mod.ParseResult(STATE_INDEXED, artifact_id="art-2", row_count=7)
 
     monkeypatch.setattr(dispatch_mod, "_HANDLERS", {
@@ -162,7 +162,7 @@ def test_a_parser_crash_becomes_a_state_not_an_exception(db_session, monkeypatch
     A parser crash is a fact about one file, never a reason to lose it or to
     stop the batch it arrived in.
     """
-    def boom(db, case_id, path, filename):
+    def boom(ctx):
         raise RuntimeError("tshark segfaulted")
 
     monkeypatch.setattr(dispatch_mod, "_HANDLERS", {"csv": boom})
@@ -195,7 +195,7 @@ def test_dispatch_records_the_outcome_on_the_row(db_session, handlers, case_id_f
 def test_a_failed_row_keeps_its_reason_so_retry_is_worth_offering(
     db_session, monkeypatch, case_id_for, tmp_path
 ):
-    def boom(db, case_id, path, filename):
+    def boom(ctx):
         raise RuntimeError("out of memory")
 
     monkeypatch.setattr(dispatch_mod, "_HANDLERS", {"csv": boom})
@@ -260,8 +260,8 @@ def test_a_crash_dump_says_which_os_so_it_can_be_parsed(db_session, monkeypatch,
     """
     seen: list[str] = []
 
-    def memory(db, case_id, path, filename):
-        seen.append(filename)
+    def memory(ctx):
+        seen.append(ctx.filename)
         return dispatch_mod.ParseResult(STATE_PARSED)
 
     monkeypatch.setattr(dispatch_mod, "_HANDLERS", {

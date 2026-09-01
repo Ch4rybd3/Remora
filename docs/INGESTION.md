@@ -643,3 +643,112 @@ Rules:
 6. Convert stored CSV to Parquet lazily, on first access.
 
 No step requires downtime, and each is independently revertible.
+
+---
+
+## 15. What an ingest produced, and undoing it
+
+### The output registry
+
+Ingesting a collection creates records in other modules: a table in the
+Artifact Explorer, a file in the Logs module, a capture in PCAP, a dump in
+Memory. Until `collection_outputs` existed nothing recorded that it had, so
+deleting a collection removed its directory and its ingest rows and left every
+one of those records behind - still listed, still counted, pointing at bytes
+that were no longer there.
+
+Each registration appends a row:
+
+| Column | Meaning |
+|---|---|
+| `collection_id` | The import that created the record. |
+| `kind` | Which module holds it: `csv_artifact`, `evtx_file`, `email_file`, `memory_dump`. |
+| `record_id` | Primary key in that module's table. Deliberately **not** a foreign key - the rows point into four different tables. |
+| `file_path` | Where the bytes are, when the record has any. Recorded separately: the Logs and Memory modules keep their own copy outside the collection, and nothing else would ever remove it. |
+| `source_file_id` | The ingest row it came from, so preservation can be checked. |
+
+The write goes through `services/ingest/outputs.record()` rather than being
+inlined at each site, so a new destination cannot be added without the deletion
+path learning about it. It never raises: an artifact is worth more than the
+note about it, and a failure is logged instead.
+
+### Deletion
+
+`services/collections.py` holds both halves, and they share a code path so the
+confirmation and the outcome cannot drift:
+
+* `plan(db, collection)` - what deletion would remove, per module. Read-only.
+  Shown in the confirmation dialog, because the effects reach five pages away
+  from the button and asking the analyst to guess is not a confirmation.
+* `delete(db, collection)` - does it, and returns the same shape.
+
+Order matters. Preserved files are moved **before** the directory is removed;
+afterwards there is nothing to move.
+
+Collections that predate the table are handled by inference: any record whose
+`file_path` sits inside the collection directory came from it, whatever was
+written down at the time. Without that, the fix would only work for imports
+made after it shipped.
+
+### What survives
+
+An artifact preserved in the chain of custody outlives the collection it came
+from - that is the whole point of preserving it. The evidence store already
+holds its own copy; what deletion protects here is the **working** copy, the
+one the Explorer reads. It is moved to `cases/<case>/preserved/` and its record
+is left alone.
+
+This is what makes deletion useful as a narrowing tool rather than only a
+cleanup one: promote what matters, delete the collection, and the case is left
+holding exactly the artifacts that were chosen.
+
+---
+
+## 16. One parser, one table
+
+A parser produces **one table per artifact type per collection**, carrying a
+column that names the file each row came from.
+
+The alternative shipped first and was unusable. A KAPE triage holds hundreds of
+event logs, hundreds of prefetch files and hundreds of shortcuts; parsed one at
+a time they became hundreds of tables, most of them named
+`..._EvtxECmd_Output.csv`, each holding a handful of rows. Every fact was
+present and no question could be asked of it.
+
+Two families of parser produce these tables, and the batch stage treats them
+identically:
+
+| Family | Tools | Source column |
+|---|---|---|
+| Eric Zimmerman, directory mode | EvtxECmd, LECmd, JLECmd (`-d`) | `SourceFile`, written by the tool |
+| Python, in `python_parsers/` | Prefetch, browsers | `SourceFilename` / `Source` |
+
+Directory mode is what these tools were built for; invoking them per file threw
+away a feature they already had. `Recipe.dir_args` marks the ones that support
+it, `ez_parsers.BATCH_KINDS` derives the list, and `batch.jobs()` groups by
+**tool** rather than by kind - JLECmd reads automatic and custom jump lists,
+and two jobs would run it twice over half the files each, into the same output
+directory.
+
+Artifacts that are genuinely one-per-machine stay per-file: `$MFT`, `$J`,
+`Amcache.hve`, the SYSTEM hive. One table is what they already produce.
+
+### An event log still has two homes
+
+Batching the Explorer table must not cost the EVTX its other destination. The
+Logs module registration stays per file - Sigma detections run against a file -
+and the Explorer table is built once for the collection. The row in the ingest
+queue says so, rather than reporting a failure.
+
+### Where output goes
+
+**Parser output must outlive the call that produced it.** The Artifact Explorer
+reads a CSV in place; it never copies it. Writing to a `TemporaryDirectory` and
+registering the result produced tables that listed a row count - read before the
+directory was removed - and opened empty.
+
+So `dispatch.Context` carries an `out_dir`, and the collection pipeline points
+it at `<collection>/extracted/_parsed/`. Inside the collection, so deleting the
+collection removes it; named so the batch stage skips it, or it would identify
+its own CSVs as artifacts and parse them again. The sandbox's scratch directory
+is still temporary - only the output is not.
