@@ -829,3 +829,81 @@ in memory: a base block with a real checksum, one hbin, `nk` keys indexed by
 There is no small hive to check in — a real one is megabytes and carries
 somebody's machine in it — and asserting against a mocked parser would test the
 mock.
+
+---
+
+## 18. The RDP bitmap cache
+
+`mstsc` caches the remote screen in 64×64 tiles so it does not resend unchanged
+parts of the display, and keeps that cache on disk under
+`AppData\Local\Microsoft\Terminal Server Client\Cache`. Each tile is a fragment
+of a session as it was drawn. It is the only artifact in an ordinary triage
+that reconstructs what was **on the screen** rather than what was executed —
+and in the reference collection it is 600 MB in six files.
+
+### The format, established rather than assumed
+
+Only the `RDP8bmp\x00` container is read, which is what every current `mstsc`
+writes. A 12-byte file header, then tiles end to end: a 12-byte tile header
+(two key words, width, height) followed by raw 32-bit pixels.
+
+Four checks established that before any code was written, and each is now a
+test:
+
+| Check | Result |
+|---|---|
+| Does the layout consume the file? | Exactly, across all six caches |
+| Are tiles a fixed size? | **No** — 64×64, 64×32, 48×64 and 48×32 all occur |
+| Is it image data at all? | Neighbouring pixels differ by 5.8; shuffled, 23.8 |
+| Is the fourth byte alpha? | No — `0xFF` in every tile sampled, so it is padding |
+
+The channel order (BGRX) was settled by rendering both interpretations and
+looking at them. **No automated check catches this one**: read as RGBA every
+picture still renders, a Windows title bar simply comes out orange, and a test
+that counts pixels sees nothing wrong. There is now a test asserting that a
+known red tile is red.
+
+### Contact sheets, not thirty-eight thousand files
+
+A tile alone says almost nothing. The parser lays them out in grids of 32×32 in
+**cache order**, which is roughly chronological — a tile is rewritten when its
+screen region changes — and is the only ordering the artifact carries.
+
+Two outputs, and they go to two different places:
+
+* `rdp_bitmap_cache.csv` — one row per tile, with the sheet and the position on
+  it. An ordinary Artifact Explorer table, so tiles can be counted, filtered
+  and pivoted on, blank ones included and flagged.
+* The sheets themselves — PNGs beside the index, shown by the RDP Cache page
+  (`/artifacts/rdp-cache`).
+
+### No table of its own
+
+The page finds its sheets through the index: the index is a `csv_artifact_files`
+row like any other parser output, and the sheets sit in the same directory.
+Deleting the collection removes both with no extra bookkeeping (§15), and the
+chain of custody works on the index without the page knowing anything about it.
+
+Serving a sheet checks the requested filename against the sheet names the index
+actually contains — an allowlist drawn from the artifact's own data, which
+cannot be walked out of whatever the request asks for.
+
+---
+
+## 19. Any SQLite database
+
+Seventeen files in the reference triage, and that is not the point.
+**Applications keep their evidence in SQLite, and there are more applications
+than there will ever be parsers.** Teams, Slack, Signal, QuickAccess, every
+Electron application ever shipped — each is a database nobody has written a
+reader for, and each is readable the moment a generic reader exists.
+
+Databases with a dedicated reader never arrive here. Identification refines a
+SQLite container **by name first** (§5), so browser history, cookies and the
+Windows Timeline keep the parsers that understand what their columns mean. What
+reaches the generic reader is everything else, dumped one CSV per table, named
+for both the database and the table — two applications both having a `settings`
+table is the normal case and their columns have nothing to do with each other.
+
+Copied before opening, like the browser databases: SQLite replays its
+write-ahead log on open, and that is a write.

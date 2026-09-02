@@ -128,6 +128,7 @@ import {
   RotateCcw,
   Save,
   ScanSearch,
+  ScreenShare,
   ScrollText,
   Search,
   Send,
@@ -184,6 +185,7 @@ export const NAV_ICON: Record<string, LucideIcon> = {
   '/artifacts/pcap':        Network,
   '/artifacts/images':      HardDrive,      // Disk Images — keeps the drive
   '/artifacts/registry':    FolderTree,     // Registry Explorer — a tree of keys
+  '/artifacts/rdp-cache':   ScreenShare,    // RDP Cache — a remote screen, not a local one
   '/artifacts/memory':      Cpu,
   '/artifacts/binary':      Binary,
   '/artifacts/cti':         Radar,          // CTI Lookup — was Shield, shared with Audit
@@ -307,6 +309,7 @@ export {
   RotateCcw,
   Save,
   ScanSearch,
+  ScreenShare,
   ScrollText,
   Search,
   Send,

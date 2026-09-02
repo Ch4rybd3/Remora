@@ -19,7 +19,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import browsers, prefetch, scheduled_tasks
+from . import browsers, ese, prefetch, rdp_cache, scheduled_tasks, sqlite_tables
 
 logger = logging.getLogger("remora.python_parsers")
 
@@ -67,6 +67,35 @@ def _parse_tasks(paths: list[Path], out_dir: Path, scratch: Path,
     return scheduled_tasks.parse_all(paths, out_dir, base)
 
 
+def _parse_srum(paths: list[Path], out_dir: Path, scratch: Path,
+                base: Path | None = None) -> list[Path]:
+    _ = scratch
+    return ese.parse_srum(paths, out_dir, base)
+
+
+def _parse_webcache(paths: list[Path], out_dir: Path, scratch: Path,
+                    base: Path | None = None) -> list[Path]:
+    _ = scratch
+    return ese.parse_webcache(paths, out_dir, base)
+
+
+def _dump_ese(paths: list[Path], out_dir: Path, scratch: Path,
+              base: Path | None = None) -> list[Path]:
+    _ = scratch
+    return ese.dump_tables(paths, out_dir, base)
+
+
+def _parse_rdp_cache(paths: list[Path], out_dir: Path, scratch: Path,
+                     base: Path | None = None) -> list[Path]:
+    _ = scratch
+    return rdp_cache.parse_all(paths, out_dir, base)
+
+
+def _dump_sqlite(paths: list[Path], out_dir: Path, scratch: Path,
+                 base: Path | None = None) -> list[Path]:
+    return sqlite_tables.parse_all(paths, out_dir, scratch, base)
+
+
 PARSERS: tuple[BatchParser, ...] = (
     BatchParser(
         kinds=frozenset({"prefetch"}),
@@ -88,6 +117,48 @@ PARSERS: tuple[BatchParser, ...] = (
         because="No Eric Zimmerman tool reads task definitions, and 272 of them "
                 "in a single triage were going unidentified. Persistence lives "
                 "here.",
+    ),
+    BatchParser(
+        kinds=frozenset({"rdp_bitmap_cache"}),
+        label="RDP bitmap cache",
+        run=_parse_rdp_cache,
+        because="Nothing else reads it, and it is the only artifact in a triage "
+                "that reconstructs what was on a remote screen.",
+    ),
+    BatchParser(
+        kinds=frozenset({"srum"}),
+        label="SRUM",
+        run=_parse_srum,
+        because="SrumECmd is one of the two Eric Zimmerman tools that refuse to "
+                "run outside Windows, and SRUM answers how many bytes each "
+                "application put on the wire.",
+    ),
+    BatchParser(
+        kinds=frozenset({"browser_cache"}),
+        label="Web cache",
+        run=_parse_webcache,
+        because="WebCacheV01.dat is an ESE database, not SQLite, so the browser "
+                "parser cannot read it.",
+    ),
+    BatchParser(
+        # The catch-all for SQLite. A database identification recognised by
+        # name - browser history, cookies, the Windows Timeline - keeps the
+        # parser that understands its columns; this takes everything else.
+        kinds=frozenset({"sqlite"}),
+        label="SQLite tables",
+        run=_dump_sqlite,
+        because="Applications keep their evidence in SQLite and there are more "
+                "applications than there will ever be parsers.",
+    ),
+    BatchParser(
+        # The catch-all for the format. A named artifact above keeps its own
+        # reader; everything else is dumped table by table rather than listed
+        # as unsupported forever.
+        kinds=frozenset({"ese", "search_index", "ntds"}),
+        label="ESE tables",
+        run=_dump_ese,
+        because="An ESE artifact with no dedicated reader is still readable "
+                "table by table, which beats waiting for one to be written.",
     ),
 )
 

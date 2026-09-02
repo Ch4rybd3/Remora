@@ -26,6 +26,7 @@ import Connectors from './pages/Connectors'
 import ArtifactExplorer from './pages/ArtifactExplorer'
 import PcapExplorer from './pages/PcapExplorer'
 import DiskImageExplorer from './pages/DiskImageExplorer'
+import RdpCacheViewer from './pages/RdpCacheViewer'
 import RegistryExplorer from './pages/RegistryExplorer'
 import Clients from './pages/Clients'
 import ClientDetail from './pages/ClientDetail'
@@ -71,6 +72,7 @@ export default function App() {
         <Route path="/artifacts/pcap"     element={<PcapExplorer />} />
         <Route path="/artifacts/images"   element={<DiskImageExplorer />} />
         <Route path="/artifacts/registry" element={<RegistryExplorer />} />
+        <Route path="/artifacts/rdp-cache" element={<RdpCacheViewer />} />
         <Route path="/config/connectors"  element={<Connectors />} />
         <Route path="/config/clients"     element={<Clients />} />
         <Route path="/config/clients/:id" element={<ClientDetail />} />

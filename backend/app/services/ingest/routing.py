@@ -79,7 +79,10 @@ _ROUTES: dict[str, Route] = {
     "lnk":            Route(None, parser="lecmd",   pending=True),
     "jumplist_auto":  Route(None, parser="jlecmd",  pending=True),
     "jumplist_custom": Route(None, parser="jlecmd", pending=True),
-    "srum":           Route(None, parser="srumecmd", pending=True),
+    # Read here rather than by SrumECmd, which is Windows-only. One table per
+    # provider: `network_data` is bytes on the wire per application per user,
+    # which is the artifact for "what left this machine".
+    "srum":           Route(None, parser="srum", pages=("/artifacts/explorer",)),
     # 538 of the 2,058 files in the reference triage - the largest single group
     # in it, and the record of what was deleted, from where, and when.
     "recycle_bin":    Route(None, parser="rbcmd", pages=("/artifacts/explorer",)),
@@ -87,14 +90,25 @@ _ROUTES: dict[str, Route] = {
     # here, which makes them the artifacts it was worst to be missing.
     "scheduled_task": Route(None, parser="scheduled_tasks",
                             pages=("/artifacts/explorer",)),
+    # 627 MB of the reference triage, and the only artifact in it that shows
+    # what an operator saw rather than what ran. Two destinations: an index
+    # table, and the contact sheets the RDP Cache page displays.
+    "rdp_bitmap_cache": Route(None, parser="rdp_cache",
+                              pages=("/artifacts/rdp-cache", "/artifacts/explorer")),
     "windows_timeline": Route(None, parser="wxtcmd", pending=True),
-    "ntds":           Route(None, parser=None, to_explorer=False),
-    "search_index":   Route(None, parser=None, to_explorer=False),
+    # Dumped table by table. Neither has a reader that understands what the
+    # tables mean - NTDS needs the SYSTEM hive's boot key before anything in it
+    # decrypts - but the rows are there and queryable, which beats being listed
+    # as unsupported indefinitely.
+    "ntds":           Route(None, parser="ese_tables", pages=("/artifacts/explorer",)),
+    "search_index":   Route(None, parser="ese_tables", pages=("/artifacts/explorer",)),
 
     # ── Browser ─────────────────────────────────────────────────────────────
     "browser_history": Route(None, parser="browser", pending=True),
     "browser_cookies": Route(None, parser="browser", pending=True),
-    "browser_cache":   Route(None, parser="browser", pending=True),
+    # An ESE database, not SQLite - which is why the browser parser cannot read
+    # it and this has its own.
+    "browser_cache":   Route(None, parser="webcache", pages=("/artifacts/explorer",)),
 
     # ── Disk images ─────────────────────────────────────────────────────────
     "ewf":      Route(DEST_DISK, parser="filesystem_listing",
@@ -162,8 +176,13 @@ _ROUTES: dict[str, Route] = {
     "archive_xz":    Route(DEST_UNPACK, to_explorer=False),
 
     # ── Held for a decision ─────────────────────────────────────────────────
-    "sqlite":       Route(DEST_COLLECTION, to_explorer=False),
-    "ese":          Route(DEST_COLLECTION, to_explorer=False),
+    # No longer held: a database with no dedicated reader is dumped table by
+    # table. The ones that have a reader never reach here - identification
+    # refines a SQLite container by name first.
+    "sqlite":       Route(None, parser="sqlite_tables", pages=("/artifacts/explorer",)),
+    # No longer held: an ESE database whose artifact nobody has written a
+    # reader for is dumped table by table. Not a good answer, a true one.
+    "ese":          Route(None, parser="ese_tables", pages=("/artifacts/explorer",)),
     "olecf":        Route(DEST_COLLECTION, to_explorer=False),
     "binary_blob":  Route(DEST_COLLECTION, to_explorer=False),
     "pdf":          Route(DEST_COLLECTION, to_explorer=False),
