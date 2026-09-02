@@ -153,6 +153,12 @@ _SIGNATURES: list[tuple[int, bytes, str, str]] = [
     (0, b"\x01\x00\x00\x00\x00\x00\x00\x00", "recycle_bin",
         "Recycle Bin metadata ($I, Windows Vista-8.1)"),
 
+    # ── Remote desktop ───────────────────────────────────────────────────────
+    # `mstsc`'s on-disk screen cache. Named `Cache000X.bin`, which says nothing;
+    # the container says what it is.
+    (0, b"RDP8bmp\x00",             "rdp_bitmap_cache",
+        "RDP bitmap cache (RDP8)"),
+
     # ── Scheduled tasks ──────────────────────────────────────────────────────
     # A UTF-16 BOM followed by `<?x`. Every UTF-16 XML document starts this way,
     # so `_valid_scheduled_task` confirms the Task schema before claiming it.

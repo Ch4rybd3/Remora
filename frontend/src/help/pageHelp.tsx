@@ -150,6 +150,38 @@ export const PAGE_HELP: Record<string, HelpEntry> = {
     ),
   },
 
+  '/artifacts/rdp-cache': {
+    title: 'Cached remote screens',
+    content: (
+      <>
+        <P>
+          <Code>mstsc</Code> caches the remote screen in 64&times;64 tiles so it
+          does not resend unchanged parts of the display, and keeps that cache
+          on disk. Each tile is a fragment of a session as it was drawn &mdash;
+          a window title, a file name, a dialog. It is the only artifact in an
+          ordinary triage that shows what an operator <em>saw</em> rather than
+          what ran.
+        </P>
+        <P>
+          A tile alone says almost nothing, so they are laid out in contact
+          sheets in cache order. The order is the cache&apos;s, which is roughly
+          but not exactly chronological: a tile is rewritten when the screen
+          region it holds changes.
+        </P>
+        <P>
+          The index behind the sheets is an ordinary table in the Artifact
+          Explorer, so tiles can be counted, filtered and pivoted on there
+          &mdash; including filtering out the blank ones.
+        </P>
+        <P>
+          Only the RDP8 container is read, which is what every current version
+          of <Code>mstsc</Code> writes. Caches from Windows XP and Vista era
+          clients use an older layout and are not decoded.
+        </P>
+      </>
+    ),
+  },
+
   '/artifacts/images': {
     title: 'Disk images',
     wide: true,

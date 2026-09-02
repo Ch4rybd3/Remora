@@ -90,6 +90,11 @@ _ROUTES: dict[str, Route] = {
     # here, which makes them the artifacts it was worst to be missing.
     "scheduled_task": Route(None, parser="scheduled_tasks",
                             pages=("/artifacts/explorer",)),
+    # 627 MB of the reference triage, and the only artifact in it that shows
+    # what an operator saw rather than what ran. Two destinations: an index
+    # table, and the contact sheets the RDP Cache page displays.
+    "rdp_bitmap_cache": Route(None, parser="rdp_cache",
+                              pages=("/artifacts/rdp-cache", "/artifacts/explorer")),
     "windows_timeline": Route(None, parser="wxtcmd", pending=True),
     # Dumped table by table. Neither has a reader that understands what the
     # tables mean - NTDS needs the SYSTEM hive's boot key before anything in it
@@ -171,7 +176,10 @@ _ROUTES: dict[str, Route] = {
     "archive_xz":    Route(DEST_UNPACK, to_explorer=False),
 
     # ── Held for a decision ─────────────────────────────────────────────────
-    "sqlite":       Route(DEST_COLLECTION, to_explorer=False),
+    # No longer held: a database with no dedicated reader is dumped table by
+    # table. The ones that have a reader never reach here - identification
+    # refines a SQLite container by name first.
+    "sqlite":       Route(None, parser="sqlite_tables", pages=("/artifacts/explorer",)),
     # No longer held: an ESE database whose artifact nobody has written a
     # reader for is dumped table by table. Not a good answer, a true one.
     "ese":          Route(None, parser="ese_tables", pages=("/artifacts/explorer",)),

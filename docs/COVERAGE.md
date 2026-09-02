@@ -12,13 +12,15 @@ bucketing by whether `dispatch` has a handler for the result.
 
 ## 1. Where it stands
 
-Tiers 1 and 2 have landed. Every measurement is on the same collection.
+All three tiers have landed. Every measurement is on the same collection.
 
 | | Files before | Files now | Bytes before | Bytes now |
 |---|---:|---:|---:|---:|
-| **Parsed** — a table in the Explorer | 1,032 (50.1 %) | **1,922 (93.4 %)** | 2,621 MB (70.0 %) | **2,743 MB (73.2 %)** |
+| **Parsed** — a table in the Explorer | 1,032 (50.1 %) | **1,945 (94.5 %)** | 2,621 MB (70.0 %) | **3,374 MB (90.1 %)** |
 | **Browsable** — a module opens it as it stands | 36 (1.7 %) | 36 (1.7 %) | 260 MB (6.9 %) | 260 MB (6.9 %) |
-| **No handler** | 990 (48.1 %) | **100 (4.9 %)** | 865 MB (23.1 %) | **743 MB (19.8 %)** |
+| **No handler** | 990 (48.1 %) | **77 (3.7 %)** | 865 MB (23.1 %) | **112 MB (3.0 %)** |
+
+Reachable one way or another: **96.2 % of files and 97.0 % of bytes.**
 
 Parsed, by artifact type:
 
@@ -34,6 +36,8 @@ Parsed, by artifact type:
 | already tabular (log/json/text/csv) | 42 | 20.3 MB | |
 | browser history + cookies | 7 | 34.9 MB | |
 | windows_timeline | 2 | 11.3 MB | |
+| sqlite (generic) | 17 | 30.5 MB | tier 3 |
+| rdp_bitmap_cache | 6 | 600.4 MB | tier 3 |
 | browser_cache (WebCacheV01) | 2 | 82.5 MB | tier 2 |
 | srum | 1 | 37.9 MB | tier 2 |
 | `$MFT` | 1 | 2,092.5 MB | |
@@ -44,18 +48,17 @@ Browsable: 36 registry hives, 260 MB — the Registry Explorer (§17 of
 
 ### What is left
 
-100 files, and no group in it is large:
+77 files and 112 MB, most of it one file:
 
 | Kind | Files | Bytes | |
 |---|---:|---:|---|
 | unknown | 70 | 21.6 MB | mostly SQLite `-wal`/`-shm` sidecars, `.jsonlz4` session backups, NTFS metadata |
-| sqlite | 17 | 30.5 MB | tier 3 |
-| binary_blob | 11 | 626.6 MB | the RDP bitmap cache, tier 3 |
-| ntfs_logfile | 1 | 64.0 MB | tier 4 |
+| binary_blob | 5 | 26.2 MB | opaque `.bin`/`.dat` with no signature |
+| ntfs_logfile | 1 | 64.0 MB | tier 4, deliberately |
 | empty | 1 | 0 | |
 
-The remaining bytes are almost entirely one artifact: the RDP bitmap cache, at
-627 MB of the 743 MB left.
+`$LogFile` is 64 MB of the 112 MB remaining, and it is in tier 4 on purpose —
+weeks of work for questions `$MFT` and `$J` already mostly answer.
 
 The SQLite sidecars are worth a note. A `-wal` file is not an artifact of its
 own — it belongs to the database beside it, and the browser parser already
@@ -213,20 +216,54 @@ per-cell character cap are what stop a hostile or merely enormous file taking
 the worker with it. Moving the Python parsers behind the sandbox is worth doing
 and is not done.
 
-### Tier 3 — real work, real value
+### Tier 3 — real work, real value — **done**
 
-4. **Generic SQLite → tables.** 18 files here, 30.5 MB — Firefox
-   `permissions`/`protections`/`favicons`, Edge `Web Data`, `Collections`. The
-   value is not those files specifically: it is that *every* future SQLite
-   artifact (Teams, Slack, Signal, QuickAccess, countless application
-   databases) becomes readable without a parser each. Dump every table to its
-   own CSV, `sqlite3` from the standard library, and the same copy-before-open
-   care the browser parser already takes.
-5. **RDP bitmap cache.** 6 files, 600 MB — **16 % of the bytes in this
-   triage**, and the only artifact here that reconstructs what an operator
-   actually *saw* on a remote session. Output is images, not a table, so it
-   needs a viewer rather than an Explorer entry. Highest value per file in the
-   whole collection; also the largest single piece of work in this document.
+**Coverage delivered: 93.4 % → 94.5 % of files, and 73.2 % → 90.1 % of bytes.**
+
+**Generic SQLite → tables.** 17 files here. The value is not those files: it is
+that *every* future SQLite artifact — Teams, Slack, Signal, QuickAccess, every
+Electron application ever shipped — becomes readable without a parser each.
+Databases that have a dedicated reader never arrive: identification refines a
+SQLite container by name first, so browser history and the Windows Timeline
+keep the parsers that understand their columns. Copied before opening, because
+SQLite replays its write-ahead log on open and that is a write.
+
+**RDP bitmap cache.** 6 files, 600 MB — 16 % of the bytes in this triage, and
+the only artifact in it that reconstructs what an operator *saw* rather than
+what ran. 38,724 tiles decoded into 42 contact sheets in 60 seconds, 44 MB of
+PNG for 600 MB of cache.
+
+The format was established from the files rather than assumed, and every step
+was checked before any code was written:
+
+* The container announces itself: `RDP8bmp\x00`, a 12-byte file header, then
+  tiles laid end to end — each a 12-byte header (two key words, width, height)
+  followed by raw 32-bit pixels. Reading the reference cache that way consumes
+  it exactly.
+* Tiles are **not** all 64×64. The reference cache holds 64×32, 48×64 and 48×32
+  as well, so dimensions are read per tile. Assuming a fixed size — which the
+  first hundred tiles invite — desynchronises everything after the first
+  exception.
+* Neighbouring pixels within a tile differ by 5.8 on average where a shuffle of
+  the same pixels differs by 23.8. Pictures correlate spatially; noise does
+  not. That is what established the pixel layout rather than a guess.
+* The fourth byte of every pixel sampled is `0xFF`, which makes it padding
+  rather than alpha. The pixels are BGRX.
+* The channel order was confirmed by rendering both interpretations and looking
+  at them. This is the one thing no automated check catches: read as RGBA, every
+  picture still renders — a Windows title bar simply comes out orange, and a
+  test that counts pixels sees nothing wrong. There is now a test asserting a
+  known red tile is red.
+
+Output is **contact sheets, not 38,724 files**: a tile alone says almost
+nothing, and a grid of them in cache order is what an analyst reads. Cache
+order is roughly chronological — a tile is rewritten when its screen region
+changes — and it is the only ordering the artifact carries, so it is preserved.
+The index beside the sheets is an ordinary Explorer table, so tiles can be
+counted, filtered and pivoted on, including filtering the blank ones out.
+
+Only the RDP8 container is read. Windows XP and Vista era clients wrote an
+older layout; those are not decoded, and the page says so.
 
 ### Tier 4 — deliberately not doing
 
@@ -248,15 +285,25 @@ and is not done.
 |---|---:|---:|
 | Before tier 1 | 50.1 % | 70.0 % |
 | After tier 1 (measured) | 93.2 % | 70.0 % |
-| **After tier 2 (measured)** | **93.4 %** | **73.2 %** |
-| After tier 3 (projected) | 94.4 % | 90.0 % |
+| After tier 2 (measured) | 93.4 % | 73.2 % |
+| **After tier 3 (measured)** | **94.5 %** | **90.1 %** |
+| Parsed *or* browsable | **96.2 %** | **97.0 %** |
 
-The tier 1 projection was 93.3 % and the result is 93.2 %; the difference is
-one `$I` record that had previously been counted as a shortcut.
+Every projection held. Tier 1 was projected at 93.3 % and delivered 93.2 % (the
+difference is one `$I` record previously counted as a shortcut); tier 3 was
+projected at 94.4 % / 90.0 % and delivered 94.5 % / 90.1 %.
 
-What tier 3 is worth is now easy to state: of the 743 MB still unread, **627 MB
-is the RDP bitmap cache** — one artifact, six files, and the only thing in the
-collection that reconstructs what an operator actually saw on a remote session.
+### Still outstanding, and worth saying
+
+* **The Python parsers do not run in the sandbox.** The Eric Zimmerman tools
+  do; the parsers written here run in-process. Row, cell and tile caps bound
+  the work, but bounding is not containment, and an ESE database or a bitmap
+  cache is a far larger attack surface than a prefetch file. This is the
+  largest piece of unfinished business in the pipeline.
+* **SQLite sidecars read as `unknown`.** A `-wal` file is not an artifact of
+  its own and must not be parsed separately, but labelling it as belonging to
+  the database beside it would stop the ingest queue inviting an analyst to
+  force a type on it. 70 of the 77 remaining files are this and similar.
 
 Tier 1 buys the file count; tiers 2 and 3 buy the bytes. The two are different
 questions and it is worth not confusing them: 439 prefetch files matter because
