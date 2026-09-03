@@ -254,3 +254,37 @@ storage layout and its own hashing (or none). There is no single answer to
 | Elasticsearch / OpenSearch backend | Revisit after S15. The `ArtifactStore` interface must exist first, otherwise a spike compares a fresh implementation against eight sprints of accumulated features. Timeboxed to 5 days on `spike/elastic-backend`, with success criteria fixed **before** starting: 10 M EVTX events ingested, filtered query < 500 ms, compose memory footprint < 6 GB, RQL translated to ES DSL for the five most-used operators. One criterion missed ends the spike without debate. |
 | Logstash | Not planned in any scenario. SOF-ELK's value is its parsers and ECS mappings, not Logstash. Remora already parses in Python; adding a JVM to perform a bulk POST is free debt. |
 | Retention / purge policy | Needed before a public instance runs for a month (disk images and memory dumps are large). Candidate for S18. |
+| ECS field aliases | Spiked and shelved. The branch is gone; the conclusion is below, because it is the part worth keeping. |
+
+### ECS field aliases — what the spike established
+
+Explored on `spike/ecs-field-aliases` (`b04c83f`, 2026-08-29) and deleted rather
+than merged. It answered its question, and the answer keeps.
+
+**It is tractable, and cheaply.** The RQL tokeniser already accepts dots in
+identifiers and DuckDB accepts dotted column aliases, so aliases are extra
+columns on a view over the artifact — every query path (RQL, column filters,
+grouping, sorting) gets ECS names with no change to any of them. 146 lines of
+implementation, no parser work, no migration.
+
+Three rules it was built on, which any future attempt should keep:
+
+* **Aliases are additive; nothing is renamed.** In DFIR the original column name
+  is provenance. An analyst corroborating against another tool has to be able to
+  say "EvtxECmd called this `Computer`", and a wrong mapping must never be able
+  to hide a value.
+* **Artifacts are recognised by their columns, not their filename** — the same
+  principle as identification. A packet list converted from a PCAP has no useful
+  filename; its column set is unmistakable.
+* **Only unambiguous fields are mapped.** An `$MFT` record carries eight
+  timestamps and no defensible answer to which is *the* time, so none becomes
+  `@timestamp`. Mapping something nearly right is worse than mapping nothing: it
+  makes a query quietly mean something different on one artifact than another,
+  invisibly.
+
+**Why it was shelved rather than merged.** Fifteen fields over three artifact
+shapes; full ECS is around 800. Covering it is how this becomes a year of work
+nobody finishes, and nothing in the product needed it yet. The branch also
+predates the `ArtifactStore` rework — `duckdb_store.py` has changed
+substantially since, so a revival is a re-implementation against the current
+store, not a merge.
