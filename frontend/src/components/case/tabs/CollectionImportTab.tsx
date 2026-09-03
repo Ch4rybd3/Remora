@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronRight, Globe } from '../../../ui/icons'
+import { AlertTriangle, ChevronRight, Globe, X } from '../../../ui/icons'
 import { DataTable, type Column } from '../../../ui/DataTable'
 import { collectionImportApi, type ImportedCollection, type ImportedFile, type GroupSummary } from '../../../api/collectionImport'
 import { CopyableName, CustodyActions } from '../../custody/CustodyActions'
@@ -31,6 +31,34 @@ function archiveExt(name: string): string | null {
 }
 
 const isArchiveFile = (name: string) => archiveExt(name) !== null
+
+/**
+ * What a failed upload should say to the analyst.
+ *
+ * The API client throws the raw response body, which is a JSON envelope the
+ * user has no reason to read. Two cases are worth naming rather than dumping:
+ * a session that has expired, because the fix is to sign in again and nothing
+ * else will work either; and a network failure, because that is not the
+ * server's answer at all.
+ */
+function readableError(error: Error): string {
+  const raw = (error.message ?? '').trim()
+
+  if (!raw || /failed to fetch|networkerror|load failed/i.test(raw)) {
+    return 'The upload did not reach the server. Check the connection and try again.'
+  }
+  if (/^\s*(401|403)\b/.test(raw) || /not authenticated|could not validate/i.test(raw)) {
+    return 'Your session has expired. Sign in again and retry the upload.'
+  }
+  try {
+    const parsed = JSON.parse(raw)
+    if (typeof parsed?.detail === 'string') return parsed.detail
+    if (Array.isArray(parsed?.detail)) return parsed.detail.map(String).join(' — ')
+  } catch {
+    // Not JSON. The body is the message.
+  }
+  return raw.slice(0, 400)
+}
 
 // Each upload batch stays under this to avoid nginx / memory issues
 const MAX_BATCH_BYTES = 200 * 1024 * 1024          // 200 MB
@@ -500,7 +528,7 @@ function DropZone({ onFiles }: { onFiles: (files: File[]) => void }) {
     const archives = files.filter(f => isArchiveFile(f.name))
     if (archives.length > 0 && archives.length !== files.length)
       return 'Cannot mix an archive with other files in the same upload'
-    if (archives.length > 1) return 'Une seule archive par upload'
+    if (archives.length > 1) return 'Only one archive per upload'
     for (const f of files) {
       if (isArchiveFile(f.name)) continue
       if (f.name.split('.').pop()?.toLowerCase() !== 'csv')
@@ -573,22 +601,41 @@ export default function CollectionImportTab({ caseId }: Props) {
     )
   }, [collections])
 
+  const [uploadError, setUploadError] = useState<string | null>(null)
+
   const upload = useMutation({
     mutationFn: (files: File[]) => collectionImportApi.upload(caseId, files),
+    onMutate: () => setUploadError(null),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['collection-imports', caseId] }),
+    // Without this, every failure was silent. The upload goes through `fetch`
+    // rather than the axios instance, so the 401 interceptor never sees it
+    // either: an expired session, a refused type and a server error all looked
+    // identical from the outside, which is to say they looked like nothing
+    // happening at all.
+    onError: (e: Error) => setUploadError(readableError(e)),
   })
 
   /** Upload a list of files, automatically split into ≤200 MB batches, all under one session */
   async function uploadBatched(files: File[]) {
     const sessionId = crypto.randomUUID()
     const batches = makeBatches(files)
+    setUploadError(null)
     setUploadState(s => ({ total: batches.length, done: 0, skipped: s?.skipped ?? [] }))
-    for (const batch of batches) {
-      await collectionImportApi.upload(caseId, batch, sessionId)
-      setUploadState(s => s ? { ...s, done: s.done + 1 } : null)
+    try {
+      for (const batch of batches) {
+        await collectionImportApi.upload(caseId, batch, sessionId)
+        setUploadState(s => s ? { ...s, done: s.done + 1 } : null)
+      }
+      setTimeout(() => setUploadState(null), 4000)
+    } catch (e) {
+      // `busy` is derived from this state, so a throw here used to leave every
+      // upload button disabled until the page was reloaded - which reads
+      // exactly like the buttons doing nothing.
+      setUploadError(readableError(e as Error))
+      setUploadState(null)
+    } finally {
+      qc.invalidateQueries({ queryKey: ['collection-imports', caseId] })
     }
-    qc.invalidateQueries({ queryKey: ['collection-imports', caseId] })
-    setTimeout(() => setUploadState(null), 4000)
   }
 
   function filterAndUpload(all: File[]) {
@@ -702,6 +749,25 @@ export default function CollectionImportTab({ caseId }: Props) {
           />
         </div>
       </div>
+
+      {/* Upload failure. Above everything, because until this is dealt with
+          nothing else on the page will have changed. */}
+      {uploadError && (
+        <div className="rounded-control border border-severity-critical/30 bg-severity-critical/5 px-3 py-2 flex items-start gap-2">
+          <AlertTriangle size={13} className="text-severity-critical shrink-0 mt-0.5" />
+          <div className="min-w-0 flex-1">
+            <p className="text-label font-semibold text-severity-critical">Upload failed</p>
+            <p className="text-label text-fg-secondary mt-0.5 break-words">{uploadError}</p>
+          </div>
+          <button
+            onClick={() => setUploadError(null)}
+            className="text-fg-secondary/50 hover:text-fg shrink-0"
+            aria-label="Dismiss"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
 
       {/* Skipped files notice */}
       {uploadState && uploadState.skipped.length > 0 && (

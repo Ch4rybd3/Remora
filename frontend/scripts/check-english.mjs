@@ -35,6 +35,9 @@ const FRENCH = [
   'telecharger', 'terminer', 'valider', 'veuillez', 'voir',
   'identifiants', 'connexion', 'deconnexion', 'utilisateur', 'utilisateurs',
   'exemples', 'ligne', 'lignes', 'colonne', 'colonnes', 'apercu',
+  // Slipped through as "Une seule archive par upload": no accent, and every
+  // other word in it is English or a shared spelling.
+  'seul', 'seule', 'seuls', 'seules',
 ]
 
 const PATTERN = new RegExp(`(?<![\\w-])(${FRENCH.join('|')})(?![\\w-])`, 'gi')
