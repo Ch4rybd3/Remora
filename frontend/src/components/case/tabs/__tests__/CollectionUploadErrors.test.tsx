@@ -50,8 +50,9 @@ function renderTab() {
 }
 
 /** Drop an archive on the page's drop zone. */
-async function dropArchive(name = 'kapetriage2.zip') {
+async function dropArchive(name = 'kapetriage2.zip', size = 0) {
   const file = new File(['x'], name, { type: 'application/zip' })
+  if (size) Object.defineProperty(file, 'size', { value: size })
   const zone = await screen.findByText('Drop files here')
   const target = zone.closest('div')!
   const dataTransfer = { files: [file], types: ['Files'] }
@@ -97,6 +98,60 @@ describe('Collection upload failures', () => {
     await userEvent.click(await screen.findByLabelText('Dismiss'))
 
     expect(screen.queryByText('Upload failed')).not.toBeInTheDocument()
+  })
+
+  it('holds back a file a proxy will refuse, before spending the upload time', async () => {
+    // Measured on the real deployment: Cloudflare answers 413 at 101 MB and
+    // cuts the connection, so a 400 MB archive spends half a minute uploading
+    // to learn nothing. The check costs nothing and says the same thing.
+    renderTab()
+    await dropArchive('kapetriage2.zip', 409 * 1024 * 1024)
+
+    expect(await screen.findByText(/likely to be refused before it arrives/))
+      .toBeInTheDocument()
+    expect(upload).not.toHaveBeenCalled()
+  })
+
+  it('points at the route that has no size limit', async () => {
+    renderTab()
+    await dropArchive('kapetriage2.zip', 409 * 1024 * 1024)
+
+    expect(await screen.findByText(/drop folder instead/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Use the drop folder' })).toBeInTheDocument()
+  })
+
+  it('is a warning, not a refusal - an install with no proxy takes it', async () => {
+    // Remora's own nginx accepts two gigabytes, measured. Refusing outright
+    // would break the case that works.
+    upload.mockResolvedValue({ id: 'c1' })
+    renderTab()
+    await dropArchive('kapetriage2.zip', 409 * 1024 * 1024)
+    await userEvent.click(await screen.findByRole('button', { name: 'Upload anyway' }))
+
+    expect(upload).toHaveBeenCalled()
+  })
+
+  it('names the size and the cause when a proxy refuses mid-upload', async () => {
+    // The proxy cuts the connection while the browser is still sending, so
+    // `fetch` rejects at the transport layer. "Check your connection" sent an
+    // analyst looking at a network that was working perfectly.
+    upload.mockRejectedValue(new TypeError('Failed to fetch'))
+    renderTab()
+    await dropArchive('kapetriage2.zip', 409 * 1024 * 1024)
+    await userEvent.click(await screen.findByRole('button', { name: 'Upload anyway' }))
+
+    const message = await screen.findByText(/more than the proxy in front of Remora accepts/)
+    expect(message).toBeInTheDocument()
+    expect(message.textContent).toMatch(/409\.0 MB/)
+  })
+
+  it('a small upload that fails still reads as a connection problem', async () => {
+    upload.mockRejectedValue(new TypeError('Failed to fetch'))
+    renderTab()
+    await dropArchive('small.zip', 1024)
+
+    expect(await screen.findByText(/connection dropped part way through/))
+      .toBeInTheDocument()
   })
 
   it('says nothing when the upload works', async () => {
