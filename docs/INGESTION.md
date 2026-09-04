@@ -982,3 +982,56 @@ rsync -avP --partial kapetriage2.zip user@host:/path/to/dropzone/<case-folder>/
 The Collection tab's upload is a convenience for artifacts small enough to go
 through a browser. A full triage is not one of them, and the interface now says
 so before the transfer rather than after it.
+
+
+---
+
+## 21. The Python parsers are contained too
+
+Until this landed, the honest answer to *"does Remora execute anything that
+came out of the drop folder?"* was a qualified one. The Eric Zimmerman tools
+ran inside the sandbox from the day they shipped. The parsers written here -
+prefetch, browsers, scheduled tasks, SRUM, the web cache, generic SQLite and
+ESE, the RDP bitmap cache - ran in the worker, as root, on bytes somebody
+dropped in a folder.
+
+Row, cell and tile caps bounded the *work* those parsers do. That is not the
+same as bounding what the code can reach, and an ESE database or a bitmap cache
+is a far larger surface than a prefetch record.
+
+### How
+
+A process boundary, and nothing more clever than that.
+`python_parsers/__main__.py` takes a job file, runs one parser, and writes back
+the paths it produced. `batch.run_sandboxed` stages the inputs, invokes it
+through `services/sandbox.py`, and moves the results out.
+
+The parsers themselves did not change. They are pure
+`(paths, out_dir, scratch, base) -> [paths]` functions with no database and no
+configuration, which is the property that made a boundary drawable at all - and
+a good reason to keep them that way.
+
+Each one carries a `slug`, because a label is prose for an analyst and a set of
+kinds has no canonical order; neither survives a command line.
+
+### Two consequences worth stating
+
+**The parser only sees what was staged.** Not the drop folder, not the rest of
+the collection, not the evidence store. Its idea of the filesystem is a
+directory the worker built for it, mirroring the collection tree so a source
+column still says where a file sat.
+
+**Output is written inside the working directory and moved out afterwards.**
+The confined account cannot write to a directory the worker created as root,
+and handing it the collection's own `_parsed/` would mean granting a sandboxed
+process write access to case data. The move happens as the worker, so the
+boundary stays one-directional.
+
+### What it costs
+
+One interpreter start per parser per collection - not per file. A collection
+that yields prefetch, browsers and tasks pays it three times.
+
+The environment is replaced wholesale by the sandbox, so `PYTHONPATH` is handed
+in explicitly, derived from the module's own location. An installed layout that
+moved would fail loudly rather than quietly running the parser unconfined.

@@ -332,7 +332,7 @@ def test_staging_keeps_the_account_that_deleted_the_file(tmp_path):
     source.write_bytes(recycle_record())
 
     staged = tmp_path / "staged"
-    ez_parsers._stage_for_batch(source, staged, tmp_path, None)
+    ez_parsers.stage_for_batch(source, staged, tmp_path, None)
 
     assert (staged / "C" / "$Recycle.Bin" / "S-1-5-21-999" / "$IZUAP07.stl").exists()
 
@@ -347,7 +347,7 @@ def test_staging_appends_the_extension_a_tool_needs_without_losing_the_name(tmp_
     source.write_bytes(b"\x00" * 16)
 
     staged = tmp_path / "staged"
-    ez_parsers._stage_for_batch(source, staged, tmp_path, ".customDestinations-ms")
+    ez_parsers.stage_for_batch(source, staged, tmp_path, ".customDestinations-ms")
 
     assert (staged / "1b4dd67f29cb1962.tmp.customDestinations-ms").exists()
 
@@ -359,6 +359,6 @@ def test_a_file_outside_the_collection_still_stages(tmp_path):
     source.write_bytes(recycle_record())
 
     staged = tmp_path / "staged"
-    ez_parsers._stage_for_batch(source, staged, tmp_path / "somewhere-else", None)
+    ez_parsers.stage_for_batch(source, staged, tmp_path / "somewhere-else", None)
 
     assert (staged / "$IZUAP07.stl").exists()
