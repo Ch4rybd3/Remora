@@ -934,3 +934,51 @@ table is the normal case and their columns have nothing to do with each other.
 
 Copied before opening, like the browser databases: SQLite replays its
 write-ahead log on open, and that is a write.
+
+
+---
+
+## 20. Uploading through a reverse proxy
+
+**Remora is not what limits an upload.** Its own nginx accepts two gigabytes
+and the backend takes a 409 MB archive in 37 seconds, measured end to end. What
+limits it is whatever sits in front.
+
+Cloudflare caps a request body at **100 MB on every plan below Enterprise**.
+Measured against a real deployment behind it:
+
+| Body | Result |
+|---|---|
+| 99 MB | Reaches the backend. 403 from the auth dependency, 7 s. |
+| 101 MB | **413 from Cloudflare in 0.39 s.** Never reaches the server. |
+
+The failure mode is what makes this worth documenting. The proxy answers 413
+and cuts the connection **while the browser is still sending**, so `fetch`
+rejects at the transport layer rather than returning a status. The browser
+reports a network error on a network that is working perfectly, and the request
+never appears in Remora's own access log - which is what sent an afternoon of
+diagnosis at the wrong machine.
+
+### What the product does about it
+
+A selection over 100 MB is held back before it is sent, with the size named and
+the drop folder offered. A **warning, not a refusal**: an installation with no
+proxy in front handles it, and refusing outright would break the case that
+works. "Upload anyway" is there for exactly that.
+
+When an upload does fail and the file was large, the message names the size and
+the cause rather than suggesting the connection is at fault.
+
+### The route that has no limit
+
+The drop folder, which is the pipeline's single entry point anyway (§2). A
+triage copied in with `scp` or `rsync`, or dropped onto a mounted SMB share,
+has nothing between it and the server:
+
+```
+rsync -avP --partial kapetriage2.zip user@host:/path/to/dropzone/<case-folder>/
+```
+
+The Collection tab's upload is a convenience for artifacts small enough to go
+through a browser. A full triage is not one of them, and the interface now says
+so before the transfer rather than after it.
