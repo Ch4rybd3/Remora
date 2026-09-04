@@ -605,7 +605,7 @@ quietly define what "the registry" means for every investigation.
 
 ---
 
-## 13. Process tree (S16)
+## 13. Process tree
 
 Reconstructed where the data allows, from strongest to weakest source:
 
@@ -617,7 +617,34 @@ Rules:
 - PID reuse is resolved by time window, not by PID alone.
 - An orphan process attaches to a synthetic root. It is never dropped — a missing parent is itself a finding.
 - Nodes carry their evidence sources, so an analyst can see whether a link is asserted or inferred.
-- Rendered with the shared graph components extracted in S13, so it inherits the playbook editor's interaction model.
+- Rendered as an **indented, collapsible tree**, not on the shared graph canvas
+  the original plan named. That canvas is right for the attack graph, which is
+  a hand-authored diagram of twenty nodes an analyst *arranges*; a process tree
+  is machine-generated, thousands of nodes deep, and read rather than arranged.
+  Laying it out as a graph would be slower and harder to follow at exactly the
+  sizes that matter.
+
+### Two things the implementation had to get right
+
+**A process id is not an identity.** Windows reuses them, on a busy machine
+within minutes. A process is keyed by its GUID where one exists and by
+`(pid, start time)` otherwise, and a parent is chosen by lifetime window -
+started before the child, and either still running or exited after it. When
+exits were not logged the most recent start wins, and a grace window refuses an
+implausibly old candidate: without one, a boot-time service adopts everything
+that ran on the machine that week.
+
+**The base the process id was written in.** Security 4688 writes `0x1a2c`;
+Sysmon writes `6700`. Reading one as the other produces a number that is
+entirely plausible and entirely wrong, and nothing downstream would notice. It
+has its own parametrised test.
+
+### What it does not do
+
+Corroboration is matched on the executable's name against the prefetch and
+Amcache tables in the case, read once each rather than per node. That is a
+weaker claim than the rest of the tree and is labelled as such - it says the
+executable ran, not that this process is that execution.
 
 ---
 
