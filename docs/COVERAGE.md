@@ -295,11 +295,10 @@ projected at 94.4 % / 90.0 % and delivered 94.5 % / 90.1 %.
 
 ### Still outstanding, and worth saying
 
-* **The Python parsers do not run in the sandbox.** The Eric Zimmerman tools
-  do; the parsers written here run in-process. Row, cell and tile caps bound
-  the work, but bounding is not containment, and an ESE database or a bitmap
-  cache is a far larger attack surface than a prefetch file. This is the
-  largest piece of unfinished business in the pipeline.
+* ~~**The Python parsers do not run in the sandbox.**~~ **Closed.** They now
+  run as their own process inside the same sandbox as the Eric Zimmerman
+  tools - non-root, no network, bounded in time, memory and output, seeing only
+  a directory staged for them. See `INGESTION.md` section 12.
 * **SQLite sidecars read as `unknown`.** A `-wal` file is not an artifact of
   its own and must not be parsed separately, but labelling it as belonging to
   the database beside it would stop the ingest queue inviting an analyst to

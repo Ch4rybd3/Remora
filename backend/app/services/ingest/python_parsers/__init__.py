@@ -28,6 +28,10 @@ logger = logging.getLogger("remora.python_parsers")
 class BatchParser:
     """One parser, run once over every file of its kind in a collection."""
     kinds:   frozenset[str]
+    #: Stable identifier, used to name the parser across a process boundary.
+    #: The label is prose for an analyst and would be a poor thing to pass on
+    #: a command line; the kinds are a set with no canonical order.
+    slug:    str
     label:   str
     #: (paths, out_dir, scratch, base) -> the CSVs written.
     #:
@@ -99,6 +103,7 @@ def _dump_sqlite(paths: list[Path], out_dir: Path, scratch: Path,
 PARSERS: tuple[BatchParser, ...] = (
     BatchParser(
         kinds=frozenset({"prefetch"}),
+        slug="prefetch",
         label="Prefetch",
         run=_parse_prefetch,
         because="PECmd needs a Windows decompression API for MAM-compressed prefetch.",
@@ -106,12 +111,14 @@ PARSERS: tuple[BatchParser, ...] = (
     BatchParser(
         # Not `browser_cache`: WebCacheV01.dat is an ESE database, not SQLite.
         kinds=frozenset({"browser_history", "browser_cookies"}),
+        slug="browsers",
         label="Browser activity",
         run=_parse_browsers,
         because="No Eric Zimmerman tool reads browser databases.",
     ),
     BatchParser(
         kinds=frozenset({"scheduled_task"}),
+        slug="scheduled_tasks",
         label="Scheduled tasks",
         run=_parse_tasks,
         because="No Eric Zimmerman tool reads task definitions, and 272 of them "
@@ -120,6 +127,7 @@ PARSERS: tuple[BatchParser, ...] = (
     ),
     BatchParser(
         kinds=frozenset({"rdp_bitmap_cache"}),
+        slug="rdp_cache",
         label="RDP bitmap cache",
         run=_parse_rdp_cache,
         because="Nothing else reads it, and it is the only artifact in a triage "
@@ -127,6 +135,7 @@ PARSERS: tuple[BatchParser, ...] = (
     ),
     BatchParser(
         kinds=frozenset({"srum"}),
+        slug="srum",
         label="SRUM",
         run=_parse_srum,
         because="SrumECmd is one of the two Eric Zimmerman tools that refuse to "
@@ -135,6 +144,7 @@ PARSERS: tuple[BatchParser, ...] = (
     ),
     BatchParser(
         kinds=frozenset({"browser_cache"}),
+        slug="webcache",
         label="Web cache",
         run=_parse_webcache,
         because="WebCacheV01.dat is an ESE database, not SQLite, so the browser "
@@ -145,6 +155,7 @@ PARSERS: tuple[BatchParser, ...] = (
         # name - browser history, cookies, the Windows Timeline - keeps the
         # parser that understands its columns; this takes everything else.
         kinds=frozenset({"sqlite"}),
+        slug="sqlite",
         label="SQLite tables",
         run=_dump_sqlite,
         because="Applications keep their evidence in SQLite and there are more "
@@ -155,6 +166,7 @@ PARSERS: tuple[BatchParser, ...] = (
         # reader; everything else is dumped table by table rather than listed
         # as unsupported forever.
         kinds=frozenset({"ese", "search_index", "ntds"}),
+        slug="ese_tables",
         label="ESE tables",
         run=_dump_ese,
         because="An ESE artifact with no dedicated reader is still readable "
@@ -165,6 +177,15 @@ PARSERS: tuple[BatchParser, ...] = (
 #: Every kind handled here. Checked against the routing table by a test, the
 #: same way the Eric Zimmerman table is.
 HANDLED_KINDS = frozenset(kind for parser in PARSERS for kind in parser.kinds)
+
+
+def parser_by_slug(slug: str) -> BatchParser | None:
+    """The parser a job names. Returns None rather than raising: the caller is
+    across a process boundary and turns it into an exit code with a reason."""
+    for parser in PARSERS:
+        if parser.slug == slug:
+            return parser
+    return None
 
 
 def parser_for(kind: str) -> BatchParser | None:

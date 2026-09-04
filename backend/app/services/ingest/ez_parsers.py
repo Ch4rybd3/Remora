@@ -360,8 +360,8 @@ BATCH_KINDS: dict[str, Recipe] = {
 }
 
 
-def _stage_for_batch(source: Path, staged_dir: Path, base: Path | None,
-                     stage_as: str | None) -> None:
+def stage_for_batch(source: Path, staged_dir: Path, base: Path | None,
+                    stage_as: str | None) -> Path:
     """
     Stage one file for a directory-reading tool, keeping where it came from.
 
@@ -396,6 +396,7 @@ def _stage_for_batch(source: Path, staged_dir: Path, base: Path | None,
     except OSError:
         import shutil
         shutil.copy2(source, target)
+    return target
 
 
 def run_batch(kind: str, sources: list[Path], out_dir: Path,
@@ -427,7 +428,7 @@ def run_batch(kind: str, sources: list[Path], out_dir: Path,
     staged_dir.mkdir(parents=True, exist_ok=True)
     for source in sources:
         try:
-            _stage_for_batch(source, staged_dir, base, recipe.stage_as)
+            stage_for_batch(source, staged_dir, base, recipe.stage_as)
         except OSError as e:
             # One unreadable file does not cost the other three hundred their
             # table. It stays in the ingest queue with its own row.
