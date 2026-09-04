@@ -18,12 +18,13 @@ import EvidencesTab from '../components/case/tabs/EvidencesTab'
 import TimelineTab from '../components/case/tabs/TimelineTab'
 import IncidentLogTab from '../components/case/tabs/IncidentLogTab'
 import AttackGraphTab from '../components/case/tabs/AttackGraphTab'
+import ProcessTreeTab from '../components/case/tabs/ProcessTreeTab'
 import MitreTab from '../components/case/tabs/MitreTab'
 import CollectionImportTab from '../components/case/tabs/CollectionImportTab'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import { fmtDateTimeShort } from '../utils/dateUtils'
 
-type Tab = 'summary' | 'playbook' | 'report' | 'iocs' | 'assets' | 'evidences' | 'timeline' | 'incident_log' | 'attack_graph' | 'mitre' | 'collection'
+type Tab = 'summary' | 'playbook' | 'report' | 'iocs' | 'assets' | 'evidences' | 'timeline' | 'incident_log' | 'attack_graph' | 'process_tree' | 'mitre' | 'collection'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'summary',      label: 'Executive Summary' },
@@ -36,6 +37,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'incident_log', label: 'Incident log' },
   { id: 'mitre',        label: 'MITRE ATT&CK' },
   { id: 'attack_graph', label: 'Attack Graph' },
+  { id: 'process_tree', label: 'Process Tree' },
   { id: 'report',       label: 'Report' },
 ]
 
@@ -185,6 +187,11 @@ export default function CaseDetail() {
       {/* Tab content */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {/* Full-height tabs (no padding, custom layout) */}
+        {activeTab === 'process_tree' && (
+          <div className="h-full">
+            <ProcessTreeTab caseId={case_.id} />
+          </div>
+        )}
         {activeTab === 'attack_graph' && (
           <div className="h-full">
             <AttackGraphTab caseId={case_.id} />

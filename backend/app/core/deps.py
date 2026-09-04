@@ -53,21 +53,66 @@ def enforce_permissions(
     outside it on purpose: a read-only account still has to sign in and manage
     its own second factor, and both of those are POSTs.
     """
-    permissions.enforce(request, user.role)
+    try:
+        permissions.enforce(request, user.role)
 
-    # Almost every route carrying case data has the case id in its path, so
-    # checking it here scopes a new artifact page the moment it exists. The
-    # endpoints that aggregate across cases filter explicitly - see
-    # `core/scoping.py` and the test that asserts that list is complete.
-    case_id = request.path_params.get("case_id")
-    if case_id:
-        scoping.assert_case_in_scope(db, user, str(case_id))
+        # Almost every route carrying case data has the case id in its path, so
+        # checking it here scopes a new artifact page the moment it exists. The
+        # endpoints that aggregate across cases filter explicitly - see
+        # `core/scoping.py` and the test that asserts that list is complete.
+        case_id = request.path_params.get("case_id")
+        if case_id:
+            scoping.assert_case_in_scope(db, user, str(case_id))
 
-    client_id = request.path_params.get("client_id")
-    if client_id:
-        scoping.assert_client_in_scope(user, str(client_id))
+        client_id = request.path_params.get("client_id")
+        if client_id:
+            scoping.assert_client_in_scope(user, str(client_id))
+    except (permissions.Denied, scoping.OutOfScope) as refusal:
+        _record_denial(db, user, request, refusal)
+        raise
 
     return user
+
+
+def _record_denial(
+    db: Session,
+    user: User,
+    request: Request,
+    refusal: permissions.Denied | scoping.OutOfScope,
+) -> None:
+    """
+    Write a refused request to the audit trail.
+
+    Sign-ins were audited and refusals were not, which left the trail able to
+    answer "who came in" but not "who reached for what they could not have" -
+    and the second question is the one an investigation into the investigators
+    starts with.
+
+    Committed here rather than left to the caller. Every other audit entry
+    rides along on a request that is about to succeed; this one rides on a
+    request that is about to raise, so nothing downstream will ever commit it.
+
+    Never allowed to change the outcome. If the audit write fails the refusal
+    still stands - a denial that turned into a 500 because its own logging
+    broke would be a refusal an attacker could distinguish from a success.
+    """
+    from ..services.audit_service import audit_log
+
+    try:
+        audit_log(
+            db, user=user, action="auth.denied", request=request,
+            resource_type="endpoint",
+            resource_name=f"{request.method} {request.url.path}",
+            case_id=str(request.path_params.get("case_id") or "") or None,
+            details={
+                "reason": refusal.reason,
+                "status": refusal.status_code,
+                "role":   getattr(user.role, "value", str(user.role)),
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
 
 
 def require_admin(user: User = Depends(get_current_user)) -> User:
