@@ -101,7 +101,7 @@ ARTIFACT_SEGMENTS = frozenset({
     "custody", "vaults", "cti", "knowledge", "backup", "connectors", "audit",
     "iocs", "assets", "timeline", "incident-log", "attack-graph", "playbooks",
     "ttp", "notes", "templates", "report-doc-templates", "registry",
-    "rdp-cache",
+    "rdp-cache", "process-tree",
 })
 
 #: The only roots an account with no permissions at all may reach. An allowlist
