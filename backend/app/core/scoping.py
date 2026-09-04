@@ -80,15 +80,38 @@ def may_see_case(db: Session, user: User, case_id: str) -> bool:
     return str(case.client_id or "") in allowed
 
 
+#: Why a scoped account was refused. Recorded in the audit trail even though
+#: the answer the caller receives is a 404 - internally we know perfectly well
+#: that the case exists and that this account reached for it, and that is the
+#: half worth keeping.
+DENIED_CASE_SCOPE   = "case_scope"
+DENIED_CLIENT_SCOPE = "client_scope"
+
+
+class OutOfScope(HTTPException):
+    """
+    A refusal that answers 404, carrying the rule that produced it.
+
+    The status code is a deliberate lie to the caller and the truth to the
+    audit log. Telling a scoped account that a case exists but is forbidden
+    leaks which client an incident belongs to, which is itself information; not
+    recording the attempt would leak nothing and remember nothing.
+    """
+
+    def __init__(self, reason: str, detail: str):
+        super().__init__(status.HTTP_404_NOT_FOUND, detail)
+        self.reason = reason
+
+
 def assert_case_in_scope(db: Session, user: User, case_id: str) -> None:
     if not may_see_case(db, user, case_id):
         # 404, not 403. A scoped account should not be able to learn that a
         # case exists by the shape of the refusal - which client an incident
         # belongs to is itself information.
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Case not found")
+        raise OutOfScope(DENIED_CASE_SCOPE, "Case not found")
 
 
 def assert_client_in_scope(user: User, client_id: str) -> None:
     allowed = scoped_client_ids(user)
     if allowed is not None and client_id not in allowed:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Client not found")
+        raise OutOfScope(DENIED_CLIENT_SCOPE, "Client not found")

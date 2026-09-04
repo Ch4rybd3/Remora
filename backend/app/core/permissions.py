@@ -172,6 +172,31 @@ def executive_may_read(path: str) -> bool:
 
 # ─── Enforcement ──────────────────────────────────────────────────────────────
 
+#: Why a request was refused, in a form an audit entry can be filtered on.
+#: The message an analyst reads explains; this says which rule fired, so
+#: "somebody is walking the artifact endpoints" is a query rather than a
+#: reading exercise over free text.
+DENIED_ARTIFACTS = "artifacts"   # a role with no artifact-level access
+DENIED_WRITE     = "write"       # a read-only role attempting a mutation
+DENIED_USERS     = "users"       # user administration without an admin account
+
+
+class Denied(HTTPException):
+    """
+    A refusal, carrying the rule that produced it.
+
+    An `HTTPException` subclass rather than something new, so every caller that
+    already treats a refusal as a 403 keeps working - including the golden-list
+    tests that walk every route. What it adds is `reason`, which is what makes
+    a denial worth writing to the audit log: the message is prose meant for the
+    person refused, and prose is not something you can count.
+    """
+
+    def __init__(self, reason: str, detail: str):
+        super().__init__(status.HTTP_403_FORBIDDEN, detail)
+        self.reason = reason
+
+
 def enforce(request: Request, role: UserRole) -> None:
     """
     Refuse the request if the role does not allow it. Raises 403, or returns.
@@ -184,20 +209,20 @@ def enforce(request: Request, role: UserRole) -> None:
     path = request.url.path
 
     if PERM_ARTIFACTS not in granted and not executive_may_read(path):
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN,
+        raise Denied(
+            DENIED_ARTIFACTS,
             f"The {ROLE_LABELS.get(role, role.value)} role does not have access to this data",
         )
 
     if is_write(request) and PERM_WRITE not in granted:
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN,
+        raise Denied(
+            DENIED_WRITE,
             f"The {ROLE_LABELS.get(role, role.value)} role is read-only",
         )
 
     if touches_users(path) and PERM_USERS not in granted:
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "User administration requires an admin account")
+        raise Denied(
+            DENIED_USERS, "User administration requires an admin account")
 
 
 def may_assign_role(actor_role: UserRole, target_role: UserRole) -> bool:
