@@ -2,8 +2,8 @@ import { useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Upload, FileText, Loader2, CheckCircle2, AlertCircle,
-  Trash2, Clock, Plus, RefreshCw, RotateCcw,
-} from 'lucide-react'
+  Trash2, Clock, Plus, RotateCcw,
+} from '../../ui/icons'
 import { evtxApi, type EvtxFile } from '../../api/evtx'
 import { fmtDateTimeShort } from '../../utils/dateUtils'
 
@@ -17,22 +17,22 @@ interface Props {
 
 function StatusBadge({ status }: { status: EvtxFile['status'] }) {
   if (status === 'ready')   return (
-    <span className="flex items-center gap-1 text-[10px] text-accent-green">
+    <span className="flex items-center gap-1 text-label text-accent">
       <CheckCircle2 size={10} /> Ready
     </span>
   )
   if (status === 'parsing') return (
-    <span className="flex items-center gap-1 text-[10px] text-blue-400 animate-pulse">
+    <span className="flex items-center gap-1 text-label text-severity-low animate-pulse">
       <Loader2 size={10} className="animate-spin" /> Parsing…
     </span>
   )
   if (status === 'error')   return (
-    <span className="flex items-center gap-1 text-[10px] text-severity-critical">
+    <span className="flex items-center gap-1 text-label text-severity-critical">
       <AlertCircle size={10} /> Error
     </span>
   )
   return (
-    <span className="flex items-center gap-1 text-[10px] text-accent-muted/50">
+    <span className="flex items-center gap-1 text-label text-fg-secondary/50">
       <Clock size={10} /> Pending
     </span>
   )
@@ -68,12 +68,11 @@ function DropZone({ caseId }: { caseId: string }) {
         handleFiles(e.dataTransfer.files)
       }}
       onClick={() => inputRef.current?.click()}
-      className={`
-        border-2 border-dashed rounded-lg px-4 py-6 flex flex-col items-center gap-2
+      className={` border-2 border-dashed  px-4 py-6 flex flex-col items-center gap-2
         cursor-pointer transition-all select-none
         ${dragging
-          ? 'border-accent-green/60 bg-accent-green/5'
-          : 'border-white/10 hover:border-white/20 hover:bg-white/[0.02]'}
+          ? 'border-accent/60 bg-accent/5'
+          : 'border-hairline hover:border-strong hover:bg-white/[0.02]'}
       `}
     >
       <input
@@ -85,17 +84,17 @@ function DropZone({ caseId }: { caseId: string }) {
         onChange={e => handleFiles(e.target.files)}
       />
       {upload.isPending
-        ? <Loader2 size={22} className="animate-spin text-accent-green/60" />
-        : <Upload size={22} className="text-accent-muted/40" />
+        ? <Loader2 size={22} className="animate-spin text-accent/60" />
+        : <Upload size={22} className="text-fg-secondary/40" />
       }
-      <p className="text-[11px] text-accent-muted/60 text-center">
+      <p className="text-label text-fg-secondary/60 text-center">
         {upload.isPending
           ? 'Uploading…'
-          : <>Drop <span className="text-white/70 font-mono">.evtx</span> files here or click to browse</>
+          : <>Drop <span className="text-fg/70 font-mono">.evtx</span> files here or click to browse</>
         }
       </p>
       {upload.isError && (
-        <p className="text-[10px] text-severity-critical">Upload failed</p>
+        <p className="text-label text-severity-critical">Upload failed</p>
       )}
     </div>
   )
@@ -138,12 +137,12 @@ export default function EvtxFileList({ caseId, selectedFileId, onSelectFile }: P
 
       {isLoading && (
         <div className="flex justify-center py-4">
-          <Loader2 size={16} className="animate-spin text-accent-muted/30" />
+          <Loader2 size={16} className="animate-spin text-fg-secondary/30" />
         </div>
       )}
 
       {!isLoading && files.length === 0 && (
-        <p className="text-[11px] text-accent-muted/30 italic text-center py-2">
+        <p className="text-label text-fg-secondary/30 italic text-center py-2">
           No EVTX files uploaded yet
         </p>
       )}
@@ -152,25 +151,24 @@ export default function EvtxFileList({ caseId, selectedFileId, onSelectFile }: P
         <div
           key={f.id}
           onClick={() => f.status === 'ready' && onSelectFile(f.id)}
-          className={`
-            group rounded-lg border p-3 flex flex-col gap-2 transition-all
+          className={` group  border p-3 flex flex-col gap-2 transition-all
             ${f.status === 'ready' ? 'cursor-pointer' : 'cursor-default'}
             ${selectedFileId === f.id
-              ? 'border-accent-green/40 bg-accent-green/5'
-              : 'border-white/8 hover:border-white/15 bg-white/[0.02]'}
+              ? 'border-accent/40 bg-accent/5'
+              : 'border-hairline hover:border-hairline bg-white/[0.02]'}
           `}
         >
           {/* Header row */}
           <div className="flex items-start gap-2">
-            <FileText size={13} className="shrink-0 mt-0.5 text-accent-muted/50" />
+            <FileText size={13} className="shrink-0 mt-0.5 text-fg-secondary/50" />
             <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-medium text-white/80 truncate" title={f.filename}>
+              <p className="text-label font-medium text-fg/80 truncate" title={f.filename}>
                 {f.filename}
               </p>
               <div className="flex items-center gap-2 mt-0.5">
                 <StatusBadge status={f.status} />
                 {f.status === 'ready' && f.event_count != null && (
-                  <span className="text-[10px] text-accent-muted/40">
+                  <span className="text-label text-fg-secondary/40">
                     {f.event_count.toLocaleString()} events
                   </span>
                 )}
@@ -185,7 +183,7 @@ export default function EvtxFileList({ caseId, selectedFileId, onSelectFile }: P
                   onClick={() => reparse.mutate(f.id)}
                   disabled={reparse.isPending}
                   title="Re-parse with latest parser"
-                  className="p-1 rounded text-accent-muted/30 hover:text-blue-400 transition-colors"
+                  className="p-1 rounded-control text-fg-secondary/30 hover:text-severity-low transition-colors"
                 >
                   <RotateCcw size={11} />
                 </button>
@@ -195,19 +193,19 @@ export default function EvtxFileList({ caseId, selectedFileId, onSelectFile }: P
                   onClick={() => addEvidence.mutate(f.id)}
                   disabled={addEvidence.isPending}
                   title="Add to case evidence"
-                  className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] border border-accent-green/30 text-accent-green hover:bg-accent-green/10 transition-colors"
+                  className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-control text-label border border-accent/30 text-accent hover:bg-accent/10 transition-colors"
                 >
                   <Plus size={9} /> Evidence
                 </button>
               )}
               {f.added_to_evidence && (
-                <span className="text-[9px] text-accent-green/50 px-1">✓ In evidence</span>
+                <span className="text-label text-accent/50 px-1">✓ In evidence</span>
               )}
               <button
                 onClick={() => {
                   if (confirm(`Delete "${f.filename}"?`)) deleteFile.mutate(f.id)
                 }}
-                className="p-1 rounded text-accent-muted/30 hover:text-severity-critical transition-colors"
+                className="p-1 rounded-control text-fg-secondary/30 hover:text-severity-critical transition-colors"
                 title="Delete"
               >
                 <Trash2 size={11} />
@@ -217,20 +215,20 @@ export default function EvtxFileList({ caseId, selectedFileId, onSelectFile }: P
 
           {/* Error message */}
           {f.status === 'error' && f.error_msg && (
-            <p className="text-[10px] text-severity-critical/80 bg-severity-critical/5 rounded px-2 py-1">
+            <p className="text-label text-severity-critical/80 bg-severity-critical/5 rounded-control px-2 py-1">
               {f.error_msg}
             </p>
           )}
 
           {/* Parsing progress bar */}
           {(f.status === 'pending' || f.status === 'parsing') && (
-            <div className="h-0.5 rounded-full bg-white/5 overflow-hidden">
-              <div className="h-full bg-blue-400/60 animate-pulse w-1/2" />
+            <div className="h-0.5 rounded-pill bg-fg/5 overflow-hidden">
+              <div className="h-full bg-severity-low/60 animate-pulse w-1/2" />
             </div>
           )}
 
           {/* Upload date */}
-          <p className="text-[9px] text-accent-muted/25">
+          <p className="text-label text-fg-secondary/25">
             {fmtDateTimeShort(f.uploaded_at)}
           </p>
         </div>

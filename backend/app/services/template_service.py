@@ -1,6 +1,7 @@
 import re
+
 import yaml
-from typing import Optional
+
 from ..config import settings
 
 
@@ -16,7 +17,7 @@ class TemplateService:
                 pass
         return templates
 
-    def get_template(self, template_id: str) -> Optional[dict]:
+    def get_template(self, template_id: str) -> dict | None:
         path = settings.templates_path / f"{template_id}.yaml"
         if not path.exists():
             return None
@@ -24,7 +25,7 @@ class TemplateService:
         data["id"] = path.stem
         return data
 
-    def get_raw(self, template_id: str) -> Optional[str]:
+    def get_raw(self, template_id: str) -> str | None:
         path = settings.templates_path / f"{template_id}.yaml"
         if not path.exists():
             return None

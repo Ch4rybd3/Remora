@@ -5,7 +5,7 @@ Returns aggregated metrics across all cases, IOCs, assets, evidence, timeline an
 
 from __future__ import annotations
 
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -13,14 +13,15 @@ from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..database import get_db
-from ..models.case import Case
-from ..models.ioc import IOC
-from ..models.asset import Asset
-from ..models.evidence import Evidence
-from ..models.timeline import TimelineEvent
-from ..models.mitre import CaseTTP
+from ..core import scoping
 from ..core.deps import get_current_user
+from ..database import get_db
+from ..models.asset import Asset
+from ..models.case import Case
+from ..models.evidence import Evidence
+from ..models.ioc import IOC
+from ..models.mitre import CaseTTP
+from ..models.timeline import TimelineEvent
 from ..models.user import User
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -103,14 +104,14 @@ class DashboardStats(BaseModel):
 def _to_utc(dt: datetime) -> datetime:
     """Ensure datetime is UTC-aware (SQLite returns naive datetimes)."""
     if dt is None:
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
+        return dt.replace(tzinfo=UTC)
     return dt
 
 
 def _days_since(dt: datetime) -> int:
-    return max(0, (_to_utc(datetime.now(timezone.utc)) - _to_utc(dt)).days)
+    return max(0, (_to_utc(datetime.now(UTC)) - _to_utc(dt)).days)
 
 
 # ── Endpoint ────────────────────────────────────────────────────────────────────
@@ -121,12 +122,19 @@ def get_dashboard_stats(
     current_user: User = Depends(get_current_user),
 ) -> Any:
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # ── Cases ──────────────────────────────────────────────────────────────────
 
-    # All cases (lightweight — only what we need)
-    all_cases = db.query(Case).order_by(Case.updated_at.desc()).all()
+    # Filtered explicitly: the dashboard aggregates across cases, so there is
+    # no case id in the path for the scoping dependency to check. Counting
+    # cases a scoped account cannot open would leak how many its clients do not
+    # have. See `core/scoping.py`.
+    all_cases = (
+        scoping.filter_cases(db.query(Case), current_user)
+        .order_by(Case.updated_at.desc())
+        .all()
+    )
     total_cases = len(all_cases)
 
     status_map:   dict[str, int] = {}

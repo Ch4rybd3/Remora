@@ -38,7 +38,7 @@ def _guard(fn, *args, **kwargs):
         raise HTTPException(400, str(e))
     except ImportError:
         raise HTTPException(
-            503, "dissect.target n'est pas installé dans l'image backend")
+            503, "dissect.target is not installed in the backend image")
     except Exception as e:
         raise HTTPException(500, f"{type(e).__name__}: {e}")
 
@@ -178,12 +178,12 @@ def extract_to_case(
     """
     case = db.query(Case).filter(Case.id == case_id).first()
     if not case:
-        raise HTTPException(404, "Case introuvable")
+        raise HTTPException(404, "Case not found")
 
     image = _resolve(body.get("path", ""))
     file_path = body.get("file") or ""
     if not file_path:
-        raise HTTPException(400, "Champ 'file' manquant")
+        raise HTTPException(400, "Missing 'file' field")
     partition = int(body.get("partition", 0))
 
     from ..services.dropzone import case_dropzone_dir
@@ -201,6 +201,6 @@ def extract_to_case(
 
     return {
         **result,
-        "message": "Fichier extrait dans le drop folder du case — "
-                   "il sera ingéré automatiquement s'il s'agit d'un artefact reconnu",
+        "message": "File extracted into the case drop folder - it will be "
+                   "ingested automatically if it is a recognised artifact",
     }

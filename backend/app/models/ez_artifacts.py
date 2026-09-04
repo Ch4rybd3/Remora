@@ -11,10 +11,16 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
-    Boolean, Column, DateTime, ForeignKey,
-    Integer, String, Text, BigInteger,
+    BigInteger,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..database import Base
 
@@ -74,9 +80,17 @@ class ImportedFile(Base):
     csv_artifact_id   = Column(String, nullable=True)  # FK to csv_artifact_files.id
 
     # Retention
-    added_to_evidence = Column(Boolean, default=False)
-    evidence_id       = Column(String)                 # FK to evidences.id if added
-    expires_at        = Column(DateTime)               # +90 days unless in evidence
+    # Annotated where the rest of this model is not, because the custody service
+    # writes to all three and a bare Column() leaves mypy seeing the descriptor
+    # rather than the value. Same columns, same schema.
+    # `bool | None`, not `bool`: the column is nullable in the shipped schema
+    # and tightening it to satisfy the annotation would be a migration on live
+    # data for the sake of a type. The default fills it on every insert.
+    added_to_evidence: Mapped[bool | None] = mapped_column(
+        Boolean, default=False, nullable=True)
+    evidence_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # +90 days, cleared while the file is preserved in the chain of custody.
+    expires_at:  Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     collection = relationship("ImportedCollection", back_populates="files")
 

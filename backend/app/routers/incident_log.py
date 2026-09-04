@@ -1,20 +1,23 @@
 import io
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from typing import List
 
+from ..core.deps import get_current_user
 from ..database import get_db
 from ..models.case import Case
 from ..models.incident_log import IncidentLogEntry
 from ..models.timeline import TimelineEvent
 from ..models.user import User
-from ..schemas.incident_log import IncidentLogEntryCreate, IncidentLogEntryRead, IncidentLogEntryUpdate
+from ..schemas.incident_log import (
+    IncidentLogEntryCreate,
+    IncidentLogEntryRead,
+    IncidentLogEntryUpdate,
+)
 from ..services.audit_service import audit_log
-from ..core.deps import get_current_user
 
 router = APIRouter(prefix="/cases/{case_id}/incident-log", tags=["incident-log"])
 
@@ -42,7 +45,7 @@ def _get_entry(case_id: str, entry_id: str, db: Session) -> IncidentLogEntry:
     return entry
 
 
-@router.get("/", response_model=List[IncidentLogEntryRead])
+@router.get("/", response_model=list[IncidentLogEntryRead])
 def list_entries(case_id: str, db: Session = Depends(get_db)):
     _get_case(case_id, db)
     return (db.query(IncidentLogEntry)
@@ -161,7 +164,7 @@ def export_markdown(
                .all())
 
     lines = [f"# Incident Log — {case.title}", ""]
-    lines.append(f"_Generated {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}_")
+    lines.append(f"_Generated {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}_")
     lines.append("")
 
     if not entries:

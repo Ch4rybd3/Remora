@@ -1,8 +1,10 @@
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum as SAEnum
-from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
-import uuid
 import enum
+import uuid
+from datetime import UTC, datetime
+
+from sqlalchemy import Column, DateTime, ForeignKey, String, Text
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy.orm import relationship
 
 from ..database import Base
 
@@ -51,16 +53,16 @@ class Case(Base):
 
     # ── Report sections (split editor) ─────────────────────────────────────────
     report_analysis    = Column(Text, default="")   # Analyse Technique  → {{report_analysis}}
-    report_remediation = Column(Text, default="")   # Remédiations       → {{report_remediation}}
+    report_remediation = Column(Text, default="")   # Remediations       -> {{report_remediation}}
     report_conclusion  = Column(Text, default="")   # Conclusion         → {{report_conclusion}}
 
     # Dynamic per-section content — JSON dict {slug: markdown_text}
     # Used when the case template defines report_sections with explicit tags/slugs.
     report_sections_data = Column(Text, default="{}")
 
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
-                        onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at = Column(DateTime, default=lambda: datetime.now(UTC),
+                        onupdate=lambda: datetime.now(UTC))
     closed_at = Column(DateTime, nullable=True)
 
     iocs = relationship("IOC", back_populates="case", cascade="all, delete-orphan")

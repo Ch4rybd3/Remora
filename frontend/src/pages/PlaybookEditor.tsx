@@ -13,19 +13,19 @@ function NodeInternalsSync({ trigger, nodeIds }: { trigger: number; nodeIds: str
   const updateNodeInternals = useUpdateNodeInternals()
   useEffect(() => {
     if (trigger > 0) requestAnimationFrame(() => updateNodeInternals(nodeIds))
-  }, [trigger]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [trigger])  
   return null
 }
-import { ArrowLeft, Save, Plus, Trash2, GitBranch, Wand2, Link2Off, ArrowDown, ArrowRight, ImageDown, SquareDashed, Spline } from 'lucide-react'
+import { ArrowLeft, Save, Plus, Trash2, GitBranch, Wand2, Link2Off, ArrowDown, ArrowRight, ImageDown, SquareDashed } from '../ui/icons'
 import { playbooksApi, type PlaybookNode, type PlaybookEdge } from '../api/playbooks'
 import { NODE_TYPES, LayoutDirContext } from '../components/playbook/PlaybookNodes'
-import {
-  EDGE_TYPES, EDGE_SHAPES, PlaybookEdgeEditContext,
-  edgeShape, edgeWaypoints,
-  type EdgeShape, type PlaybookEdgeData,
-} from '../components/playbook/PlaybookEdges'
+import { DEFAULT_EDGE_TYPE, EDGE_TYPES, EdgeEditContext, edgeWaypoints } from '../components/graph/ReshapableEdge'
+import { EdgeShapePicker, useEdgeShaping } from '../components/graph/useEdgeShaping'
+import { exportGraphPng } from '../components/graph/exportGraphImage'
+import { FRAME_COLORS } from '../components/graph/FrameNode'
+import { CANVAS_INTERACTION, useGraphClipboard } from '../components/graph/useGraphClipboard'
+import { color } from '../styles/tokens'
 import { applyElkLayout } from '../utils/elkLayout'
-import { renderPlaybookToCanvas } from '../utils/playbookExport'
 import Modal from '../components/ui/Modal'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -51,11 +51,11 @@ const NODE_DEFAULT_WIDTH: Partial<Record<string, number>> = {
 }
 
 const NODE_PALETTE = [
-  { type: 'start',        label: 'Start',        color: 'text-accent-green' },
-  { type: 'step',         label: 'Analyse',      color: 'text-white' },
+  { type: 'start',        label: 'Start',        color: 'text-accent' },
+  { type: 'step',         label: 'Analyse',      color: 'text-fg' },
   { type: 'decision',     label: 'Decision',     color: 'text-severity-medium' },
-  { type: 'remediation',  label: 'Remediation',  color: 'text-blue-400' },
-  { type: 'playbook_ref', label: 'Playbook →',   color: 'text-purple-400' },
+  { type: 'remediation',  label: 'Remediation',  color: 'text-severity-low' },
+  { type: 'playbook_ref', label: 'Playbook →',   color: 'text-data-2' },
   { type: 'end',          label: 'End',          color: 'text-severity-critical' },
 ] as const
 
@@ -65,7 +65,7 @@ const NODE_PALETTE = [
  * set at runtime and must not be persisted — they confuse ReactFlow on reload.
  */
 function cleanNode(n: Node): Omit<Node, 'measured' | 'positionAbsolute' | 'selected' | 'dragging' | 'initialized'> {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   const { measured, positionAbsolute, selected, dragging, initialized, ...rest } = n as Node & {
     positionAbsolute?: unknown; initialized?: unknown
   }
@@ -78,20 +78,11 @@ function cleanNode(n: Node): Omit<Node, 'measured' | 'positionAbsolute' | 'selec
  * `data` (shape + waypoints) is authored content and is kept.
  */
 function cleanEdge(e: Edge): Omit<Edge, 'selected'> {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   const { selected, ...rest } = e
   return rest
 }
 
-const FRAME_COLORS: string[] = [
-  '#3b82f6',  // blue
-  '#22c55e',  // green
-  '#f97316',  // orange
-  '#ef4444',  // red
-  '#a855f7',  // purple
-  '#eab308',  // yellow
-  '#6b7280',  // gray
-]
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -110,7 +101,6 @@ export default function PlaybookEditor() {
   const [selNodes,     setSelNodes]     = useState<Node[]>([])
   const [selEdges,     setSelEdges]     = useState<Edge[]>([])
   const selectedNode = selNodes.length === 1 ? selNodes[0] : null
-  const selectedEdge = selEdges.length === 1 ? selEdges[0] : null
 
   // ── Edit modal ────────────────────────────────────────────────────────────
   const [editNodeOpen, setEditNodeOpen] = useState(false)
@@ -135,7 +125,6 @@ export default function PlaybookEditor() {
   const idCounter    = useRef(1)
   const rfInstance   = useRef<ReactFlowInstance | null>(null)
   const canvasRef    = useRef<HTMLDivElement>(null)
-  const clipboardRef = useRef<{ nodes: Node[]; edges: Edge[] } | null>(null)
 
   // ── Load existing playbook ─────────────────────────────────────────────────
 
@@ -240,17 +229,6 @@ export default function PlaybookEditor() {
   // The edge components mutate their own `data` through this context, so the
   // canvas stays the single owner of the edge list.
 
-  const updateEdgeData = useCallback((edgeId: string, patch: PlaybookEdgeData) => {
-    setEdges(eds => eds.map(e =>
-      e.id === edgeId ? { ...e, data: { ...(e.data ?? {}), ...patch } } : e,
-    ))
-  }, [])
-
-  // `snap` is a module-level helper, so this memo only changes with the setter
-  const edgeEditApi = useMemo(
-    () => ({ updateEdgeData, editable: true, snap }),
-    [updateEdgeData],
-  )
 
   // ── Add node at viewport center ───────────────────────────────────────────
 
@@ -268,11 +246,11 @@ export default function PlaybookEditor() {
     const defaults: Record<string, { label: string; description?: string; linked_playbook_id?: string; linked_playbook_name?: string }> = {
       start:        { label: 'Start' },
       end:          { label: 'End' },
-      step:         { label: 'Nouvelle analyse', description: 'Décrivez cette étape…' },
+      step:         { label: 'New analysis', description: 'Describe this step...' },
       decision:     { label: 'Decision?' },
       remediation:  { label: 'New Remediation', description: 'Describe the remediation action…' },
       frame:        { label: 'Zone' },
-      playbook_ref: { label: 'Playbook lié', linked_playbook_id: undefined, linked_playbook_name: '' },
+      playbook_ref: { label: 'Linked playbook', linked_playbook_id: undefined, linked_playbook_name: '' },
     }
     const center = getViewportCenter()
     const isFrame = type === 'frame'
@@ -393,59 +371,21 @@ export default function PlaybookEditor() {
     if (!rf || nodes.length === 0) return
     setExporting(true)
     try {
-      const canvas  = renderPlaybookToCanvas(rf.getNodes().map(cleanNode) as Node[], rf.getEdges(), layoutDir)
-      const dataUrl = canvas.toDataURL('image/png')
-      Object.assign(document.createElement('a'), {
-        href:     dataUrl,
-        download: `${name || 'playbook'}.png`,
-      }).click()
+      await exportGraphPng(rf.getNodes(), `${name || 'playbook'}.png`)
     } finally {
       setExporting(false)
     }
   }
 
-  // ── Copy / paste (Ctrl+C / Ctrl+V) ──────────────────────────────────────
+  // ── Copy / paste — shared with the attack graph ──────────────────────────
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const ctrl = e.ctrlKey || e.metaKey
-      if (!ctrl) return
-
-      if (e.key === 'c' && selNodes.length > 0) {
-        const selectedIds = new Set(selNodes.map(n => n.id))
-        const internalEdges = edges.filter(
-          ed => selectedIds.has(ed.source) && selectedIds.has(ed.target),
-        )
-        clipboardRef.current = { nodes: selNodes, edges: internalEdges }
-      }
-
-      if (e.key === 'v' && clipboardRef.current) {
-        const { nodes: cbNodes, edges: cbEdges } = clipboardRef.current
-        const idMap = new Map<string, string>()
-        const OFFSET = 40
-        const newNodes: Node[] = cbNodes.map(n => {
-          const newId = `node-${Date.now()}-${idCounter.current++}`
-          idMap.set(n.id, newId)
-          return {
-            ...n,
-            id: newId,
-            position: { x: n.position.x + OFFSET, y: n.position.y + OFFSET },
-            selected: true,
-          }
-        })
-        const newEdges: Edge[] = cbEdges.map(ed => ({
-          ...ed,
-          id: `edge-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          source: idMap.get(ed.source) ?? ed.source,
-          target: idMap.get(ed.target) ?? ed.target,
-        }))
-        setNodes(nds => [...nds.map(n => ({ ...n, selected: false })), ...newNodes])
-        setEdges(eds => [...eds, ...newEdges])
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [selNodes, edges])
+  useGraphClipboard({
+    selectedNodes: selNodes,
+    edges,
+    setNodes,
+    setEdges,
+    makeNodeId: () => `node-${Date.now()}-${idCounter.current++}`,
+  })
 
   const switchLayout = (dir: 'DOWN' | 'RIGHT') => {
     setLayoutDir(dir)
@@ -468,39 +408,30 @@ export default function PlaybookEditor() {
     () => edges.filter(e => selEdgeIds.has(e.id)),
     [edges, selEdgeIds],
   )
-  const currentShape: EdgeShape | null =
-    liveSelEdges.length > 0 ? edgeShape(liveSelEdges[0]) : null
-  const selWaypointCount = liveSelEdges.reduce((n, e) => n + edgeWaypoints(e).length, 0)
 
-  const applyEdgeShape = (shape: EdgeShape) =>
-    setEdges(eds => eds.map(e =>
-      selEdgeIds.has(e.id) ? { ...e, data: { ...(e.data ?? {}), shape } } : e,
-    ))
-
-  /** Drop every bend point of the selected links — back to a plain connection. */
-  const resetEdgeShape = () =>
-    setEdges(eds => eds.map(e =>
-      selEdgeIds.has(e.id) ? { ...e, data: { ...(e.data ?? {}), waypoints: [] } } : e,
-    ))
+  const {
+    edgeEditApi, currentShape, waypointCount: selWaypointCount,
+    applyShape: applyEdgeShape, clearWaypoints: resetEdgeShape,
+  } = useEdgeShaping(setEdges, liveSelEdges, snap)
 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col h-full">
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="border-b border-white/5 px-6 py-3 flex items-center gap-4">
-        <button onClick={() => navigate('/playbooks')} className="text-accent-muted hover:text-white transition-colors">
+      <div className="border-b border-hairline px-6 py-3 flex items-center gap-4">
+        <button onClick={() => navigate('/playbooks')} className="text-fg-secondary hover:text-fg transition-colors">
           <ArrowLeft size={18} />
         </button>
-        <GitBranch size={16} className="text-accent-green" />
+        <GitBranch size={16} className="text-accent" />
         <input
-          className="input text-sm font-semibold flex-1 max-w-xs"
+          className="input text-ui font-semibold flex-1 max-w-xs"
           placeholder="Playbook name…"
           value={name}
           onChange={e => setName(e.target.value)}
         />
         <input
-          className="input text-xs flex-1 max-w-sm"
+          className="input text-label flex-1 max-w-sm"
           placeholder="Description (optional)"
           value={description}
           onChange={e => setDescription(e.target.value)}
@@ -512,21 +443,21 @@ export default function PlaybookEditor() {
             onClick={exportPng}
             disabled={exporting || nodes.length === 0}
             title="Export playbook as PNG image"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-white/10 text-xs text-accent-muted hover:text-white hover:border-white/25 disabled:opacity-40 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-control border border-hairline text-label text-fg-secondary hover:text-fg hover:border-strong disabled:opacity-40 transition-colors"
           >
             <ImageDown size={12} />
             {exporting ? 'Exporting…' : 'Export PNG'}
           </button>
 
           {/* ── Frame zone controls ─────────────────────────────────────── */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-white/10 bg-white/[0.02]">
-            <SquareDashed size={11} className="text-accent-muted shrink-0" />
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-control border border-hairline bg-white/[0.02]">
+            <SquareDashed size={11} className="text-fg-secondary shrink-0" />
             {FRAME_COLORS.map(c => (
               <button
                 key={c}
                 onClick={() => setFrameColor(c)}
                 title={c}
-                className="w-3.5 h-3.5 rounded-sm transition-all"
+                className="w-3.5 h-3.5 rounded-control transition-all"
                 style={{
                   backgroundColor: c,
                   outline: frameColor === c ? `2px solid ${c}` : '2px solid transparent',
@@ -536,45 +467,43 @@ export default function PlaybookEditor() {
             ))}
             <button
               onClick={() => addNode('frame', { color: frameColor })}
-              className="ml-1 text-[10px] text-accent-muted hover:text-white border border-white/10 hover:border-white/30 px-2 py-0.5 rounded transition-colors"
+              className="ml-1 text-label text-fg-secondary hover:text-fg border border-hairline hover:border-strong px-2 py-0.5 rounded-control transition-colors"
             >
-              + Cadre
+              + Frame
             </button>
           </div>
 
           {/* Layout direction toggle + apply */}
-          <div className="flex items-center rounded border border-white/10 overflow-hidden">
+          <div className="flex items-center rounded-control border border-hairline overflow-hidden">
             <button
               onClick={() => switchLayout('DOWN')}
               disabled={laying || nodes.length === 0}
               title="Vertical layout (top → bottom)"
-              className={`flex items-center gap-1 px-2.5 py-1.5 text-xs transition-colors disabled:opacity-40 ${
-                layoutDir === 'DOWN'
-                  ? 'bg-accent-green/10 text-accent-green'
-                  : 'text-accent-muted hover:text-white hover:bg-white/5'
+              className={`flex items-center gap-1 px-2.5 py-1.5 text-label transition-colors disabled:opacity-40 ${ layoutDir === 'DOWN'
+                  ? 'bg-accent/10 text-accent'
+                  : 'text-fg-secondary hover:text-fg hover:bg-fg/5'
               }`}
             >
               <ArrowDown size={12} />
             </button>
-            <div className="w-px h-4 bg-white/10" />
+            <div className="w-px h-4 bg-fg/10" />
             <button
               onClick={() => switchLayout('RIGHT')}
               disabled={laying || nodes.length === 0}
               title="Horizontal layout (left → right)"
-              className={`flex items-center gap-1 px-2.5 py-1.5 text-xs transition-colors disabled:opacity-40 ${
-                layoutDir === 'RIGHT'
-                  ? 'bg-accent-green/10 text-accent-green'
-                  : 'text-accent-muted hover:text-white hover:bg-white/5'
+              className={`flex items-center gap-1 px-2.5 py-1.5 text-label transition-colors disabled:opacity-40 ${ layoutDir === 'RIGHT'
+                  ? 'bg-accent/10 text-accent'
+                  : 'text-fg-secondary hover:text-fg hover:bg-fg/5'
               }`}
             >
               <ArrowRight size={12} />
             </button>
-            <div className="w-px h-4 bg-white/10" />
+            <div className="w-px h-4 bg-fg/10" />
             <button
               onClick={() => runLayout()}
               disabled={laying || nodes.length === 0}
-              title="Ré-appliquer la mise en page automatique (les points de passage des liens sont réinitialisés)"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-accent-muted hover:text-white hover:bg-white/5 transition-colors disabled:opacity-40"
+              title="Re-apply the automatic layout (edge waypoints are reset)"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-label text-fg-secondary hover:text-fg hover:bg-fg/5 transition-colors disabled:opacity-40"
             >
               <Wand2 size={12} />
               {laying ? 'Laying out…' : 'Auto layout'}
@@ -584,7 +513,7 @@ export default function PlaybookEditor() {
           {/* ── Selection-aware action buttons ─────────────────────────── */}
           {selectedNode && selNodeCount === 1 && (
             <button
-              className="btn-secondary text-xs flex items-center gap-1"
+              className="btn-secondary text-label flex items-center gap-1"
               onClick={() => openEditNode(selectedNode)}
             >
               Edit node
@@ -592,48 +521,23 @@ export default function PlaybookEditor() {
           )}
           {selNodeCount > 0 && (
             <button
-              className="btn-danger text-xs flex items-center gap-1"
+              className="btn-danger text-label flex items-center gap-1"
               onClick={deleteSelected}
             >
               <Trash2 size={12} />
               {selNodeCount > 1 ? `Delete (${selNodeCount})` : 'Delete node'}
             </button>
           )}
-          {/* ── Link shape ─────────────────────────────────────────────── */}
-          {selEdgeCount > 0 && (
-            <div
-              className="flex items-center gap-1 px-2 py-1 rounded border border-white/10 bg-white/[0.02]"
-              title="Double-cliquez sur un lien pour y ajouter un point de passage, puis glissez-le pour contourner un nœud"
-            >
-              <Spline size={11} className="text-accent-muted shrink-0" />
-              {EDGE_SHAPES.map(sh => (
-                <button
-                  key={sh.value}
-                  onClick={() => applyEdgeShape(sh.value)}
-                  title={sh.hint}
-                  className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
-                    currentShape === sh.value
-                      ? 'bg-accent-green/10 text-accent-green'
-                      : 'text-accent-muted hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  {sh.label}
-                </button>
-              ))}
-              {selWaypointCount > 0 && (
-                <button
-                  onClick={resetEdgeShape}
-                  title="Supprimer tous les points de passage des liens sélectionnés"
-                  className="text-[10px] px-1.5 py-0.5 rounded text-accent-muted hover:text-white hover:bg-white/5 transition-colors border-l border-white/10 ml-0.5 pl-2"
-                >
-                  ✕ {selWaypointCount} pt{selWaypointCount > 1 ? 's' : ''}
-                </button>
-              )}
-            </div>
-          )}
+          {/* ── Link shape — shared with the attack graph ───────────────── */}
+          <EdgeShapePicker
+            currentShape={currentShape}
+            waypointCount={selWaypointCount}
+            onApply={applyEdgeShape}
+            onClear={resetEdgeShape}
+          />
           {selEdgeCount > 0 && (
             <button
-              className="btn-danger text-xs flex items-center gap-1"
+              className="btn-danger text-label flex items-center gap-1"
               onClick={deleteEdges}
             >
               <Link2Off size={12} />
@@ -642,7 +546,7 @@ export default function PlaybookEditor() {
           )}
 
           <button
-            className="btn-primary text-xs flex items-center gap-1.5"
+            className="btn-primary text-label flex items-center gap-1.5"
             onClick={() => save.mutate()}
             disabled={!name || save.isPending}
           >
@@ -653,13 +557,13 @@ export default function PlaybookEditor() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* ── Palette ─────────────────────────────────────────────────── */}
-        <div className="w-36 border-r border-white/5 bg-bg-card p-3 flex flex-col gap-2 shrink-0">
-          <p className="text-[10px] uppercase tracking-widest text-accent-muted mb-1">Add node</p>
+        <div className="w-36 border-r border-hairline bg-panel p-3 flex flex-col gap-2 shrink-0">
+          <p className="text-label uppercase tracking-widest text-fg-secondary mb-1">Add node</p>
           {NODE_PALETTE.map(n => (
             <button
               key={n.type}
               onClick={() => addNode(n.type)}
-              className={`flex items-center gap-2 text-xs px-3 py-2 rounded border border-white/10 hover:border-white/30 bg-white/5 hover:bg-white/10 transition-colors ${n.color}`}
+              className={`flex items-center gap-2 text-label px-3 py-2 rounded-control border border-hairline hover:border-strong bg-fg/5 hover:bg-fg/10 transition-colors ${n.color}`}
             >
               <Plus size={11} /> {n.label}
             </button>
@@ -667,9 +571,9 @@ export default function PlaybookEditor() {
         </div>
 
         {/* ── Canvas ──────────────────────────────────────────────────── */}
-        <div ref={canvasRef} className="flex-1 bg-bg-primary">
+        <div ref={canvasRef} className="flex-1 bg-canvas">
           <LayoutDirContext.Provider value={layoutDir}>
-          <PlaybookEdgeEditContext.Provider value={edgeEditApi}>
+          <EdgeEditContext.Provider value={edgeEditApi}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -681,21 +585,17 @@ export default function PlaybookEditor() {
             onNodeDoubleClick={(_, node) => openEditNode(node)}
             nodeTypes={NODE_TYPES}
             edgeTypes={EDGE_TYPES}
-            defaultEdgeOptions={{ type: 'smoothstep', animated: true }}
-            snapToGrid
-            snapGrid={[MOVE_SNAP, MOVE_SNAP]}
-            selectionOnDrag
-            panOnDrag={[1, 2]}
+            defaultEdgeOptions={{ type: DEFAULT_EDGE_TYPE, animated: true }}
+            {...CANVAS_INTERACTION}
             fitView
-            deleteKeyCode="Delete"
-            style={{ background: '#0B121F' }}
+            style={{ background: color('--surface-canvas') }}
           >
             <Background variant={BackgroundVariant.Dots} gap={GRID} size={1.5} color="#1e2e42" />
             <Controls />
             <MiniMap nodeColor={() => '#2DD4BF'} />
             <NodeInternalsSync trigger={updateInternalsTrigger} nodeIds={nodes.map(n => n.id)} />
           </ReactFlow>
-          </PlaybookEdgeEditContext.Provider>
+          </EdgeEditContext.Provider>
           </LayoutDirContext.Provider>
         </div>
       </div>
@@ -734,7 +634,7 @@ export default function PlaybookEditor() {
                   <button
                     key={c}
                     onClick={() => setNodeForm(f => ({ ...f, color: c }))}
-                    className="w-6 h-6 rounded transition-all"
+                    className="w-6 h-6 rounded-control transition-all"
                     style={{
                       backgroundColor: c,
                       outline: nodeForm.color === c ? `2px solid ${c}` : '2px solid transparent',
@@ -748,14 +648,14 @@ export default function PlaybookEditor() {
 
           {/* Playbook link — for playbook_ref nodes */}
           {selectedNode?.type === 'playbook_ref' && (
-            <div className="space-y-3 border border-purple-400/20 rounded-lg p-3 bg-purple-400/5">
-              <p className="text-[10px] text-purple-300/70 uppercase tracking-widest font-semibold">Lien vers un playbook</p>
+            <div className="space-y-3 border border-data-2/20 p-3 bg-data-2/5">
+              <p className="text-label text-data-2/70 uppercase tracking-widest font-semibold">Lien vers un playbook</p>
 
               {/* Picker: existing playbooks */}
               <div>
                 <label className="label">Playbook existant</label>
                 <select
-                  className="input text-xs"
+                  className="input text-label"
                   value={nodeForm.linked_playbook_id}
                   onChange={e => {
                     const pb = allPlaybooks.find(p => p.id === e.target.value)
@@ -763,11 +663,11 @@ export default function PlaybookEditor() {
                       ...f,
                       linked_playbook_id:   e.target.value,
                       linked_playbook_name: pb?.name ?? f.linked_playbook_name,
-                      label: f.label === 'Playbook lié' || f.label === '' ? (pb?.name ?? f.label) : f.label,
+                      label: f.label === 'Linked playbook' || f.label === '' ? (pb?.name ?? f.label) : f.label,
                     }))
                   }}
                 >
-                  <option value="">— Sélectionner un playbook —</option>
+                  <option value="">-- Select a playbook --</option>
                   {allPlaybooks
                     .filter(pb => !id || pb.id !== id)  // exclude current playbook
                     .map(pb => (
@@ -782,20 +682,20 @@ export default function PlaybookEditor() {
                 <div>
                   <label className="label">Ou nom d'un futur playbook</label>
                   <input
-                    className="input text-xs"
+                    className="input text-label"
                     placeholder="ex: Compromission de compte"
                     value={nodeForm.linked_playbook_name}
                     onChange={e => setNodeForm(f => ({ ...f, linked_playbook_name: e.target.value }))}
                   />
-                  <p className="text-[9px] text-purple-400/40 mt-1">
-                    Le lien sera activable dès que ce playbook sera créé et sélectionné ici.
+                  <p className="text-label text-data-2/40 mt-1">
+                    The link becomes usable once that playbook is created and selected here.
                   </p>
                 </div>
               )}
 
               {nodeForm.linked_playbook_id && (
                 <button
-                  className="text-[9px] text-purple-400/50 hover:text-purple-300 transition-colors"
+                  className="text-label text-data-2/50 hover:text-data-2 transition-colors"
                   onClick={() => setNodeForm(f => ({ ...f, linked_playbook_id: '', linked_playbook_name: '' }))}
                 >
                   ✕ Retirer le lien

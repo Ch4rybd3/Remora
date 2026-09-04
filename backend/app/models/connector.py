@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
 
 from ..database import Base

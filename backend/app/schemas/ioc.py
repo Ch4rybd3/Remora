@@ -1,7 +1,8 @@
-from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
-from ..models.ioc import IOCType, IOCConfidence
+
+from pydantic import BaseModel
+
+from ..models.ioc import IOCConfidence, IOCType
 
 
 class IOCBase(BaseModel):
@@ -11,8 +12,8 @@ class IOCBase(BaseModel):
     tags: str = ""
     confidence: IOCConfidence = IOCConfidence.medium
     tlp: str = "TLP:AMBER"
-    first_seen: Optional[datetime] = None
-    last_seen: Optional[datetime] = None
+    first_seen: datetime | None = None
+    last_seen: datetime | None = None
 
 
 class IOCCreate(IOCBase):
@@ -20,14 +21,14 @@ class IOCCreate(IOCBase):
 
 
 class IOCUpdate(BaseModel):
-    type: Optional[IOCType] = None
-    value: Optional[str] = None
-    description: Optional[str] = None
-    tags: Optional[str] = None
-    confidence: Optional[IOCConfidence] = None
-    tlp: Optional[str] = None
-    first_seen: Optional[datetime] = None
-    last_seen: Optional[datetime] = None
+    type: IOCType | None = None
+    value: str | None = None
+    description: str | None = None
+    tags: str | None = None
+    confidence: IOCConfidence | None = None
+    tlp: str | None = None
+    first_seen: datetime | None = None
+    last_seen: datetime | None = None
 
 
 class IOCRead(IOCBase):

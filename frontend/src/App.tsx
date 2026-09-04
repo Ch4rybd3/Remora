@@ -2,7 +2,9 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import Layout from './components/layout/Layout'
 import Login from './pages/Login'
+import Account from './pages/Account'
 import Dashboard from './pages/Dashboard'
+import DesignSystem from './pages/DesignSystem'
 import Cases from './pages/Cases'
 import CaseDetail from './pages/CaseDetail'
 import Templates from './pages/Templates'
@@ -24,13 +26,15 @@ import Connectors from './pages/Connectors'
 import ArtifactExplorer from './pages/ArtifactExplorer'
 import PcapExplorer from './pages/PcapExplorer'
 import DiskImageExplorer from './pages/DiskImageExplorer'
+import RdpCacheViewer from './pages/RdpCacheViewer'
+import RegistryExplorer from './pages/RegistryExplorer'
 import Clients from './pages/Clients'
 import ClientDetail from './pages/ClientDetail'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth()
   const location = useLocation()
-  if (loading) return <div className="h-screen bg-bg-primary flex items-center justify-center text-accent-muted text-sm">Chargement…</div>
+  if (loading) return <div className="h-screen bg-canvas flex items-center justify-center text-fg-secondary text-ui">Loading...</div>
   if (!token) return <Navigate to="/login" state={{ from: location }} replace />
   return children
 }
@@ -67,6 +71,8 @@ export default function App() {
         <Route path="/artifacts/explorer" element={<ArtifactExplorer />} />
         <Route path="/artifacts/pcap"     element={<PcapExplorer />} />
         <Route path="/artifacts/images"   element={<DiskImageExplorer />} />
+        <Route path="/artifacts/registry" element={<RegistryExplorer />} />
+        <Route path="/artifacts/rdp-cache" element={<RdpCacheViewer />} />
         <Route path="/config/connectors"  element={<Connectors />} />
         <Route path="/config/clients"     element={<Clients />} />
         <Route path="/config/clients/:id" element={<ClientDetail />} />
@@ -74,6 +80,8 @@ export default function App() {
         <Route path="/knowledge/editor" element={<KnowledgeEditor />} />
         <Route path="/config/chainsaw-rules" element={<ChainsawRules />} />
         <Route path="/config/vaults" element={<VaultManagement />} />
+        <Route path="/design" element={<DesignSystem />} />
+        <Route path="/account" element={<Account />} />
         <Route
           path="/users"
           element={

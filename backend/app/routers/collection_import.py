@@ -7,31 +7,39 @@ ingest, and status reporting.
 """
 from __future__ import annotations
 
-import shutil
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from typing import List
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
-from ..database import get_db, SessionLocal
 from ..core.deps import get_current_user
-from ..models.ez_artifacts import ImportedCollection, ImportedFile
+from ..database import SessionLocal, get_db
 from ..models.csv_artifact import CsvArtifactFile
-from ..services.ez_detection import detect
+from ..models.ez_artifacts import ImportedCollection, ImportedFile
+from ..models.ingest import STATE_FAILED as INGEST_FAILED
+from ..models.ingest import STATE_UNSUPPORTED as INGEST_UNSUPPORTED
+from ..services import collections as collections_service
 from ..services.archives import (
-    ARCHIVE_EXTS_LABEL, ArchiveError,
-    archive_suffix, extract_all, is_archive, list_entries,
+    ARCHIVE_EXTS_LABEL,
+    ArchiveError,
+    archive_suffix,
+    extract_all,
+    is_archive,
+    list_entries,
 )
+from ..services.ez_detection import detect
+from ..services.ingest.batch import PARSED_DIRNAME
+from ..services.ingest.dispatch import parse as dispatch_parse
 
 router = APIRouter()
 
 # Storage: data/cases/<case_id>/collections/<collection_id>/
+# The path itself is defined once, in the deletion service - two definitions of
+# where a collection lives is two chances for deletion to miss it.
 def _collection_dir(case_id: str, collection_id: str) -> Path:
-    base = Path("/app/data") if Path("/app/data").exists() else Path("data")
-    p = base / "cases" / case_id / "collections" / collection_id
+    p = collections_service.collection_dir(case_id, collection_id)
     p.mkdir(parents=True, exist_ok=True)
     return p
 
@@ -42,7 +50,7 @@ def _collection_dir(case_id: str, collection_id: str) -> Path:
 async def upload_collection(
     case_id: str,
     background_tasks: BackgroundTasks,
-    files: List[UploadFile] = File(...),
+    files: list[UploadFile] = File(...),
     session_id: str | None = Query(None),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -65,16 +73,16 @@ async def upload_collection(
         if ext not in _FLAT_EXTS and not is_archive(f.filename):
             raise HTTPException(
                 400,
-                f"Type non supporté '{f.filename}'. Acceptés: "
-                f"{', '.join(sorted(_FLAT_EXTS))} et les archives ({ARCHIVE_EXTS_LABEL})",
+                f"Unsupported type '{f.filename}'. Accepted: "
+                f"{', '.join(sorted(_FLAT_EXTS))} and archives ({ARCHIVE_EXTS_LABEL})",
             )
 
     # Mixed uploads not allowed — either one archive or flat files
     archives = [f for f in files if is_archive(f.filename)]
     if archives and len(archives) != len(files):
-        raise HTTPException(400, "Impossible de mélanger une archive et d'autres fichiers dans le même upload")
+        raise HTTPException(400, "Cannot mix an archive with other files in the same upload")
     if len(archives) > 1:
-        raise HTTPException(400, "Une seule archive par upload")
+        raise HTTPException(400, "Only one archive per upload")
 
     collection_id = str(uuid.uuid4())
     dest_dir = _collection_dir(case_id, collection_id)
@@ -253,11 +261,6 @@ def _run_pending(
     Shared ingest loop — resolves each CSV from extracted_dir and ingests it.
     Returns the number of files processed.
     """
-    from .csv_artifacts import register_csv_artifact
-    from .evtx import register_evtx_file
-    from .case_emails import register_email_file
-    from ..services.pcap import convert_to_csv, PCAP_EXTS
-
     processed = 0
     for file_id, filename, category in pending:
         # Try exact path first, then basename search (handles ZIP subdirs and flat files)
@@ -266,56 +269,57 @@ def _run_pending(
             candidates = list(extracted_dir.rglob(Path(filename).name))
             file_path = candidates[0] if candidates else None
 
-        ext = Path(filename).suffix.lower()
-        print(f"[collection_import] registering {filename} ({ext}) → category={category} path={file_path}", flush=True)
+        print(f"[collection_import] registering {filename} → category={category} path={file_path}", flush=True)
 
         f = db.get(ImportedFile, file_id)
         if not f:
             continue
 
-        try:
-            if file_path is None or not file_path.exists():
-                raise FileNotFoundError(f"File not found: {filename}")
+        # One dispatch table, shared with the drop folder pipeline. This used to
+        # be an if/elif on the filename extension, which sent a `.txt` that was
+        # really an EVTX to the Explorer as a one-column table of binary
+        # garbage. `parse()` identifies from the bytes instead.
+        result = dispatch_parse(
+            db, case_id=case_id,
+            path=file_path if file_path else extracted_dir / filename,
+            filename=filename,
+            # Parser output goes inside the collection, never a temporary
+            # directory: the Explorer reads those CSVs in place, and deleting
+            # the collection has to take them with it.
+            out_dir=extracted_dir / PARSED_DIRNAME,
+            collection_id=collection_id,
+            source_file_id=file_id,
+        )
 
-            if ext == ".evtx":
-                # Route to EVTX module — parse runs asynchronously in daemon thread
-                evtx_rec = register_evtx_file(file_path, case_id, filename, db)
-                f.status    = "imported"
-                f.row_count = 0        # events counted after async parse
-                f.imported_at = datetime.utcnow()
-            elif ext in PCAP_EXTS:
-                # Dissect with tshark into a packet-list CSV, then register that
-                # CSV in the Artifact Explorer like any other artifact.
-                csv_path = convert_to_csv(file_path)
-                artifact = register_csv_artifact(csv_path, case_id, db)
-                f.status          = "imported"
-                f.row_count       = artifact.row_count if artifact else 0
-                f.imported_at     = datetime.utcnow()
-                f.csv_artifact_id = artifact.id if artifact else None
-            elif ext == ".eml":
-                # Route to Email Analysis
-                register_email_file(file_path, case_id, Path(filename).name, db)
-                f.status    = "imported"
-                f.row_count = 1
-                f.imported_at = datetime.utcnow()
-            else:
-                # All other supported types (.csv, .json, .txt, .log) go to Artifact Explorer
-                artifact = register_csv_artifact(file_path, case_id, db)
-                f.status         = "imported"
-                f.row_count      = artifact.row_count if artifact else 0
-                f.imported_at    = datetime.utcnow()
-                f.csv_artifact_id = artifact.id if artifact else None
-
-        except Exception as e:
-            print(f"[collection_import] ERROR registering {filename}: {e}", flush=True)
+        if result.state == INGEST_FAILED:
+            print(f"[collection_import] ERROR registering {filename}: {result.error}", flush=True)
             f.status = "error"
-            f.error_message = str(e)[:500]
+            f.error_message = (result.error or "")[:500]
+        elif result.state == INGEST_UNSUPPORTED:
+            f.status = "unsupported"
+            f.error_message = (result.error or "")[:500]
+        else:
+            f.status          = "imported"
+            f.row_count       = result.row_count
+            f.imported_at     = datetime.utcnow()
+            f.csv_artifact_id = result.artifact_id
 
         processed += 1
         col = db.get(ImportedCollection, collection_id)
         if col:
             col.processed_files = processed
         db.commit()
+
+    # Artifacts that are only useful in bulk - four hundred prefetch files are
+    # one table, not four hundred. Runs after the per-file pass and never
+    # raises: it must not undo an ingest that has already succeeded.
+    try:
+        from ..services.ingest import batch
+
+        batch.run(db, case_id, extracted_dir, collection_id=collection_id)
+        db.commit()
+    except Exception as e:
+        print(f"[collection_import] batch parsing failed: {e}", flush=True)
 
     return processed
 
@@ -432,6 +436,35 @@ def get_collection(
     }
 
 
+def _get_collection_or_404(case_id: str, collection_id: str,
+                           db: Session) -> ImportedCollection:
+    col = db.query(ImportedCollection).filter(
+        ImportedCollection.id == collection_id,
+        ImportedCollection.case_id == case_id,
+    ).first()
+    if not col:
+        raise HTTPException(404, "Collection not found")
+    return col
+
+
+@router.get("/cases/{case_id}/collection-imports/{collection_id}/deletion-plan")
+def collection_deletion_plan(
+    case_id: str,
+    collection_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    What deleting this collection would remove, per module.
+
+    Read-only. Deleting a collection now reaches into the Artifact Explorer,
+    the Logs module and the others it fed, so the confirmation says what it
+    will take rather than asking the analyst to guess.
+    """
+    col = _get_collection_or_404(case_id, collection_id, db)
+    return collections_service.plan(db, col).as_dict()
+
+
 @router.delete("/cases/{case_id}/collection-imports/{collection_id}")
 def delete_collection(
     case_id: str,
@@ -439,21 +472,15 @@ def delete_collection(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    col = db.query(ImportedCollection).filter(
-        ImportedCollection.id == collection_id,
-        ImportedCollection.case_id == case_id,
-    ).first()
-    if not col:
-        raise HTTPException(404, "Collection not found")
+    """
+    Remove the collection, its bytes, and every record it created.
 
-    # Remove extracted files from disk
-    dest_dir = _collection_dir(case_id, collection_id)
-    if dest_dir.exists():
-        shutil.rmtree(dest_dir, ignore_errors=True)
-
-    db.delete(col)
-    db.commit()
-    return {"ok": True}
+    Artifacts preserved in the chain of custody survive: their working copy is
+    moved out of the collection directory and their records are left in place.
+    """
+    col = _get_collection_or_404(case_id, collection_id, db)
+    removed = collections_service.delete(db, col)
+    return {"ok": True, "removed": removed.as_dict()}
 
 
 @router.patch("/cases/{case_id}/collection-imports/files/{file_id}/evidence")
@@ -546,6 +573,9 @@ def _file_dto(f: ImportedFile, source_timezone: str | None = None) -> dict:
         "error_message": f.error_message,
         "imported_at": f.imported_at.isoformat() if f.imported_at else None,
         "added_to_evidence": f.added_to_evidence,
+        # Present once the file is preserved in the chain of custody, which is
+        # what suspends the expiry above.
+        "evidence_id": f.evidence_id,
         "expires_at": f.expires_at.isoformat() if f.expires_at else None,
         "csv_artifact_id": f.csv_artifact_id,
         "source_timezone": source_timezone,

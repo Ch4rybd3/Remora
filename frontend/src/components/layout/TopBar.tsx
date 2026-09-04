@@ -1,13 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FolderOpen, X, ChevronRight, Plus, Clock, Building2 } from 'lucide-react'
+import { FolderOpen, X, ChevronRight, Plus, Clock, Building2 } from '../../ui/icons'
 import { useCurrentCase } from '../../context/CurrentCaseContext'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { incidentLogApi } from '../../api/incidentLog'
 import type { IncidentLogCategory } from '../../types'
 
 const CATEGORY_OPTIONS: { value: IncidentLogCategory; label: string }[] = [
-  { value: 'remediation',   label: 'Remédiation' },
+  { value: 'remediation',   label: 'Remediation' },
   { value: 'handover',      label: 'Passation' },
   { value: 'communication', label: 'Communication client' },
   { value: 'investigation', label: 'Investigation' },
@@ -62,12 +62,12 @@ function QuickTimelineModal({ caseId, onClose }: { caseId: string; onClose: () =
       onClick={handleOverlayClick}
       className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-black/40 backdrop-blur-sm"
     >
-      <div className="w-full max-w-md bg-[#0d1927] border border-white/15 rounded-xl shadow-2xl p-5">
+      <div className="w-full max-w-md bg-[#0d1927] border border-hairline shadow-2xl p-5">
         {/* Header */}
         <div className="flex items-center gap-2 mb-4">
-          <Clock size={14} className="text-accent-green shrink-0" />
-          <h3 className="text-sm font-semibold text-white flex-1">Incident log — Nouvel événement</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors p-1">
+          <Clock size={14} className="text-accent shrink-0" />
+          <h3 className="text-ui font-semibold text-fg flex-1">Incident log - new event</h3>
+          <button onClick={onClose} className="text-fg-muted hover:text-fg transition-colors p-1">
             <X size={14} />
           </button>
         </div>
@@ -75,8 +75,8 @@ function QuickTimelineModal({ caseId, onClose }: { caseId: string; onClose: () =
         <div className="space-y-3">
           {/* Category */}
           <div>
-            <label className="block text-[10px] text-gray-500 uppercase tracking-wide mb-1">
-              Catégorie
+            <label className="block text-label text-fg-muted uppercase tracking-wide mb-1">
+              Category
             </label>
             <div className="flex flex-wrap gap-1.5">
               {CATEGORY_OPTIONS.map(opt => (
@@ -84,10 +84,9 @@ function QuickTimelineModal({ caseId, onClose }: { caseId: string; onClose: () =
                   key={opt.value}
                   type="button"
                   onClick={() => setCategory(opt.value)}
-                  className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
-                    category === opt.value
-                      ? 'border-accent-green/50 bg-accent-green/10 text-accent-green'
-                      : 'border-white/10 text-gray-500 hover:text-white hover:border-white/20'
+                  className={`text-label px-2.5 py-1 rounded-pill border transition-colors ${ category === opt.value
+                      ? 'border-accent/50 bg-accent/10 text-accent'
+                      : 'border-hairline text-fg-muted hover:text-fg hover:border-strong'
                   }`}
                 >
                   {opt.label}
@@ -98,8 +97,8 @@ function QuickTimelineModal({ caseId, onClose }: { caseId: string; onClose: () =
 
           {/* Title */}
           <div>
-            <label className="block text-[10px] text-gray-500 uppercase tracking-wide mb-1">
-              Title <span className="text-red-400">*</span>
+            <label className="block text-label text-fg-muted uppercase tracking-wide mb-1">
+              Title <span className="text-severity-critical">*</span>
             </label>
             <input
               autoFocus
@@ -107,49 +106,49 @@ function QuickTimelineModal({ caseId, onClose }: { caseId: string; onClose: () =
               value={title}
               onChange={e => setTitle(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && title.trim()) create.mutate() }}
-              placeholder="Ex: Remediation — compte compromis réinitialisé"
-              className="w-full bg-[#0a1120] border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-accent-green/50"
+              placeholder="e.g. Remediation - compromised account reset"
+              className="w-full bg-[#0a1120] border border-hairline px-3 py-2 text-ui text-fg placeholder-fg-muted focus:outline-none focus:border-accent/50"
             />
           </div>
 
           {/* Datetime */}
           <div>
-            <label className="block text-[10px] text-gray-500 uppercase tracking-wide mb-1">
+            <label className="block text-label text-fg-muted uppercase tracking-wide mb-1">
               Date / Heure (UTC)
             </label>
             <input
               type="datetime-local"
               value={ts}
               onChange={e => setTs(e.target.value)}
-              className="w-full bg-[#0a1120] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-green/50"
+              className="w-full bg-[#0a1120] border border-hairline px-3 py-2 text-ui text-fg focus:outline-none focus:border-accent/50"
             />
           </div>
 
           {/* Actor */}
           <div>
-            <label className="block text-[10px] text-gray-500 uppercase tracking-wide mb-1">
-              Acteur <span className="text-gray-600">(optionnel)</span>
+            <label className="block text-label text-fg-muted uppercase tracking-wide mb-1">
+              Acteur <span className="text-fg-muted">(optionnel)</span>
             </label>
             <input
               type="text"
               value={actor}
               onChange={e => setActor(e.target.value)}
               placeholder="Analyste, client, tiers…"
-              className="w-full bg-[#0a1120] border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-accent-green/50"
+              className="w-full bg-[#0a1120] border border-hairline px-3 py-2 text-ui text-fg placeholder-fg-muted focus:outline-none focus:border-accent/50"
             />
           </div>
 
           {/* Description */}
           <div>
-            <label className="block text-[10px] text-gray-500 uppercase tracking-wide mb-1">
-              Description <span className="text-gray-600">(optionnel)</span>
+            <label className="block text-label text-fg-muted uppercase tracking-wide mb-1">
+              Description <span className="text-fg-muted">(optionnel)</span>
             </label>
             <textarea
               value={desc}
               onChange={e => setDesc(e.target.value)}
               rows={2}
-              placeholder="Détails de l'action…"
-              className="w-full bg-[#0a1120] border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-accent-green/50 resize-none"
+              placeholder="Details of the action..."
+              className="w-full bg-[#0a1120] border border-hairline px-3 py-2 text-ui text-fg placeholder-fg-muted focus:outline-none focus:border-accent/50 resize-none"
             />
           </div>
         </div>
@@ -158,26 +157,26 @@ function QuickTimelineModal({ caseId, onClose }: { caseId: string; onClose: () =
         <div className="flex items-center justify-end gap-2 mt-4">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-xs text-gray-400 hover:text-white transition-colors"
+            className="px-3 py-1.5 text-label text-fg-muted hover:text-fg transition-colors"
           >
-            Annuler
+            Cancel
           </button>
           <button
             onClick={() => create.mutate()}
             disabled={!title.trim() || create.isPending}
-            className="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-primary text-label px-4 py-1.5 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {create.isPending ? (
-              <span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <span className="inline-block w-3 h-3 border-2 border-strong border-t-strong rounded-pill animate-spin" />
             ) : (
               <Plus size={12} />
             )}
-            Ajouter à l'incident log
+            Add to the incident log
           </button>
         </div>
 
         {create.isError && (
-          <p className="text-red-400 text-xs mt-2">{String(create.error)}</p>
+          <p className="text-severity-critical text-label mt-2">{String(create.error)}</p>
         )}
       </div>
     </div>
@@ -193,9 +192,9 @@ export default function TopBar() {
 
   return (
     <>
-      <div className="h-9 border-b border-white/5 bg-bg-secondary/60 backdrop-blur-sm px-4 flex items-center justify-between shrink-0">
+      <div className="h-9 border-b border-hairline bg-panel/60 backdrop-blur-sm px-4 flex items-center justify-between shrink-0">
         {/* Left — breadcrumb hint */}
-        <div className="flex items-center gap-1.5 text-[11px] text-accent-muted/50">
+        <div className="flex items-center gap-1.5 text-label text-fg-secondary/50">
           <span>Current case</span>
           <ChevronRight size={10} />
         </div>
@@ -203,9 +202,8 @@ export default function TopBar() {
         {/* Center — case pill */}
         <button
           onClick={() => navigate(`/cases/${currentCase.id}`)}
-          className="flex items-center gap-2 px-3 py-1 rounded-full border border-accent-green/25
-                     bg-accent-green/5 hover:bg-accent-green/10 hover:border-accent-green/50
-                     text-accent-green text-xs font-medium transition-all group max-w-xs"
+          className="flex items-center gap-2 px-3 py-1 rounded-pill border border-accent/25 bg-accent/5 hover:bg-accent/10 hover:border-accent/50
+                     text-accent text-label font-medium transition-all group max-w-xs"
         >
           <FolderOpen size={12} className="shrink-0" />
           <span className="truncate">{currentCase.title}</span>
@@ -216,8 +214,8 @@ export default function TopBar() {
           {currentCase.client_id && (
             <button
               onClick={() => navigate(`/config/clients/${currentCase.client_id}`)}
-              title="Aller à la documentation du client de ce case"
-              className="flex items-center gap-1 text-[11px] text-accent-muted/50 hover:text-accent-green transition-colors px-1.5 py-1 rounded hover:bg-accent-green/5"
+              title="Go to this case's client documentation"
+              className="flex items-center gap-1 text-label text-fg-secondary/50 hover:text-accent transition-colors px-1.5 py-1 rounded-control hover:bg-accent/5"
             >
               <Building2 size={12} />
               <span className="hidden sm:inline">Client</span>
@@ -225,8 +223,8 @@ export default function TopBar() {
           )}
           <button
             onClick={() => setShowModal(true)}
-            title="Ajouter un événement à l'incident log (dual-écrit dans la timeline)"
-            className="flex items-center gap-1 text-[11px] text-accent-muted/50 hover:text-accent-green transition-colors px-1.5 py-1 rounded hover:bg-accent-green/5"
+            title="Add an event to the incident log (dual-written to the timeline)"
+            className="flex items-center gap-1 text-label text-fg-secondary/50 hover:text-accent transition-colors px-1.5 py-1 rounded-control hover:bg-accent/5"
           >
             <Plus size={12} />
             <span className="hidden sm:inline">Incident log</span>
@@ -234,7 +232,7 @@ export default function TopBar() {
           <button
             onClick={clearCurrentCase}
             title="Quitter ce case"
-            className="text-accent-muted/40 hover:text-accent-muted transition-colors p-1 rounded"
+            className="text-fg-secondary/40 hover:text-fg-secondary transition-colors p-1 rounded-control"
           >
             <X size={12} />
           </button>

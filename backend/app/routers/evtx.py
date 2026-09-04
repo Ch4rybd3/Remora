@@ -15,23 +15,31 @@ import json
 import math
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
-from sqlalchemy import func, text
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..config import settings
+from ..core.deps import get_current_user
 from ..database import get_db
 from ..models.case import Case
-from ..models.evidence import Evidence, EvidenceType, AcquisitionMethod
-from ..models.evtx import EvtxFile, EvtxEvent, EvtxCaseSelection
+from ..models.evidence import AcquisitionMethod, Evidence, EvidenceType
+from ..models.evtx import EvtxCaseSelection, EvtxEvent, EvtxFile
 from ..models.user import User
-from ..schemas.evtx import EvtxFileOut, EventsPage, EvtxEventOut, FileSummary, ChannelStat, EvtxSelectionOut, EvtxSelectionSave
+from ..schemas.evtx import (
+    ChannelStat,
+    EventsPage,
+    EvtxEventOut,
+    EvtxFileOut,
+    EvtxSelectionOut,
+    EvtxSelectionSave,
+    FileSummary,
+)
 from ..services.audit_service import audit_log
-from ..core.deps import get_current_user
 
 router = APIRouter(prefix="/evtx", tags=["evtx"])
 
@@ -381,7 +389,7 @@ def _parse_evtx_background(file_id: str, file_path: str) -> None:
 
             evtx_file.status      = "ready"
             evtx_file.event_count = total
-            evtx_file.parsed_at   = datetime.now(timezone.utc)
+            evtx_file.parsed_at   = datetime.now(UTC)
             db.commit()
 
         except Exception as exc:
@@ -605,15 +613,15 @@ def list_events(
     file_id:     str,
     page:        int           = Query(1, ge=1),
     page_size:   int           = Query(100, ge=1, le=500),
-    search:      Optional[str] = Query(None),
-    channels:    Optional[str] = Query(None),
-    levels:      Optional[str] = Query(None),
-    event_ids:   Optional[str] = Query(None),
-    time_from:   Optional[str] = Query(None),
-    time_to:     Optional[str] = Query(None),
+    search:      str | None = Query(None),
+    channels:    str | None = Query(None),
+    levels:      str | None = Query(None),
+    event_ids:   str | None = Query(None),
+    time_from:   str | None = Query(None),
+    time_to:     str | None = Query(None),
     sort_dir:      str           = Query("asc"),
-    col_filters:   Optional[str] = Query(None),
-    field_filters: Optional[str] = Query(None),
+    col_filters:   str | None = Query(None),
+    field_filters: str | None = Query(None),
     db:            Session       = Depends(get_db),
 ):
     _get_file_or_404(file_id, case_id, db)
@@ -745,7 +753,7 @@ def add_to_evidence(
     except Exception:
         pass
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     chain_entry = (
         f"[{now.strftime('%Y-%m-%d %H:%M:%S UTC')}] Collected by {current_user.username} "
         f"via EVTX import — MD5: {md5_hash or 'n/a'} | SHA256: {sha256_hash or 'n/a'}"
@@ -807,7 +815,7 @@ def save_selection(
     if sel:
         sel.events   = payload.events
         sel.sent_ids = payload.sent_ids
-        sel.updated_at = datetime.now(timezone.utc)
+        sel.updated_at = datetime.now(UTC)
     else:
         sel = EvtxCaseSelection(
             case_id  = case_id,

@@ -1,16 +1,24 @@
 /**
- * ReportTab — split into 3 analyst-authored boxes + playbook reference.
+ * ReportTab — a document with a section rail.
  *
- * LEFT (60%)  — 3 report boxes
- *   ① Analyse Technique   → {{report_analysis}}
- *   ② Remédiations        → {{report_remediation}}
- *   ③ Conclusion          → {{report_conclusion}}
- *   • Auto-generate button → fills all 3 from the case template in one click
- *   • Single Save saves all 3 + creates a version snapshot
- *   • Export MD / Export DOCX
- *   • Version history (collapsible)
+ * Three columns:
  *
- * RIGHT (40%) — Playbook reference (read-only notes, step graph)
+ *   left     numbered sections with their word counts, and the version history
+ *            underneath. Clicking a section filters the document to it, which
+ *            is what makes a long report writable: one thing on screen, full
+ *            width, nothing competing. Clicking again brings everything back.
+ *   centre   one measured column of prose. The section is the container, so the
+ *            editor draws no frame of its own.
+ *   right    executive summary, quick notes and the playbook reference,
+ *            collapsible to a rail so the document can take the full width on a
+ *            laptop.
+ *
+ * Sections are numbered in mono rather than colour-coded: a hue invented per
+ * section means nothing and fights the single accent.
+ *
+ * Both shapes of report share one model. `sections` below is built either from
+ * the case template's report_sections or from the three fixed boxes, so the
+ * rail, the filter, the word counts and the editors have a single code path.
  */
 
 import { useState }                                          from 'react'
@@ -20,12 +28,15 @@ import {
   type Node, type Edge,
 }                                                            from '@xyflow/react'
 import {
-  FileDown, Save, History, RotateCcw,
-  User, Hash, FileOutput, ChevronDown, ChevronRight,
-  Network, List, StickyNote, CheckCircle2, Circle,
-  Sparkles, BookOpen, AlertCircle, Clipboard, ClipboardCheck,
-  FlaskConical, Wrench, Flag, FileText, AlignLeft,
-}                                                            from 'lucide-react'
+  FileDown, Save, RotateCcw,
+  User, Hash, FileOutput, ChevronDown,
+  Network, List, CheckCircle2, Circle,
+  Sparkles, AlertCircle, Clipboard, ClipboardCheck, StickyNote,
+}                                                            from '../../../ui/icons'
+import { HelpExample, HelpPopover }                          from '../../../ui/HelpPopover'
+import { SectionRail, type RailItem }                        from '../../../ui/SectionRail'
+import { SidePanel, SidePanelBlock }                         from '../../../ui/SidePanel'
+import { Toolbar, ToolbarGroup, ToolbarLabel, ToolbarSpacer } from '../../../ui/Toolbar'
 import { casesApi }                                          from '../../../api/cases'
 import { reportVersionsApi, type ReportVersionMeta }        from '../../../api/reportVersions'
 import { reportDocTemplatesApi }                             from '../../../api/reportDocTemplates'
@@ -65,56 +76,52 @@ function doneCount(cp: CasePlaybook) {
   return stepNodes(cp).filter(n => cp.step_states[n.id]?.done).length
 }
 
-// ── Report box header ──────────────────────────────────────────────────────────
+// ── Fixed report boxes ────────────────────────────────────────────────────────
+// Used when the case has no template, or the template defines no sections.
+// No colour: sections are told apart by their numeral and their name.
 
 interface BoxMeta {
-  icon: React.ReactNode
   label: string
   tag: string
-  color: string
   placeholder: string
 }
 
 const BOX_META: BoxMeta[] = [
   {
-    icon:  <FlaskConical size={12} />,
-    label: 'Analyse Technique',
-    tag:   '{{report_analysis}}',
-    color: 'text-blue-400 border-blue-500/20 bg-blue-500/5',
+    label: 'Technical Analysis',
+    tag:   'report_analysis',
     placeholder:
-      '## Cause Racine\n\n*Décrire l\'origine de l\'incident…*\n\n' +
-      '## Chaîne d\'Attaque\n\n*Décrire la progression de l\'attaque.*\n\n' +
-      '## Impact\n\n*Impact technique et métier.*',
+      '## Root Cause\n\n*Describe how the incident started...*\n\n' +
+      '## Attack Chain\n\n*Describe how the attack progressed.*\n\n' +
+      '## Impact\n\n*Technical and business impact.*',
   },
   {
-    icon:  <Wrench size={12} />,
-    label: 'Remédiations',
-    tag:   '{{report_remediation}}',
-    color: 'text-orange-400 border-orange-500/20 bg-orange-500/5',
+    label: 'Remediations',
+    tag:   'report_remediation',
     placeholder:
-      '*Actions de remédiation réalisées ou en cours.*\n\n' +
+      '*Remediation actions completed or in progress.*\n\n' +
       '- [ ] Action 1\n- [ ] Action 2',
   },
   {
-    icon:  <Flag size={12} />,
-    label: 'Conclusion & Recommandations',
-    tag:   '{{report_conclusion}}',
-    color: 'text-purple-300 border-purple-500/20 bg-purple-500/5',
+    label: 'Conclusion & Recommendations',
+    tag:   'report_conclusion',
     placeholder:
-      '*Synthèse et recommandations long terme.*\n\n' +
-      '- [ ] Recommandation 1\n- [ ] Recommandation 2',
+      '*Summary and long-term recommendations.*\n\n' +
+      '- [ ] Recommendation 1\n- [ ] Recommendation 2',
   },
 ]
 
-// ── Version card ───────────────────────────────────────────────────────────────
+// ── Version row ───────────────────────────────────────────────────────────────
+// Sized for the rail: version, age, line count, and a restore that only appears
+// on hover so the column stays quiet while reading.
 
-function VersionCard({
+function VersionRow({
   v, caseId, onRestore,
 }: { v: ReportVersionMeta; caseId: string; onRestore: (c: string) => void }) {
   const [loading, setLoading] = useState(false)
 
   const handleRestore = async () => {
-    if (!confirm(`Restaurer la version ${v.version} ? Les modifications non sauvegardées seront perdues.`)) return
+    if (!confirm(`Restore version ${v.version}? Unsaved changes will be lost.`)) return
     setLoading(true)
     try {
       const full = await reportVersionsApi.get(caseId, v.id)
@@ -123,27 +130,27 @@ function VersionCard({
   }
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/8 bg-white/[0.015] hover:border-white/15 transition-colors group">
-      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-accent-green/10 text-accent-green border border-accent-green/20 shrink-0">
-        v{v.version}
-      </span>
-      <span className="text-[10px] text-white/60 flex-1 truncate" title={fmtDateTime(v.created_at)}>
+    <div className="group flex items-baseline gap-2 px-3.5 py-1.5 hover:bg-hover transition-colors">
+      <span className="numeral text-accent shrink-0">v{v.version}</span>
+      <span className="text-label text-fg-secondary flex-1 truncate" title={fmtDateTime(v.created_at)}>
         {fmtRelative(v.created_at)}
       </span>
       {v.created_by && (
-        <span className="flex items-center gap-1 text-[9px] text-accent-muted/40">
-          <User size={8} /> {v.created_by}
+        <span className="text-label font-mono text-fg-muted shrink-0 hidden group-hover:inline" title={v.created_by}>
+          <User size={8} className="inline" /> {v.created_by}
         </span>
       )}
-      <span className="flex items-center gap-1 text-[9px] text-accent-muted/30">
-        <Hash size={8} /> {v.line_count}
+      <span className="text-label font-mono text-fg-muted shrink-0 group-hover:hidden">
+        <Hash size={8} className="inline" />{v.line_count}
       </span>
       <button
-        onClick={handleRestore} disabled={loading}
-        className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border border-accent-green/20 text-accent-green/70 hover:bg-accent-green/10 transition-all"
+        onClick={handleRestore}
+        disabled={loading}
+        title={`Restore version ${v.version}`}
+        aria-label={`Restore version ${v.version}`}
+        className="hidden group-hover:block text-fg-muted hover:text-accent transition-colors shrink-0"
       >
-        <RotateCcw size={8} className={loading ? 'animate-spin' : ''} />
-        Restaurer
+        <RotateCcw size={10} className={loading ? 'animate-spin' : ''} />
       </button>
     </div>
   )
@@ -163,15 +170,14 @@ function CopyBtn({ getText }: { getText: () => string }) {
   return (
     <button
       onClick={handleCopy}
-      title="Copier le contenu de cette étape"
-      className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors border ${
-        copied
-          ? 'text-accent-green bg-accent-green/10 border-accent-green/30'
-          : 'text-accent-muted hover:text-white bg-white/[0.03] hover:bg-white/8 border-white/10 hover:border-white/20'
+      title="Copy this step's content"
+      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-control text-label font-medium transition-colors border ${ copied
+          ? 'text-accent bg-accent/10 border-accent/30'
+          : 'text-fg-secondary hover:text-fg bg-white/[0.03] hover:bg-fg/8 border-hairline hover:border-strong'
       }`}
     >
       {copied
-        ? <><ClipboardCheck size={13} /><span>Copié !</span></>
+        ? <><ClipboardCheck size={13} /><span>Copied</span></>
         : <><Clipboard size={13} /><span>Copy</span></>
       }
     </button>
@@ -204,13 +210,13 @@ function PlaybookStepEditor({
   })
 
   return (
-    <div className="border-b border-white/[0.05] last:border-b-0">
+    <div className="border-b border-strong/[0.05] last:border-b-0">
       <div className="flex items-start gap-2 px-3 pt-2.5 pb-1">
-        <span className={`mt-0.5 shrink-0 ${done ? 'text-accent-green' : 'text-accent-muted/25'}`}>
+        <span className={`mt-0.5 shrink-0 ${done ? 'text-accent' : 'text-fg-secondary/25'}`}>
           {done ? <CheckCircle2 size={12} /> : <Circle size={12} />}
         </span>
-        <p className={`text-[11px] font-medium leading-snug flex-1 min-w-0 break-words ${done ? 'text-accent-muted/40 line-through' : 'text-white/80'}`}>
-          <span className="text-accent-muted/20 font-mono mr-1">{String(idx + 1).padStart(2, '0')}.</span>
+        <p className={`text-label font-medium leading-snug flex-1 min-w-0 break-words ${done ? 'text-fg-secondary/40 line-through' : 'text-fg/80'}`}>
+          <span className="text-fg-secondary/20 font-mono mr-1">{String(idx + 1).padStart(2, '0')}.</span>
           {(node.data as any).label}
         </p>
         <div className="flex items-center gap-1 shrink-0">
@@ -218,7 +224,7 @@ function PlaybookStepEditor({
             <button
               onClick={() => save.mutate()}
               disabled={save.isPending}
-              className="text-[9px] px-1.5 py-0.5 rounded bg-accent-green/10 text-accent-green border border-accent-green/20 hover:bg-accent-green/20 transition-colors"
+              className="text-label px-1.5 py-0.5 rounded-control bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20 transition-colors"
             >
               <Save size={9} className="inline mr-0.5" />
               {save.isPending ? '…' : 'Sauv.'}
@@ -254,15 +260,15 @@ function PlaybookReference({ caseId }: { caseId: string }) {
   const activeCp = casePlaybooks.find(cp => cp.id === activeId) ?? casePlaybooks[0] ?? null
 
   if (isLoading) {
-    return <p className="text-xs text-accent-muted/30 italic text-center py-8 animate-pulse">Chargement…</p>
+    return <p className="text-label text-fg-secondary/30 italic text-center py-8 animate-pulse">Loading...</p>
   }
   if (casePlaybooks.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6">
-        <StickyNote size={28} className="text-accent-muted/15" />
-        <p className="text-xs text-accent-muted/40">Aucun playbook attaché à ce case.</p>
-        <p className="text-[10px] text-accent-muted/25">
-          Attache un playbook depuis l'onglet Playbook pour voir tes notes ici.
+        <StickyNote size={28} className="text-fg-secondary/15" />
+        <p className="text-label text-fg-secondary/40">No playbook attached to this case.</p>
+        <p className="text-label text-fg-secondary/25">
+          Attach a playbook from the Playbook tab to see your notes here.
         </p>
       </div>
     )
@@ -270,32 +276,31 @@ function PlaybookReference({ caseId }: { caseId: string }) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="px-3 py-2 border-b border-white/5 flex items-center gap-2 shrink-0">
+      <div className="px-3 py-2 border-b border-hairline flex items-center gap-2 shrink-0">
         <div className="flex gap-1 flex-1 flex-wrap">
           {casePlaybooks.map(cp => (
             <button
               key={cp.id}
               onClick={() => setActiveId(cp.id)}
-              className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border transition-colors ${
-                activeCp?.id === cp.id
-                  ? 'bg-accent-green/10 text-accent-green border-accent-green/25'
-                  : 'text-accent-muted border-white/10 hover:text-white hover:bg-white/5'
+              className={`flex items-center gap-1 text-label px-2 py-0.5 rounded-control border transition-colors ${ activeCp?.id === cp.id
+                  ? 'bg-accent/10 text-accent border-accent/25'
+                  : 'text-fg-secondary border-hairline hover:text-fg hover:bg-fg/5'
               }`}
             >
               {cp.playbook.name}
-              <span className="opacity-40 text-[8px] font-mono">{doneCount(cp)}/{stepNodes(cp).length}</span>
+              <span className="opacity-40 text-label font-mono">{doneCount(cp)}/{stepNodes(cp).length}</span>
             </button>
           ))}
         </div>
-        <div className="flex rounded border border-white/10 overflow-hidden shrink-0">
+        <div className="flex rounded-control border border-hairline overflow-hidden shrink-0">
           <button
             onClick={() => setPanelView('steps')}
-            className={`flex items-center px-2 py-1 text-[10px] transition-colors ${panelView === 'steps' ? 'bg-accent-green/10 text-accent-green' : 'text-accent-muted hover:text-white'}`}
+            className={`flex items-center px-2 py-1 text-label transition-colors ${panelView === 'steps' ? 'bg-accent/10 text-accent' : 'text-fg-secondary hover:text-fg'}`}
           ><List size={10} /></button>
           <button
             onClick={() => setPanelView('graph')}
             disabled={!activeCp}
-            className={`flex items-center px-2 py-1 text-[10px] transition-colors ${panelView === 'graph' ? 'bg-accent-green/10 text-accent-green' : 'text-accent-muted hover:text-white disabled:opacity-30'}`}
+            className={`flex items-center px-2 py-1 text-label transition-colors ${panelView === 'graph' ? 'bg-accent/10 text-accent' : 'text-fg-secondary hover:text-fg disabled:opacity-30'}`}
           ><Network size={10} /></button>
         </div>
       </div>
@@ -325,7 +330,7 @@ function PlaybookReference({ caseId }: { caseId: string }) {
       {activeCp && panelView === 'steps' && (
         <div className="flex-1 overflow-y-auto">
           {stepNodes(activeCp).length === 0
-            ? <p className="text-[11px] text-accent-muted/30 italic text-center py-8">Aucune étape.</p>
+            ? <p className="text-label text-fg-secondary/30 italic text-center py-8">No steps.</p>
             : stepNodes(activeCp).map((node, idx) => (
                 <PlaybookStepEditor
                   key={node.id}
@@ -359,11 +364,11 @@ export default function ReportTab({ case_ }: Props) {
   const [sectionsData,    setSectionsData]    = useState<Record<string, string>>(initSectionsData)
 
   const [dirty,              setDirty]             = useState(false)
-  const [versionsOpen,       setVersionsOpen]      = useState(false)
   const [selectedTemplateId, setSelectedTemplateId]= useState<number | ''>('')
   const [exporting,          setExporting]         = useState(false)
 
-  const [rightTab,    setRightTab]    = useState<'summary' | 'playbook'>('summary')
+  // null shows the whole document; an id filters to that section alone.
+  const [activeSection, setActiveSection] = useState<string | null>(null)
   const [quickNotes,  setQuickNotes]  = useState(case_.quick_notes        ?? '')
   const [execSummary, setExecSummary] = useState(case_.executive_summary  ?? '')
   const [notesDirty,  setNotesDirty]  = useState(false)
@@ -498,302 +503,293 @@ export default function ReportTab({ case_ }: Props) {
 
   const hasTemplate = !!case_.template_id
 
+  // ── One model for both shapes of report ──────────────────────────────────
+  // Dynamic template sections and the three fixed boxes collapse into the same
+  // list, so the rail, the filter, the word counts and the editors share a
+  // single code path instead of two that drift apart.
+  interface Section {
+    id: string
+    name: string
+    tag: string
+    value: string
+    placeholder: string
+    onChange: (v: string) => void
+  }
+
+  const sections: Section[] = dynamicSections
+    ? dynamicSections.map((s) => {
+        const slug = sectionSlug(s)
+        return {
+          id:          slug,
+          name:        s.name,
+          tag:         slug,
+          value:       sectionsData[slug] ?? '',
+          placeholder: s.template || `${s.name}...`,
+          onChange:    (v: string) => {
+            setSectionsData((prev) => ({ ...prev, [slug]: v }))
+            markDirty()
+          },
+        }
+      })
+    : [
+        { meta: BOX_META[0], value: analysis,    set: setAnalysis },
+        { meta: BOX_META[1], value: remediation, set: setRemediation },
+        { meta: BOX_META[2], value: conclusion,  set: setConclusion },
+      ].map(({ meta, value, set }) => ({
+        id:          meta.tag,
+        name:        meta.label,
+        tag:         meta.tag,
+        value,
+        placeholder: meta.placeholder,
+        onChange:    (v: string) => { set(v); markDirty() },
+      }))
+
+  const wordCount = (text: string) => text.trim() ? text.trim().split(/\s+/).length : 0
+
+  const railItems: RailItem[] = sections.map((s) => {
+    const words = wordCount(s.value)
+    return {
+      id:    s.id,
+      label: s.name,
+      meta:  words ? `${words} words` : 'empty',
+      empty: words === 0,
+    }
+  })
+
+  const visible = activeSection
+    ? sections.filter((s) => s.id === activeSection)
+    : sections
+
+  const totalWords = sections.reduce((sum, s) => sum + wordCount(s.value), 0)
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex h-full overflow-hidden">
 
-      {/* ══ LEFT — 3 report boxes ═══════════════════════════════════════════ */}
-      <div className="flex-[3] min-w-0 flex flex-col overflow-hidden border-r border-white/5">
-
-        {/* ── Toolbar ──────────────────────────────────────────────────────── */}
-        <div className="px-4 py-2.5 border-b border-white/5 bg-bg-secondary/40 shrink-0 space-y-2">
-
-          {/* Row 1 — title + badge */}
-          <div className="flex items-center gap-2">
-            <BookOpen size={13} className="text-accent-green/60" />
-            <span className="text-xs font-semibold text-accent-green tracking-wide">Rapport</span>
-            {hasTemplate ? (
-              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-accent-green/8 text-accent-green/60 border border-accent-green/15">
-                {dynamicSections
-                  ? `${dynamicSections.length} sections dynamiques`
-                  : `template: ${case_.template_id}`}
+      {/* ══ LEFT — section rail and version history ═══════════════════════════ */}
+      <SectionRail
+        items={railItems}
+        selectedId={activeSection}
+        onSelect={setActiveSection}
+        footer={
+          <div className="py-1">
+            <div className="flex items-center gap-2 px-3.5 py-1.5">
+              <span className="text-label font-mono uppercase tracking-label text-fg-muted">
+                Versions
               </span>
-            ) : (
-              <span className="flex items-center gap-1 text-[9px] text-accent-muted/30">
-                <AlertCircle size={9} />
-                Aucun case template — structure par défaut
-              </span>
-            )}
-          </div>
-
-          {/* Row 2 — actions */}
-          <div className="flex items-center gap-2 flex-wrap">
-
-            {/* Auto-generate */}
-            <button
-              className="btn-secondary text-xs flex items-center gap-1.5"
-              onClick={() => generate.mutate()}
-              disabled={generate.isPending}
-              title="Génère les 3 sections depuis le case template en un clic"
-            >
-              <Sparkles size={12} className={generate.isPending ? 'animate-pulse' : ''} />
-              {generate.isPending ? 'Génération…' : 'Auto-générer'}
-            </button>
-
-            {/* Export MD */}
-            <button
-              className="btn-secondary text-xs flex items-center gap-1.5"
-              onClick={handleExportMd}
-              title="Exporter le contenu combiné en Markdown"
-            >
-              <FileDown size={12} />
-              .md
-            </button>
-
-            {/* Report template + DOCX export */}
-            <div className="flex items-center gap-1">
-              <div className="relative">
-                <select
-                  value={selectedTemplateId}
-                  onChange={e => setSelectedTemplateId(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="appearance-none bg-bg-secondary border border-white/10 rounded-md
-                    text-xs text-accent-muted pl-2 pr-6 py-1.5 outline-none
-                    hover:border-white/20 focus:border-accent-green/40 transition-colors cursor-pointer"
-                >
-                  <option value="">Report template…</option>
-                  {docTemplates.map(t => (
-                    <option key={t.id} value={t.id}>{t.name} ({t.format.toUpperCase()})</option>
-                  ))}
-                </select>
-                <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-accent-muted/40 pointer-events-none" />
-              </div>
-              <button
-                className="btn-secondary text-xs flex items-center gap-1.5 disabled:opacity-40"
-                disabled={!selectedTemplateId || exporting}
-                onClick={handleExportDocx}
-                title="Générer et télécharger le rapport complet via le report template"
-              >
-                <FileOutput size={12} className={exporting ? 'animate-pulse' : ''} />
-                {exporting ? 'Export…' : 'Exporter'}
-              </button>
+              <span className="flex-1 border-t border-hairline" />
             </div>
-
-            <div className="flex-1" />
-
-            {/* Versions toggle */}
-            <button
-              onClick={() => setVersionsOpen(o => !o)}
-              className={`flex items-center gap-1.5 text-xs transition-colors ${
-                versionsOpen ? 'text-accent-green' : 'text-accent-muted/50 hover:text-white'
-              }`}
-            >
-              {versionsOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-              <History size={11} />
-              {versions.length > 0 ? `v${versions[0]?.version ?? 1}` : 'Versions'}
-            </button>
-
-            {/* Save */}
-            <button
-              className={`text-xs flex items-center gap-1.5 ${dirty ? 'btn-primary' : 'btn-secondary opacity-50'}`}
-              onClick={() => save.mutate()}
-              disabled={save.isPending || !dirty}
-            >
-              <Save size={11} className={save.isPending ? 'animate-pulse' : ''} />
-              {save.isPending ? 'Sauvegarde…' : dirty ? 'Sauvegarder' : 'Sauvegardé'}
-            </button>
-          </div>
-        </div>
-
-        {/* ── Version history ────────────────────────────────────────────────── */}
-        {versionsOpen && (
-          <div className="shrink-0 border-b border-white/5 bg-bg-secondary/20 px-4 py-3">
             {versions.length === 0 ? (
-              <p className="text-[10px] text-accent-muted/30 italic">
-                Aucune version — sauvegardez pour créer le premier snapshot.
+              <p className="px-3.5 py-1.5 text-label text-fg-muted italic">
+                None yet — save to snapshot.
               </p>
             ) : (
-              <div className="space-y-1.5">
-                {versions.map(v => (
-                  <VersionCard
-                    key={v.id}
-                    v={v}
-                    caseId={case_.id}
-                    onRestore={handleRestore}
-                  />
+              <div className="max-h-48 overflow-y-auto">
+                {versions.map((v) => (
+                  <VersionRow key={v.id} v={v} caseId={case_.id} onRestore={handleRestore} />
                 ))}
               </div>
             )}
             {dirty && (
-              <p className="text-[9px] text-yellow-400/60 mt-2 flex items-center gap-1">
-                <AlertCircle size={9} /> Modifications non sauvegardées — sauvegardez pour créer une version.
+              <p className="flex items-center gap-1 px-3.5 py-1.5 text-label text-severity-medium">
+                <AlertCircle size={9} /> Unsaved
               </p>
             )}
           </div>
-        )}
+        }
+      />
 
-        {/* ── Report boxes ──────────────────────────────────────────────────── */}
+      {/* ══ CENTRE — the document ═════════════════════════════════════════════ */}
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+
+        <Toolbar>
+          <ToolbarLabel>Report</ToolbarLabel>
+          <span className="text-label font-mono text-fg-muted">
+            {sections.length} section{sections.length > 1 ? 's' : ''} · {totalWords} words
+            {hasTemplate && !dynamicSections && ` · template ${case_.template_id}`}
+          </span>
+          {!hasTemplate && (
+            <span className="flex items-center gap-1 text-label text-fg-muted">
+              <AlertCircle size={9} /> no case template
+            </span>
+          )}
+
+          <ToolbarSpacer />
+
+          <ToolbarGroup>
+            <button
+              className="btn-ghost flex items-center gap-1.5"
+              onClick={() => generate.mutate()}
+              disabled={generate.isPending}
+              title="Fill the sections from the case template"
+            >
+              <Sparkles size={12} className={generate.isPending ? 'animate-pulse' : ''} />
+              {generate.isPending ? 'Generating...' : 'Auto-generate'}
+            </button>
+          </ToolbarGroup>
+
+          <ToolbarGroup>
+            <button
+              className="btn-ghost flex items-center gap-1.5"
+              onClick={handleExportMd}
+              title="Export the combined content as Markdown"
+            >
+              <FileDown size={12} /> .md
+            </button>
+            <div className="relative">
+              <select
+                value={selectedTemplateId}
+                onChange={(e) => setSelectedTemplateId(e.target.value === '' ? '' : Number(e.target.value))}
+                className="appearance-none bg-transparent border border-hairline rounded-control
+                           text-ui text-fg-secondary pl-2 pr-6 py-1 outline-none cursor-pointer
+                           hover:border-strong focus:border-focus transition-colors"
+              >
+                <option value="">Report template...</option>
+                {docTemplates.map((tpl) => (
+                  <option key={tpl.id} value={tpl.id}>{tpl.name} ({tpl.format.toUpperCase()})</option>
+                ))}
+              </select>
+              <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-fg-muted pointer-events-none" />
+            </div>
+            <button
+              className="btn-ghost flex items-center gap-1.5 disabled:opacity-40"
+              disabled={!selectedTemplateId || exporting}
+              onClick={handleExportDocx}
+              title="Generate the full report through the report template"
+            >
+              <FileOutput size={12} className={exporting ? 'animate-pulse' : ''} />
+              {exporting ? 'Exporting...' : 'Export'}
+            </button>
+          </ToolbarGroup>
+
+          <button
+            className={`flex items-center gap-1.5 ${dirty ? 'btn-primary' : 'btn-ghost opacity-50'}`}
+            onClick={() => save.mutate()}
+            disabled={save.isPending || !dirty}
+          >
+            <Save size={11} className={save.isPending ? 'animate-pulse' : ''} />
+            {save.isPending ? 'Saving...' : dirty ? 'Save' : 'Saved'}
+          </button>
+
+          <HelpPopover title="Writing the report">
+            <p>
+              The rail on the left lists the sections of this report. Selecting one shows
+              only that section; selecting it again brings the whole document back.
+            </p>
+            <p>
+              Saving writes every section at once and snapshots a version. Versions are
+              listed under the rail and can be restored from there.
+            </p>
+            <HelpExample
+              label="What the analyst writes"
+              code={'{{report_content}}  — injected into the report template at export'}
+            />
+            <p>
+              The structural parts — IOC tables, MITRE coverage, the timeline — are added
+              by the report template at export time, not written here.
+            </p>
+          </HelpPopover>
+        </Toolbar>
+
         <div className="flex-1 overflow-y-auto">
-          {dynamicSections ? (
-            /* Dynamic sections from case template */
-            dynamicSections.map((section) => {
-              const slug = sectionSlug(section)
-              const catColor =
-                (section.category || '').includes('anal') ? 'text-blue-400 border-blue-500/20 bg-blue-500/5' :
-                (section.category || '').includes('remed') ? 'text-orange-400 border-orange-500/20 bg-orange-500/5' :
-                (section.category || '').includes('concl') ? 'text-purple-300 border-purple-500/20 bg-purple-500/5' :
-                'text-accent-green/70 border-accent-green/20 bg-accent-green/5'
-              return (
-                <div key={slug} className="border-b border-white/5 last:border-b-0">
-                  <div className={`flex items-center gap-2 px-4 py-2 border-b border-white/5 ${catColor}`}>
-                    <FlaskConical size={12} className="shrink-0" />
-                    <span className="text-[11px] font-semibold tracking-wide truncate min-w-0" title={section.name}>
-                      {section.name}
-                    </span>
-                    <code className="ml-auto shrink-0 text-[9px] font-mono opacity-40">{`{{${slug}}}`}</code>
-                  </div>
-                  <div className="p-3 min-w-0 overflow-hidden">
+          {visible.map((section) => {
+            const index = sections.findIndex((s) => s.id === section.id)
+            return (
+              <article key={section.id} className="border-b border-hairline last:border-b-0">
+                <header className="flex items-baseline gap-2.5 px-6 pt-5 pb-2">
+                  <span className="numeral shrink-0">{String(index + 1).padStart(2, '0')}</span>
+                  <h2 className="text-title font-semibold text-fg truncate min-w-0" title={section.name}>
+                    {section.name}
+                  </h2>
+                  <span className="ml-auto shrink-0 text-label font-mono text-fg-muted">markdown</span>
+                </header>
+                {/* Borderless: the section is the container, so the editor draws
+                    no frame of its own. The column is measured — prose past
+                    ~70ch stops being readable. */}
+                <div className="px-6 pb-6 min-w-0 overflow-hidden">
+                  <div className="max-w-[72ch]">
                     <MarkdownEditor
-                      value={sectionsData[slug] ?? ''}
-                      onChange={v => { setSectionsData(prev => ({ ...prev, [slug]: v })); markDirty() }}
+                      value={section.value}
+                      onChange={section.onChange}
                       caseId={case_.id}
-                      minHeight={160}
+                      minHeight={activeSection ? 420 : 180}
                       autoResize
-                      placeholder={section.template || `${section.name}…`}
+                      placeholder={section.placeholder}
                     />
                   </div>
                 </div>
-              )
-            })
-          ) : (
-            /* Fixed 3 boxes (no template or template has no sections) */
-            [
-              { meta: BOX_META[0], value: analysis,    onChange: (v: string) => { setAnalysis(v);    markDirty() } },
-              { meta: BOX_META[1], value: remediation,  onChange: (v: string) => { setRemediation(v); markDirty() } },
-              { meta: BOX_META[2], value: conclusion,   onChange: (v: string) => { setConclusion(v);  markDirty() } },
-            ].map(({ meta, value, onChange }) => (
-              <div key={meta.tag} className="border-b border-white/5 last:border-b-0">
-                <div className={`flex items-center gap-2 px-4 py-2 border-b border-white/5 ${meta.color}`}>
-                  <span className="shrink-0">{meta.icon}</span>
-                  <span className="text-[11px] font-semibold tracking-wide truncate min-w-0">{meta.label}</span>
-                  <code className="ml-auto shrink-0 text-[9px] font-mono opacity-40">{meta.tag}</code>
-                </div>
-                <div className="p-3 min-w-0 overflow-hidden">
+              </article>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ══ RIGHT — reference, collapsible to a rail ══════════════════════════ */}
+      <SidePanel
+        storageKey="report"
+        // Wider than the default: this panel holds two prose editors, and at
+        // 288px an executive summary wraps every six or seven words. Draggable
+        // from its left edge, so the analyst sets the real answer.
+        defaultWidth={360}
+        tabs={[
+          {
+            id:    'summary',
+            label: 'Summary',
+            meta:  notesDirty ? 'unsaved' : undefined,
+            content: (
+              <>
+                {notesDirty && (
+                  <div className="px-3.5 py-2 border-b border-hairline">
+                    <button
+                      onClick={() => saveNotes.mutate()}
+                      disabled={saveNotes.isPending}
+                      className="btn-primary w-full flex items-center justify-center gap-1.5"
+                    >
+                      <Save size={11} className={saveNotes.isPending ? 'animate-pulse' : ''} />
+                      {saveNotes.isPending ? 'Saving...' : 'Save notes'}
+                    </button>
+                  </div>
+                )}
+                <SidePanelBlock label="Executive summary" meta="non-technical">
                   <MarkdownEditor
-                    value={value}
-                    onChange={onChange}
+                    value={execSummary}
+                    onChange={(v) => { setExecSummary(v); setNotesDirty(true) }}
                     caseId={case_.id}
-                    minHeight={160}
+                    minHeight={140}
                     autoResize
-                    placeholder={meta.placeholder}
+                    placeholder="Non-technical overview of the incident, business impact, key actions..."
                   />
+                </SidePanelBlock>
+                <SidePanelBlock label="Quick notes">
+                  <MarkdownEditor
+                    value={quickNotes}
+                    onChange={(v) => { setQuickNotes(v); setNotesDirty(true) }}
+                    caseId={case_.id}
+                    minHeight={120}
+                    autoResize
+                    placeholder="Investigation notes, IOCs to dig into, hypotheses..."
+                  />
+                </SidePanelBlock>
+              </>
+            ),
+          },
+          {
+            id:    'playbook',
+            label: 'Playbook',
+            content: (
+              <div className="h-full flex flex-col min-h-0">
+                <p className="px-3.5 py-2 text-label text-fg-muted border-b border-hairline shrink-0">
+                  Read-only — copy into the document
+                </p>
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <PlaybookReference caseId={case_.id} />
                 </div>
               </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* ══ RIGHT — Résumé + Playbook tabs ══════════════════════════════════ */}
-      <div className="flex-[2] min-w-0 flex flex-col overflow-hidden bg-bg-secondary/20">
-
-        {/* Tab bar */}
-        <div className="flex items-center gap-0 border-b border-white/5 shrink-0">
-          <button
-            onClick={() => setRightTab('summary')}
-            className={`flex items-center gap-1.5 px-3 py-2.5 text-[10px] font-medium border-b-2 transition-colors ${
-              rightTab === 'summary'
-                ? 'border-accent-green text-accent-green'
-                : 'border-transparent text-accent-muted/40 hover:text-white'
-            }`}
-          >
-            <AlignLeft size={11} />
-            Résumé &amp; Notes
-          </button>
-          <button
-            onClick={() => setRightTab('playbook')}
-            className={`flex items-center gap-1.5 px-3 py-2.5 text-[10px] font-medium border-b-2 transition-colors ${
-              rightTab === 'playbook'
-                ? 'border-accent-green text-accent-green'
-                : 'border-transparent text-accent-muted/40 hover:text-white'
-            }`}
-          >
-            <StickyNote size={11} />
-            Notes Playbook
-          </button>
-          {notesDirty && (
-            <button
-              onClick={() => saveNotes.mutate()}
-              disabled={saveNotes.isPending}
-              className="ml-auto mr-3 flex items-center gap-1 text-[10px] px-2 py-1 rounded bg-accent-green/10 text-accent-green border border-accent-green/25 hover:bg-accent-green/20 transition-colors"
-            >
-              <Save size={10} className={saveNotes.isPending ? 'animate-pulse' : ''} />
-              {saveNotes.isPending ? '…' : 'Sauv.'}
-            </button>
-          )}
-        </div>
-
-        {/* Résumé tab */}
-        {rightTab === 'summary' && (
-          <div className="flex-1 overflow-y-auto">
-
-            {/* Executive Summary */}
-            <div className="border-b border-white/5">
-              <div className="flex items-center gap-2 px-3 py-2 bg-accent-green/[0.04] border-b border-accent-green/10">
-                <FileText size={11} className="text-accent-green/60" />
-                <span className="text-[11px] font-semibold text-accent-green/80 tracking-wide">Executive Summary</span>
-                <code className="ml-auto text-[9px] font-mono text-accent-muted/30">case.executive_summary</code>
-              </div>
-              <div className="p-3 min-w-0 overflow-hidden">
-                <MarkdownEditor
-                  value={execSummary}
-                  onChange={v => { setExecSummary(v); setNotesDirty(true) }}
-                  caseId={case_.id}
-                  minHeight={140}
-                  autoResize
-                  placeholder="Résumé exécutif — synthèse non-technique de l'incident, impact métier, actions clés…"
-                />
-              </div>
-            </div>
-
-            {/* Quick Notes */}
-            <div>
-              <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.02] border-b border-white/5">
-                <StickyNote size={11} className="text-accent-muted/50" />
-                <span className="text-[11px] font-semibold text-accent-muted/60 tracking-wide">Notes rapides</span>
-                <code className="ml-auto text-[9px] font-mono text-accent-muted/30">case.quick_notes</code>
-              </div>
-              <div className="p-3 min-w-0 overflow-hidden">
-                <MarkdownEditor
-                  value={quickNotes}
-                  onChange={v => { setQuickNotes(v); setNotesDirty(true) }}
-                  caseId={case_.id}
-                  minHeight={120}
-                  autoResize
-                  placeholder="Notes rapides d'investigation, IOCs à creuser, hypothèses…"
-                />
-              </div>
-            </div>
-
-          </div>
-        )}
-
-        {/* Playbook tab */}
-        {rightTab === 'playbook' && (
-          <div className="flex-1 overflow-hidden">
-            <div className="px-3 py-2 border-b border-white/5 shrink-0">
-              <p className="text-[9px] text-accent-muted/20">
-                Lecture seule — copie-colle dans l'éditeur de gauche
-              </p>
-            </div>
-            <div className="h-full overflow-hidden">
-              <PlaybookReference caseId={case_.id} />
-            </div>
-          </div>
-        )}
-
-      </div>
-
+            ),
+          },
+        ]}
+      />
     </div>
   )
 }

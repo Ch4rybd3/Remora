@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   CheckCircle2, AlertCircle, Loader2, Clock, RotateCcw, ChevronDown, ChevronUp,
-} from 'lucide-react'
+} from '../../ui/icons'
 import { useState } from 'react'
 import { memoryApi, type MemoryPluginResult } from '../../api/memory'
 import { fmtRelative } from '../../utils/dateUtils'
@@ -10,15 +10,15 @@ import { fmtRelative } from '../../utils/dateUtils'
 
 function StatusChip({ status }: { status: string }) {
   const map: Record<string, { cls: string; icon: React.ElementType }> = {
-    pending:  { cls: 'text-accent-muted/50 border-white/10',                          icon: Clock       },
-    running:  { cls: 'text-yellow-400 border-yellow-400/30 bg-yellow-400/8',           icon: Loader2     },
-    done:     { cls: 'text-accent-green border-accent-green/30 bg-accent-green/8',     icon: CheckCircle2},
+    pending:  { cls: 'text-fg-secondary/50 border-hairline',                          icon: Clock       },
+    running:  { cls: 'text-severity-medium border-severity-medium/30 bg-severity-medium/8',           icon: Loader2     },
+    done:     { cls: 'text-accent border-accent/30 bg-accent/8',     icon: CheckCircle2},
     error:    { cls: 'text-severity-critical border-severity-critical/30 bg-severity-critical/8', icon: AlertCircle },
   }
   const theme = map[status] ?? map.pending
   const Icon  = theme.icon
   return (
-    <span className={`inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded border ${theme.cls}`}>
+    <span className={`inline-flex items-center gap-1 text-label font-mono px-1.5 py-0.5 rounded-control border ${theme.cls}`}>
       <Icon size={9} className={status === 'running' ? 'animate-spin' : ''} />
       {status}
     </span>
@@ -46,27 +46,26 @@ function PluginCard({
   const hasError  = plugin.error  && plugin.error.trim().length > 0
 
   return (
-    <div className={`rounded-lg border transition-colors ${
-      plugin.status === 'done'    ? 'border-accent-green/20 bg-accent-green/3' :
+    <div className={` border transition-colors ${ plugin.status === 'done'    ? 'border-accent/20 bg-accent/3' :
       plugin.status === 'error'   ? 'border-severity-critical/20 bg-severity-critical/3' :
-      plugin.status === 'running' ? 'border-yellow-400/20 bg-yellow-400/3' :
-      'border-white/8 bg-white/[0.02]'
+      plugin.status === 'running' ? 'border-severity-medium/20 bg-severity-medium/3' :
+      'border-hairline bg-white/[0.02]'
     }`}>
       {/* Header */}
       <div className="flex items-center gap-3 px-3 py-2.5">
         <StatusChip status={plugin.status} />
-        <span className="text-[11px] font-mono font-medium text-white flex-1 truncate">
+        <span className="text-label font-mono font-medium text-fg flex-1 truncate">
           {plugin.plugin_name}
         </span>
         {plugin.completed_at && (
-          <span className="text-[9px] text-accent-muted/30">
+          <span className="text-label text-fg-secondary/30">
             {fmtRelative(plugin.completed_at)}
           </span>
         )}
         <button
           onClick={() => rerun.mutate()}
           disabled={rerun.isPending || plugin.status === 'running' || plugin.status === 'pending'}
-          className="p-1 rounded text-accent-muted/30 hover:text-white hover:bg-white/5 transition-colors disabled:opacity-30"
+          className="p-1 rounded-control text-fg-secondary/30 hover:text-fg hover:bg-fg/5 transition-colors disabled:opacity-30"
           title="Re-run"
         >
           <RotateCcw size={11} className={rerun.isPending ? 'animate-spin' : ''} />
@@ -74,7 +73,7 @@ function PluginCard({
         {(hasOutput || hasError) && (
           <button
             onClick={() => setOpen(v => !v)}
-            className="p-1 rounded text-accent-muted/30 hover:text-white hover:bg-white/5 transition-colors"
+            className="p-1 rounded-control text-fg-secondary/30 hover:text-fg hover:bg-fg/5 transition-colors"
           >
             {open ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
           </button>
@@ -83,14 +82,14 @@ function PluginCard({
 
       {/* Output / error */}
       {open && (
-        <div className="border-t border-white/5 px-3 py-2.5 space-y-2">
+        <div className="border-t border-hairline px-3 py-2.5 space-y-2">
           {hasOutput && (
-            <pre className="text-[10px] font-mono text-white/70 whitespace-pre-wrap break-all max-h-96 overflow-y-auto leading-relaxed bg-black/20 rounded p-2">
+            <pre className="text-label font-mono text-fg/70 whitespace-pre-wrap break-all max-h-96 overflow-y-auto leading-relaxed bg-black/20 rounded-control p-2">
               {plugin.output}
             </pre>
           )}
           {hasError && (
-            <div className="text-[10px] font-mono text-severity-critical/80 bg-severity-critical/5 rounded p-2 whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
+            <div className="text-label font-mono text-severity-critical/80 bg-severity-critical/5 rounded-control p-2 whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
               {plugin.error}
             </div>
           )}
@@ -118,7 +117,7 @@ export default function DefaultPluginsTab({ caseId, dumpId }: Props) {
 
   if (defaults.length === 0) {
     return (
-      <div className="flex items-center justify-center h-48 text-accent-muted/40 text-sm">
+      <div className="flex items-center justify-center h-48 text-fg-secondary/40 text-ui">
         No plugin results yet
       </div>
     )
@@ -133,15 +132,15 @@ export default function DefaultPluginsTab({ caseId, dumpId }: Props) {
     <div className="space-y-4">
       {/* Progress bar */}
       <div className="flex items-center gap-3">
-        <div className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden">
+        <div className="flex-1 h-1.5 rounded-pill bg-fg/5 overflow-hidden">
           <div
-            className="h-full bg-accent-green rounded-full transition-all"
+            className="h-full bg-accent rounded-pill transition-all"
             style={{ width: `${Math.round((done / defaults.length) * 100)}%` }}
           />
         </div>
-        <span className="text-[10px] text-accent-muted/50 font-mono shrink-0">
+        <span className="text-label text-fg-secondary/50 font-mono shrink-0">
           {done}/{defaults.length} done
-          {running > 0 && <> · <span className="text-yellow-400">{running} running</span></>}
+          {running > 0 && <> · <span className="text-severity-medium">{running} running</span></>}
           {pending > 0 && <> · {pending} pending</>}
           {errored > 0 && <> · <span className="text-severity-critical">{errored} errors</span></>}
         </span>

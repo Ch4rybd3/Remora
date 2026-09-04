@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Upload, Trash2, HardDrive, AlertCircle, Loader2, CheckCircle2, Clock } from 'lucide-react'
+import { Upload, Trash2, HardDrive, AlertCircle, Loader2, CheckCircle2, Clock } from '../../ui/icons'
 import { memoryApi, type MemoryDump } from '../../api/memory'
 import { fmtRelative } from '../../utils/dateUtils'
 import { fmtBytes as formatBytes } from '../../utils/formatUtils'
@@ -9,15 +9,15 @@ import { fmtBytes as formatBytes } from '../../utils/formatUtils'
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { cls: string; icon: React.ElementType; label: string }> = {
-    uploaded:  { cls: 'text-accent-muted bg-white/5 border-white/10',           icon: Clock,        label: 'Queued'     },
-    analyzing: { cls: 'text-yellow-400 bg-yellow-400/8 border-yellow-400/20',    icon: Loader2,      label: 'Analyzing'  },
-    done:      { cls: 'text-accent-green bg-accent-green/8 border-accent-green/20', icon: CheckCircle2, label: 'Done'    },
+    uploaded:  { cls: 'text-fg-secondary bg-fg/5 border-hairline',           icon: Clock,        label: 'Queued'     },
+    analyzing: { cls: 'text-severity-medium bg-severity-medium/8 border-severity-medium/20',    icon: Loader2,      label: 'Analyzing'  },
+    done:      { cls: 'text-accent bg-accent/8 border-accent/20', icon: CheckCircle2, label: 'Done'    },
     error:     { cls: 'text-severity-critical bg-severity-critical/8 border-severity-critical/20', icon: AlertCircle, label: 'Error' },
   }
   const theme = map[status] ?? map.uploaded
   const Icon  = theme.icon
   return (
-    <span className={`inline-flex items-center gap-1 text-[9px] font-semibold font-mono px-1.5 py-0.5 rounded border ${theme.cls}`}>
+    <span className={`inline-flex items-center gap-1 text-label font-semibold font-mono px-1.5 py-0.5 rounded-control border ${theme.cls}`}>
       <Icon size={9} className={status === 'analyzing' ? 'animate-spin' : ''} />
       {theme.label}
     </span>
@@ -63,10 +63,9 @@ function UploadForm({ caseId, onSuccess }: { caseId: string; onSuccess: () => vo
           <button
             key={os}
             onClick={() => setOsType(os)}
-            className={`flex-1 py-1.5 text-[10px] font-semibold rounded border transition-colors capitalize ${
-              osType === os
-                ? 'bg-accent-green/10 border-accent-green/30 text-accent-green'
-                : 'bg-white/[0.03] border-white/8 text-accent-muted hover:text-white'
+            className={`flex-1 py-1.5 text-label font-semibold rounded-control border transition-colors capitalize ${ osType === os
+                ? 'bg-accent/10 border-accent/30 text-accent'
+                : 'bg-white/[0.03] border-hairline text-fg-secondary hover:text-fg'
             }`}
           >
             {os}
@@ -80,12 +79,12 @@ function UploadForm({ caseId, onSuccess }: { caseId: string; onSuccess: () => vo
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         onClick={() => dumpRef.current?.click()}
-        className={`cursor-pointer border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+        className={`cursor-pointer border-2 border-dashed p-4 text-center transition-colors ${
           dragOver
-            ? 'border-accent-green/60 bg-accent-green/5'
+            ? 'border-accent/60 bg-accent/5'
             : dumpFile
-              ? 'border-accent-green/30 bg-accent-green/3'
-              : 'border-white/10 hover:border-white/20'
+              ? 'border-accent/30 bg-accent/3'
+              : 'border-hairline hover:border-strong'
         }`}
       >
         <input
@@ -94,13 +93,13 @@ function UploadForm({ caseId, onSuccess }: { caseId: string; onSuccess: () => vo
           className="hidden"
           onChange={e => setDumpFile(e.target.files?.[0] ?? null)}
         />
-        <Upload size={16} className={`mx-auto mb-1.5 ${dumpFile ? 'text-accent-green' : 'text-accent-muted/40'}`} />
+        <Upload size={16} className={`mx-auto mb-1.5 ${dumpFile ? 'text-accent' : 'text-fg-secondary/40'}`} />
         {dumpFile ? (
-          <p className="text-[10px] text-accent-green font-medium truncate px-2">{dumpFile.name}</p>
+          <p className="text-label text-accent font-medium truncate px-2">{dumpFile.name}</p>
         ) : (
           <>
-            <p className="text-[10px] text-accent-muted/60">Drop dump file here or click</p>
-            <p className="text-[9px] text-accent-muted/30 mt-0.5">.raw .mem .vmem .dmp .img …</p>
+            <p className="text-label text-fg-secondary/60">Drop dump file here or click</p>
+            <p className="text-label text-fg-secondary/30 mt-0.5">.raw .mem .vmem .dmp .img …</p>
           </>
         )}
       </div>
@@ -109,11 +108,11 @@ function UploadForm({ caseId, onSuccess }: { caseId: string; onSuccess: () => vo
       <div>
         <button
           onClick={() => symbolsRef.current?.click()}
-          className="w-full text-left text-[10px] text-accent-muted/50 hover:text-accent-muted transition-colors flex items-center gap-1.5 px-1"
+          className="w-full text-left text-label text-fg-secondary/50 hover:text-fg-secondary transition-colors flex items-center gap-1.5 px-1"
         >
-          <span className="text-accent-muted/30">+</span>
+          <span className="text-fg-secondary/30">+</span>
           {symbolsFile ? (
-            <span className="text-accent-muted truncate">{symbolsFile.name}</span>
+            <span className="text-fg-secondary truncate">{symbolsFile.name}</span>
           ) : (
             'Add symbol file (optional)'
           )}
@@ -127,7 +126,7 @@ function UploadForm({ caseId, onSuccess }: { caseId: string; onSuccess: () => vo
       </div>
 
       {upload.isError && (
-        <p className="text-[10px] text-severity-critical">
+        <p className="text-label text-severity-critical">
           {(upload.error as Error)?.message ?? 'Upload failed'}
         </p>
       )}
@@ -135,7 +134,7 @@ function UploadForm({ caseId, onSuccess }: { caseId: string; onSuccess: () => vo
       <button
         onClick={handleSubmit}
         disabled={!dumpFile || upload.isPending}
-        className="btn-primary w-full text-xs flex items-center justify-center gap-1.5 disabled:opacity-40"
+        className="btn-primary w-full text-label flex items-center justify-center gap-1.5 disabled:opacity-40"
       >
         {upload.isPending ? <><Loader2 size={12} className="animate-spin" /> Uploading…</> : 'Upload & Analyze'}
       </button>
@@ -174,38 +173,38 @@ export default function MemoryDumpList({ caseId, selectedDumpId, onSelect }: Pro
 
       {dumps.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[9px] font-semibold tracking-widest uppercase text-accent-muted/40 px-1">
+          <p className="text-label font-semibold tracking-widest uppercase text-fg-secondary/40 px-1">
             Dumps ({dumps.length})
           </p>
           {dumps.map(dump => (
             <div
               key={dump.id}
               onClick={() => onSelect(dump)}
-              className={`group relative rounded-lg border p-2.5 cursor-pointer transition-all ${
+              className={`group relative border p-2.5 cursor-pointer transition-all ${
                 selectedDumpId === dump.id
-                  ? 'border-accent-green/40 bg-accent-green/5'
-                  : 'border-white/8 bg-white/[0.02] hover:border-white/15 hover:bg-white/[0.04]'
+                  ? 'border-accent/40 bg-accent/5'
+                  : 'border-hairline bg-white/[0.02] hover:border-hairline hover:bg-white/[0.04]'
               }`}
             >
               <div className="flex items-start gap-2">
-                <HardDrive size={12} className="text-accent-muted/50 shrink-0 mt-0.5" />
+                <HardDrive size={12} className="text-fg-secondary/50 shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-medium text-white truncate">{dump.filename}</p>
+                  <p className="text-label font-medium text-fg truncate">{dump.filename}</p>
                   <div className="flex items-center gap-2 mt-1">
                     <StatusBadge status={dump.status} />
-                    <span className="text-[9px] text-accent-muted/40 font-mono capitalize">{dump.os_type}</span>
-                    <span className="text-[9px] text-accent-muted/30 font-mono">{formatBytes(dump.file_size)}</span>
+                    <span className="text-label text-fg-secondary/40 font-mono capitalize">{dump.os_type}</span>
+                    <span className="text-label text-fg-secondary/30 font-mono">{formatBytes(dump.file_size)}</span>
                   </div>
-                  <p className="text-[9px] text-accent-muted/30 mt-0.5">
+                  <p className="text-label text-fg-secondary/30 mt-0.5">
                     {fmtRelative(dump.uploaded_at)}
                   </p>
                   {dump.error_msg && (
-                    <p className="text-[9px] text-severity-critical mt-1 line-clamp-2">{dump.error_msg}</p>
+                    <p className="text-label text-severity-critical mt-1 line-clamp-2">{dump.error_msg}</p>
                   )}
                 </div>
                 <button
                   onClick={e => { e.stopPropagation(); deleteDump.mutate(dump.id) }}
-                  className="opacity-0 group-hover:opacity-100 p-1 rounded text-accent-muted/40 hover:text-severity-critical hover:bg-severity-critical/10 transition-all shrink-0"
+                  className="opacity-0 group-hover:opacity-100 p-1 rounded-control text-fg-secondary/40 hover:text-severity-critical hover:bg-severity-critical/10 transition-all shrink-0"
                   title="Delete dump"
                 >
                   <Trash2 size={10} />

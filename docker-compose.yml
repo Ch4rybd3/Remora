@@ -5,6 +5,10 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        # Surfaced by GET /api/v1/version and in the sidebar footer.
+        REMORA_COMMIT: ${REMORA_COMMIT:-unknown}
+        REMORA_BUILT_AT: ${REMORA_BUILT_AT:-unknown}
     container_name: remora-backend
     restart: unless-stopped
     volumes:

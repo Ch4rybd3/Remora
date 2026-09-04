@@ -1,6 +1,6 @@
 import { useMemo, useRef, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Shield, ExternalLink, X, Upload, FileJson } from 'lucide-react'
+import { Shield, ExternalLink, X, Upload, FileJson } from '../../../ui/icons'
 import { mitreApi, type MitreTTP, type Technique, type SubTechnique, type Tactic } from '../../../api/mitre'
 import MitreMatrixPicker from '../../mitre/MitreMatrixPicker'
 
@@ -48,33 +48,33 @@ function SelectionPanel({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="shrink-0 px-3 py-2.5 border-b border-white/5 flex items-center gap-2">
-        <Shield size={11} className="text-accent-green/70" />
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-accent-muted/60 flex-1">
+      <div className="shrink-0 px-3 py-2.5 border-b border-hairline flex items-center gap-2">
+        <Shield size={11} className="text-accent/70" />
+        <span className="text-label font-semibold uppercase tracking-widest text-fg-secondary/60 flex-1">
           Selected TTPs
         </span>
-        <span className="text-[10px] font-mono text-accent-green/70">
+        <span className="text-label font-mono text-accent/70">
           {ttps.length}
         </span>
       </div>
 
       {/* TTP list grouped by tactic */}
-      <div className="flex-1 overflow-y-auto divide-y divide-white/5">
+      <div className="flex-1 overflow-y-auto divide-y divide-hairline">
         {ttps.length === 0 && (
-          <p className="px-3 py-6 text-[11px] italic text-accent-muted/30 text-center">
+          <p className="px-3 py-6 text-label italic text-fg-secondary/30 text-center">
             Click any technique in the matrix to add it
           </p>
         )}
         {[...byTactic.entries()].map(([tacticName, techList]) => (
           <div key={tacticName}>
-            <p className="px-3 pt-2 pb-0.5 text-[8px] uppercase tracking-widest text-accent-muted/30 font-semibold">
+            <p className="px-3 pt-2 pb-0.5 text-label uppercase tracking-widest text-fg-secondary/30 font-semibold">
               {tacticName}
             </p>
             {techList.map(ttp => (
               <div key={ttp.id} className="flex items-center gap-1.5 px-3 py-1 group hover:bg-white/[0.02]">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[9px] font-mono text-accent-green/70 shrink-0">{ttp.technique_id}</span>
+                    <span className="text-label font-mono text-accent/70 shrink-0">{ttp.technique_id}</span>
                     <a
                       href={`https://attack.mitre.org/techniques/${ttp.technique_id.replace('.', '/')}/`}
                       target="_blank"
@@ -84,11 +84,11 @@ function SelectionPanel({
                       <ExternalLink size={8} />
                     </a>
                   </div>
-                  <p className="text-[9px] text-white/60 truncate leading-tight">{ttp.technique_name}</p>
+                  <p className="text-label text-fg/60 truncate leading-tight">{ttp.technique_name}</p>
                 </div>
                 <button
                   onClick={() => onRemove(ttp)}
-                  className="shrink-0 opacity-0 group-hover:opacity-100 text-white/20 hover:text-severity-critical transition-all"
+                  className="shrink-0 opacity-0 group-hover:opacity-100 text-fg/20 hover:text-severity-critical transition-all"
                 >
                   <X size={10} />
                 </button>
@@ -99,18 +99,18 @@ function SelectionPanel({
       </div>
 
       {/* Footer actions */}
-      <div className="shrink-0 px-3 py-2.5 border-t border-white/5 space-y-1.5">
+      <div className="shrink-0 px-3 py-2.5 border-t border-hairline space-y-1.5">
         <button
           onClick={onExport}
           disabled={ttps.length === 0}
-          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded border border-white/10 text-accent-muted/50 text-[10px] hover:border-accent-green/30 hover:text-accent-green hover:bg-accent-green/5 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-control border border-hairline text-fg-secondary/50 text-label hover:border-accent/30 hover:text-accent hover:bg-accent/5 disabled:opacity-30 disabled:pointer-events-none transition-colors"
         >
           <FileJson size={10} />
           Export Navigator layer
         </button>
         <button
           onClick={() => fileRef.current?.click()}
-          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded border border-white/10 text-accent-muted/50 text-[10px] hover:border-white/20 hover:text-white transition-colors"
+          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-control border border-hairline text-fg-secondary/50 text-label hover:border-strong hover:text-fg transition-colors"
         >
           <Upload size={10} />
           Import Navigator layer
@@ -197,7 +197,7 @@ export default function MitreTab({ caseId }: Props) {
       </div>
 
       {/* Right: selection panel */}
-      <div className="w-56 shrink-0 border-l border-white/5 bg-bg-secondary flex flex-col">
+      <div className="w-56 shrink-0 border-l border-hairline bg-panel flex flex-col">
         <SelectionPanel
           ttps={caseTTPs}
           onRemove={ttp => delTTP.mutate(ttp.id)}

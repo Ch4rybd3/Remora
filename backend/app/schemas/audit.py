@@ -1,22 +1,24 @@
 from __future__ import annotations
+
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
+
 from pydantic import BaseModel
 
 
 class AuditLogOut(BaseModel):
     id:            int
     timestamp:     datetime
-    username:      Optional[str]
-    user_role:     Optional[str]
+    username:      str | None
+    user_role:     str | None
     action:        str
-    resource_type: Optional[str]
-    resource_id:   Optional[str]
-    resource_name: Optional[str]
-    case_id:       Optional[str]
-    case_title:    Optional[str]
-    details:       Optional[dict[str, Any]]
-    ip_address:    Optional[str]
+    resource_type: str | None
+    resource_id:   str | None
+    resource_name: str | None
+    case_id:       str | None
+    case_title:    str | None
+    details:       dict[str, Any] | None
+    ip_address:    str | None
 
     model_config = {"from_attributes": True}
 

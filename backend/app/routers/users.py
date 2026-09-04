@@ -1,18 +1,19 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
-from sqlalchemy.orm import Session
-from typing import List
 
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy.orm import Session
+
+from ..core import permissions, scoping
+from ..core.deps import assert_can_manage, get_current_user, require_admin
 from ..database import get_db
-from ..models.user import User, UserRole
-from ..schemas.user import UserCreate, UserRead, UserUpdate, UserChangePassword
-from ..services.auth_service import hash_password
+from ..models.user import User
+from ..schemas.user import UserChangePassword, UserCreate, UserRead, UserUpdate
 from ..services.audit_service import audit_log
-from ..core.deps import get_current_user, require_admin, assert_can_manage, ROLE_RANK
+from ..services.auth_service import hash_password
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 
-@router.get("/", response_model=List[UserRead])
+@router.get("/", response_model=list[UserRead])
 def list_users(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
@@ -27,14 +28,19 @@ def create_user(
     db: Session = Depends(get_db),
     current: User = Depends(require_admin),
 ):
-    # On ne peut pas créer un compte de rang strictement supérieur au sien
-    if ROLE_RANK[payload.role] > ROLE_RANK[current.role]:
+    # Only an owner may hand out `owner`.
+    if not permissions.may_assign_role(current.role, payload.role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Impossible de créer un compte de rôle '{payload.role.value}'",
+            detail=f"Cannot create an account with role '{payload.role.value}'",
         )
     if db.query(User).filter(User.username == payload.username).first():
-        raise HTTPException(status_code=409, detail="Ce nom d'utilisateur est déjà pris")
+        raise HTTPException(status_code=409, detail="Username already taken")
+    # Checked rather than left to the unique constraint, which surfaces as an
+    # unhandled 500 the interface cannot explain.
+    if payload.email and db.query(User).filter(User.email == payload.email).first():
+        raise HTTPException(
+            status_code=409, detail=f"'{payload.email}' is already used by another account")
     user = User(
         username=payload.username,
         email=payload.email,
@@ -62,18 +68,17 @@ def update_user(
 ):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+        raise HTTPException(status_code=404, detail="User not found")
 
     assert_can_manage(current, user)
 
     if user.id == current.id and payload.is_active is False:
-        raise HTTPException(status_code=400, detail="Impossible de se désactiver soi-même")
+        raise HTTPException(status_code=400, detail="Cannot deactivate your own account")
 
-    # On ne peut pas assigner un rôle de rang strictement supérieur au sien
-    if payload.role and ROLE_RANK[payload.role] > ROLE_RANK[current.role]:
+    if payload.role and not permissions.may_assign_role(current.role, payload.role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Impossible d'assigner le rôle '{payload.role.value}'",
+            detail=f"Cannot assign role '{payload.role.value}'",
         )
 
     updates = payload.model_dump(exclude_unset=True)
@@ -98,13 +103,14 @@ def change_password(
 ):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+        raise HTTPException(status_code=404, detail="User not found")
 
-    # Chacun peut changer son propre mot de passe
+    # Anyone may change their own password
     if current.id != user_id:
-        # Sinon il faut être admin/owner ET avoir un rang supérieur
-        if ROLE_RANK[current.role] < ROLE_RANK[UserRole.admin]:
-            raise HTTPException(status_code=403, detail="Accès refusé")
+        # Otherwise the actor must administer users, and be allowed to act on
+        # this particular account.
+        if not permissions.has(current.role, permissions.PERM_USERS):
+            raise HTTPException(status_code=403, detail="Access denied")
         assert_can_manage(current, user)
 
     user.hashed_password = hash_password(payload.new_password)
@@ -124,10 +130,10 @@ def delete_user(
     current: User = Depends(require_admin),
 ):
     if current.id == user_id:
-        raise HTTPException(status_code=400, detail="Impossible de supprimer son propre compte")
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+        raise HTTPException(status_code=404, detail="User not found")
 
     assert_can_manage(current, user)
 
@@ -136,3 +142,56 @@ def delete_user(
               resource_name=user.username, request=request)
     db.delete(user)
     db.commit()
+
+
+@router.put("/{user_id}/clients", response_model=UserRead)
+def set_user_clients(
+    user_id: str,
+    body: dict,
+    request: Request,
+    db: Session = Depends(get_db),
+    current: User = Depends(require_admin),
+):
+    """
+    Restrict an account to a set of clients, or lift the restriction.
+
+    Body: `{"client_ids": ["...", "..."]}`. An **empty list means
+    unrestricted** - the same rule as the model: no attached clients is the
+    absence of a restriction, not the absence of access. That is what lets
+    scoping exist without having locked out every account on the day it
+    shipped.
+
+    An administrator who is themselves scoped cannot hand out a client they
+    cannot see, which would otherwise be a way to widen their own reach by
+    proxy through an account they then log in as.
+    """
+    from ..models.client import Client
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    assert_can_manage(current, user)
+
+    requested = [str(c) for c in (body or {}).get("client_ids") or []]
+    actor_scope = scoping.scoped_client_ids(current)
+    if actor_scope is not None:
+        outside = [c for c in requested if c not in actor_scope]
+        if outside:
+            raise HTTPException(
+                status_code=403,
+                detail="Cannot grant access to a client you do not have yourself",
+            )
+
+    clients = db.query(Client).filter(Client.id.in_(requested)).all() if requested else []
+    missing = set(requested) - {str(c.id) for c in clients}
+    if missing:
+        raise HTTPException(status_code=404, detail=f"Unknown client: {', '.join(sorted(missing))}")
+
+    user.clients = clients
+    audit_log(db, user=current, action="user.clients_set",
+              resource_type="user", resource_id=user_id,
+              resource_name=user.username, request=request,
+              details={"client_ids": sorted(requested) or "unrestricted"})
+    db.commit()
+    db.refresh(user)
+    return user

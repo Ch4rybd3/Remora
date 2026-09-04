@@ -1,20 +1,20 @@
 import hashlib
 import shutil
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from typing import List, Optional
 
+from ..config import settings
+from ..core.deps import get_current_user
 from ..database import get_db
 from ..models.case import Case
-from ..models.evidence import Evidence, EvidenceType, AcquisitionMethod
+from ..models.evidence import AcquisitionMethod, Evidence, EvidenceType
 from ..models.user import User
 from ..schemas.evidence import EvidenceRead, EvidenceUpdate
 from ..services.audit_service import audit_log
-from ..core.deps import get_current_user
-from ..config import settings
 
 router = APIRouter(prefix="/cases/{case_id}/evidences", tags=["evidences"])
 
@@ -36,7 +36,7 @@ def _compute_hashes(file_path: Path) -> tuple[str, str]:
     return md5.hexdigest(), sha256.hexdigest()
 
 
-@router.get("/", response_model=List[EvidenceRead])
+@router.get("/", response_model=list[EvidenceRead])
 def list_evidences(case_id: str, db: Session = Depends(get_db)):
     _get_case(case_id, db)
     return db.query(Evidence).filter(Evidence.case_id == case_id).all()
@@ -52,7 +52,7 @@ async def upload_evidence(
     source_location: str = Form(""),
     acquisition_method: str = Form("manual"),
     collected_by: str = Form(""),
-    collected_at: Optional[str] = Form(None),
+    collected_at: str | None = Form(None),
     tags: str = Form(""),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -80,7 +80,7 @@ async def upload_evidence(
             pass
 
     # Build initial chain-of-custody entry
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     effective_collected_by = collected_by or current_user.username
     method_label = AcquisitionMethod(acquisition_method).value.replace("_", " ")
     initial_coc = (
@@ -213,7 +213,7 @@ def update_evidence(
         setattr(evidence, key, new_value)
 
     # Append custody history entry
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     fields_str = f" [{', '.join(diffs)}]" if diffs else ""
     coc_entry = (
         f"[{now.strftime('%Y-%m-%d %H:%M:%S UTC')}] "

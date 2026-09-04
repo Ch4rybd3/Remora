@@ -12,11 +12,10 @@ import json
 import os
 import tempfile
 import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from urllib.request import Request, urlopen
 from urllib.error import URLError
+from urllib.request import Request, urlopen
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import Response
@@ -26,8 +25,8 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..core.deps import get_current_user, get_db
-from ..models.user import User
 from ..models.mitre import CaseTTP
+from ..models.user import User
 
 router = APIRouter(tags=["mitre"])
 
@@ -228,7 +227,7 @@ def _build_compact_tree(stix_data: dict) -> dict[str, Any]:
 
 
 def _download_and_cache() -> None:
-    status_path = _status_path()
+
     compact_path = _compact_path()
 
     _write_status({"state": "downloading"})

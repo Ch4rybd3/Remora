@@ -1,7 +1,8 @@
-from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
-from ..models.evidence import EvidenceType, AcquisitionMethod
+
+from pydantic import BaseModel
+
+from ..models.evidence import AcquisitionMethod, EvidenceType
 
 
 class EvidenceBase(BaseModel):
@@ -10,7 +11,7 @@ class EvidenceBase(BaseModel):
     evidence_type: EvidenceType = EvidenceType.other
     source_location: str = ""
     acquisition_method: AcquisitionMethod = AcquisitionMethod.manual
-    collected_at: Optional[datetime] = None
+    collected_at: datetime | None = None
     collected_by: str = ""
     chain_of_custody: str = ""
     tags: str = ""
@@ -24,14 +25,14 @@ class EvidenceUpdate(BaseModel):
     # Mandatory — documents why the record changed (appended to chain_of_custody)
     note: str
     # Editable metadata
-    name: Optional[str] = None
-    description: Optional[str] = None
-    evidence_type: Optional[EvidenceType] = None
-    source_location: Optional[str] = None
-    acquisition_method: Optional[AcquisitionMethod] = None
-    collected_at: Optional[datetime] = None
-    collected_by: Optional[str] = None
-    tags: Optional[str] = None
+    name: str | None = None
+    description: str | None = None
+    evidence_type: EvidenceType | None = None
+    source_location: str | None = None
+    acquisition_method: AcquisitionMethod | None = None
+    collected_at: datetime | None = None
+    collected_by: str | None = None
+    tags: str | None = None
     # chain_of_custody is append-only and managed server-side
 
 

@@ -14,33 +14,34 @@ from __future__ import annotations
 import json
 import logging
 import math
-import re
-import shutil
 import subprocess
 import tempfile
 import uuid
 
 logger = logging.getLogger("remora.chainsaw")
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..config import settings
+from ..core.deps import get_current_user
 from ..database import SessionLocal, get_db
 from ..models.case import Case
-from ..models.chainsaw import ChainsawScan, ChainsawAlert, ChainsawCaseSelection
+from ..models.chainsaw import ChainsawAlert, ChainsawCaseSelection, ChainsawScan
 from ..models.evtx import EvtxFile
 from ..models.timeline import TimelineEvent
 from ..models.user import User
 from ..schemas.chainsaw import (
-    ChainsawScanOut, ChainsawAlertOut, AlertsPage,
-    ChainsawSelectionOut, ChainsawSelectionSave,
+    AlertsPage,
+    ChainsawAlertOut,
+    ChainsawScanOut,
+    ChainsawSelectionOut,
+    ChainsawSelectionSave,
 )
 from ..services.audit_service import audit_log
-from ..core.deps import get_current_user
 
 router = APIRouter(prefix="/chainsaw", tags=["chainsaw"])
 
@@ -86,7 +87,7 @@ def _get_alert_or_404(alert_id: str, case_id: str, db: Session) -> ChainsawAlert
 
 # ── Chainsaw output parser ────────────────────────────────────────────────────
 
-def _safe_int(v: Any) -> Optional[int]:
+def _safe_int(v: Any) -> int | None:
     try:
         return int(v)
     except (TypeError, ValueError):
@@ -106,7 +107,7 @@ def _extract_nested(obj: Any, *keys: Any) -> Any:
             return None
     return cur
 
-def _parse_ts(raw: Any) -> Optional[datetime]:
+def _parse_ts(raw: Any) -> datetime | None:
     """Parse the various timestamp formats Chainsaw emits."""
     if not raw:
         return None
@@ -121,7 +122,7 @@ def _parse_ts(raw: Any) -> Optional[datetime]:
         "%Y-%m-%dT%H:%M:%S",
     ):
         try:
-            return datetime.strptime(s, fmt).replace(tzinfo=timezone.utc)
+            return datetime.strptime(s, fmt).replace(tzinfo=UTC)
         except ValueError:
             continue
     return None
@@ -142,7 +143,7 @@ def _flatten_event_data(ed: Any) -> dict[str, str]:
             result[k] = str(v)
     return result
 
-def _parse_system_block(system: dict, top_ts: Optional[datetime]) -> tuple:
+def _parse_system_block(system: dict, top_ts: datetime | None) -> tuple:
     """
     Extract common fields from a Chainsaw System block.
     Handles both native (Provider_attributes / TimeCreated_attributes)
@@ -179,7 +180,7 @@ def _parse_system_block(system: dict, top_ts: Optional[datetime]) -> tuple:
 
 def _extract_alert_from_doc(doc: dict, rule_name: str, level: str,
                             sigma_status: str, group_name: str,
-                            tags: str, authors: str, top_ts: Optional[datetime]) -> Optional[dict]:
+                            tags: str, authors: str, top_ts: datetime | None) -> dict | None:
     """Extract one alert dict from a Chainsaw document block."""
     if not isinstance(doc, dict):
         return None
@@ -473,7 +474,7 @@ def _scan_background(scan_id: str, file_path: str) -> None:
                             print(f"[chainsaw] Sigma parsed {len(parsed)} alerts from file", flush=True)
                             raw_alerts.extend(parsed)
                     else:
-                        print(f"[chainsaw] Sigma scan non-fatal error, skipping sigma results.", flush=True)
+                        print("[chainsaw] Sigma scan non-fatal error, skipping sigma results.", flush=True)
                 except subprocess.TimeoutExpired:
                     print("[chainsaw] Sigma scan timed out, skipping sigma results.", flush=True)
                 except Exception as exc:
@@ -506,7 +507,7 @@ def _scan_background(scan_id: str, file_path: str) -> None:
 
         scan.status      = "ready"
         scan.alert_count = len(raw_alerts)
-        scan.scanned_at  = datetime.now(timezone.utc)
+        scan.scanned_at  = datetime.now(UTC)
         db.commit()
 
     except Exception as exc:
@@ -609,9 +610,9 @@ def delete_scan(
 @router.get("/{case_id}/alerts", response_model=AlertsPage)
 def list_alerts(
     case_id: str,
-    file_id:    Optional[str] = Query(None, description="Filter by EVTX file"),
-    levels:     Optional[str] = Query(None, description="Comma-separated levels"),
-    search:     Optional[str] = Query(None, description="Search in rule name / channel / computer"),
+    file_id:    str | None = Query(None, description="Filter by EVTX file"),
+    levels:     str | None = Query(None, description="Comma-separated levels"),
+    search:     str | None = Query(None, description="Search in rule name / channel / computer"),
     sort_dir:   str           = Query("desc", pattern="^(asc|desc)$"),
     page:       int           = Query(1, ge=1),
     page_size:  int           = Query(100, ge=1, le=500),
@@ -626,7 +627,7 @@ def list_alerts(
         q = q.filter(ChainsawAlert.file_id == file_id)
 
     if levels:
-        lvl_list = [l.strip().lower() for l in levels.split(",") if l.strip()]
+        lvl_list = [lvl.strip().lower() for lvl in levels.split(",") if lvl.strip()]
         q = q.filter(ChainsawAlert.level.in_(lvl_list))
 
     if search:
@@ -683,7 +684,7 @@ def alert_to_timeline(
 
     ev = TimelineEvent(
         case_id=case_id,
-        event_ts=alert.timestamp or datetime.now(timezone.utc),
+        event_ts=alert.timestamp or datetime.now(UTC),
         title=title,
         description=description,
         actor=alert.computer or "",
@@ -730,7 +731,7 @@ def save_selection(
     if sel:
         sel.alert_ids  = body.alert_ids
         sel.sent_ids   = body.sent_ids
-        sel.updated_at = datetime.now(timezone.utc)
+        sel.updated_at = datetime.now(UTC)
     else:
         sel = ChainsawCaseSelection(
             case_id=case_id,

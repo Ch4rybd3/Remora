@@ -16,11 +16,36 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..core.deps import get_current_user
-from ..database import get_db, SessionLocal
+from ..database import SessionLocal, get_db
 from ..models.case import Case
 from ..services import dropzone as dz
 
 router = APIRouter(tags=["dropzone"])
+
+
+# ── Watcher state ─────────────────────────────────────────────────────────────
+# Reported so the interface can say whether the folder is actually being
+# watched, rather than repeating the setting back. A file sitting waiting
+# forever because the thread never started looks identical to one about to be
+# picked up, and the analyst has no way to tell them apart.
+
+_watcher: dict[str, object] = {
+    "running":    False,
+    "started_at": None,
+    "last_sweep": None,
+    "last_error": None,
+    "sweeps":     0,
+}
+
+
+def watcher_state() -> dict:
+    """A snapshot, with the last sweep expressed as an age the interface can show."""
+    state = dict(_watcher)
+    last = state.get("last_sweep")
+    state["seconds_since_sweep"] = (
+        round(time.time() - float(last)) if isinstance(last, int | float) else None
+    )
+    return state
 
 
 def _get_case(case_id: str, db: Session) -> Case:
@@ -56,6 +81,8 @@ def dropzone_status(db: Session = Depends(get_db), current_user=Depends(get_curr
         "stable_seconds":   settings.dropzone_stable_seconds,
         "supported_exts":   sorted(dz.SUPPORTED_EXTS),
         "inbox":            [_file_dto(f, now) for f in inbox],
+        # Whether the folder is really being watched, not what the setting says.
+        "watcher":          watcher_state(),
     }
 
 
@@ -78,6 +105,10 @@ def case_dropzone(case_id: str, db: Session = Depends(get_db), current_user=Depe
         "stable_seconds":  settings.dropzone_stable_seconds,
         "pending":         [_file_dto(f, now) for f in pending],
         "processed_count": processed_count,
+        "poll_seconds":    settings.dropzone_poll_seconds,
+        # Carried here too: this is the panel an analyst is looking at when a
+        # file will not import, and "the setting says auto" is not an answer.
+        "watcher":         watcher_state(),
     }
 
 
@@ -147,7 +178,7 @@ def assign_inbox_files(
     """
     case_id = body.get("case_id")
     if not case_id:
-        raise HTTPException(400, "case_id requis")
+        raise HTTPException(400, "case_id is required")
     case = _get_case(case_id, db)
 
     names = body.get("files") or []
@@ -156,7 +187,7 @@ def assign_inbox_files(
     chosen = [available[n] for n in names if n in available] if names else list(available.values())
 
     if not chosen:
-        raise HTTPException(400, "Aucun fichier exploitable sélectionné dans l'inbox")
+        raise HTTPException(400, "No usable file selected in the inbox")
 
     # Move into the case folder first, so ingest_files archives them to the
     # case's .processed/ like any other drop.
@@ -181,7 +212,7 @@ def delete_inbox_file(filename: str, current_user=Depends(get_current_user)):
     target = (dz.inbox_dir() / filename).resolve()
     # Reject traversal: the resolved path must stay inside the inbox
     if not str(target).startswith(str(dz.inbox_dir().resolve())) or not target.is_file():
-        raise HTTPException(404, "Fichier introuvable")
+        raise HTTPException(404, "File not found")
     target.unlink()
     return {"ok": True}
 
@@ -199,6 +230,9 @@ def poll_once() -> int:
         return 0
 
     from .collection_import import _collection_dir, _run_pending
+
+    _watcher["last_sweep"] = time.time()
+    _watcher["sweeps"] = int(_watcher.get("sweeps") or 0) + 1
 
     db: Session = SessionLocal()
     total = 0
@@ -236,6 +270,10 @@ def poll_once() -> int:
             print(f"[dropzone] auto-ingested {processed} file(s) for case {case.id}", flush=True)
 
     except Exception as e:
+        # Recorded, not only printed. A sweep that throws every time leaves the
+        # folder looking merely quiet, and container logs are not where an
+        # analyst looks when a file will not import.
+        _watcher["last_error"] = str(e)[:300]
         print(f"[dropzone] poll error: {e}", flush=True)
     finally:
         db.close()
@@ -279,9 +317,18 @@ def start_poller() -> None:
         # Let the app finish booting before the first sweep
         time.sleep(10)
         while True:
-            poll_once()
+            try:
+                poll_once()
+            except Exception as e:
+                # The loop has to outlive a bad sweep. Without this the thread
+                # dies on the first unexpected error and every file after it
+                # waits forever, with nothing saying why.
+                _watcher["last_error"] = str(e)[:300]
+                print(f"[dropzone] sweep failed: {e}", flush=True)
             time.sleep(max(5, settings.dropzone_poll_seconds))
 
+    _watcher["running"] = True
+    _watcher["started_at"] = time.time()
     threading.Thread(target=_loop, name="dropzone-poller", daemon=True).start()
     print(
         f"[dropzone] watching {dz.dropzone_root()} every "

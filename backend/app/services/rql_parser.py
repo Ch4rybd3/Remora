@@ -50,9 +50,8 @@ from __future__ import annotations
 
 import ipaddress
 import re
-from dataclasses import dataclass, field
-from typing import Any, Optional
-
+from dataclasses import dataclass
+from typing import Any
 
 # ── Tokens ────────────────────────────────────────────────────────────────────
 
@@ -447,14 +446,14 @@ def _to_sql(node: Any, columns: list[str], params: list) -> str:
         return '1=1'
 
     if isinstance(node, AndNode):
-        l = _to_sql(node.left,  columns, params)
-        r = _to_sql(node.right, columns, params)
-        return f"({l} AND {r})"
+        left  = _to_sql(node.left,  columns, params)
+        right = _to_sql(node.right, columns, params)
+        return f"({left} AND {right})"
 
     if isinstance(node, OrNode):
-        l = _to_sql(node.left,  columns, params)
-        r = _to_sql(node.right, columns, params)
-        return f"({l} OR {r})"
+        left  = _to_sql(node.left,  columns, params)
+        right = _to_sql(node.right, columns, params)
+        return f"({left} OR {right})"
 
     if isinstance(node, NotNode):
         return f"(NOT {_to_sql(node.operand, columns, params)})"
@@ -598,7 +597,7 @@ def parse_rql(query: str, columns: list[str]) -> tuple[str, list]:
     return sql, params
 
 
-def validate_rql(query: str) -> Optional[str]:
+def validate_rql(query: str) -> str | None:
     """
     Return an error message string if the query has a syntax error, else ``None``.
     Column validation is skipped (columns=[]).

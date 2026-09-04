@@ -34,16 +34,24 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..models.case import Case
 from ..models.ez_artifacts import ImportedCollection, ImportedFile
+from ..models.ingest import (
+    ORIGIN_ARCHIVE,
+    ORIGIN_DROPZONE,
+    STATE_FAILED,
+    IngestedFile,
+)
+from ..services.archives import ARCHIVE_EXTS, extract_all, is_archive
 from ..services.ez_detection import detect
-from ..services.archives import ARCHIVE_EXTS, ArchiveError, extract_all, is_archive
+from ..services.ingest.dispatch import has_handler
+from ..services.ingest.identify import identify
 
 # Folder holding files already ingested, inside each case folder
 PROCESSED_DIRNAME = ".processed"
 # Case-less drop folder
 INBOX_DIRNAME = "_inbox"
 
-# Same set the Collection Import upload endpoint accepts — flat artifacts plus
-# every archive container the archives service can open.
+# Kept for the API's "what does this accept?" answer and for the tests that
+# pinned it. It is no longer the gate: see `DroppedFile.supported`.
 FLAT_EXTS = {".csv", ".json", ".txt", ".log", ".evtx", ".eml",
              ".pcap", ".pcapng", ".cap"}
 SUPPORTED_EXTS = FLAT_EXTS | ARCHIVE_EXTS
@@ -55,7 +63,7 @@ _IGNORED_PREFIXES = ("~$", ".~", ".goutputstream")
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
 
-def _mkdir_shared(p: Path) -> Path:
+def mkdir_shared(p: Path) -> Path:
     """
     Create a drop folder writable by whoever is dropping files into it.
 
@@ -74,11 +82,11 @@ def _mkdir_shared(p: Path) -> Path:
 
 def dropzone_root() -> Path:
     """Root of the drop folder, created on first access."""
-    return _mkdir_shared(Path(settings.dropzone_path))
+    return mkdir_shared(Path(settings.dropzone_path))
 
 
 def inbox_dir() -> Path:
-    return _mkdir_shared(dropzone_root() / INBOX_DIRNAME)
+    return mkdir_shared(dropzone_root() / INBOX_DIRNAME)
 
 
 def _slugify(text: str) -> str:
@@ -118,14 +126,14 @@ def case_dropzone_dir(case: Case, create: bool = True) -> Path:
             if create:
                 # Re-apply on every lookup so folders created before the
                 # permission fix (or with a stricter umask) become droppable.
-                _mkdir_shared(child)
-                _mkdir_shared(child / PROCESSED_DIRNAME)
+                mkdir_shared(child)
+                mkdir_shared(child / PROCESSED_DIRNAME)
             return child
 
     p = root / case_folder_name(case)
     if create:
-        _mkdir_shared(p)
-        _mkdir_shared(p / PROCESSED_DIRNAME)
+        mkdir_shared(p)
+        mkdir_shared(p / PROCESSED_DIRNAME)
     return p
 
 
@@ -158,10 +166,24 @@ class DroppedFile:
     mtime:    float
     detected: str | None      # human-readable category label, None if unknown
 
+    #: Internal kind from the signature, or None when nothing recognised it.
+    kind:     str | None = None
+
     @property
     def supported(self) -> bool:
+        """
+        Whether the pipeline will pick this file up.
+
+        This used to be an extension whitelist, which meant a memory image, a
+        disk image or a PE dropped into the case folder was **silently
+        ignored** - the drop folder claimed to be the single entry point while
+        refusing half the artifact types, on the strength of a filename. The
+        gate is now identification: anything the signature table recognises is
+        accepted, and whether a parser exists for it is a separate question the
+        ingest queue answers per file.
+        """
         # is_archive() handles two-part suffixes like .tar.gz that Path.suffix misses
-        return self.path.suffix.lower() in FLAT_EXTS or is_archive(self.name)
+        return (self.kind is not None and self.kind != "unknown") or is_archive(self.name)
 
 
 def _is_ignorable(p: Path) -> bool:
@@ -185,10 +207,14 @@ def list_dropped(folder: Path) -> list[DroppedFile]:
             st = p.stat()
         except OSError:
             continue
-        result = detect(p.name)
+        # Read the bytes rather than the name. `detect()` matches on the
+        # filename and is kept only for the label an analyst already knows.
+        found = identify(p)
+        legacy = detect(p.name)
         out.append(DroppedFile(
             path=p, name=p.name, size=st.st_size, mtime=st.st_mtime,
-            detected=result.category_label if result else None,
+            detected=(legacy.category_label if legacy else None) or found.label,
+            kind=found.kind,
         ))
     return out
 
@@ -210,6 +236,8 @@ def ingest_files(
     files: list[Path],
     db: Session,
     source_label: str = "drop folder",
+    origin: str = ORIGIN_DROPZONE,
+    origin_detail: str | None = None,
 ) -> tuple[str, list[ImportedFile]]:
     """
     Register dropped files as a Collection Import and hand them to the shared
@@ -229,6 +257,13 @@ def ingest_files(
     rows: list[ImportedFile] = []
     total_size = 0
     seen: dict[str, int] = {}
+    # Members unpacked from each archive, so the provenance pass below can link
+    # them to the container the analyst actually dropped.
+    archive_members: dict[Path, list[Path]] = {}
+    # Files that could not be opened, with the reason, applied to their row in
+    # the same pass. An archive nobody can read is a fact about one file: it is
+    # recorded and the rest of the folder keeps ingesting.
+    unreadable: dict[Path, str] = {}
 
     def _row(rel_name: str, size: int | None) -> ImportedFile:
         """Build an ImportedFile row for a file sitting at `extracted/<rel_name>`."""
@@ -282,44 +317,107 @@ def ingest_files(
             sub = extracted_dir / (_slugify(Path(safe_name).stem) or f"archive-{len(rows)}")
             try:
                 extract_all(src, sub, src.name)
-            except ArchiveError as e:
-                print(f"[dropzone] archive {src.name} illisible: {e}", flush=True)
+            except Exception as e:
+                # Deliberately broad. An archive nobody can read is a fact about
+                # one file; letting it escape stopped the whole sweep, so every
+                # other artifact in the folder waited forever behind it with the
+                # reason only in the container log.
+                print(f"[dropzone] archive {src.name} could not be read: {e}", flush=True)
+                # Remembered rather than recorded here. The provenance pass
+                # below writes exactly one row per dropped file; writing another
+                # one at this point produced two rows for the same archive, the
+                # second of them marked `duplicate` by its own hash.
+                unreadable[src] = str(e)
                 continue
             # Walk what actually landed on disk rather than re-reading the
             # archive index — unsafe entries were dropped during extraction.
-            for entry in sorted(p for p in sub.rglob("*") if p.is_file()):
+            members = sorted(p for p in sub.rglob("*") if p.is_file())
+            archive_members[src] = members
+            for entry in members:
                 rows.append(_row(
                     str(entry.relative_to(extracted_dir)),
                     entry.stat().st_size,
                 ))
             continue
 
+        # Widening the drop folder gate to everything identifiable means large
+        # artifacts now reach here. Copying a 64 GB memory image or a disk
+        # acquisition into the collection directory would double it on disk for
+        # nothing: no parser reads it from there, and disk images are read in
+        # place by design. Provenance is still recorded below, and the original
+        # still moves to .processed/, so the file is listed and findable.
+        if not has_handler(identify(src).kind):
+            print(f"[dropzone] {src.name}: kept in place, no parser copies it", flush=True)
+            continue
+
         shutil.copy2(src, extracted_dir / safe_name)
         rows.append(_row(safe_name, size))
 
-    if not rows:
-        return collection_id, []
+    # Note: no early return when `rows` is empty. A batch of files nothing
+    # parses still has to leave provenance and still has to be moved out of the
+    # watched folder, or every poll would rediscover it forever.
 
-    col = ImportedCollection(
-        id=collection_id,
-        case_id=case.id,
-        filename=(files[0].name if len(files) == 1 else f"{len(rows)} fichiers ({source_label})"),
-        file_size=total_size,
-        uploaded_at=datetime.utcnow(),
-        status="processing",
-        total_files=len(rows),
-        processed_files=0,
-    )
-    db.add(col)
-    for r in rows:
-        db.add(r)
-    db.commit()
+    if rows:
+        col = ImportedCollection(
+            id=collection_id,
+            case_id=case.id,
+            filename=(files[0].name if len(files) == 1 else f"{len(rows)} files ({source_label})"),
+            file_size=total_size,
+            uploaded_at=datetime.utcnow(),
+            status="processing",
+            total_files=len(rows),
+            processed_files=0,
+        )
+        db.add(col)
+        for r in rows:
+            db.add(r)
+        db.commit()
+
+    # ── Provenance ───────────────────────────────────────────────────────────
+    # One `ingested_files` row per file the analyst actually dropped, plus one
+    # per archive member, linked back to its container. Written after the
+    # collection is committed so `collection_id` points at a row that exists,
+    # and before the originals move so each file is hashed where it was found.
+    #
+    # Imported here rather than at module scope: `services.ingest.dropfolder`
+    # imports this module for the folder layout, and a top-level import would
+    # close the cycle.
+    from .ingest import service as ingest_service
+
+    provenance: dict[Path, str] = {}
+    for src in files:
+        if not src.exists():
+            continue
+        try:
+            ing = ingest_service.record(
+                db, case_id=case.id, path=src,
+                collection_id=collection_id if rows else None,
+                origin=origin, origin_detail=origin_detail,
+            )
+            provenance[src] = ing.id
+            if src in unreadable:
+                ing.state = STATE_FAILED
+                ing.error = unreadable[src][:500]
+                db.add(ing)
+        except Exception as e:   # provenance must never block an ingest
+            print(f"[dropzone] could not record provenance for {src.name}: {e}", flush=True)
+            continue
+
+        for member in archive_members.get(src, []):
+            try:
+                ingest_service.record(
+                    db, case_id=case.id, path=member, original_name=member.name,
+                    collection_id=collection_id if rows else None, parent_id=ing.id,
+                    origin=ORIGIN_ARCHIVE, origin_detail=src.name,
+                )
+            except Exception as e:
+                print(f"[dropzone] could not record member {member.name}: {e}", flush=True)
 
     # Move originals out of the watched folder only after the DB is committed,
     # so a crash mid-scan leaves the file in place to be retried.
     case_dir = case_dropzone_dir(case)
     processed = case_dir / PROCESSED_DIRNAME
-    _mkdir_shared(processed)
+    mkdir_shared(processed)
     for src in files:
         if not src.exists():
             continue
@@ -329,8 +427,14 @@ def ingest_files(
             target = processed / f"{src.stem}_{stamp}{src.suffix}"
         try:
             shutil.move(str(src), str(target))
+            ingested_id = provenance.get(src)
+            if ingested_id:
+                row = db.get(IngestedFile, ingested_id)
+                if row:
+                    row.stored_path = str(target.relative_to(dropzone_root()))
         except OSError as e:
             print(f"[dropzone] could not archive {src.name}: {e}", flush=True)
+    db.commit()
 
     print(f"[dropzone] case {case.id}: queued {len(rows)} file(s) from {source_label}", flush=True)
     return collection_id, rows

@@ -21,7 +21,7 @@ Text tags (inline replacement):
 
 Report content (analyst-authored, rendered as formatted DOCX paragraphs):
   {{report_analysis}}         Analyse Technique (box 1 of the Report tab)
-  {{report_remediation}}      Remédiations      (box 2 of the Report tab)
+  {{report_remediation}}      Remediations      (box 2 of the Report tab)
   {{report_conclusion}}       Conclusion        (box 3 of the Report tab)
   {{report_content}}          All 3 boxes combined (backward compat alias)
 
@@ -37,24 +37,29 @@ Block tags (replaced with a table or image):
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # annotation only — python-docx is an optional import
+    from docx.table import Table
+
 import io
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from ..database import get_db
-from ..models.report_doc_template import ReportDocTemplate
-from ..models.case import Case
-from ..models.attack_graph import AttackGraph
-from ..models.user import User
-from ..core.deps import get_current_user
 from ..config import settings
+from ..core.deps import get_current_user
+from ..database import get_db
+from ..models.attack_graph import AttackGraph
+from ..models.case import Case
+from ..models.report_doc_template import ReportDocTemplate
+from ..models.user import User
+from ..services.graph_render import render_attack_graph_png
 
 router = APIRouter(prefix="/report-doc-templates", tags=["report-doc-templates"])
 
@@ -98,7 +103,7 @@ class ReportDocTemplateOut(BaseModel):
     file_size:     int
     tags_detected: list[str]
     created_at:    datetime
-    created_by:    Optional[str]
+    created_by:    str | None
 
     model_config = {"from_attributes": True}
 
@@ -131,7 +136,7 @@ def _detect_tags_docx(file_bytes: bytes) -> list[str]:
 
 # ── Context builder ────────────────────────────────────────────────────────────
 
-def _fmt_dt(dt: Optional[datetime]) -> str:
+def _fmt_dt(dt: datetime | None) -> str:
     return dt.strftime("%Y-%m-%d %H:%M UTC") if dt else "N/A"
 
 
@@ -149,7 +154,7 @@ def _build_context(case: Case, author: str) -> dict[str, str]:
         "case.quick_notes":       case.quick_notes or "",
         "case.assigned_to":       case.assigned_to or "Unassigned",
         "case.tags":              case.tags or "",
-        "report.date":            datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "report.date":            datetime.now(UTC).strftime("%Y-%m-%d"),
         "report.author":          author,
     }
 
@@ -334,7 +339,7 @@ def _hex_to_rgb(h: str) -> tuple:
     return tuple(int(h[i:i+2], 16) / 255.0 for i in (0, 2, 4))
 
 
-def _render_mitre_matrix_png(case: Case) -> "Optional[tuple[bytes, float]]":
+def _render_mitre_matrix_png(case: Case) -> tuple[bytes, float] | None:
     """
     Render a clean, report-ready MITRE ATT&CK matrix image.
 
@@ -354,10 +359,10 @@ def _render_mitre_matrix_png(case: Case) -> "Optional[tuple[bytes, float]]":
     the case TTPs must be deleted and re-added from the updated matrix.
     """
     try:
-        import matplotlib                                   # type: ignore
+        import matplotlib  # type: ignore
         matplotlib.use("Agg")
-        import matplotlib.pyplot as plt                    # type: ignore
-        from matplotlib.patches import Rectangle           # type: ignore
+        import matplotlib.pyplot as plt  # type: ignore
+        from matplotlib.patches import Rectangle  # type: ignore
 
         ttps = sorted(
             getattr(case, "ttps", []) or [],
@@ -551,13 +556,13 @@ def _render_markdown(template_text: str, case: Case, ctx: dict[str, str]) -> str
     text = text.replace("{{asset_table}}", _md_asset_table(case))
     text = text.replace("{{evidence_table}}", _md_evidence_table(case))
     text = text.replace("{{timeline_table}}", _md_timeline_table(case))
-    text = text.replace("{{attack_graph}}", "_[Attach the attack graph image — export it from the Attack Graph tab]_")
+    text = text.replace("{{attack_graph}}", "_[Attach the attack graph image — Export PNG in the Attack Graph tab]_")
     text = text.replace("{{mitre_matrix}}", _md_mitre_matrix(case))
     text = text.replace("{{mitre_matrix_img}}", "_[MITRE ATT&CK matrix image — available in DOCX export only]_")
     # Split report content tags (fixed 3-section backward compat)
-    text = text.replace("{{report_analysis}}",    (case.report_analysis    or "").strip() or "_[Aucune analyse rédigée.]_")
-    text = text.replace("{{report_remediation}}", (case.report_remediation or "").strip() or "_[Aucune remédiation rédigée.]_")
-    text = text.replace("{{report_conclusion}}",  (case.report_conclusion  or "").strip() or "_[Aucune conclusion rédigée.]_")
+    text = text.replace("{{report_analysis}}",    (case.report_analysis    or "").strip() or "_[No analysis written.]_")
+    text = text.replace("{{report_remediation}}", (case.report_remediation or "").strip() or "_[No remediation written.]_")
+    text = text.replace("{{report_conclusion}}",  (case.report_conclusion  or "").strip() or "_[No conclusion written.]_")
     # Dynamic per-section tags from report_sections_data
     import json as _json
     try:
@@ -565,9 +570,9 @@ def _render_markdown(template_text: str, case: Case, ctx: dict[str, str]) -> str
     except Exception:
         sections_data = {}
     for slug, content in sections_data.items():
-        text = text.replace(f"{{{{{slug}}}}}", (content or "").strip() or f"_[Section «{slug}» non rédigée.]_")
+        text = text.replace(f"{{{{{slug}}}}}", (content or "").strip() or f"_[Section '{slug}' not written.]_")
     # Combined backward compat
-    text = text.replace("{{report_content}}", case.report or "_[Aucun contenu de rapport rédigé.]_")
+    text = text.replace("{{report_content}}", case.report or "_[No report content written.]_")
     return text
 
 
@@ -596,8 +601,8 @@ def _replace_text_in_para(para, ctx: dict[str, str]) -> bool:
 
 def _set_cell_bg(cell, color_hex: str) -> None:
     """Apply background shading to a table cell (no leading #)."""
-    from docx.oxml.ns import qn  # type: ignore
     from docx.oxml import OxmlElement  # type: ignore
+    from docx.oxml.ns import qn  # type: ignore
     tc = cell._tc
     tcPr = tc.get_or_add_tcPr()
     for existing in tcPr.findall(qn("w:shd")):
@@ -614,7 +619,7 @@ def _build_word_table(
     headers: list[str],
     rows: list[list[str]],
     header_color: str = "1E3A5F",
-) -> "Table":  # type: ignore[name-defined]
+) -> Table:
     """
     Create a fully styled Word table:
     - Extends ~0.5 cm beyond the page text-area on both sides
@@ -623,8 +628,8 @@ def _build_word_table(
     - Alternating light-grey row shading for readability
     - Font size 9pt header / 8pt body
     """
-    from docx.oxml.ns import qn  # type: ignore
     from docx.oxml import OxmlElement  # type: ignore
+    from docx.oxml.ns import qn  # type: ignore
     from docx.shared import Pt, RGBColor  # type: ignore
 
     EMU_PER_TWIP = 635        # 914 400 EMU/in ÷ 1 440 twips/in
@@ -642,7 +647,7 @@ def _build_word_table(
         tbl.insert(0, tblPr)
 
     # ── Width: extend beyond the text area ───────────────────────────────────
-    col_w_twips: Optional[int] = None
+    col_w_twips: int | None = None
     try:
         section  = doc.sections[0]
         text_w   = int((section.page_width - section.left_margin - section.right_margin)
@@ -731,7 +736,7 @@ def _build_word_table(
     return table
 
 
-def _build_mitre_word_table(doc, case: Case) -> "Table":  # type: ignore[name-defined]
+def _build_mitre_word_table(doc, case: Case) -> Table:
     """
     Build a MITRE ATT&CK coverage Word table for the case.
 
@@ -744,9 +749,9 @@ def _build_mitre_word_table(doc, case: Case) -> "Table":  # type: ignore[name-de
     - Free-standing sub-techniques (selected without parent) appear indented
       after an auto-inserted parent placeholder row.
     """
-    from docx.shared import Pt, RGBColor
-    from docx.oxml.ns import qn
     from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.shared import Pt, RGBColor
 
     HEADER_COLOR = "0F2942"   # Deep navy — neutral DFIR feel
     SUB_BG       = "F0FDF4"   # Very light green — sub-technique rows
@@ -836,7 +841,7 @@ def _build_mitre_word_table(doc, case: Case) -> "Table":  # type: ignore[name-de
 
     # Header row
     hdr = table.rows[0].cells
-    for i, (label, w) in enumerate(zip(["Tactic", "Technique ID", "Technique Name"], COL_PCTS)):
+    for i, (label, w) in enumerate(zip(["Tactic", "Technique ID", "Technique Name"], COL_PCTS, strict=True)):
         _set_cell_bg(hdr[i], HEADER_COLOR); _set_col_w(hdr[i], w)
         run = hdr[i].paragraphs[0].add_run(label)
         run.bold = True; run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF); run.font.size = Pt(9)
@@ -863,7 +868,7 @@ def _build_mitre_word_table(doc, case: Case) -> "Table":  # type: ignore[name-de
                 for c in cells: _set_cell_bg(c, ALT_BG.lstrip("#"))
             tact_text = tact if tact != prev_tactic else ""  # only show tactic on first row of group
             prev_tactic = tact
-            for c_i, (text, w) in enumerate(zip([tact_text, tid, name], COL_PCTS)):
+            for c_i, (text, _w) in enumerate(zip([tact_text, tid, name], COL_PCTS, strict=True)):
                 run = cells[c_i].paragraphs[0].add_run(text)
                 run.font.size = Pt(8)
                 if c_i == 1:  # technique ID — slightly bold
@@ -872,175 +877,8 @@ def _build_mitre_word_table(doc, case: Case) -> "Table":  # type: ignore[name-de
     return table
 
 
-def _render_attack_graph_png(nodes: list, edges: list) -> Optional[bytes]:
-    """
-    Render the attack graph using the actual ReactFlow node positions and types,
-    reproducing the visual style of the AttackGraph tab.
 
-    Nodes are stored as ReactFlow Node objects:
-      { id, type, position: {x, y}, data: {label, subLabel, nodeKind, notes,
-        compromised, iocType, ...}, style: {width: 200} }
-    Edges: { id, source, target, ... }
-    """
-    try:
-        import matplotlib                           # type: ignore
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt            # type: ignore
-        import matplotlib.patches as mpatches      # type: ignore
-        from matplotlib.patches import FancyBboxPatch  # type: ignore
-
-        if not nodes:
-            return None
-
-        # ── Constants matching the frontend ───────────────────────────────────
-        NODE_W  = 200    # matches NODE_WIDTH in AttackGraphNodes.tsx
-        NODE_H  = 72     # estimated — label (18) + subLabel (14) + padding (40)
-        BG      = "#0B121F"
-
-        # Border + fill colours per nodeKind
-        THEME = {
-            "timeline":           {"border": "#9FEF00", "fill": "#0e1f05"},
-            "asset":              {"border": "#3b82f6", "fill": "#050f20"},
-            "asset_compromised":  {"border": "#ef4444", "fill": "#1a0505"},
-            "attacker":           {"border": "#ef4444", "fill": "#1a0505"},
-            "free":               {"border": "#4b5563", "fill": "#111827"},
-        }
-        IOC_COLORS = {
-            "ip":          "#ef4444",
-            "domain":      "#f97316",
-            "url":         "#fb923c",
-            "hash_md5":    "#a855f7",
-            "hash_sha1":   "#a855f7",
-            "hash_sha256": "#a855f7",
-            "email":       "#3b82f6",
-            "filename":    "#eab308",
-            "registry":    "#ec4899",
-            "certificate": "#ec4899",
-            "email_subject": "#60a5fa",
-        }
-
-        node_map: dict[str, dict] = {str(n["id"]): n for n in nodes}
-
-        # ── Compute bounding box from real positions ────────────────────────
-        xs = [n.get("position", {}).get("x", 0) for n in nodes]
-        ys = [n.get("position", {}).get("y", 0) for n in nodes]
-        pad = 80
-        min_x, max_x = min(xs) - pad, max(xs) + NODE_W + pad
-        min_y, max_y = min(ys) - pad, max(ys) + NODE_H + pad
-        data_w = max(max_x - min_x, 1)
-        data_h = max(max_y - min_y, 1)
-
-        # Scale to a reasonable figure size (1 in ≈ 120 data units, cap at 20 in)
-        SCALE = 120
-        fig_w = max(10.0, min(20.0, data_w / SCALE))
-        fig_h = max(6.0,  min(14.0, data_h / SCALE))
-
-        fig, ax = plt.subplots(figsize=(fig_w, fig_h))
-        fig.patch.set_facecolor(BG)
-        ax.set_facecolor(BG)
-        # ReactFlow: Y increases downward → invert matplotlib Y axis
-        ax.set_xlim(min_x, max_x)
-        ax.set_ylim(max_y, min_y)
-        ax.axis("off")
-
-        # ── Draw edges ─────────────────────────────────────────────────────
-        for edge in (edges or []):
-            src_node = node_map.get(str(edge.get("source", "")))
-            tgt_node = node_map.get(str(edge.get("target", "")))
-            if not src_node or not tgt_node:
-                continue
-            sp = src_node.get("position", {"x": 0, "y": 0})
-            tp = tgt_node.get("position", {"x": 0, "y": 0})
-            x1 = sp["x"] + NODE_W / 2
-            y1 = sp["y"] + NODE_H       # bottom-centre of source
-            x2 = tp["x"] + NODE_W / 2
-            y2 = tp["y"]                # top-centre of target
-            ax.annotate(
-                "", xy=(x2, y2), xytext=(x1, y1),
-                arrowprops=dict(
-                    arrowstyle="-|>",
-                    color="#4b5563",
-                    lw=1.2,
-                    connectionstyle="arc3,rad=0.04",
-                ),
-                zorder=1,
-            )
-
-        # ── Draw nodes ─────────────────────────────────────────────────────
-        for node in nodes:
-            pos  = node.get("position", {"x": 0, "y": 0})
-            data = node.get("data", {})
-            ntype = str(node.get("type", "free"))
-            x, y = pos["x"], pos["y"]
-
-            # Pick theme
-            if ntype == "attacker":
-                th = THEME["attacker"]
-            elif ntype == "timeline":
-                th = THEME["timeline"]
-            elif ntype == "asset":
-                th = THEME["asset_compromised"] if data.get("compromised") else THEME["asset"]
-            elif ntype == "ioc":
-                col = IOC_COLORS.get(str(data.get("iocType", "")), "#a855f7")
-                th = {"border": col, "fill": "#0d0516"}
-            else:  # free / unknown
-                th = THEME["free"]
-
-            # Rounded rectangle
-            rect = FancyBboxPatch(
-                (x + 1, y + 1), NODE_W - 2, NODE_H - 2,
-                boxstyle="round,pad=0,rounding_size=6",
-                facecolor=th["fill"],
-                edgecolor=th["border"],
-                linewidth=1.8,
-                zorder=2,
-            )
-            ax.add_patch(rect)
-
-            # Attacker node: pill shape label centred
-            label     = str(data.get("label", node.get("id", "")))
-            sub_label = str(data.get("subLabel", ""))
-            notes     = str(data.get("notes", ""))
-
-            # Truncate long strings
-            if len(label) > 32:
-                label = label[:30] + "…"
-            if len(sub_label) > 36:
-                sub_label = sub_label[:34] + "…"
-            if len(notes) > 52:
-                notes = notes[:50] + "…"
-
-            text_x = x + 10
-            if sub_label:
-                ax.text(text_x, y + 12, sub_label,
-                        color=th["border"], fontsize=6.0, va="top", ha="left",
-                        fontstyle="italic", zorder=3)
-                ax.text(text_x, y + 26, label,
-                        color="white", fontsize=7.5, fontweight="bold",
-                        va="top", ha="left", zorder=3)
-                if notes:
-                    ax.text(text_x, y + 47, notes,
-                            color="#8b949e", fontsize=5.5, va="top", ha="left", zorder=3)
-            else:
-                ax.text(text_x, y + NODE_H / 2, label,
-                        color="white", fontsize=7.5, fontweight="bold",
-                        va="center", ha="left", zorder=3)
-                if notes:
-                    ax.text(text_x, y + NODE_H / 2 + 12, notes,
-                            color="#8b949e", fontsize=5.5, va="top", ha="left", zorder=3)
-
-        buf = io.BytesIO()
-        plt.savefig(buf, format="png", bbox_inches="tight",
-                    facecolor=BG, dpi=150)
-        plt.close(fig)
-        buf.seek(0)
-        return buf.read()
-
-    except Exception:
-        return None
-
-
-def _resolve_image_url(url: str) -> "Optional[Path]":
+def _resolve_image_url(url: str) -> Path | None:
     """
     Map a note-image URL (or vault view URL) to an absolute local path.
 
@@ -1079,6 +917,7 @@ def _md_to_docx_paragraphs(doc, placeholder_para, md_text: str) -> None:
         (falls back to [alt] if the image cannot be resolved)
     """
     import re as _re
+
     from docx.shared import Inches  # type: ignore
 
     # Regex that matches a full markdown image token
@@ -1210,10 +1049,10 @@ def _md_to_docx_paragraphs(doc, placeholder_para, md_text: str) -> None:
 
 
 def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
-                 attack_graph_png: Optional[bytes]) -> bytes:
+                 attack_graph_png: bytes | None) -> bytes:
     from docx import Document  # type: ignore
-    from docx.shared import Inches  # type: ignore
     from docx.oxml.ns import qn  # type: ignore
+    from docx.shared import Inches  # type: ignore
 
     doc = Document(template_path)
 
@@ -1284,13 +1123,13 @@ def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
     for para, block_tag in block_paras:
 
         if block_tag == "report_analysis":
-            _md_to_docx_paragraphs(doc, para, (case.report_analysis or "").strip() or "_[Aucune analyse rédigée.]_")
+            _md_to_docx_paragraphs(doc, para, (case.report_analysis or "").strip() or "_[No analysis written.]_")
 
         elif block_tag == "report_remediation":
-            _md_to_docx_paragraphs(doc, para, (case.report_remediation or "").strip() or "_[Aucune remédiation rédigée.]_")
+            _md_to_docx_paragraphs(doc, para, (case.report_remediation or "").strip() or "_[No remediation written.]_")
 
         elif block_tag == "report_conclusion":
-            _md_to_docx_paragraphs(doc, para, (case.report_conclusion or "").strip() or "_[Aucune conclusion rédigée.]_")
+            _md_to_docx_paragraphs(doc, para, (case.report_conclusion or "").strip() or "_[No conclusion written.]_")
 
         elif block_tag.startswith("report_") is False and block_tag not in (
             "ioc_table", "asset_table", "evidence_table", "timeline_table",
@@ -1303,7 +1142,7 @@ def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
             except Exception:
                 sd = {}
             content = sd.get(block_tag, "").strip()
-            _md_to_docx_paragraphs(doc, para, content or f"_[Section «{block_tag}» non rédigée.]_")
+            _md_to_docx_paragraphs(doc, para, content or f"_[Section '{block_tag}' not written.]_")
 
         elif block_tag == "report_content":
             # Combined backward compat alias
@@ -1398,7 +1237,7 @@ async def upload_template(
     # Persist to disk
     TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
     safe_name = re.sub(r"[^\w\-.]", "_", fname)
-    dest = TEMPLATES_DIR / f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{safe_name}"
+    dest = TEMPLATES_DIR / f"{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}_{safe_name}"
     dest.write_bytes(file_bytes)
 
     tpl = ReportDocTemplate(
@@ -1465,9 +1304,12 @@ def generate_report(
 
     # DOCX
     ag = db.query(AttackGraph).filter(AttackGraph.case_id == case_id).first()
-    png_bytes: Optional[bytes] = None
+    png_bytes: bytes | None = None
     if ag and ag.nodes:
-        png_bytes = _render_attack_graph_png(ag.nodes, ag.edges or [])
+        # Prefer the canvas the analyst actually saw. The server-side render
+        # is a redrawing from coordinates and never quite matches it; it stays
+        # as the fallback for graphs saved before snapshots existed.
+        png_bytes = ag.snapshot_png or render_attack_graph_png(ag.nodes, ag.edges or [])
 
     docx_bytes = _render_docx(tpl.file_path, case, ctx, png_bytes)
     mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"

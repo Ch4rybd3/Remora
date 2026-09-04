@@ -3,25 +3,26 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   ArrowUp, ArrowDown, SlidersHorizontal, X, ChevronDown, BookmarkPlus, BookmarkCheck,
-} from 'lucide-react'
+} from '../../ui/icons'
 import { evtxApi, type EvtxEvent, type EventFilters, type FileSummary } from '../../api/evtx'
+import { DataTable } from '../../ui/DataTable'
 import { fmtDateTime } from '../../utils/dateUtils'
 
 // ── Level styling ─────────────────────────────────────────────────────────────
 
 const LEVEL_STYLE: Record<string, string> = {
   Critical:    'bg-severity-critical/15 text-severity-critical border-severity-critical/30',
-  Error:       'bg-orange-500/15 text-orange-400 border-orange-500/30',
-  Warning:     'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
-  Information: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  Verbose:     'bg-white/5 text-white/40 border-white/10',
+  Error:       'bg-severity-high/15 text-severity-high border-severity-high/30',
+  Warning:     'bg-severity-medium/15 text-severity-medium border-severity-medium/30',
+  Information: 'bg-severity-low/10 text-severity-low border-severity-low/20',
+  Verbose:     'bg-fg/5 text-fg/40 border-hairline',
 }
 
 function LevelBadge({ name }: { name: string | null }) {
   const label = name ?? 'Information'
   const cls   = LEVEL_STYLE[label] ?? LEVEL_STYLE.Information
   return (
-    <span className={`inline-flex items-center px-1.5 py-0.5 rounded border text-[9px] font-medium ${cls}`}>
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-control border text-label font-medium ${cls}`}>
       {label}
     </span>
   )
@@ -82,7 +83,6 @@ interface ColFilter {
 type ColFilters = Record<string, ColFilter>
 
 function ColFilterInput({
-  colKey,
   filter,
   onChange,
 }: {
@@ -101,10 +101,9 @@ function ColFilterInput({
 
   return (
     <div
-      className={`flex items-center h-6 rounded border overflow-hidden transition-colors ${
-        active
-          ? 'border-accent-green/50 bg-accent-green/5'
-          : 'border-white/8 bg-white/[0.03]'
+      className={`flex items-center h-6 rounded-control border overflow-hidden transition-colors ${ active
+          ? 'border-accent/50 bg-accent/5'
+          : 'border-hairline bg-white/[0.03]'
       }`}
       onClick={e => e.stopPropagation()}
     >
@@ -112,12 +111,11 @@ function ColFilterInput({
       <button
         onClick={cycleMode}
         title={`Mode: ${MODE_TITLE[filter.mode]} — click to change`}
-        className={`
-          flex items-center justify-center shrink-0 w-6 h-full border-r text-[9px] font-mono font-bold
+        className={` flex items-center justify-center shrink-0 w-6 h-full border-r text-label font-mono font-bold
           transition-colors select-none
           ${active
-            ? 'border-accent-green/30 text-accent-green hover:bg-accent-green/10'
-            : 'border-white/8 text-accent-muted/50 hover:text-white hover:bg-white/5'}
+            ? 'border-accent/30 text-accent hover:bg-accent/10'
+            : 'border-hairline text-fg-secondary/50 hover:text-fg hover:bg-fg/5'}
         `}
       >
         {MODE_LABEL[filter.mode]}
@@ -129,10 +127,9 @@ function ColFilterInput({
         onChange={e => onChange({ ...filter, value: e.target.value })}
         onClick={e => e.stopPropagation()}
         placeholder="filter…"
-        className={`
-          flex-1 min-w-0 px-1.5 text-[10px] bg-transparent outline-none
-          placeholder:text-white/15
-          ${active ? 'text-white/90' : 'text-white/60'}
+        className={` flex-1 min-w-0 px-1.5 text-label bg-transparent outline-none
+          placeholder:text-fg/15
+          ${active ? 'text-fg/90' : 'text-fg/60'}
         `}
         style={{ height: '100%' }}
       />
@@ -141,7 +138,7 @@ function ColFilterInput({
       {active && (
         <button
           onClick={e => { e.stopPropagation(); onChange({ ...filter, value: '' }) }}
-          className="shrink-0 pr-1 text-accent-muted/40 hover:text-severity-critical transition-colors"
+          className="shrink-0 pr-1 text-fg-secondary/40 hover:text-severity-critical transition-colors"
         >
           <X size={8} />
         </button>
@@ -176,19 +173,19 @@ function FieldFiltersSection({
   return (
     <div>
       <div className="flex items-center gap-2 mb-2">
-        <p className="text-[9px] text-accent-muted/30 uppercase tracking-widest">
+        <p className="text-label text-fg-secondary/30 uppercase tracking-widest">
           EventData Field Filters
         </p>
         <button
           onClick={addRow}
-          className="flex items-center gap-0.5 text-[9px] text-accent-green/60 hover:text-accent-green transition-colors"
+          className="flex items-center gap-0.5 text-label text-accent/60 hover:text-accent transition-colors"
         >
           + Add filter
         </button>
       </div>
 
       {filters.length === 0 && (
-        <p className="text-[10px] text-accent-muted/25 italic">
+        <p className="text-label text-fg-secondary/25 italic">
           Filter on specific EventData fields — e.g. LogonType = 5
         </p>
       )}
@@ -201,14 +198,14 @@ function FieldFiltersSection({
               value={f.key}
               onChange={e => updateRow(f.id, { key: e.target.value })}
               placeholder="Field name (e.g. LogonType)"
-              className="w-44 bg-white/5 border border-white/10 rounded px-2 py-1 text-[11px] text-white placeholder:text-white/15 outline-none focus:border-accent-green/40 font-mono"
+              className="w-44 bg-fg/5 border border-hairline rounded-control px-2 py-1 text-label text-fg placeholder:text-fg/15 outline-none focus:border-accent/40 font-mono"
             />
 
             {/* Mode toggle */}
             <button
               onClick={() => cycleMode(f.id, f.mode)}
               title={FIELD_MODE_TITLE[f.mode]}
-              className="w-8 h-6 rounded border border-white/15 text-[10px] font-mono font-bold text-accent-muted hover:text-white hover:border-accent-green/40 hover:bg-accent-green/5 transition-colors shrink-0"
+              className="w-8 h-6 rounded-control border border-hairline text-label font-mono font-bold text-fg-secondary hover:text-fg hover:border-accent/40 hover:bg-accent/5 transition-colors shrink-0"
             >
               {FIELD_MODE_LABEL[f.mode]}
             </button>
@@ -218,13 +215,13 @@ function FieldFiltersSection({
               value={f.value}
               onChange={e => updateRow(f.id, { value: e.target.value })}
               placeholder="value"
-              className="w-36 bg-white/5 border border-white/10 rounded px-2 py-1 text-[11px] text-white placeholder:text-white/15 outline-none focus:border-accent-green/40 font-mono"
+              className="w-36 bg-fg/5 border border-hairline rounded-control px-2 py-1 text-label text-fg placeholder:text-fg/15 outline-none focus:border-accent/40 font-mono"
             />
 
             {/* Remove */}
             <button
               onClick={() => removeRow(f.id)}
-              className="text-accent-muted/30 hover:text-severity-critical transition-colors shrink-0"
+              className="text-fg-secondary/30 hover:text-severity-critical transition-colors shrink-0"
             >
               <X size={11} />
             </button>
@@ -239,18 +236,18 @@ function FieldFiltersSection({
 
 function EventDetail({ event, onClose }: { event: EvtxEvent; onClose: () => void }) {
   return (
-    <div className="border-t border-white/8 bg-bg-secondary/60 px-4 py-3">
+    <div className="border-t border-hairline bg-panel/60 px-4 py-3">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] font-semibold text-accent-muted/60 uppercase tracking-widest">
+        <span className="text-label font-semibold text-fg-secondary/60 uppercase tracking-widest">
           Event Detail — #{event.record_id ?? event.id}
         </span>
-        <button onClick={onClose} className="text-accent-muted/40 hover:text-white transition-colors">
+        <button onClick={onClose} className="text-fg-secondary/40 hover:text-fg transition-colors">
           <X size={13} />
         </button>
       </div>
 
       {/* Meta grid */}
-      <div className="grid grid-cols-2 gap-x-6 gap-y-1 mb-3 text-[11px]">
+      <div className="grid grid-cols-2 gap-x-6 gap-y-1 mb-3 text-label">
         {([
           ['Time',     fmtDateTime(event.time_created)],
           ['Event ID', String(event.event_id ?? '—')],
@@ -262,8 +259,8 @@ function EventDetail({ event, onClose }: { event: EvtxEvent; onClose: () => void
           ['Record #', String(event.record_id ?? '—')],
         ] as [string, string][]).map(([k, v]) => (
           <div key={k} className="flex gap-2">
-            <span className="text-accent-muted/40 w-16 shrink-0">{k}</span>
-            <span className="text-white/70 font-mono break-all">{v}</span>
+            <span className="text-fg-secondary/40 w-16 shrink-0">{k}</span>
+            <span className="text-fg/70 font-mono break-all">{v}</span>
           </div>
         ))}
       </div>
@@ -271,14 +268,14 @@ function EventDetail({ event, onClose }: { event: EvtxEvent; onClose: () => void
       {/* EventData */}
       {event.event_data && Object.keys(event.event_data).length > 0 && (
         <>
-          <p className="text-[9px] text-accent-muted/30 uppercase tracking-widest mb-1.5">Event Data</p>
-          <div className="rounded border border-white/8 overflow-hidden">
+          <p className="text-label text-fg-secondary/30 uppercase tracking-widest mb-1.5">Event Data</p>
+          <div className="rounded-control border border-hairline overflow-hidden">
             {Object.entries(event.event_data).map(([k, v], i) => (
-              <div key={k} className={`flex text-[11px] ${i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                <span className="w-48 shrink-0 px-3 py-1 text-accent-muted/50 border-r border-white/5 font-mono truncate" title={k}>
+              <div key={k} className={`flex text-label ${i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
+                <span className="w-48 shrink-0 px-3 py-1 text-fg-secondary/50 border-r border-hairline font-mono truncate" title={k}>
                   {k}
                 </span>
-                <span className="flex-1 px-3 py-1 text-white/70 font-mono break-all">
+                <span className="flex-1 px-3 py-1 text-fg/70 font-mono break-all">
                   {v || <span className="opacity-20 italic">empty</span>}
                 </span>
               </div>
@@ -349,21 +346,21 @@ function FilterBar({
   }
 
   return (
-    <div className="border-b border-white/5 bg-bg-secondary/30">
+    <div className="border-b border-hairline bg-panel/30">
       <div className="flex items-center gap-2 px-3 py-2">
         {/* Search */}
         <div className="relative flex-1 max-w-xs">
-          <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-accent-muted/30" />
+          <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-secondary/30" />
           <input
             value={localSearch}
             onChange={e => handleSearch(e.target.value)}
             placeholder="Search all columns…"
-            className="w-full bg-white/5 border border-white/8 rounded pl-7 pr-3 py-1.5 text-[11px] text-white placeholder:text-accent-muted/30 outline-none focus:border-accent-green/30 transition-colors"
+            className="w-full bg-fg/5 border border-hairline rounded-control pl-7 pr-3 py-1.5 text-label text-fg placeholder:text-fg-secondary/30 outline-none focus:border-accent/30 transition-colors"
           />
           {localSearch && (
             <button
               onClick={() => { setLocalSearch(''); onFilterChange({ search: undefined, page: 1 }) }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-accent-muted/40 hover:text-white"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-fg-secondary/40 hover:text-fg"
             ><X size={10} /></button>
           )}
         </div>
@@ -371,7 +368,7 @@ function FilterBar({
         {/* Sort direction */}
         <button
           onClick={() => onFilterChange({ sort_dir: filters.sort_dir === 'asc' ? 'desc' : 'asc', page: 1 })}
-          className="flex items-center gap-1 px-2 py-1.5 rounded border border-white/8 text-[10px] text-accent-muted hover:text-white hover:border-white/20 transition-colors"
+          className="flex items-center gap-1 px-2 py-1.5 rounded-control border border-hairline text-label text-fg-secondary hover:text-fg hover:border-strong transition-colors"
           title="Toggle sort direction"
         >
           {filters.sort_dir === 'asc' ? <ArrowUp size={10} /> : <ArrowDown size={10} />}
@@ -381,10 +378,9 @@ function FilterBar({
         {/* Toggle advanced */}
         <button
           onClick={() => setShowFilters(s => !s)}
-          className={`flex items-center gap-1 px-2 py-1.5 rounded border text-[10px] transition-colors ${
-            activeGlobal > 0
-              ? 'border-accent-green/30 text-accent-green bg-accent-green/5'
-              : 'border-white/8 text-accent-muted hover:text-white hover:border-white/20'
+          className={`flex items-center gap-1 px-2 py-1.5 rounded-control border text-label transition-colors ${ activeGlobal > 0
+              ? 'border-accent/30 text-accent bg-accent/5'
+              : 'border-hairline text-fg-secondary hover:text-fg hover:border-strong'
           }`}
         >
           <SlidersHorizontal size={10} />
@@ -394,14 +390,14 @@ function FilterBar({
 
         {/* Column filter indicator */}
         {activeColCount > 0 && (
-          <span className="text-[10px] text-accent-green/60 bg-accent-green/5 border border-accent-green/20 rounded px-2 py-1">
+          <span className="text-label text-accent/60 bg-accent/5 border border-accent/20 rounded-control px-2 py-1">
             {activeColCount} col filter{activeColCount > 1 ? 's' : ''}
           </span>
         )}
 
         {/* Field filter indicator */}
         {activeField > 0 && (
-          <span className="text-[10px] text-blue-400/70 bg-blue-500/5 border border-blue-500/20 rounded px-2 py-1">
+          <span className="text-label text-severity-low/70 bg-severity-low/5 border border-severity-low/20 rounded-control px-2 py-1">
             {activeField} field filter{activeField > 1 ? 's' : ''}
           </span>
         )}
@@ -410,17 +406,17 @@ function FilterBar({
         {activeTotal > 0 && (
           <button
             onClick={handleReset}
-            className="text-[10px] text-accent-muted/50 hover:text-severity-critical transition-colors"
+            className="text-label text-fg-secondary/50 hover:text-severity-critical transition-colors"
           >
             Reset all
           </button>
         )}
 
         {/* Stats */}
-        <div className="ml-auto text-[10px] text-accent-muted/40 whitespace-nowrap">
+        <div className="ml-auto text-label text-fg-secondary/40 whitespace-nowrap">
           {filteredTotal < total
-            ? <><span className="text-white/60">{filteredTotal.toLocaleString()}</span> / {total.toLocaleString()} events</>
-            : <><span className="text-white/60">{total.toLocaleString()}</span> events</>
+            ? <><span className="text-fg/60">{filteredTotal.toLocaleString()}</span> / {total.toLocaleString()} events</>
+            : <><span className="text-fg/60">{total.toLocaleString()}</span> events</>
           }
         </div>
       </div>
@@ -430,15 +426,14 @@ function FilterBar({
         <div className="px-3 pb-3 flex flex-wrap gap-4">
           {summary.channels.length > 0 && (
             <div>
-              <p className="text-[9px] text-accent-muted/30 uppercase tracking-widest mb-1.5">Channel</p>
+              <p className="text-label text-fg-secondary/30 uppercase tracking-widest mb-1.5">Channel</p>
               <div className="flex flex-wrap gap-1">
                 {summary.channels.map(ch => {
                   const active = selectedChannels.includes(ch.channel)
                   return (
                     <button key={ch.channel} onClick={() => toggleChannel(ch.channel)}
-                      className={`px-2 py-0.5 rounded border text-[10px] transition-colors ${
-                        active ? 'border-accent-green/50 bg-accent-green/10 text-accent-green'
-                               : 'border-white/10 text-accent-muted hover:text-white hover:border-white/20'
+                      className={`px-2 py-0.5 rounded-control border text-label transition-colors ${ active ? 'border-accent/50 bg-accent/10 text-accent'
+                               : 'border-hairline text-fg-secondary hover:text-fg hover:border-strong'
                       }`}
                     >
                       {ch.channel} <span className="opacity-40">{ch.event_count.toLocaleString()}</span>
@@ -451,15 +446,14 @@ function FilterBar({
 
           {Object.keys(summary.levels).length > 0 && (
             <div>
-              <p className="text-[9px] text-accent-muted/30 uppercase tracking-widest mb-1.5">Level</p>
+              <p className="text-label text-fg-secondary/30 uppercase tracking-widest mb-1.5">Level</p>
               <div className="flex flex-wrap gap-1">
                 {Object.entries(summary.levels).map(([lv, cnt]) => {
                   const active = selectedLevels.includes(lv)
                   const cls    = LEVEL_STYLE[lv] ?? LEVEL_STYLE.Information
                   return (
                     <button key={lv} onClick={() => toggleLevel(lv)}
-                      className={`px-2 py-0.5 rounded border text-[10px] transition-colors ${
-                        active ? cls : 'border-white/10 text-accent-muted hover:text-white'
+                      className={`px-2 py-0.5 rounded-control border text-label transition-colors ${ active ? cls : 'border-hairline text-fg-secondary hover:text-fg'
                       }`}
                     >
                       {lv} <span className="opacity-40">{cnt.toLocaleString()}</span>
@@ -471,34 +465,34 @@ function FilterBar({
           )}
 
           <div>
-            <p className="text-[9px] text-accent-muted/30 uppercase tracking-widest mb-1.5">Event ID</p>
+            <p className="text-label text-fg-secondary/30 uppercase tracking-widest mb-1.5">Event ID</p>
             <input
               value={filters.event_ids ?? ''}
               onChange={e => onFilterChange({ event_ids: e.target.value || undefined, page: 1 })}
               placeholder="e.g. 4624,4625"
-              className="bg-white/5 border border-white/8 rounded px-2 py-1 text-[11px] text-white placeholder:text-accent-muted/30 outline-none focus:border-accent-green/30 w-36"
+              className="bg-fg/5 border border-hairline rounded-control px-2 py-1 text-label text-fg placeholder:text-fg-secondary/30 outline-none focus:border-accent/30 w-36"
             />
           </div>
 
           <div>
-            <p className="text-[9px] text-accent-muted/30 uppercase tracking-widest mb-1.5">Date range</p>
+            <p className="text-label text-fg-secondary/30 uppercase tracking-widest mb-1.5">Date range</p>
             <div className="flex items-center gap-2">
               <input type="datetime-local"
                 value={filters.time_from?.slice(0, 16) ?? ''}
                 onChange={e => onFilterChange({ time_from: e.target.value || undefined, page: 1 })}
-                className="bg-white/5 border border-white/8 rounded px-2 py-1 text-[11px] text-white outline-none focus:border-accent-green/30 w-44"
+                className="bg-fg/5 border border-hairline rounded-control px-2 py-1 text-label text-fg outline-none focus:border-accent/30 w-44"
               />
-              <span className="text-accent-muted/30 text-[10px]">→</span>
+              <span className="text-fg-secondary/30 text-label">→</span>
               <input type="datetime-local"
                 value={filters.time_to?.slice(0, 16) ?? ''}
                 onChange={e => onFilterChange({ time_to: e.target.value || undefined, page: 1 })}
-                className="bg-white/5 border border-white/8 rounded px-2 py-1 text-[11px] text-white outline-none focus:border-accent-green/30 w-44"
+                className="bg-fg/5 border border-hairline rounded-control px-2 py-1 text-label text-fg outline-none focus:border-accent/30 w-44"
               />
             </div>
           </div>
 
           {/* EventData field filters */}
-          <div className="w-full border-t border-white/5 pt-3 mt-1">
+          <div className="w-full border-t border-hairline pt-3 mt-1">
             <FieldFiltersSection filters={fieldFilters} onChange={onFieldFilters} />
           </div>
         </div>
@@ -519,24 +513,24 @@ function PaginationBar({
   const to   = Math.min(page * pageSize, total)
 
   return (
-    <div className="flex items-center gap-3 px-3 py-2 border-t border-white/5 bg-bg-secondary/30 shrink-0">
+    <div className="flex items-center gap-3 px-3 py-2 border-t border-hairline bg-panel/30 shrink-0">
       <select
         value={pageSize}
         onChange={e => onPageSize(Number(e.target.value))}
-        className="bg-white/5 border border-white/8 rounded px-2 py-1 text-[10px] text-accent-muted outline-none"
+        className="bg-fg/5 border border-hairline rounded-control px-2 py-1 text-label text-fg-secondary outline-none"
       >
         {[50, 100, 200, 500].map(s => (
           <option key={s} value={s}>{s} / page</option>
         ))}
       </select>
 
-      <span className="text-[10px] text-accent-muted/40">
+      <span className="text-label text-fg-secondary/40">
         {from.toLocaleString()}–{to.toLocaleString()} of {total.toLocaleString()}
       </span>
 
       <div className="flex items-center gap-0.5 ml-auto">
-        <button onClick={() => onPage(1)}         disabled={page === 1}     className="p-1 rounded text-accent-muted/40 hover:text-white disabled:opacity-20 transition-colors"><ChevronsLeft  size={13} /></button>
-        <button onClick={() => onPage(page - 1)}  disabled={page === 1}     className="p-1 rounded text-accent-muted/40 hover:text-white disabled:opacity-20 transition-colors"><ChevronLeft   size={13} /></button>
+        <button onClick={() => onPage(1)}         disabled={page === 1}     className="p-1 rounded-control text-fg-secondary/40 hover:text-fg disabled:opacity-20 transition-colors"><ChevronsLeft  size={13} /></button>
+        <button onClick={() => onPage(page - 1)}  disabled={page === 1}     className="p-1 rounded-control text-fg-secondary/40 hover:text-fg disabled:opacity-20 transition-colors"><ChevronLeft   size={13} /></button>
 
         {Array.from({ length: Math.min(7, pages) }, (_, i) => {
           let p: number
@@ -546,15 +540,14 @@ function PaginationBar({
           else                        p = page - 3 + i
           return (
             <button key={p} onClick={() => onPage(p)}
-              className={`w-6 h-6 rounded text-[10px] transition-colors ${
-                p === page ? 'bg-accent-green/15 text-accent-green' : 'text-accent-muted/50 hover:text-white'
+              className={`w-6 h-6 rounded-control text-label transition-colors ${ p === page ? 'bg-accent/15 text-accent' : 'text-fg-secondary/50 hover:text-fg'
               }`}
             >{p}</button>
           )
         })}
 
-        <button onClick={() => onPage(page + 1)}  disabled={page === pages} className="p-1 rounded text-accent-muted/40 hover:text-white disabled:opacity-20 transition-colors"><ChevronRight  size={13} /></button>
-        <button onClick={() => onPage(pages)}     disabled={page === pages} className="p-1 rounded text-accent-muted/40 hover:text-white disabled:opacity-20 transition-colors"><ChevronsRight size={13} /></button>
+        <button onClick={() => onPage(page + 1)}  disabled={page === pages} className="p-1 rounded-control text-fg-secondary/40 hover:text-fg disabled:opacity-20 transition-colors"><ChevronRight  size={13} /></button>
+        <button onClick={() => onPage(pages)}     disabled={page === pages} className="p-1 rounded-control text-fg-secondary/40 hover:text-fg disabled:opacity-20 transition-colors"><ChevronsRight size={13} /></button>
       </div>
     </div>
   )
@@ -707,137 +700,78 @@ export default function TimelineExplorer({ caseId, fileId, filename = '', pinned
         {/* Fetching indicator */}
         {isFetching && (
           <div className="absolute top-2 right-4 z-10">
-            <div className="h-1 w-32 rounded bg-white/5 overflow-hidden">
-              <div className="h-full bg-accent-green/50 animate-pulse" style={{ width: '60%' }} />
+            <div className="h-1 w-32 rounded-control bg-fg/5 overflow-hidden">
+              <div className="h-full bg-accent/50 animate-pulse" style={{ width: '60%' }} />
             </div>
           </div>
         )}
 
-        <table className="w-full border-collapse text-[11px] min-w-[960px]">
-          <thead className="sticky top-0 z-10 bg-bg-secondary">
-            {/* Column name row */}
-            <tr className="border-b border-white/8">
-              {/* Pin column header */}
-              {onPin && <th className="w-8 shrink-0 px-1 pt-2 pb-1" />}
-              {COLUMNS.map(col => (
-                <th key={col.key}
-                  className={`${col.cls} px-3 pt-2 pb-1 text-left font-medium text-[9px] text-accent-muted/40 uppercase tracking-widest whitespace-nowrap`}
-                >
-                  {col.label}
-                </th>
-              ))}
-            </tr>
-
-            {/* Per-column filter row */}
-            <tr className="border-b border-white/5 bg-bg-secondary/80">
-              {/* Pin column filter cell (empty) */}
-              {onPin && <th className="w-8 shrink-0 px-1 py-1.5" />}
-              {COLUMNS.map(col => (
-                <th key={`${col.key}-filter`} className={`${col.cls} px-2 py-1.5`}>
-                  {col.filterKey ? (
-                    <ColFilterInput
-                      colKey={col.filterKey}
-                      filter={colFilters[col.filterKey] ?? defaultColFilter()}
-                      onChange={cf => handleColFilterChange(col.filterKey!, cf)}
-                    />
-                  ) : (
-                    /* Time column: no per-column filter (use date range in global bar) */
-                    <div className="h-6 flex items-center px-1">
-                      <span className="text-[9px] text-white/10 italic">date range ↑</span>
-                    </div>
-                  )}
-                </th>
-              ))}
-            </tr>
-          </thead>
-
-          <tbody>
-            {isLoading && Array.from({ length: 8 }).map((_, i) => (
-              <tr key={i} className="border-b border-white/[0.04]">
-                {COLUMNS.map(col => (
-                  <td key={col.key} className={`${col.cls} px-3 py-2`}>
-                    <div className="h-3 rounded bg-white/5 animate-pulse" style={{ width: `${45 + (i * 7) % 45}%` }} />
-                  </td>
-                ))}
-              </tr>
-            ))}
-
-            {!isLoading && events.length === 0 && (
-              <tr>
-                <td colSpan={COLUMNS.length + (onPin ? 1 : 0)} className="px-3 py-12 text-center text-[11px] text-accent-muted/30 italic">
-                  No events match the current filters
-                </td>
-              </tr>
-            )}
-
-            {events.map(ev => {
-              const isPinned = pinnedIds?.has(ev.id) ?? false
-              return (
-                <>
-                  <tr
-                    key={ev.id}
-                    onClick={() => setExpandedId(id => id === ev.id ? null : ev.id)}
-                    className={`
-                      border-b border-white/[0.04] cursor-pointer transition-colors group
-                      ${expandedId === ev.id
-                        ? 'bg-accent-green/5'
-                        : 'hover:bg-white/[0.025]'}
-                    `}
-                  >
-                    {/* Pin button cell */}
-                    {onPin && (
-                      <td
-                        className="w-8 shrink-0 px-1 py-1.5 text-center"
-                        onClick={e => { e.stopPropagation(); if (!isPinned) onPin(ev, filename) }}
+        <DataTable
+          density="compact"
+          className="min-w-[960px]"
+          rows={events}
+          rowKey={(ev) => String(ev.id)}
+          loading={isLoading}
+          empty="No events match the current filters"
+          onRowClick={(ev) => setExpandedId((id) => (id === ev.id ? null : ev.id))}
+          isRowSelected={(ev) => expandedId === ev.id}
+          renderExpanded={(ev) =>
+            expandedId === ev.id ? <EventDetail event={ev} onClose={() => setExpandedId(null)} /> : null
+          }
+          leading={
+            onPin
+              ? {
+                  width: 'w-8',
+                  render: (ev) => {
+                    const isPinned = pinnedIds?.has(ev.id) ?? false
+                    return isPinned ? (
+                      <BookmarkCheck size={13} className="mx-auto text-accent" />
+                    ) : (
+                      <button
+                        onClick={() => onPin(ev, filename)}
+                        title="Pin to the timeline selection"
+                        aria-label="Pin to the timeline selection"
+                        className="block mx-auto text-fg-muted hover:text-accent transition-colors"
                       >
-                        {isPinned ? (
-                          <BookmarkCheck
-                            size={13}
-                            className="mx-auto text-accent-green/60"
-                          />
-                        ) : (
-                          <BookmarkPlus
-                            size={13}
-                            className="mx-auto text-accent-muted/20 group-hover:text-accent-muted/50 hover:!text-accent-green transition-colors"
-                          />
-                        )}
-                      </td>
-                    )}
-                    <td className="w-44 shrink-0 px-3 py-1.5 font-mono text-[10px] text-white/45 whitespace-nowrap">
-                      {fmtTime(ev.time_created)}
-                    </td>
-                    <td className="w-20 shrink-0 px-3 py-1.5 font-mono text-white/80 font-semibold">
-                      {ev.event_id ?? '—'}
-                    </td>
-                    <td className="w-26 shrink-0 px-3 py-1.5">
-                      <LevelBadge name={ev.level_name} />
-                    </td>
-                    <td className="w-52 shrink-0 px-3 py-1.5 text-white/55 truncate" title={ev.channel ?? ''}>
-                      {ev.channel ?? '—'}
-                    </td>
-                    <td className="flex-1 min-w-0 px-3 py-1.5 text-white/40 truncate" title={ev.provider ?? ''}>
-                      {ev.provider ?? '—'}
-                    </td>
-                    <td className="w-36 shrink-0 px-3 py-1.5 text-white/50 truncate" title={ev.computer ?? ''}>
-                      {ev.computer ?? '—'}
-                    </td>
-                    <td className="w-56 shrink-0 px-3 py-1.5 text-white/25 font-mono text-[10px] truncate" title={dataPreview(ev)}>
-                      {dataPreview(ev)}
-                    </td>
-                  </tr>
-
-                  {expandedId === ev.id && (
-                    <tr key={`${ev.id}-detail`}>
-                      <td colSpan={COLUMNS.length + (onPin ? 1 : 0)} className="p-0">
-                        <EventDetail event={ev} onClose={() => setExpandedId(null)} />
-                      </td>
-                    </tr>
-                  )}
-                </>
-              )
-            })}
-          </tbody>
-        </table>
+                        <BookmarkPlus size={13} />
+                      </button>
+                    )
+                  },
+                }
+              : undefined
+          }
+          renderFilter={(col) => {
+            const def = COLUMNS.find((c) => c.key === col.key)
+            if (!def?.filterKey) {
+              // Time is filtered by the date range in the toolbar above: two
+              // controls for one dimension would disagree sooner or later.
+              return <span className="text-label text-fg-muted italic">date range above</span>
+            }
+            return (
+              <ColFilterInput
+                colKey={def.filterKey}
+                filter={colFilters[def.filterKey] ?? defaultColFilter()}
+                onChange={(cf) => handleColFilterChange(def.filterKey!, cf)}
+              />
+            )
+          }}
+          columns={[
+            { key: 'time_created', header: 'Time', width: 'w-44', mono: true,
+              render: (ev) => <span className="text-fg-secondary whitespace-nowrap">{fmtTime(ev.time_created)}</span> },
+            { key: 'event_id', header: 'Event ID', width: 'w-20', mono: true,
+              render: (ev) => <span className="text-fg font-medium">{ev.event_id ?? '—'}</span> },
+            { key: 'level_name', header: 'Level', width: 'w-24',
+              render: (ev) => <LevelBadge name={ev.level_name} /> },
+            { key: 'channel', header: 'Channel', width: 'w-52',
+              render: (ev) => <span className="block truncate text-fg-secondary" title={ev.channel ?? ''}>{ev.channel ?? '—'}</span> },
+            { key: 'provider', header: 'Provider', hideBelow: 'lg',
+              render: (ev) => <span className="block truncate text-fg-muted" title={ev.provider ?? ''}>{ev.provider ?? '—'}</span> },
+            { key: 'computer', header: 'Computer', width: 'w-36', hideBelow: 'md',
+              render: (ev) => <span className="block truncate text-fg-secondary" title={ev.computer ?? ''}>{ev.computer ?? '—'}</span> },
+            { key: 'preview', header: 'Data', width: 'w-56', mono: true, hideBelow: 'xl',
+              render: (ev) => <span className="block truncate text-fg-muted" title={dataPreview(ev)}>{dataPreview(ev)}</span> },
+          ]}
+        />
       </div>
 
       {/* Pagination */}

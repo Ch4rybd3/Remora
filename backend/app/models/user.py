@@ -1,15 +1,54 @@
-from sqlalchemy import Column, String, Boolean, DateTime, Enum as SAEnum
-from datetime import datetime, timezone
-import uuid
 import enum
+import uuid
+from datetime import UTC, datetime
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Table,
+    Text,
+)
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..database import Base
 
 
 class UserRole(str, enum.Enum):
-    admin = "admin"
-    owner = "owner"
-    analyst = "analyst"
+    """
+    Roles are **not a rank**. See `core/permissions.py`.
+
+    `read_only` and `executive` do not sit above or below an analyst; they sit
+    sideways. Modelling them as ranks is what the previous `ROLE_RANK` could not
+    do: "sees everything, writes nothing" has no position on a line.
+    """
+    admin     = "admin"
+    owner     = "owner"
+    analyst   = "analyst"
+    #: Everything an analyst can see, and nothing they can change.
+    read_only = "read_only"
+    #: Case list, dashboard and reports. No artifact-level access at all.
+    executive = "executive"
+
+
+#: Which clients an account is restricted to.
+#:
+#: **An account with no rows here sees everything.** That is what lets scoping
+#: be introduced without touching a single existing account: the restriction is
+#: opt-in, and the absence of one is the current behaviour rather than a
+#: lockout. It also means adding a client does not silently widen anybody.
+user_clients = Table(
+    "user_clients",
+    Base.metadata,
+    Column("user_id", String, ForeignKey("users.id", ondelete="CASCADE"),
+           primary_key=True),
+    Column("client_id", String, ForeignKey("clients.id", ondelete="CASCADE"),
+           primary_key=True),
+)
 
 
 class User(Base):
@@ -19,7 +58,34 @@ class User(Base):
     username = Column(String(64), unique=True, nullable=False, index=True)
     email = Column(String(255), unique=True, nullable=True)
     hashed_password = Column(String(255), nullable=False)
-    role = Column(SAEnum(UserRole), default=UserRole.analyst, nullable=False)
+    # `length` is explicit because SQLAlchemy sizes an enum column to its
+    # longest member: it was VARCHAR(7), which fit "analyst" and nothing
+    # longer. SQLite would not have complained; another database would.
+    role = Column(SAEnum(UserRole, length=32), default=UserRole.analyst, nullable=False)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
     last_login = Column(DateTime, nullable=True)
+
+    # ── Second factor (TOTP) ─────────────────────────────────────────────────
+    # Annotated where the rest of this model is not, because the MFA service
+    # writes to all of them and a bare Column() leaves mypy seeing the
+    # descriptor rather than the value.
+    mfa_enabled: Mapped[bool | None] = mapped_column(Boolean, default=False, nullable=True)
+    # Encrypted with a key derived from SECRET_KEY and the salt below. A leaked
+    # database must not hand over every second factor with it.
+    mfa_secret:  Mapped[str | None] = mapped_column(Text, nullable=True)
+    mfa_salt:    Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # JSON array of bcrypt hashes. Recovery codes are passwords; storing them
+    # readable would make the recovery path weaker than what it recovers.
+    mfa_recovery_codes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # TOTP step of the last accepted code. A code stays valid for a whole
+    # 30-second step, which is long enough to be read over a shoulder and used
+    # again, so a step is never accepted twice.
+    mfa_last_step: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Six digits is a million possibilities; a script does that in minutes.
+    mfa_failed_attempts: Mapped[int | None] = mapped_column(Integer, default=0, nullable=True)
+    mfa_locked_until:    Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    mfa_enrolled_at:     Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    #: Empty means unrestricted. See `user_clients` above and `core/scoping.py`.
+    clients = relationship("Client", secondary=user_clients, lazy="selectin")

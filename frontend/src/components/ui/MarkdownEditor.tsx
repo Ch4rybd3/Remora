@@ -25,7 +25,7 @@ import { Plugin }                                     from '@tiptap/pm/state'
 import { Decoration, DecorationSet }                  from '@tiptap/pm/view'
 import ReactMarkdown                                  from 'react-markdown'
 import remarkGfm                                      from 'remark-gfm'
-import { ImageIcon, Loader2 }                         from 'lucide-react'
+import { ImageIcon, Loader2 }                         from '../../ui/icons'
 import { noteImagesApi }                              from '../../api/noteImages'
 
 // ── Wikilink highlight extension ──────────────────────────────────────────────
@@ -236,13 +236,13 @@ function MarkdownBody({ value, empty }: { value: string; empty?: string }) {
       components={{
         img: ({ src, alt }) => (
           <img src={src} alt={alt ?? ''}
-            className="max-w-full rounded border border-white/10 my-2 block"
+            className="max-w-full rounded-control border border-hairline my-2 block"
             style={{ maxHeight: 480 }}
             onError={e => { (e.target as HTMLImageElement).style.opacity = '0.3' }}
           />
         ),
         a: ({ href, children }) => (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="text-accent-green underline">
+          <a href={href} target="_blank" rel="noopener noreferrer" className="text-accent underline">
             {children}
           </a>
         ),
@@ -250,7 +250,7 @@ function MarkdownBody({ value, empty }: { value: string; empty?: string }) {
           className ? (
             <code className={className}>{children}</code>
           ) : (
-            <code className="bg-white/10 px-1 py-0.5 rounded text-[11px] font-mono text-accent-green/80">
+            <code className="bg-fg/10 px-1 py-0.5 rounded-control text-label font-mono text-accent/80">
               {children}
             </code>
           ),
@@ -259,7 +259,7 @@ function MarkdownBody({ value, empty }: { value: string; empty?: string }) {
       {value}
     </ReactMarkdown>
   ) : (
-    <span className="italic opacity-30">{empty ?? 'Aucune note…'}</span>
+    <span className="italic opacity-30">{empty ?? 'No note...'}</span>
   )
 }
 
@@ -268,8 +268,7 @@ function MarkdownBody({ value, empty }: { value: string; empty?: string }) {
 function ModeBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button type="button" onClick={onClick}
-      className={`text-[10px] px-2.5 py-1 transition-colors ${
-        active ? 'bg-accent-green/10 text-accent-green' : 'text-accent-muted hover:text-white'
+      className={`text-label px-2.5 py-1 transition-colors ${ active ? 'bg-accent/10 text-accent' : 'text-fg-secondary hover:text-fg'
       }`}
     >
       {children}
@@ -348,7 +347,7 @@ export function LiveEditor({
   useEffect(() => { onUploadEndRef.current   = onUploadEnd   }, [onUploadEnd])
 
   // Editor ref — needed because editorProps closures are created before useEditor returns
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const editorRef = useRef<any>(null)
 
   const editor = useEditor({
@@ -505,39 +504,38 @@ export function LiveEditor({
             maxWidth:  360,
           }}
           onMouseDown={e => e.preventDefault()}  // prevent blur that dismisses
-          className="bg-bg-secondary border border-white/15 rounded-lg shadow-2xl overflow-hidden py-1"
+          className="bg-panel border border-hairline shadow-2xl overflow-hidden py-1"
         >
           {/* header */}
-          <div className="px-3 py-1 border-b border-white/5 flex items-center gap-1.5">
-            <span className="text-[9px] font-mono text-accent-green/60 tracking-widest">[[</span>
-            <span className="text-[10px] text-accent-muted/50">
-              {suggest.query ? `"${suggest.query}"` : 'toutes les notes'}
+          <div className="px-3 py-1 border-b border-hairline flex items-center gap-1.5">
+            <span className="text-label font-mono text-accent/60 tracking-widest">[[</span>
+            <span className="text-label text-fg-secondary/50">
+              {suggest.query ? `"${suggest.query}"` : 'all notes'}
             </span>
           </div>
 
           {suggest.items.map((name, i) => (
             <button
               key={name}
-              className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors ${
-                i === suggest.activeIndex
-                  ? 'bg-accent-green/10 text-white'
-                  : 'text-white/70 hover:bg-white/5 hover:text-white'
+              className={`w-full text-left px-3 py-1.5 text-label flex items-center gap-2 transition-colors ${ i === suggest.activeIndex
+                  ? 'bg-accent/10 text-fg'
+                  : 'text-fg/70 hover:bg-fg/5 hover:text-fg'
               }`}
               onMouseDown={e => {
                 e.preventDefault()
                 if (editor) confirmSuggestEditor(editor, name, suggest.startPos)
               }}
             >
-              <span className="text-accent-green/40 font-mono text-[9px] shrink-0">[[</span>
+              <span className="text-accent/40 font-mono text-label shrink-0">[[</span>
               <span className="flex-1 truncate">{name}</span>
-              <span className="text-accent-green/40 font-mono text-[9px] shrink-0">]]</span>
+              <span className="text-accent/40 font-mono text-label shrink-0">]]</span>
             </button>
           ))}
 
-          <div className="px-3 py-1 border-t border-white/5 flex items-center gap-3 text-[9px] text-accent-muted/30">
+          <div className="px-3 py-1 border-t border-hairline flex items-center gap-3 text-label text-fg-secondary/30">
             <span>↑↓ naviguer</span>
-            <span>↵ insérer</span>
-            <span>Esc annuler</span>
+            <span>Enter to insert</span>
+            <span>Esc to cancel</span>
           </div>
         </div>
       )}
@@ -617,14 +615,14 @@ export default function MarkdownEditor({
     <div className="flex flex-col gap-1.5">
       {withToggle && (
         <div className="flex items-center gap-2">
-          <div className="flex rounded border border-white/10 overflow-hidden">
+          <div className="flex rounded-control border border-hairline overflow-hidden">
             <ModeBtn active={mode === 'live'}    onClick={() => setMode('live')}>Live</ModeBtn>
             <ModeBtn active={mode === 'source'}  onClick={() => setMode('source')}>Source</ModeBtn>
             <ModeBtn active={mode === 'preview'} onClick={() => setMode('preview')}>Preview</ModeBtn>
           </div>
           {uploading
-            ? <span className="flex items-center gap-1 text-[10px] text-accent-muted"><Loader2 size={10} className="animate-spin" /> Upload…</span>
-            : <span className="text-[9px] text-accent-muted/30 flex items-center gap-1"><ImageIcon size={9} /> Ctrl+V pour coller une image</span>
+            ? <span className="flex items-center gap-1 text-label text-fg-secondary"><Loader2 size={10} className="animate-spin" /> Upload…</span>
+            : <span className="text-label text-fg-secondary/30 flex items-center gap-1"><ImageIcon size={9} /> Ctrl+V to paste an image</span>
           }
         </div>
       )}
@@ -644,7 +642,7 @@ export default function MarkdownEditor({
       {mode === 'source' && (
         <textarea
           ref={ref}
-          className="input font-mono text-xs leading-relaxed resize-none w-full"
+          className="input font-mono text-label leading-relaxed resize-none w-full"
           style={{ minHeight, overflowY: autoResize ? 'hidden' : undefined }}
           placeholder={placeholder}
           value={value}
@@ -657,7 +655,7 @@ export default function MarkdownEditor({
 
       {mode === 'preview' && (
         <div
-          className="md-preview prose prose-invert prose-sm max-w-none min-w-0 px-3 py-2.5 rounded-lg bg-white/[0.02] border border-white/8 text-xs text-white/80 overflow-auto"
+          className="md-preview prose prose-invert prose-sm max-w-none min-w-0 px-3 py-2.5 bg-white/[0.02] border border-hairline text-label text-fg/80 overflow-auto"
           style={{ minHeight }}
         >
           <MarkdownBody value={value} />

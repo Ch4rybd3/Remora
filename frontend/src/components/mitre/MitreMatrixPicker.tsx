@@ -13,7 +13,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ExternalLink, Search, Eye, EyeOff, RefreshCw, Shield,
   ChevronRight, ChevronDown, RotateCcw, AlertTriangle,
-} from 'lucide-react'
+} from '../../ui/icons'
 import {
   mitreApi,
   type Technique, type SubTechnique, type Tactic,
@@ -23,39 +23,39 @@ import {
 
 // ATT&CK v19: defense-evasion split into stealth (TA0005) + defense-impairment (TA0112)
 export const TACTIC_COLORS: Record<string, string> = {
-  'reconnaissance':       'border-t-purple-500/60',
-  'resource-development': 'border-t-purple-400/60',
-  'initial-access':       'border-t-red-500/60',
-  'execution':            'border-t-orange-500/60',
-  'persistence':          'border-t-yellow-500/60',
-  'privilege-escalation': 'border-t-amber-500/60',
-  'stealth':              'border-t-lime-500/60',      // was defense-evasion
-  'defense-impairment':   'border-t-fuchsia-500/60',  // new in v19
-  'credential-access':    'border-t-green-500/60',
-  'discovery':            'border-t-teal-500/60',
-  'lateral-movement':     'border-t-cyan-500/60',
-  'collection':           'border-t-blue-500/60',
-  'command-and-control':  'border-t-indigo-500/60',
-  'exfiltration':         'border-t-violet-500/60',
-  'impact':               'border-t-rose-500/60',
+  'reconnaissance':       'border-t-data-2/60',
+  'resource-development': 'border-t-data-2/60',
+  'initial-access':       'border-t-severity-critical/60',
+  'execution':            'border-t-severity-high/60',
+  'persistence':          'border-t-severity-medium/60',
+  'privilege-escalation': 'border-t-severity-medium/60',
+  'stealth':              'border-t-accent/60',      // was defense-evasion
+  'defense-impairment':   'border-t-data-2/60',  // new in v19
+  'credential-access':    'border-t-accent/60',
+  'discovery':            'border-t-accent/60',
+  'lateral-movement':     'border-t-data-5/60',
+  'collection':           'border-t-severity-low/60',
+  'command-and-control':  'border-t-data-1/60',
+  'exfiltration':         'border-t-data-2/60',
+  'impact':               'border-t-severity-critical/60',
 }
 
 export const TACTIC_HEADER_COLORS: Record<string, string> = {
-  'reconnaissance':       'text-purple-400',
-  'resource-development': 'text-purple-300',
-  'initial-access':       'text-red-400',
-  'execution':            'text-orange-400',
-  'persistence':          'text-yellow-400',
-  'privilege-escalation': 'text-amber-400',
-  'stealth':              'text-lime-400',       // was defense-evasion
-  'defense-impairment':   'text-fuchsia-400',   // new in v19
-  'credential-access':    'text-green-400',
-  'discovery':            'text-teal-400',
-  'lateral-movement':     'text-cyan-400',
-  'collection':           'text-blue-400',
-  'command-and-control':  'text-indigo-400',
-  'exfiltration':         'text-violet-400',
-  'impact':               'text-rose-400',
+  'reconnaissance':       'text-data-2',
+  'resource-development': 'text-data-2',
+  'initial-access':       'text-severity-critical',
+  'execution':            'text-severity-high',
+  'persistence':          'text-severity-medium',
+  'privilege-escalation': 'text-severity-medium',
+  'stealth':              'text-accent',       // was defense-evasion
+  'defense-impairment':   'text-data-2',   // new in v19
+  'credential-access':    'text-accent',
+  'discovery':            'text-accent',
+  'lateral-movement':     'text-data-5',
+  'collection':           'text-severity-low',
+  'command-and-control':  'text-data-1',
+  'exfiltration':         'text-data-2',
+  'impact':               'text-severity-critical',
 }
 
 // ── TechCard ──────────────────────────────────────────────────────────────────
@@ -76,18 +76,17 @@ export function TechCard({
   return (
     <div
       onClick={() => onToggle(tech, tactic)}
-      className={`group relative flex items-center gap-1 px-1.5 py-[3px] rounded cursor-pointer transition-all select-none ${
-        isSubtech ? 'ml-2 pl-2 border-l border-white/10' : ''
+      className={`group relative flex items-center gap-1 px-1.5 py-[3px] rounded-control cursor-pointer transition-all select-none ${ isSubtech ? 'ml-2 pl-2 border-l border-hairline' : ''
       } ${
         isSelected
-          ? 'bg-accent-green/15 border border-accent-green/40 text-white/90'
-          : 'bg-white/[0.03] border border-white/8 text-white/40 hover:bg-white/[0.06] hover:border-white/20 hover:text-white/70'
+          ? 'bg-accent/15 border border-accent/40 text-fg/90'
+          : 'bg-white/[0.03] border border-hairline text-fg/40 hover:bg-white/[0.06] hover:border-strong hover:text-fg/70'
       }`}
     >
-      <span className={`font-mono shrink-0 ${isSubtech ? 'text-[7px]' : 'text-[8px]'} ${isSelected ? 'text-accent-green/80' : 'text-white/30'}`}>
+      <span className={`font-mono shrink-0 ${isSubtech ? 'text-label' : 'text-label'} ${isSelected ? 'text-accent/80' : 'text-fg/30'}`}>
         {tech.id}
       </span>
-      <span className={`truncate flex-1 leading-tight ${isSubtech ? 'text-[8px]' : 'text-[9px]'}`}>
+      <span className={`truncate flex-1 leading-tight ${isSubtech ? 'text-label' : 'text-label'}`}>
         {tech.name}
       </span>
       <a
@@ -152,20 +151,20 @@ export function TacticColumn({
     [tactic, selectedKeys]
   )
 
-  const accentColor = TACTIC_HEADER_COLORS[tactic.short_name] ?? 'text-white/60'
-  const borderColor = TACTIC_COLORS[tactic.short_name] ?? 'border-t-white/20'
+  const accentColor = TACTIC_HEADER_COLORS[tactic.short_name] ?? 'text-fg/60'
+  const borderColor = TACTIC_COLORS[tactic.short_name] ?? 'border-t-strong'
 
   return (
-    <div className={`w-[148px] shrink-0 flex flex-col border-r border-white/5 border-t-2 ${borderColor}`}>
+    <div className={`w-[148px] shrink-0 flex flex-col border-r border-hairline border-t-2 ${borderColor}`}>
       {/* Sticky header */}
-      <div className="sticky top-0 z-10 bg-bg-primary px-1.5 py-1.5 border-b border-white/8">
-        <p className={`text-[9px] font-bold uppercase tracking-wide leading-tight truncate ${accentColor}`}>
+      <div className="sticky top-0 z-10 bg-canvas px-1.5 py-1.5 border-b border-hairline">
+        <p className={`text-label font-bold uppercase tracking-wide leading-tight truncate ${accentColor}`}>
           {tactic.name}
         </p>
-        <p className="text-[8px] text-white/20 font-mono mt-0.5">
+        <p className="text-label text-fg/20 font-mono mt-0.5">
           {tactic.id} · {tactic.techniques.length}t
           {selectedCount > 0 && (
-            <span className="ml-1 text-accent-green/70">· {selectedCount}✓</span>
+            <span className="ml-1 text-accent/70">· {selectedCount}✓</span>
           )}
         </p>
       </div>
@@ -173,7 +172,7 @@ export function TacticColumn({
       {/* Techniques */}
       <div className="flex-1 overflow-y-auto px-1 py-1 space-y-0.5">
         {visibleTechs.length === 0 && (
-          <p className="text-[8px] text-white/20 italic px-1 py-2">No match</p>
+          <p className="text-label text-fg/20 italic px-1 py-2">No match</p>
         )}
         {visibleTechs.map(tech => {
           const techKey   = `${tech.id}|${tactic.short_name}`
@@ -208,7 +207,7 @@ export function TacticColumn({
                 {hasSubs ? (
                   <button
                     onClick={e => { e.stopPropagation(); toggleExpand(tech.id, isExpanded) }}
-                    className="shrink-0 w-4 h-full flex items-center justify-center text-white/20 hover:text-white/60 transition-colors"
+                    className="shrink-0 w-4 h-full flex items-center justify-center text-fg/20 hover:text-fg/60 transition-colors"
                     title={isExpanded ? 'Collapse sub-techniques' : 'Expand sub-techniques'}
                   >
                     {isExpanded
@@ -231,7 +230,7 @@ export function TacticColumn({
 
               {/* Sub-techniques — only when expanded */}
               {isExpanded && visibleSubs.length > 0 && (
-                <div className="ml-4 pl-1 border-l border-white/10 space-y-0.5">
+                <div className="ml-4 pl-1 border-l border-hairline space-y-0.5">
                   {visibleSubs.map(sub => (
                     <TechCard
                       key={sub.id}
@@ -359,22 +358,22 @@ export default function MitreMatrixPicker({
 
         {isDownloading ? (
           <>
-            <p className="text-sm text-white/40">Downloading ATT&CK data…</p>
-            <RefreshCw size={18} className="animate-spin text-accent-muted/30" />
-            <p className="text-xs text-accent-muted/30">
+            <p className="text-ui text-fg/40">Downloading ATT&CK data…</p>
+            <RefreshCw size={18} className="animate-spin text-fg-secondary/30" />
+            <p className="text-label text-fg-secondary/30">
               {downloadingFor > 0 ? `${downloadingFor}s elapsed` : 'Starting download…'}
             </p>
             {/* Show reset button after 60 s — likely stuck */}
             {downloadingFor >= 60 && (
               <div className="flex flex-col items-center gap-2 mt-2">
-                <div className="flex items-center gap-1.5 text-amber-400/70 text-xs">
+                <div className="flex items-center gap-1.5 text-severity-medium/70 text-label">
                   <AlertTriangle size={12} />
                   Download appears stuck
                 </div>
                 <button
                   onClick={() => resetMut.mutate()}
                   disabled={resetMut.isPending}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded border border-amber-500/40 text-amber-400 text-xs hover:bg-amber-500/10 transition-colors disabled:opacity-40"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-control border border-severity-medium/40 text-severity-medium text-label hover:bg-severity-medium/10 transition-colors disabled:opacity-40"
                 >
                   <RotateCcw size={12} className={resetMut.isPending ? 'animate-spin' : ''} />
                   Reset and retry
@@ -384,19 +383,19 @@ export default function MitreMatrixPicker({
           </>
         ) : mitreStatus?.state === 'error' ? (
           <>
-            <p className="text-sm text-severity-critical/70">Download failed</p>
-            <p className="text-xs text-accent-muted/40 max-w-xs font-mono">{mitreStatus.error}</p>
+            <p className="text-ui text-severity-critical/70">Download failed</p>
+            <p className="text-label text-fg-secondary/40 max-w-xs font-mono">{mitreStatus.error}</p>
             <div className="flex gap-2 mt-1">
               <button
                 onClick={() => downloadMut.mutate()}
-                className="flex items-center gap-2 px-3 py-1.5 rounded border border-accent-green/40 text-accent-green text-xs hover:bg-accent-green/10 transition-colors"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-control border border-accent/40 text-accent text-label hover:bg-accent/10 transition-colors"
               >
                 <RefreshCw size={12} /> Retry download
               </button>
               <button
                 onClick={() => resetMut.mutate()}
                 disabled={resetMut.isPending}
-                className="flex items-center gap-2 px-3 py-1.5 rounded border border-white/10 text-white/40 text-xs hover:text-white hover:border-white/20 transition-colors disabled:opacity-40"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-control border border-hairline text-fg/40 text-label hover:text-fg hover:border-strong transition-colors disabled:opacity-40"
               >
                 <RotateCcw size={12} className={resetMut.isPending ? 'animate-spin' : ''} />
                 Reset cache
@@ -405,13 +404,13 @@ export default function MitreMatrixPicker({
           </>
         ) : (
           <>
-            <p className="text-sm text-white/40">ATT&CK data not downloaded yet.</p>
-            <p className="text-xs text-accent-muted/30 max-w-xs">
+            <p className="text-ui text-fg/40">ATT&CK data not downloaded yet.</p>
+            <p className="text-label text-fg-secondary/30 max-w-xs">
               The Enterprise ATT&CK dataset (~50 MB) will be downloaded once and cached locally.
             </p>
             <button
               onClick={() => downloadMut.mutate()}
-              className="flex items-center gap-2 px-4 py-2 rounded border border-accent-green/40 text-accent-green text-sm hover:bg-accent-green/10 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 rounded-control border border-accent/40 text-accent text-ui hover:bg-accent/10 transition-colors"
             >
               <RefreshCw size={14} />
               Download ATT&CK Enterprise
@@ -428,16 +427,16 @@ export default function MitreMatrixPicker({
 
       {/* Stale/incomplete cache warning */}
       {tree && !hasSubTechniques && (
-        <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-[10px] text-amber-400">
+        <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 bg-severity-medium/10 border-b border-severity-medium/20 text-label text-severity-medium">
           <AlertTriangle size={10} className="shrink-0" />
           <span className="flex-1">
-            Le cache ATT&CK ne contient pas de sub-techniques — il date probablement d'avant la mise à jour.
-            Cliquez "Refresh" pour le régénérer.
+            The ATT&CK cache holds no sub-techniques - it most likely predates the update.
+            Click "Refresh" to rebuild it.
           </span>
           <button
             onClick={() => downloadMut.mutate()}
             disabled={isDownloading}
-            className="flex items-center gap-1 px-2 py-0.5 rounded border border-amber-500/40 hover:bg-amber-500/10 transition-colors disabled:opacity-40"
+            className="flex items-center gap-1 px-2 py-0.5 rounded-control border border-severity-medium/40 hover:bg-severity-medium/10 transition-colors disabled:opacity-40"
           >
             <RotateCcw size={9} className={isDownloading ? 'animate-spin' : ''} />
             Refresh
@@ -446,11 +445,11 @@ export default function MitreMatrixPicker({
       )}
 
       {/* Toolbar */}
-      <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-white/5 bg-bg-secondary/50">
+      <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-hairline bg-panel/50">
         <div className="relative">
-          <Search size={10} className="absolute left-2 top-1/2 -translate-y-1/2 text-accent-muted/30 pointer-events-none" />
+          <Search size={10} className="absolute left-2 top-1/2 -translate-y-1/2 text-fg-secondary/30 pointer-events-none" />
           <input
-            className="input text-xs h-6 pl-6 w-44"
+            className="input text-label h-6 pl-6 w-44"
             placeholder="Filter techniques…"
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -459,10 +458,9 @@ export default function MitreMatrixPicker({
 
         <button
           onClick={() => setShowSubs(v => !v)}
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded border text-[10px] transition-colors ${
-            showSubs
-              ? 'border-accent-green/30 text-accent-green bg-accent-green/5'
-              : 'border-white/8 text-accent-muted/40 hover:text-white hover:border-white/20'
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-control border text-label transition-colors ${ showSubs
+              ? 'border-accent/30 text-accent bg-accent/5'
+              : 'border-hairline text-fg-secondary/40 hover:text-fg hover:border-strong'
           }`}
           title={showSubs ? 'Hide sub-techniques' : 'Show sub-techniques'}
         >
@@ -471,7 +469,7 @@ export default function MitreMatrixPicker({
         </button>
 
         {tree?.version && (
-          <span className="ml-auto text-[9px] text-accent-muted/30 font-mono">
+          <span className="ml-auto text-label text-fg-secondary/30 font-mono">
             {tree.version}
           </span>
         )}
@@ -481,24 +479,24 @@ export default function MitreMatrixPicker({
           onClick={() => downloadMut.mutate()}
           disabled={isDownloading}
           title="Re-download ATT&CK data"
-          className="text-accent-muted/30 hover:text-white/60 transition-colors disabled:opacity-30"
+          className="text-fg-secondary/30 hover:text-fg/60 transition-colors disabled:opacity-30"
         >
           <RotateCcw size={10} className={isDownloading ? 'animate-spin' : ''} />
         </button>
 
         {selectedKeys.size > 0 && (
-          <span className="text-[10px] text-accent-green/70 font-mono">
+          <span className="text-label text-accent/70 font-mono">
             {selectedKeys.size} selected
           </span>
         )}
       </div>
 
       {/* Matrix */}
-      <div className="flex-1 overflow-auto bg-bg-primary">
+      <div className="flex-1 overflow-auto bg-canvas">
         {isDownloading ? (
           <div className="h-full flex flex-col items-center justify-center gap-3">
-            <RefreshCw size={18} className="animate-spin text-accent-muted/30" />
-            <p className="text-xs text-accent-muted/30">Rebuilding ATT&CK cache…</p>
+            <RefreshCw size={18} className="animate-spin text-fg-secondary/30" />
+            <p className="text-label text-fg-secondary/30">Rebuilding ATT&CK cache…</p>
           </div>
         ) : tree ? (
           <div className="flex min-w-max h-full">
@@ -515,7 +513,7 @@ export default function MitreMatrixPicker({
           </div>
         ) : (
           <div className="h-full flex items-center justify-center">
-            <RefreshCw size={16} className="animate-spin text-accent-muted/30" />
+            <RefreshCw size={16} className="animate-spin text-fg-secondary/30" />
           </div>
         )}
       </div>

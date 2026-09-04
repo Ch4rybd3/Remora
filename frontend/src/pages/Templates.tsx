@@ -1,9 +1,10 @@
 import { useState } from 'react'
+import { PageShell } from '../ui/PageShell'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   FileText, Plus, Edit2, Trash2, Save, X, AlertCircle,
   ChevronDown, ChevronUp, Shield,
-} from 'lucide-react'
+} from '../ui/icons'
 import { templatesApi } from '../api/templates'
 import type { Template } from '../types'
 import { SeverityBadge, TLPBadge, Tag } from '../components/ui/Badge'
@@ -11,37 +12,6 @@ import Modal from '../components/ui/Modal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import TemplateTTPModal from '../components/mitre/TemplateTTPModal'
 import TemplateFormModal from '../components/templates/TemplateFormModal'
-
-const NEW_TEMPLATE_YAML = `name: "New Template"
-description: "Description of this template"
-version: "1.0"
-tags:
-  - incident
-severity: medium
-tlp: "TLP:AMBER"
-metadata:
-  category: generic
-
-executive_summary_template: |
-  On [DATE], [ORGANIZATION] identified a security incident...
-
-report_sections:
-  - name: "Incident Overview"
-    template: |
-      Describe the incident...
-
-  - name: "Technical Analysis"
-    template: |
-      Detail the technical findings...
-
-  - name: "Containment & Remediation"
-    template: |
-      Describe containment actions...
-
-  - name: "Recommendations"
-    template: |
-      List actionable recommendations...
-`
 
 interface EditorModalProps {
   open:        boolean
@@ -60,15 +30,15 @@ function EditorModal({ open, onClose, initialYaml, title, onSave, isSaving, erro
     <Modal open={open} onClose={onClose} title={title} size="lg">
       <div className="space-y-3">
         {error && (
-          <div className="flex items-start gap-2 bg-severity-critical/10 border border-severity-critical/20 rounded-lg px-4 py-3">
+          <div className="flex items-start gap-2 bg-severity-critical/10 border border-severity-critical/20 px-4 py-3">
             <AlertCircle size={14} className="text-severity-critical mt-0.5 shrink-0" />
-            <p className="text-xs text-severity-critical font-mono leading-relaxed">{error}</p>
+            <p className="text-label text-severity-critical font-mono leading-relaxed">{error}</p>
           </div>
         )}
         <div>
           <label className="label">YAML</label>
           <textarea
-            className="input font-mono text-xs leading-relaxed resize-none"
+            className="input font-mono text-label leading-relaxed resize-none"
             style={{ height: '480px' }}
             value={yaml}
             onChange={e => setYaml(e.target.value)}
@@ -111,12 +81,12 @@ function TemplateCard({ tpl, onEdit, onDelete, onEditTTPs }: TemplateCardProps) 
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-1">
-            <FileText size={15} className="text-accent-green shrink-0" />
-            <h2 className="font-semibold text-white">{tpl.name}</h2>
-            <span className="text-xs text-accent-muted/60 font-mono shrink-0">v{tpl.version}</span>
-            <span className="text-xs text-accent-muted/40 font-mono shrink-0">· {tpl.id}.yaml</span>
+            <FileText size={15} className="text-accent shrink-0" />
+            <h2 className="font-semibold text-fg">{tpl.name}</h2>
+            <span className="text-label text-fg-secondary/60 font-mono shrink-0">v{tpl.version}</span>
+            <span className="text-label text-fg-secondary/40 font-mono shrink-0">· {tpl.id}.yaml</span>
           </div>
-          <p className="text-sm text-accent-muted">{tpl.description}</p>
+          <p className="text-ui text-fg-secondary">{tpl.description}</p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -126,13 +96,13 @@ function TemplateCard({ tpl, onEdit, onDelete, onEditTTPs }: TemplateCardProps) 
           {/* TTPs button with count badge */}
           <button
             onClick={() => onEditTTPs(tpl)}
-            className="relative flex items-center gap-1.5 btn-secondary text-xs ml-1"
+            className="relative flex items-center gap-1.5 btn-secondary text-label ml-1"
             title="Edit MITRE ATT&CK TTPs"
           >
             <Shield size={12} />
             TTPs
             {ttpCount > 0 && (
-              <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-accent-green/20 text-accent-green text-[9px] font-mono font-bold leading-none">
+              <span className="ml-0.5 px-1.5 py-0.5 rounded-pill bg-accent/20 text-accent text-label font-mono font-bold leading-none">
                 {ttpCount}
               </span>
             )}
@@ -140,13 +110,13 @@ function TemplateCard({ tpl, onEdit, onDelete, onEditTTPs }: TemplateCardProps) 
 
           <button
             onClick={() => onEdit(tpl.id)}
-            className="btn-secondary text-xs flex items-center gap-1.5"
+            className="btn-secondary text-label flex items-center gap-1.5"
           >
             <Edit2 size={12} /> YAML
           </button>
           <button
             onClick={() => onDelete(tpl.id)}
-            className="text-accent-muted hover:text-severity-critical transition-colors p-1"
+            className="text-fg-secondary hover:text-severity-critical transition-colors p-1"
           >
             <Trash2 size={14} />
           </button>
@@ -164,7 +134,7 @@ function TemplateCard({ tpl, onEdit, onDelete, onEditTTPs }: TemplateCardProps) 
         <>
           <button
             onClick={() => setExpanded(e => !e)}
-            className="flex items-center gap-1.5 text-xs text-accent-muted hover:text-white mt-3 transition-colors"
+            className="flex items-center gap-1.5 text-label text-fg-secondary hover:text-fg mt-3 transition-colors"
           >
             {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
             {expanded ? 'Hide details' : 'Show details'}
@@ -175,19 +145,19 @@ function TemplateCard({ tpl, onEdit, onDelete, onEditTTPs }: TemplateCardProps) 
 
               {/* ttp_definitions pills */}
               {ttpCount > 0 && (
-                <div className="border-t border-white/5 pt-3">
+                <div className="border-t border-hairline pt-3">
                   <div className="flex items-center gap-2 mb-2">
-                    <Shield size={10} className="text-accent-green/60" />
-                    <p className="text-xs text-accent-muted uppercase tracking-wide">
+                    <Shield size={10} className="text-accent/60" />
+                    <p className="text-label text-fg-secondary uppercase tracking-wide">
                       MITRE ATT&amp;CK TTPs
-                      <span className="ml-1.5 font-mono text-accent-green/60">({ttpCount})</span>
+                      <span className="ml-1.5 font-mono text-accent/60">({ttpCount})</span>
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {tpl.ttp_definitions!.map(t => (
                       <span
                         key={`${t.technique_id}|${t.tactic}`}
-                        className="text-[9px] bg-accent-green/5 text-accent-green/70 border border-accent-green/20 px-2 py-0.5 rounded font-mono"
+                        className="text-label bg-accent/5 text-accent/70 border border-accent/20 px-2 py-0.5 rounded-control font-mono"
                         title={`${t.technique_name} · ${t.tactic_name}`}
                       >
                         {t.technique_id}
@@ -198,11 +168,11 @@ function TemplateCard({ tpl, onEdit, onDelete, onEditTTPs }: TemplateCardProps) 
               )}
 
               {tpl.report_sections != null && (
-                <div className="border-t border-white/5 pt-3">
-                  <p className="text-xs text-accent-muted uppercase tracking-wide mb-2">Report Sections</p>
+                <div className="border-t border-hairline pt-3">
+                  <p className="text-label text-fg-secondary uppercase tracking-wide mb-2">Report Sections</p>
                   <div className="flex flex-wrap gap-2">
                     {tpl.report_sections.map(s => (
-                      <span key={s.name} className="text-xs bg-white/5 text-accent-muted px-2 py-1 rounded font-mono">
+                      <span key={s.name} className="text-label bg-fg/5 text-fg-secondary px-2 py-1 rounded-control font-mono">
                         {s.name}
                       </span>
                     ))}
@@ -211,11 +181,11 @@ function TemplateCard({ tpl, onEdit, onDelete, onEditTTPs }: TemplateCardProps) 
               )}
 
               {tpl.metadata?.mitre_tactics != null && Array.isArray(tpl.metadata.mitre_tactics) && (
-                <div className="border-t border-white/5 pt-3">
-                  <p className="text-xs text-accent-muted uppercase tracking-wide mb-2">MITRE Tactics (legacy)</p>
+                <div className="border-t border-hairline pt-3">
+                  <p className="text-label text-fg-secondary uppercase tracking-wide mb-2">MITRE Tactics (legacy)</p>
                   <div className="flex flex-wrap gap-2">
                     {(tpl.metadata.mitre_tactics as string[]).map(t => (
-                      <span key={t} className="text-xs bg-white/5 text-accent-muted/50 border border-white/8 px-2 py-0.5 rounded font-mono">
+                      <span key={t} className="text-label bg-fg/5 text-fg-secondary/50 border border-hairline px-2 py-0.5 rounded-control font-mono">
                         {t}
                       </span>
                     ))}
@@ -282,30 +252,27 @@ export default function Templates() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-accent-green">Case Templates</h1>
-          <p className="text-accent-muted text-sm mt-1">
-            Stored as YAML in{' '}
-            <code className="font-mono text-xs bg-white/5 px-1.5 py-0.5 rounded">templates/</code>
-          </p>
-        </div>
+    <PageShell
+      route="/templates"
+      title="Case Templates"
+      subtitle={"Stored as YAML in templates/"}
+      actions={(
         <button
-          className="btn-primary flex items-center gap-2"
+          className="btn-primary flex items-center gap-1.5"
           onClick={() => { setYamlError(null); setCreateOpen(true) }}
         >
-          <Plus size={15} /> New Template
+          <Plus size={13} /> New Template
         </button>
-      </div>
-
+      )}
+    >
+      <div className="max-w-4xl mx-auto">
       {isLoading ? (
-        <div className="text-accent-muted text-sm">Loading…</div>
+        <div className="text-fg-secondary text-ui">Loading…</div>
       ) : templates.length === 0 ? (
         <div className="card p-8 text-center">
-          <FileText size={32} className="mx-auto mb-3 text-accent-muted/30" />
-          <p className="text-accent-muted text-sm">No templates found.</p>
-          <button className="btn-primary mt-4 text-xs" onClick={() => setCreateOpen(true)}>
+          <FileText size={32} className="mx-auto mb-3 text-fg-secondary/30" />
+          <p className="text-fg-secondary text-ui">No templates found.</p>
+          <button className="btn-primary mt-4 text-label" onClick={() => setCreateOpen(true)}>
             Create first template
           </button>
         </div>
@@ -351,7 +318,7 @@ export default function Templates() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget)}
         title="Delete Template"
-        message={`Le fichier ${deleteTarget}.yaml sera supprimé définitivement.`}
+        message={`The file ${deleteTarget}.yaml will be permanently deleted.`}
       />
 
       {/* TTP picker — full-screen modal */}
@@ -362,6 +329,7 @@ export default function Templates() {
           onSaved={() => setTtpTarget(null)}
         />
       )}
-    </div>
+      </div>
+    </PageShell>
   )
 }

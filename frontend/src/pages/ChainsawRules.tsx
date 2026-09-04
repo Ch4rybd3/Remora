@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { PageShell } from '../ui/PageShell'
+import { DataTable } from '../ui/DataTable'
 import {
   Swords, Search, Upload, Trash2, CheckCircle2, Loader2,
   Download, Info, ShieldCheck, AlertCircle,
-} from 'lucide-react'
+} from '../ui/icons'
 import { chainsawRulesApi, type RuleInfo, type SigmaStatus } from '../api/chainsaw'
 
 // ── Level badge ───────────────────────────────────────────────────────────────
@@ -10,14 +12,14 @@ import { chainsawRulesApi, type RuleInfo, type SigmaStatus } from '../api/chains
 function LevelBadge({ level }: { level: string }) {
   const l = level.toLowerCase()
   const cls =
-    l === 'critical'                       ? 'bg-red-500/15 text-red-400 border-red-500/25' :
-    l === 'high'                           ? 'bg-orange-500/15 text-orange-400 border-orange-500/25' :
-    l === 'medium'                         ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' :
-    l === 'low'                            ? 'bg-blue-500/15 text-blue-400 border-blue-500/25' :
-    /* informational / info / empty */       'bg-white/5 text-accent-muted border-white/10'
+    l === 'critical'                       ? 'bg-severity-critical/15 text-severity-critical border-severity-critical/25' :
+    l === 'high'                           ? 'bg-severity-high/15 text-severity-high border-severity-high/25' :
+    l === 'medium'                         ? 'bg-severity-medium/15 text-severity-medium border-severity-medium/25' :
+    l === 'low'                            ? 'bg-severity-low/15 text-severity-low border-severity-low/25' :
+    /* informational / info / empty */       'bg-fg/5 text-fg-secondary border-hairline'
 
   return (
-    <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded border uppercase tracking-wide ${cls}`}>
+    <span className={`text-label font-mono font-semibold px-1.5 py-0.5 rounded-control border uppercase tracking-wide ${cls}`}>
       {level || 'info'}
     </span>
   )
@@ -34,65 +36,60 @@ interface RulesTableProps {
 function RulesTable({ rules, onDelete, deletingFilename }: RulesTableProps) {
   if (rules.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-accent-muted/50">
+      <div className="flex flex-col items-center justify-center py-16 text-fg-secondary/50">
         <Swords size={32} className="mb-3 opacity-30" />
-        <p className="text-sm">No rules found</p>
+        <p className="text-ui">No rules found</p>
       </div>
     )
   }
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-white/5 text-left">
-            <th className="px-4 py-2.5 text-[11px] font-semibold text-accent-muted/60 uppercase tracking-wider">Title</th>
-            <th className="px-4 py-2.5 text-[11px] font-semibold text-accent-muted/60 uppercase tracking-wider">Group</th>
-            <th className="px-4 py-2.5 text-[11px] font-semibold text-accent-muted/60 uppercase tracking-wider">Level</th>
-            <th className="px-4 py-2.5 text-[11px] font-semibold text-accent-muted/60 uppercase tracking-wider">Status</th>
-            <th className="px-4 py-2.5 text-[11px] font-semibold text-accent-muted/60 uppercase tracking-wider">Description</th>
-            {onDelete && (
-              <th className="px-4 py-2.5 text-[11px] font-semibold text-accent-muted/60 uppercase tracking-wider w-12" />
-            )}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-white/3">
-          {rules.map(rule => (
-            <tr key={rule.path} className="hover:bg-white/3 transition-colors">
-              <td className="px-4 py-3 text-white text-xs font-medium max-w-[220px] truncate" title={rule.title}>
-                {rule.title}
-              </td>
-              <td className="px-4 py-3 text-accent-muted text-xs max-w-[160px] truncate" title={rule.group}>
-                {rule.group || <span className="opacity-30">—</span>}
-              </td>
-              <td className="px-4 py-3">
-                <LevelBadge level={rule.level} />
-              </td>
-              <td className="px-4 py-3 text-accent-muted text-xs">
-                {rule.status || <span className="opacity-30">—</span>}
-              </td>
-              <td className="px-4 py-3 text-accent-muted/70 text-xs max-w-[300px] truncate" title={rule.description}>
-                {rule.description || <span className="opacity-30">No description</span>}
-              </td>
-              {onDelete && (
-                <td className="px-4 py-3 text-right">
+      <DataTable
+        rows={rules}
+        rowKey={(rule) => rule.path}
+        empty="No rule matches these filters."
+        columns={[
+          { key: 'title', header: 'Title',
+            render: (rule) => (
+              <span className="block max-w-[220px] truncate font-medium text-fg" title={rule.title}>{rule.title}</span>
+            ) },
+          { key: 'group', header: 'Group', width: 'w-44', hideBelow: 'md',
+            render: (rule) => (
+              <span className="block max-w-[160px] truncate text-fg-secondary" title={rule.group}>
+                {rule.group || <span className="text-fg-muted">—</span>}
+              </span>
+            ) },
+          { key: 'level', header: 'Level', width: 'w-28', render: (rule) => <LevelBadge level={rule.level} /> },
+          { key: 'status', header: 'Status', width: 'w-28', hideBelow: 'md',
+            render: (rule) => rule.status || <span className="text-fg-muted">—</span> },
+          { key: 'description', header: 'Description', hideBelow: 'lg',
+            render: (rule) => (
+              <span className="block max-w-[300px] truncate text-fg-secondary" title={rule.description}>
+                {rule.description || <span className="text-fg-muted">No description</span>}
+              </span>
+            ) },
+        ]}
+        trailing={
+          onDelete
+            ? {
+                width: 'w-12',
+                render: (rule) => (
                   <button
                     onClick={() => onDelete(rule.filename)}
                     disabled={deletingFilename === rule.filename}
-                    className="p-1.5 rounded hover:bg-red-500/10 text-accent-muted/40 hover:text-red-400 transition-colors disabled:opacity-40"
+                    className="text-fg-muted hover:text-severity-critical transition-colors disabled:opacity-40"
                     title="Delete rule"
                   >
                     {deletingFilename === rule.filename
                       ? <Loader2 size={13} className="animate-spin" />
-                      : <Trash2 size={13} />
-                    }
+                      : <Trash2 size={13} />}
                   </button>
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                ),
+              }
+            : undefined
+        }
+      />
     </div>
   )
 }
@@ -123,39 +120,39 @@ function BuiltinTab() {
       {/* Search + count bar */}
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-sm">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-accent-muted/40" />
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-secondary/40" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Filter by title or group…"
-            className="w-full pl-9 pr-3 py-2 text-sm bg-bg-primary border border-white/5 rounded-lg text-white placeholder:text-accent-muted/30 focus:outline-none focus:border-accent-green/30"
+            className="w-full pl-9 pr-3 py-2 text-ui bg-canvas border border-hairline text-fg placeholder:text-fg-secondary/30 focus:outline-none focus:border-accent/30"
           />
         </div>
         {!loading && (
-          <span className="text-xs text-accent-muted/50 shrink-0">
+          <span className="text-label text-fg-secondary/50 shrink-0">
             {filtered.length} rule{filtered.length !== 1 ? 's' : ''}
           </span>
         )}
       </div>
 
       {/* Content */}
-      <div className="bg-bg-secondary border border-white/5 rounded-xl overflow-hidden">
+      <div className="bg-panel border border-hairline overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-16 gap-2 text-accent-muted/50">
+          <div className="flex items-center justify-center py-16 gap-2 text-fg-secondary/50">
             <Loader2 size={18} className="animate-spin" />
-            <span className="text-sm">Loading rules…</span>
+            <span className="text-ui">Loading rules…</span>
           </div>
         ) : error ? (
-          <div className="flex items-center justify-center py-16 gap-2 text-red-400/70">
+          <div className="flex items-center justify-center py-16 gap-2 text-severity-critical/70">
             <AlertCircle size={18} />
-            <span className="text-sm">{error}</span>
+            <span className="text-ui">{error}</span>
           </div>
         ) : (
           <RulesTable rules={filtered} />
         )}
       </div>
 
-      <p className="text-xs text-accent-muted/40 flex items-center gap-1.5">
+      <p className="text-label text-fg-secondary/40 flex items-center gap-1.5">
         <Info size={11} />
         Built-in rules are read-only Chainsaw native EVTX detection rules bundled with the application.
       </p>
@@ -230,10 +227,10 @@ function CustomTab() {
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
-        className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+        className={`border-2 border-dashed p-8 text-center cursor-pointer transition-colors ${
           dragOver
-            ? 'border-accent-green/50 bg-accent-green/5'
-            : 'border-white/10 hover:border-white/20 hover:bg-white/3'
+            ? 'border-accent/50 bg-accent/5'
+            : 'border-hairline hover:border-strong hover:bg-fg/3'
         }`}
       >
         <input
@@ -249,47 +246,47 @@ function CustomTab() {
           }}
         />
         {uploading ? (
-          <div className="flex flex-col items-center gap-2 text-accent-muted/60">
-            <Loader2 size={24} className="animate-spin text-accent-green" />
-            <p className="text-sm">Uploading…</p>
+          <div className="flex flex-col items-center gap-2 text-fg-secondary/60">
+            <Loader2 size={24} className="animate-spin text-accent" />
+            <p className="text-ui">Uploading…</p>
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-2 text-accent-muted/50">
-            <Upload size={24} className={dragOver ? 'text-accent-green' : ''} />
-            <p className="text-sm font-medium text-white/70">
+          <div className="flex flex-col items-center gap-2 text-fg-secondary/50">
+            <Upload size={24} className={dragOver ? 'text-accent' : ''} />
+            <p className="text-ui font-medium text-fg/70">
               Drag &amp; drop rule files here, or click to browse
             </p>
-            <p className="text-xs">Accepts .yml and .yaml files</p>
+            <p className="text-label">Accepts .yml and .yaml files</p>
           </div>
         )}
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
+        <div className="flex items-center gap-2 px-3 py-2 bg-severity-critical/10 border border-severity-critical/20 text-severity-critical text-ui">
           <AlertCircle size={14} />
           {error}
         </div>
       )}
 
       {/* Rules list */}
-      <div className="bg-bg-secondary border border-white/5 rounded-xl overflow-hidden">
+      <div className="bg-panel border border-hairline overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-16 gap-2 text-accent-muted/50">
+          <div className="flex items-center justify-center py-16 gap-2 text-fg-secondary/50">
             <Loader2 size={18} className="animate-spin" />
-            <span className="text-sm">Loading…</span>
+            <span className="text-ui">Loading…</span>
           </div>
         ) : rules.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-2 text-accent-muted/40">
+          <div className="flex flex-col items-center justify-center py-16 gap-2 text-fg-secondary/40">
             <Swords size={28} className="opacity-30" />
-            <p className="text-sm">No custom rules yet</p>
-            <p className="text-xs text-accent-muted/30">Upload .yml rule files to get started</p>
+            <p className="text-ui">No custom rules yet</p>
+            <p className="text-label text-fg-secondary/30">Upload .yml rule files to get started</p>
           </div>
         ) : (
           <RulesTable rules={rules} onDelete={handleDelete} deletingFilename={deleting} />
         )}
       </div>
 
-      <p className="text-xs text-accent-muted/40 flex items-center gap-1.5">
+      <p className="text-label text-fg-secondary/40 flex items-center gap-1.5">
         <Info size={11} />
         Custom rules are included alongside built-in rules in all scans. Use Chainsaw native EVTX format (kind: evtx).
       </p>
@@ -350,14 +347,14 @@ function SigmaTab() {
   return (
     <div className="space-y-4">
       {/* Status card */}
-      <div className="bg-bg-secondary border border-white/5 rounded-xl p-6">
+      <div className="bg-panel border border-hairline p-6">
         {loading ? (
-          <div className="flex items-center gap-2 text-accent-muted/50">
+          <div className="flex items-center gap-2 text-fg-secondary/50">
             <Loader2 size={18} className="animate-spin" />
-            <span className="text-sm">Checking status…</span>
+            <span className="text-ui">Checking status…</span>
           </div>
         ) : error ? (
-          <div className="flex items-center gap-2 text-red-400 text-sm">
+          <div className="flex items-center gap-2 text-severity-critical text-ui">
             <AlertCircle size={16} />
             {error}
           </div>
@@ -366,16 +363,16 @@ function SigmaTab() {
             {/* Status indicator */}
             <div className="flex items-center gap-3">
               {status.installed ? (
-                <CheckCircle2 size={20} className="text-accent-green shrink-0" />
+                <CheckCircle2 size={20} className="text-accent shrink-0" />
               ) : (
-                <AlertCircle size={20} className="text-accent-muted/40 shrink-0" />
+                <AlertCircle size={20} className="text-fg-secondary/40 shrink-0" />
               )}
               <div>
-                <p className="text-sm font-medium text-white">
+                <p className="text-ui font-medium text-fg">
                   {status.installed ? 'SigmaHQ Windows Rules Installed' : 'SigmaHQ Rules Not Installed'}
                 </p>
                 {status.installed && (
-                  <p className="text-xs text-accent-muted/60 mt-0.5">
+                  <p className="text-label text-fg-secondary/60 mt-0.5">
                     {status.rule_count.toLocaleString()} rule{status.rule_count !== 1 ? 's' : ''} available
                   </p>
                 )}
@@ -384,20 +381,20 @@ function SigmaTab() {
 
             {/* Download / Re-download button */}
             {downloading ? (
-              <div className="flex items-center gap-3 px-4 py-3 bg-accent-green/5 border border-accent-green/15 rounded-lg">
-                <Loader2 size={16} className="animate-spin text-accent-green shrink-0" />
+              <div className="flex items-center gap-3 px-4 py-3 bg-accent/5 border border-accent/15 ">
+                <Loader2 size={16} className="animate-spin text-accent shrink-0" />
                 <div>
-                  <p className="text-sm text-accent-green font-medium">Downloading from GitHub…</p>
-                  {message && <p className="text-xs text-accent-muted/60 mt-0.5">{message}</p>}
+                  <p className="text-ui text-accent font-medium">Downloading from GitHub…</p>
+                  {message && <p className="text-label text-fg-secondary/60 mt-0.5">{message}</p>}
                 </div>
               </div>
             ) : (
               <button
                 onClick={handleDownload}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors border ${
+                className={`flex items-center gap-2 px-4 py-2.5 text-ui font-medium transition-colors border ${
                   status.installed
-                    ? 'bg-white/5 hover:bg-white/8 text-accent-muted hover:text-white border-white/10'
-                    : 'bg-accent-green/10 hover:bg-accent-green/20 text-accent-green border-accent-green/30'
+                    ? 'bg-fg/5 hover:bg-fg/8 text-fg-secondary hover:text-fg border-hairline'
+                    : 'bg-accent/10 hover:bg-accent/20 text-accent border-accent/30'
                 }`}
               >
                 <Download size={15} />
@@ -409,24 +406,24 @@ function SigmaTab() {
       </div>
 
       {/* Info section */}
-      <div className="bg-bg-secondary border border-white/5 rounded-xl p-5 space-y-3">
-        <div className="flex items-center gap-2 text-accent-green">
+      <div className="bg-panel border border-hairline p-5 space-y-3">
+        <div className="flex items-center gap-2 text-accent">
           <ShieldCheck size={16} />
-          <p className="text-sm font-semibold">About SigmaHQ Rules</p>
+          <p className="text-ui font-semibold">About SigmaHQ Rules</p>
         </div>
-        <div className="space-y-2 text-xs text-accent-muted/70 leading-relaxed">
+        <div className="space-y-2 text-label text-fg-secondary/70 leading-relaxed">
           <p>
             SigmaHQ is an open-source collection of generic signatures for SIEM systems. The Windows ruleset
             covers common attack techniques mapped to the MITRE ATT&CK framework.
           </p>
           <p>
             Rules are downloaded from the official SigmaHQ GitHub repository
-            (<span className="font-mono text-accent-muted">SigmaHQ/sigma</span>) and cover Windows event
+            (<span className="font-mono text-fg-secondary">SigmaHQ/sigma</span>) and cover Windows event
             logs across categories such as process creation, network connections, registry changes, and more.
           </p>
           <p className="flex items-start gap-1.5">
-            <Info size={11} className="mt-0.5 shrink-0 text-accent-green/60" />
-            SigmaHQ rules are used <span className="text-white/80 font-medium">alongside built-in rules</span> in
+            <Info size={11} className="mt-0.5 shrink-0 text-accent/60" />
+            SigmaHQ rules are used <span className="text-fg/80 font-medium">alongside built-in rules</span> in
             all Chainsaw scans automatically, provided the mapping file is present.
           </p>
         </div>
@@ -449,45 +446,33 @@ export default function ChainsawRules() {
   ]
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-bg-primary">
-      {/* Page header */}
-      <div className="px-8 pt-8 pb-6 border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-accent-green/10 border border-accent-green/20 flex items-center justify-center">
-            <Swords size={18} className="text-accent-green" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-white tracking-tight">Detection Rules</h1>
-            <p className="text-xs text-accent-muted/60 mt-0.5">
-              Manage Chainsaw built-in, custom, and SigmaHQ detection rules
-            </p>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-1 mt-5">
+    <PageShell
+      route="/config/chainsaw-rules"
+      title="Detection Rules"
+      subtitle="Chainsaw built-in, custom and SigmaHQ rules"
+      toolbar={(
+        <div className="flex gap-1">
           {tabs.map(t => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors ${
-                tab === t.key
-                  ? 'bg-accent-green/10 text-accent-green border-accent-green'
-                  : 'text-accent-muted/60 border-transparent hover:text-white hover:bg-white/5'
+              className={`px-3 py-1.5 text-ui transition-colors ${
+                tab === t.key ? 'tab-active' : 'tab-inactive'
               }`}
             >
               {t.label}
             </button>
           ))}
         </div>
-      </div>
+      )}
+      fullHeight
+    >
 
-      {/* Tab content */}
-      <div className="flex-1 overflow-y-auto px-8 py-6">
+      <div className="h-full overflow-y-auto px-6 py-5">
         {tab === 'builtin' && <BuiltinTab />}
         {tab === 'custom'  && <CustomTab />}
         {tab === 'sigma'   && <SigmaTab />}
       </div>
-    </div>
+    </PageShell>
   )
 }

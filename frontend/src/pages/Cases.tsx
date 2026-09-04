@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react'
+import { PageShell } from '../ui/PageShell'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, FolderOpen, Building2 } from 'lucide-react'
+import { Plus, Search, FolderOpen, Building2 } from '../ui/icons'
 import { casesApi } from '../api/cases'
 import { templatesApi } from '../api/templates'
 import { usersApi } from '../api/auth'
@@ -10,32 +11,30 @@ import { playbooksApi } from '../api/playbooks'
 import { useAuth } from '../context/AuthContext'
 import type { Case, CaseSeverity, CaseStatus, CaseType } from '../types'
 import { SeverityBadge, StatusBadge, TLPBadge, Tag } from '../components/ui/Badge'
+import { DataTable } from '../ui/DataTable'
+import { Panel } from '../ui/Panel'
 import Modal from '../components/ui/Modal'
 import EmptyState from '../components/ui/EmptyState'
 import TagInput, { type InputTag } from '../components/ui/TagInput'
-import { GitBranch } from 'lucide-react'
+import { GitBranch } from '../ui/icons'
 import { fmtDate } from '../utils/dateUtils'
 
-const USER_BADGE = 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+const USER_BADGE = 'bg-severity-low/10 text-severity-low border-severity-low/20'
 
 const CASE_TYPE_META: Record<CaseType, { label: string; color: string }> = {
   ir:      { label: 'IR',      color: 'bg-severity-critical/10 text-severity-critical border-severity-critical/20' },
-  ctf:     { label: 'CTF',     color: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
-  pentest: { label: 'Pentest', color: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
-  sample:  { label: 'Sample',  color: 'bg-white/5 text-accent-muted border-white/10' },
+  ctf:     { label: 'CTF',     color: 'bg-data-2/10 text-data-2 border-data-2/20' },
+  pentest: { label: 'Pentest', color: 'bg-severity-high/10 text-severity-high border-severity-high/20' },
+  sample:  { label: 'Sample',  color: 'bg-fg/5 text-fg-secondary border-hairline' },
 }
 
 function CaseTypeBadge({ type }: { type: CaseType }) {
   const m = CASE_TYPE_META[type] ?? CASE_TYPE_META.ir
   return (
-    <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border ${m.color}`}>
+    <span className={`text-label font-mono font-bold px-1.5 py-0.5 rounded-control border ${m.color}`}>
       {m.label}
     </span>
   )
-}
-
-function toAssigneeTags(str: string): InputTag[] {
-  return str.split(',').map(s => s.trim()).filter(Boolean).map(v => ({ value: v, badgeColor: USER_BADGE }))
 }
 
 function fromAssigneeTags(tags: InputTag[]): string {
@@ -107,22 +106,23 @@ export default function Cases() {
   const typeTabs: (CaseType | 'all')[] = ['all', 'ir', 'ctf', 'pentest', 'sample']
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-accent-green">Cases</h1>
-          <p className="text-accent-muted text-sm mt-1">{cases.length} total</p>
-        </div>
-        <button className="btn-primary flex items-center gap-2" onClick={openModal}>
-          <Plus size={16} /> New Case
+    <PageShell
+      route="/cases"
+      title="Cases"
+      meta={`${cases.length} total`}
+      actions={(
+        <button className="btn-primary flex items-center gap-1.5" onClick={openModal}>
+          <Plus size={13} /> New Case
         </button>
-      </div>
+      )}
+    >
+      <div className="max-w-6xl mx-auto">
 
       {/* Search + filters */}
       <div className="space-y-3 mb-6">
         <div className="flex items-center gap-4">
           <div className="relative flex-1 max-w-sm">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-accent-muted" />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-secondary" />
             <input
               className="input pl-9"
               placeholder="Search cases or client…"
@@ -131,13 +131,12 @@ export default function Cases() {
             />
           </div>
           {/* Status filter */}
-          <div className="flex gap-1 border border-white/10 rounded-lg p-1">
+          <div className="flex gap-1 border border-hairline p-1">
             {statusTabs.map(s => (
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
-                className={`px-3 py-1 text-xs rounded-md capitalize transition-colors ${
-                  statusFilter === s ? 'bg-accent-green text-bg-primary font-semibold' : 'text-accent-muted hover:text-white'
+                className={`px-3 py-1 text-label rounded-control capitalize transition-colors ${ statusFilter === s ? 'bg-accent text-canvas font-semibold' : 'text-fg-secondary hover:text-fg'
                 }`}
               >
                 {s.replace('_', ' ')}
@@ -148,16 +147,15 @@ export default function Cases() {
 
         {/* Type filter */}
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-accent-muted/40 uppercase tracking-widest">Type</span>
+          <span className="text-label text-fg-secondary/40 uppercase tracking-widest">Type</span>
           <div className="flex gap-1">
             {typeTabs.map(t => (
               <button
                 key={t}
                 onClick={() => setTypeFilter(t)}
-                className={`px-2.5 py-1 text-[10px] rounded-md font-mono capitalize transition-colors border ${
-                  typeFilter === t
-                    ? 'bg-accent-green/15 text-accent-green border-accent-green/30 font-semibold'
-                    : 'text-accent-muted/50 border-transparent hover:text-white hover:border-white/10'
+                className={`px-2.5 py-1 text-label rounded-control font-mono capitalize transition-colors border ${ typeFilter === t
+                    ? 'bg-accent/15 text-accent border-accent/30 font-semibold'
+                    : 'text-fg-secondary/50 border-transparent hover:text-fg hover:border-hairline'
                 }`}
               >
                 {t === 'all' ? 'Tous' : CASE_TYPE_META[t as CaseType]?.label ?? t}
@@ -168,7 +166,7 @@ export default function Cases() {
       </div>
 
       {isLoading ? (
-        <div className="text-accent-muted text-sm text-center py-16">Loading…</div>
+        <div className="text-fg-secondary text-ui text-center py-16">Loading…</div>
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={FolderOpen}
@@ -176,68 +174,61 @@ export default function Cases() {
           action={cases.length === 0 ? { label: '+ Create first case', onClick: () => setModalOpen(true) } : undefined}
         />
       ) : (
-        <div className="card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-white/5 text-accent-muted text-xs uppercase tracking-wide">
-                <th className="text-left px-4 py-3">Title</th>
-                <th className="text-left px-4 py-3">Type</th>
-                <th className="text-left px-4 py-3">Severity</th>
-                <th className="text-left px-4 py-3">Status</th>
-                <th className="text-left px-4 py-3">TLP</th>
-                <th className="text-left px-4 py-3">Assigned</th>
-                <th className="text-left px-4 py-3">IOCs</th>
-                <th className="text-left px-4 py-3">Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(c => (
-                <tr
-                  key={c.id}
-                  className="border-b border-white/5 last:border-0 hover:bg-white/[0.02] cursor-pointer"
-                  onClick={() => navigate(`/cases/${c.id}`)}
-                >
-                  <td className="px-4 py-3">
-                    <div>
-                      <p className="font-medium">{c.title}</p>
-                      {c.client_name && (
-                        <p className="flex items-center gap-1 text-[10px] text-accent-muted/50 mt-0.5">
-                          <Building2 size={9} />
-                          {c.client_name}
-                        </p>
-                      )}
-                      {c.tags && (
-                        <div className="flex gap-1 mt-1 flex-wrap">
-                          {c.tags.split(',').filter(Boolean).slice(0, 3).map(t => (
-                            <Tag key={t} label={t.trim()} />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <CaseTypeBadge type={c.case_type ?? 'ir'} />
-                  </td>
-                  <td className="px-4 py-3"><SeverityBadge severity={c.severity} /></td>
-                  <td className="px-4 py-3"><StatusBadge status={c.status} /></td>
-                  <td className="px-4 py-3"><TLPBadge tlp={c.tlp} /></td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-1 flex-wrap">
-                      {c.assigned_to
-                        ? c.assigned_to.split(',').map(s => s.trim()).filter(Boolean).map(name => (
-                            <span key={name} className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${USER_BADGE}`}>{name}</span>
-                          ))
-                        : <span className="text-xs text-accent-muted">—</span>
-                      }
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-accent-muted">{c.ioc_count}</td>
-                  <td className="px-4 py-3 text-xs text-accent-muted">{fmtDate(c.updated_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Panel className="overflow-hidden">
+          <DataTable
+            rows={filtered}
+            rowKey={(c) => c.id}
+            onRowClick={(c) => navigate(`/cases/${c.id}`)}
+            empty="No case matches these filters."
+            columns={[
+              {
+                key: 'title',
+                header: 'Title',
+                render: (c) => (
+                  <>
+                    <p className="font-medium text-fg">{c.title}</p>
+                    {c.client_name && (
+                      <p className="flex items-center gap-1 text-label text-fg-muted mt-0.5">
+                        <Building2 size={9} />
+                        {c.client_name}
+                      </p>
+                    )}
+                    {c.tags && (
+                      <div className="flex gap-1 mt-1 flex-wrap">
+                        {c.tags.split(',').filter(Boolean).slice(0, 3).map((tag) => (
+                          <Tag key={tag} label={tag.trim()} />
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ),
+              },
+              { key: 'type',     header: 'Type',     width: 'w-24', hideBelow: 'lg', render: (c) => <CaseTypeBadge type={c.case_type ?? 'ir'} /> },
+              { key: 'severity', header: 'Severity', width: 'w-28', render: (c) => <SeverityBadge severity={c.severity} /> },
+              { key: 'status',   header: 'Status',   width: 'w-32', render: (c) => <StatusBadge status={c.status} /> },
+              { key: 'tlp',      header: 'TLP',      width: 'w-28', hideBelow: 'lg', render: (c) => <TLPBadge tlp={c.tlp} /> },
+              {
+                key: 'assigned',
+                header: 'Assigned',
+                width: 'w-40',
+                hideBelow: 'md',
+                render: (c) => (
+                  <div className="flex gap-1 flex-wrap">
+                    {c.assigned_to
+                      ? c.assigned_to.split(',').map((s) => s.trim()).filter(Boolean).map((name) => (
+                          <span key={name} className={`text-label font-mono px-1.5 py-0.5 rounded-control border ${USER_BADGE}`}>
+                            {name}
+                          </span>
+                        ))
+                      : <span className="text-label text-fg-muted">—</span>}
+                  </div>
+                ),
+              },
+              { key: 'iocs',    header: 'IOCs',    width: 'w-16', align: 'right', mono: true, hideBelow: 'md', render: (c) => <span className="text-fg-secondary">{c.ioc_count}</span> },
+              { key: 'updated', header: 'Updated', width: 'w-32', mono: true, render: (c) => <span className="text-fg-secondary">{fmtDate(c.updated_at)}</span> },
+            ]}
+          />
+        </Panel>
       )}
 
       {/* New Case modal */}
@@ -261,8 +252,8 @@ export default function Cases() {
             <div>
               <label className="label flex items-center gap-1.5"><Building2 size={11} /> Client / Organisation</label>
               <select className="input" value={form.client_id ?? ''} onChange={e => setForm(f => ({ ...f, client_id: e.target.value || null }))}>
-                <option value="">— Aucun (client par défaut) —</option>
-                {clients.map(c => <option key={c.id} value={c.id}>{c.name}{c.is_default ? ' (défaut)' : ''}</option>)}
+                <option value="">-- None (default client) --</option>
+                {clients.map(c => <option key={c.id} value={c.id}>{c.name}{c.is_default ? ' (default)' : ''}</option>)}
               </select>
             </div>
           </div>
@@ -332,7 +323,7 @@ export default function Cases() {
             <div>
               <label className="label flex items-center gap-1.5">
                 <GitBranch size={11} /> Playbooks
-                <span className="normal-case font-normal text-accent-muted/50">(optionnel)</span>
+                <span className="normal-case font-normal text-fg-secondary/50">(optionnel)</span>
               </label>
               <div className="flex flex-wrap gap-2 mt-1">
                 {allPlaybooks.map(pb => {
@@ -344,10 +335,9 @@ export default function Cases() {
                       onClick={() => setSelectedPlaybooks(prev =>
                         selected ? prev.filter(id => id !== pb.id) : [...prev, pb.id]
                       )}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded border text-xs transition-colors ${
-                        selected
-                          ? 'bg-accent-green/10 text-accent-green border-accent-green/30'
-                          : 'bg-white/5 text-accent-muted border-white/10 hover:bg-white/10 hover:text-white'
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-control border text-label transition-colors ${ selected
+                          ? 'bg-accent/10 text-accent border-accent/30'
+                          : 'bg-fg/5 text-fg-secondary border-hairline hover:bg-fg/10 hover:text-fg'
                       }`}
                     >
                       <GitBranch size={10} />
@@ -367,6 +357,7 @@ export default function Cases() {
           </div>
         </div>
       </Modal>
-    </div>
+      </div>
+    </PageShell>
   )
 }

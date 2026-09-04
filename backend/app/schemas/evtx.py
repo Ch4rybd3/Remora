@@ -1,8 +1,9 @@
 from __future__ import annotations
-from datetime import datetime
-from typing import Any, Optional
-from pydantic import BaseModel
 
+from datetime import datetime
+from typing import Any
+
+from pydantic import BaseModel
 
 # ── EvtxFile ──────────────────────────────────────────────────────────────────
 
@@ -11,10 +12,10 @@ class EvtxFileOut(BaseModel):
     case_id:            str
     filename:           str
     status:             str          # pending | parsing | ready | error
-    event_count:        Optional[int]
-    error_msg:          Optional[str]
+    event_count:        int | None
+    error_msg:          str | None
     uploaded_at:        datetime
-    parsed_at:          Optional[datetime]
+    parsed_at:          datetime | None
     added_to_evidence:  bool
 
     model_config = {"from_attributes": True}
@@ -25,16 +26,16 @@ class EvtxFileOut(BaseModel):
 class EvtxEventOut(BaseModel):
     id:              int
     file_id:         str
-    record_id:       Optional[int]
-    time_created:    Optional[datetime]
-    event_id:        Optional[int]
-    level:           Optional[int]
-    level_name:      Optional[str]
-    channel:         Optional[str]
-    provider:        Optional[str]
-    computer:        Optional[str]
-    user_id:         Optional[str]
-    event_data:      Optional[dict[str, Any]]
+    record_id:       int | None
+    time_created:    datetime | None
+    event_id:        int | None
+    level:           int | None
+    level_name:      str | None
+    channel:         str | None
+    provider:        str | None
+    computer:        str | None
+    user_id:         str | None
+    event_data:      dict[str, Any] | None
 
     model_config = {"from_attributes": True}
 

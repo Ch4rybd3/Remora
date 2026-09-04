@@ -1,8 +1,14 @@
 import secrets
-from typing import Any, Tuple, Type
-from pydantic import field_validator
-from pydantic_settings import BaseSettings, EnvSettingsSource, PydanticBaseSettingsSource
 from pathlib import Path
+from typing import Any
+
+from pydantic import field_validator
+from pydantic_settings import (
+    BaseSettings,
+    DotEnvSettingsSource,
+    EnvSettingsSource,
+    PydanticBaseSettingsSource,
+)
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -12,7 +18,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 # run, which crashes on plain comma-separated values like "http://a,http://b".
 # This subclass handles cors_origins by splitting on commas instead of JSON.
 
-class _CorsAwareEnvSource(EnvSettingsSource):
+class _CorsAwareMixin:
+    """Decode cors_origins from a comma-separated string.
+
+    Applied to both the environment and the dotenv source: a `.env` copied from
+    `.env.example` carries `CORS_ORIGINS=http://localhost`, which the stock
+    dotenv source hands to json.loads() and dies on. Patching only the env
+    source left every from-checkout run broken while Docker deployments — which
+    receive the value as a real environment variable — worked fine.
+    """
+
     def decode_complex_value(
         self, field_name: str, field_type: Any, value: str
     ) -> Any:
@@ -33,14 +48,32 @@ class _CorsAwareEnvSource(EnvSettingsSource):
         return super().decode_complex_value(field_name, field_type, value)
 
 
+class _CorsAwareEnvSource(_CorsAwareMixin, EnvSettingsSource):
+    pass
+
+
+class _CorsAwareDotEnvSource(_CorsAwareMixin, DotEnvSettingsSource):
+    pass
+
+
 # ── Settings ──────────────────────────────────────────────────────────────────
 
 class Settings(BaseSettings):
     app_name: str = "Remora"
     database_url: str = f"sqlite:///{BASE_DIR}/data/remora.db"
     evidence_store_path: Path = BASE_DIR / "data" / "evidences"
+    # Root for per-case working data (collection imports and their extracted
+    # files). Overridable so tests do not write into the source tree - running
+    # the backend from `backend/` used to create a `backend/data/` holding real
+    # evidence, one `git add -A` away from being committed.
+    case_data_path: Path = Path("/app/data") if Path("/app/data").exists() else BASE_DIR / "data"
     templates_path: Path = BASE_DIR / "templates"
     max_upload_size_mb: int = 500
+
+    # Skip provisioning of external tooling (Chainsaw download, CTI binary
+    # checks) at startup. Set in CI and in tests, which have no reason to pull
+    # a release from GitHub before running.
+    skip_tool_setup: bool = False
 
     # ── Drop folder ───────────────────────────────────────────────────────────
     # Watched directory with one sub-folder per case. Bind-mount it from the
@@ -54,6 +87,51 @@ class Settings(BaseSettings):
     # A file is ingested only after being untouched for this long, so a copy
     # still in progress is never read half-written.
     dropzone_stable_seconds: int = 15
+
+    # ── Eric Zimmerman tools ──────────────────────────────────────────────────
+    # Fetched on first start rather than baked into the image - 50 MB of
+    # third-party binaries in every layer, rebuilt on every release, is a poor
+    # trade. Point this at a directory holding the extracted tools and nothing
+    # is downloaded, which is also the answer for an air-gapped workstation.
+    ez_tools_path: Path = BASE_DIR / "data" / "ez-tools"
+
+    # ── Parser sandbox ────────────────────────────────────────────────────────
+    # Unprivileged account the Eric Zimmerman parsers run as. Created by the
+    # backend image; override where the deployment differs. See
+    # services/sandbox.py for what else is enforced.
+    parser_sandbox_user: str = "remora-parser"
+    # The wall-clock ceiling grows with the size of the artifact. A flat number
+    # is wrong in both directions at once: long enough for a 2 GB $MFT is long
+    # enough for a hostile 4 KB file to pin a core for an hour, and short enough
+    # to contain that file kills legitimate work on the $MFT.
+    #
+    # EVTXECmd on a few hundred megabytes of Security.evtx, or MFTECmd on a
+    # gigabyte $MFT, runs for tens of minutes on ordinary hardware.
+    parser_base_seconds: int = 900              # 15 min, covers most artifacts
+    parser_seconds_per_gigabyte: int = 1800     # +30 min per GB
+    parser_max_seconds: int = 4 * 3600          # hard stop; the input is hostile
+    # RLIMIT_CPU sums every thread, so a parser on four cores burns four
+    # CPU-seconds per second of wall clock. Equal to the wall budget it would be
+    # killed at a quarter of its time, with a signal nobody could interpret.
+    parser_cpu_multiplier: int = 4
+    parser_memory_mb: int = 4096
+
+    # ── Artifact store ────────────────────────────────────────────────────────
+    # Materialise CSV artifacts as Parquet on first query. Every query used to
+    # re-parse the whole CSV; Parquet is columnar and typed, so a filter on one
+    # column touches one column. The cache is derived data - deleting it costs
+    # one re-conversion. Set false to fall back to scanning the CSV directly.
+    artifact_store_parquet: bool = True
+
+    # ── Chain of custody ──────────────────────────────────────────────────────
+    # Password on the archive an evidence item is wrapped in when it is flagged
+    # as an IOC. Deliberately well-known and shown in the interface: this is
+    # containment, not confidentiality. It stops an analyst double-clicking a
+    # live sample after downloading it, and stops endpoint protection silently
+    # quarantining one out of the evidence store - which destroys evidence.
+    # Configurable so an organisation can align it with its own convention
+    # ("infected" is the common one).
+    ioc_archive_password: str = "Remora"
 
     # ── Disk images ───────────────────────────────────────────────────────────
     # Comma-separated directories the disk image explorer may read from,
@@ -89,21 +167,25 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        # `.env` is shared with docker-compose and carries variables the
+        # backend does not own (PORT, BIND_HOST, DROPZONE_HOST_PATH, …).
+        # Without this, loading the shipped .env.example fails outright.
+        extra = "ignore"
 
     @classmethod
     def settings_customise_sources(
         cls,
-        settings_cls: Type[BaseSettings],
+        settings_cls: type[BaseSettings],
         init_settings: PydanticBaseSettingsSource,
         env_settings: PydanticBaseSettingsSource,
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
-    ) -> Tuple[PydanticBaseSettingsSource, ...]:
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
         # Replace the default env source with our CORS-aware version
         return (
             init_settings,
             _CorsAwareEnvSource(settings_cls),
-            dotenv_settings,
+            _CorsAwareDotEnvSource(settings_cls),
             file_secret_settings,
         )
 

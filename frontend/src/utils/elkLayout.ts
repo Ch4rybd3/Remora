@@ -16,7 +16,7 @@
 import ELK from 'elkjs/lib/elk.bundled.js'
 import type { Node, Edge } from '@xyflow/react'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const elk = new ELK() as any
 
 const GRID = 20
@@ -76,9 +76,9 @@ export async function applyElkLayout(
     edges:    elkEdges,
   })
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const posMap = new Map<string, { x: number; y: number }>(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (laid.children ?? []).map((n: any) => [n.id, { x: n.x ?? 0, y: n.y ?? 0 }]),
   )
 

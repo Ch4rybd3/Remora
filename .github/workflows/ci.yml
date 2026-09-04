@@ -1,0 +1,177 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [integration, main]
+  push:
+    branches: [integration, main]
+
+# A new push to the same branch cancels the run it supersedes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "22"
+
+jobs:
+  gates:
+    name: Conventions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # docs/CONVENTIONS.md section 1.
+      #
+      # Now a full-repository scan. The ratchet that S11 needed is gone because
+      # the backlog it protected is gone: the conversion landed in S12 and the
+      # repository is at zero.
+      #
+      # Accented characters are a proxy for French, not a proof of English, so
+      # reviewers still reject unaccented French. The gate catches the
+      # regression that is easy to miss.
+      # Accented characters. The companion check for French that carries no
+      # accent - "Scanner", "Fichiers", "Effacer", "attente" - is
+      # `npm run check:english` in the frontend job. This one alone missed
+      # French seven times in this project before that existed.
+      - name: Source is English (accents)
+        run: |
+          if grep -rIn "[éèêàùçôîœâêûïëäöüñ]" backend/app frontend/src \
+               --include='*.py' --include='*.ts' --include='*.tsx'; then
+            echo "::error::Non-English source found. See docs/CONVENTIONS.md section 1."
+            exit 1
+          fi
+
+      # docs/CONVENTIONS.md section 2.
+      #
+      # Informational only. The authority is test_models_match_the_migrated_schema,
+      # which compares the live schema against the models: it cannot miss a real
+      # column change and cannot fire on a cosmetic one.
+      #
+      # This step used to fail the build whenever backend/app/models/ was touched.
+      # That proxy is wrong in both directions — the ruff pass reformatted
+      # annotations in 20 model files and would have been rejected, while a
+      # migration file containing nothing would have satisfied it. It is kept as
+      # a reviewer hint, not a gate.
+      - name: Note model changes
+        if: github.event_name == 'pull_request'
+        run: |
+          BASE="origin/${{ github.base_ref }}"
+          CHANGED=$(git diff --name-only "$BASE"...HEAD)
+          if echo "$CHANGED" | grep -q '^backend/app/models/'; then
+            if echo "$CHANGED" | grep -q '^backend/alembic/versions/'; then
+              echo "Models changed, revision included." >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "### Models changed with no Alembic revision" >> "$GITHUB_STEP_SUMMARY"
+              echo "Fine if the change was cosmetic. The backend test job decides." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+
+      - name: No debug statements
+        run: |
+          if grep -rIn --include='*.ts' --include='*.tsx' \
+               -E '(^|[^.\w])console\.(log|debug)\(|(^|\W)debugger\s*;' frontend/src; then
+            echo "::error::console.log/debugger left in frontend source."
+            exit 1
+          fi
+
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+
+      # libmagic and the archive backends are runtime dependencies of the
+      # ingestion services and are imported at collection time.
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libmagic1 p7zip-full
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements-dev.txt
+
+      - name: Lint (ruff)
+        run: ruff check backend/
+
+      - name: Type check (mypy)
+        run: mypy
+
+      - name: Test (pytest)
+        env:
+          SECRET_KEY: ci-secret-key
+          SKIP_TOOL_SETUP: "true"
+        run: pytest backend/tests
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (eslint)
+        run: npm run lint
+
+      # Tailwind drops classes it does not recognise without a word, so a
+      # renamed colour never fails the build — the element just renders
+      # unstyled. This turns that silent failure into a loud one.
+      - name: English only
+        run: npm run check:english
+
+      - name: Design tokens
+        run: npm run check:design
+
+      # docs/CONVENTIONS.md section 5. A page that builds its own header passes
+      # every other check and ships looking subtly unlike the twenty-one beside
+      # it, which nobody notices for a month.
+      - name: Page shell
+        run: npm run check:pages
+
+      - name: Type check (tsc)
+        run: npm run typecheck
+
+      - name: Test (vitest)
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # The image is what ships. A backend that passes its tests but fails to
+      # build is not releasable, so this runs on every pull request.
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

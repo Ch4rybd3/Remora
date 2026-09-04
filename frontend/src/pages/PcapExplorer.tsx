@@ -6,11 +6,13 @@
  * protocol tree and hexdump come from dissecting the selected frame on demand.
  */
 import { useState, useMemo, useEffect, useCallback } from 'react'
+import { PageShell } from '../ui/PageShell'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { DataTable } from '../ui/DataTable'
 import {
   Network, Search, X, ChevronRight, BookmarkPlus, BookmarkCheck,
   Loader2, Download, AlertCircle, Filter, ArrowLeftRight, Copy, Check,
-} from 'lucide-react'
+} from '../ui/icons'
 import { csvArtifactsApi, type CsvArtifactMeta } from '../api/csvArtifacts'
 import {
   pcapApi, isPcapArtifact, captureName, hexToBytes,
@@ -18,6 +20,7 @@ import {
 } from '../api/pcap'
 import { timelineApi } from '../api/timeline'
 import { useCurrentCase } from '../context/CurrentCaseContext'
+import { fmtBytes } from '../utils/formatUtils'
 import { parseArtifactTimestamp } from '../utils/dateUtils'
 
 const PAGE_SIZE = 200
@@ -26,19 +29,19 @@ const PAGE_SIZE = 200
 // Mirrors Wireshark's default rules closely enough to be readable at a glance.
 
 const PROTO_ROW: Record<string, string> = {
-  DNS:  'text-blue-300',
-  HTTP: 'text-accent-green',
-  TLS:  'text-purple-300',
-  TCP:  'text-white/70',
-  UDP:  'text-cyan-300',
-  ICMP: 'text-orange-300',
-  ARP:  'text-yellow-300',
-  SMB:  'text-pink-300',
-  SMB2: 'text-pink-300',
+  DNS:  'text-severity-low',
+  HTTP: 'text-accent',
+  TLS:  'text-data-2',
+  TCP:  'text-fg/70',
+  UDP:  'text-data-5',
+  ICMP: 'text-severity-high',
+  ARP:  'text-severity-medium',
+  SMB:  'text-data-3',
+  SMB2: 'text-data-3',
 }
 
 function protoClass(proto: string): string {
-  return PROTO_ROW[proto?.toUpperCase()] ?? 'text-white/55'
+  return PROTO_ROW[proto?.toUpperCase()] ?? 'text-fg/55'
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -97,22 +100,21 @@ function TreeNode({ label, value, raw, depth, onHighlight }: TreeNodeProps) {
         onMouseEnter={() => range && onHighlight(range)}
         onMouseLeave={() => onHighlight(null)}
         onClick={() => isBranch && children.length > 0 && setOpen(o => !o)}
-        className={`flex items-start gap-1 px-2 py-[3px] text-[10px] font-mono leading-snug hover:bg-white/5 ${
-          isBranch && children.length > 0 ? 'cursor-pointer' : ''
-        } ${range ? 'hover:text-accent-green' : ''}`}
+        className={`flex items-start gap-1 px-2 py-[3px] text-label font-mono leading-snug hover:bg-fg/5 ${ isBranch && children.length > 0 ? 'cursor-pointer' : ''
+        } ${range ? 'hover:text-accent' : ''}`}
         style={{ paddingLeft: 8 + depth * 12 }}
       >
         {isBranch && children.length > 0 ? (
           <ChevronRight size={9}
-            className={`mt-[3px] shrink-0 text-accent-muted/40 transition-transform ${open ? 'rotate-90' : ''}`} />
+            className={`mt-[3px] shrink-0 text-fg-secondary/40 transition-transform ${open ? 'rotate-90' : ''}`} />
         ) : (
           <span className="w-[9px] shrink-0" />
         )}
-        <span className="text-accent-muted/70 shrink-0">{label}</span>
+        <span className="text-fg-secondary/70 shrink-0">{label}</span>
         {display && (
           <>
-            <span className="text-accent-muted/25">:</span>
-            <span className="text-white/75 break-all">{display}</span>
+            <span className="text-fg-secondary/25">:</span>
+            <span className="text-fg/75 break-all">{display}</span>
           </>
         )}
       </div>
@@ -164,7 +166,7 @@ function HexDump({ hex, highlight }: {
   }, [hex])
 
   if (bytes.length === 0) {
-    return <p className="p-3 text-[10px] text-accent-muted/30 italic">Octets bruts indisponibles.</p>
+    return <p className="p-3 text-label text-fg-secondary/30 italic">Octets bruts indisponibles.</p>
   }
 
   const rows: number[][] = []
@@ -174,10 +176,10 @@ function HexDump({ hex, highlight }: {
     !!highlight && idx >= highlight.offset && idx < highlight.offset + highlight.length
 
   return (
-    <div className="h-full overflow-auto p-2 font-mono text-[10px] leading-[1.45]">
+    <div className="h-full overflow-auto p-2 font-mono text-label leading-[1.45]">
       {rows.map((row, r) => (
         <div key={r} className="flex gap-3 whitespace-pre">
-          <span className="text-accent-muted/30 shrink-0">
+          <span className="text-fg-secondary/30 shrink-0">
             {(r * 16).toString(16).padStart(4, '0')}
           </span>
           <span className="shrink-0">
@@ -185,7 +187,7 @@ function HexDump({ hex, highlight }: {
               const idx = r * 16 + i
               return (
                 <span key={i}
-                  className={inRange(idx) ? 'bg-accent-green/25 text-accent-green' : 'text-white/60'}>
+                  className={inRange(idx) ? 'bg-accent/25 text-accent' : 'text-fg/60'}>
                   {b.toString(16).padStart(2, '0')}{i === 7 ? '  ' : ' '}
                 </span>
               )
@@ -199,7 +201,7 @@ function HexDump({ hex, highlight }: {
               const printable = b >= 0x20 && b < 0x7f
               return (
                 <span key={i}
-                  className={inRange(idx) ? 'bg-accent-green/25 text-accent-green' : 'text-white/45'}>
+                  className={inRange(idx) ? 'bg-accent/25 text-accent' : 'text-fg/45'}>
                   {printable ? String.fromCharCode(b) : '.'}
                 </span>
               )
@@ -212,12 +214,6 @@ function HexDump({ hex, highlight }: {
 }
 
 // ── Follow stream ─────────────────────────────────────────────────────────────
-
-function fmtBytes(n: number): string {
-  if (n < 1024) return `${n} o`
-  if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} Ko`
-  return `${(n / 1024 ** 2).toFixed(1)} Mo`
-}
 
 /** Printable-ASCII rendering; non-printable bytes shown as dots, like Wireshark. */
 function toAscii(bytes: Uint8Array): string {
@@ -274,82 +270,79 @@ function FollowStreamPanel({ stream, onClose }: { stream: PcapStream; onClose: (
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-8"
          onClick={onClose}>
-      <div className="w-full max-w-5xl h-full max-h-[85vh] bg-bg-card border border-white/10 rounded-lg flex flex-col overflow-hidden"
+      <div className="w-full max-w-5xl h-full max-h-[85vh] bg-panel border border-hairline flex flex-col overflow-hidden"
            onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/8 shrink-0">
-          <ArrowLeftRight size={13} className="text-accent-green shrink-0" />
-          <p className="text-xs font-semibold text-white shrink-0">
+        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-hairline shrink-0">
+          <ArrowLeftRight size={13} className="text-accent shrink-0" />
+          <p className="text-label font-semibold text-fg shrink-0">
             Flux {stream.protocol.toUpperCase()} n°{stream.stream}
           </p>
-          <p className="text-[10px] font-mono text-accent-muted/50 truncate">
+          <p className="text-label font-mono text-fg-secondary/50 truncate">
             {stream.node0} ↔ {stream.node1}
           </p>
-          <span className="text-[10px] text-accent-muted/35 shrink-0">
+          <span className="text-label text-fg-secondary/35 shrink-0">
             {fmtBytes(stream.total_bytes)} · {stream.chunks.length} segment(s)
           </span>
           <button onClick={onClose}
-            className="ml-auto text-accent-muted/40 hover:text-white transition-colors shrink-0">
+            className="ml-auto text-fg-secondary/40 hover:text-fg transition-colors shrink-0">
             <X size={14} />
           </button>
         </div>
 
         {/* Controls */}
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5 shrink-0">
-          <div className="flex rounded border border-white/10 overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-hairline shrink-0">
+          <div className="flex rounded-control border border-hairline overflow-hidden">
             {(['ascii', 'hex'] as const).map(v => (
               <button key={v} onClick={() => setView(v)}
-                className={`text-[10px] px-2.5 py-1 transition-colors ${
-                  view === v ? 'bg-accent-green/10 text-accent-green' : 'text-accent-muted hover:text-white'
+                className={`text-label px-2.5 py-1 transition-colors ${ view === v ? 'bg-accent/10 text-accent' : 'text-fg-secondary hover:text-fg'
                 }`}>
                 {v === 'ascii' ? 'ASCII' : 'Hex'}
               </button>
             ))}
           </div>
-          <div className="flex rounded border border-white/10 overflow-hidden">
+          <div className="flex rounded-control border border-hairline overflow-hidden">
             {([
               ['both', 'Les deux sens'],
               ['c2s',  `→ ${stream.node1}`],
               ['s2c',  `← ${stream.node1}`],
             ] as const).map(([v, label]) => (
               <button key={v} onClick={() => setSide(v)}
-                className={`text-[10px] px-2.5 py-1 truncate max-w-[180px] transition-colors ${
-                  side === v ? 'bg-accent-green/10 text-accent-green' : 'text-accent-muted hover:text-white'
+                className={`text-label px-2.5 py-1 truncate max-w-[180px] transition-colors ${ side === v ? 'bg-accent/10 text-accent' : 'text-fg-secondary hover:text-fg'
                 }`}>
                 {label}
               </button>
             ))}
           </div>
           <button onClick={copy}
-            className="ml-auto flex items-center gap-1 text-[10px] px-2 py-1 rounded border border-white/10 text-accent-muted hover:text-accent-green hover:border-accent-green/40 transition-colors">
-            {copied ? <Check size={10} className="text-accent-green" /> : <Copy size={10} />} Copier
+            className="ml-auto flex items-center gap-1 text-label px-2 py-1 rounded-control border border-hairline text-fg-secondary hover:text-accent hover:border-accent/40 transition-colors">
+            {copied ? <Check size={10} className="text-accent" /> : <Copy size={10} />} Copy
           </button>
           <button onClick={download}
-            className="flex items-center gap-1 text-[10px] px-2 py-1 rounded border border-white/10 text-accent-muted hover:text-accent-green hover:border-accent-green/40 transition-colors">
+            className="flex items-center gap-1 text-label px-2 py-1 rounded-control border border-hairline text-fg-secondary hover:text-accent hover:border-accent/40 transition-colors">
             <Download size={10} /> Exporter
           </button>
         </div>
 
         {stream.truncated && (
-          <p className="px-4 py-1.5 text-[10px] text-yellow-400/80 bg-yellow-500/5 border-b border-yellow-500/15 shrink-0">
-            Conversation tronquée : seuls les 2 premiers Mo sont affichés.
+          <p className="px-4 py-1.5 text-label text-severity-medium/80 bg-severity-medium/5 border-b border-severity-medium/15 shrink-0">
+            Conversation truncated: only the first 2 MB are shown.
           </p>
         )}
 
         {/* Content — client and server tinted differently, as in Wireshark */}
-        <div className="flex-1 overflow-auto p-3 font-mono text-[10px] leading-relaxed">
+        <div className="flex-1 overflow-auto p-3 font-mono text-label leading-relaxed">
           {shown.map((c, i) => (
             <pre key={i}
-              className={`whitespace-pre-wrap break-all mb-2 px-2 py-1 rounded border-l-2 ${
-                c.direction === 'c2s'
-                  ? 'border-l-accent-green/40 bg-accent-green/[0.04] text-accent-green/85'
-                  : 'border-l-blue-400/40 bg-blue-400/[0.04] text-blue-300/85'
+              className={`whitespace-pre-wrap break-all mb-2 px-2 py-1 rounded-control border-l-2 ${ c.direction === 'c2s'
+                  ? 'border-l-accent/40 bg-accent/[0.04] text-accent/85'
+                  : 'border-l-severity-low/40 bg-severity-low/[0.04] text-severity-low/85'
               }`}>
               {view === 'hex' ? toHexBlock(hexToBytes(c.hex)) : toAscii(hexToBytes(c.hex))}
             </pre>
           ))}
           {shown.length === 0 && (
-            <p className="text-accent-muted/30 italic">Aucune donnée dans ce sens.</p>
+            <p className="text-fg-secondary/30 italic">No data in this direction.</p>
           )}
         </div>
       </div>
@@ -393,7 +386,10 @@ function PinnedPanel({ pinned, onUnpin, onClear, onEdit, onExport, exporting }: 
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const toggle = (k: string) => setExpanded(p => {
-    const n = new Set(p); n.has(k) ? n.delete(k) : n.add(k); return n
+    const n = new Set(p)
+    if (n.has(k)) n.delete(k)
+    else n.add(k)
+    return n
   })
 
   // Chronological, oldest first — the order they will land in the timeline
@@ -403,19 +399,19 @@ function PinnedPanel({ pinned, onUnpin, onClear, onEdit, onExport, exporting }: 
   )
 
   return (
-    <div className="w-72 shrink-0 border-l border-white/5 bg-bg-card flex flex-col overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-3 border-b border-white/5 shrink-0">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-accent-muted/50 flex items-center gap-1.5">
-          <BookmarkCheck size={10} /> Sélection
+    <div className="w-72 shrink-0 border-l border-hairline bg-panel flex flex-col overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-3 border-b border-hairline shrink-0">
+        <p className="text-label font-semibold uppercase tracking-widest text-fg-secondary/50 flex items-center gap-1.5">
+          <BookmarkCheck size={10} /> Selection
           {pinned.length > 0 && (
-            <span className="ml-1 bg-accent-green/15 text-accent-green border border-accent-green/30 rounded px-1.5 py-0.5 text-[9px] font-bold">
+            <span className="ml-1 bg-accent/15 text-accent border border-accent/30 rounded-control px-1.5 py-0.5 text-label font-bold">
               {pinned.length}
             </span>
           )}
         </p>
         {pinned.length > 0 && (
           <button onClick={onClear} title="Tout retirer"
-            className="text-accent-muted/30 hover:text-severity-critical transition-colors">
+            className="text-fg-secondary/30 hover:text-severity-critical transition-colors">
             <X size={12} />
           </button>
         )}
@@ -423,13 +419,13 @@ function PinnedPanel({ pinned, onUnpin, onClear, onEdit, onExport, exporting }: 
 
       {pinned.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-2 px-4 text-center">
-          <BookmarkPlus size={22} className="text-accent-muted/15" />
-          <p className="text-[10px] text-accent-muted/30 leading-relaxed">
-            Épinglez des paquets pour les préparer avant envoi vers la timeline
+          <BookmarkPlus size={22} className="text-fg-secondary/15" />
+          <p className="text-label text-fg-secondary/30 leading-relaxed">
+            Pin packets to stage them before sending to the timeline
           </p>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto divide-y divide-white/[0.04]">
+        <div className="flex-1 overflow-y-auto divide-y divide-hairline/[0.04]">
           {sorted.map(item => {
             const isOpen = expanded.has(item.key)
             return (
@@ -437,39 +433,39 @@ function PinnedPanel({ pinned, onUnpin, onClear, onEdit, onExport, exporting }: 
                 <div className="flex items-start gap-2 pr-5">
                   <button onClick={() => toggle(item.key)}
                     title={isOpen ? 'Replier' : 'Éditer titre et description'}
-                    className="mt-0.5 shrink-0 text-accent-muted/30 hover:text-accent-green transition-colors">
+                    className="mt-0.5 shrink-0 text-fg-secondary/30 hover:text-accent transition-colors">
                     <ChevronRight size={11} className={`transition-transform ${isOpen ? 'rotate-90' : ''}`} />
                   </button>
                   <div className="flex-1 min-w-0">
-                    <span className="text-[8px] font-semibold px-1.5 py-0.5 rounded border bg-blue-500/10 text-blue-400 border-blue-500/20">
+                    <span className="text-label font-semibold px-1.5 py-0.5 rounded-control border bg-severity-low/10 text-severity-low border-severity-low/20">
                       #{item.row.No} · {item.row.Protocol}
                     </span>
-                    <p className="text-[10px] font-mono text-white/50 mt-0.5 truncate">
+                    <p className="text-label font-mono text-fg/50 mt-0.5 truncate">
                       {fmtTime(item.row.Timestamp ?? '')}
                     </p>
-                    <p className="text-[10px] text-white/70 mt-0.5 leading-snug line-clamp-2">{item.title}</p>
+                    <p className="text-label text-fg/70 mt-0.5 leading-snug line-clamp-2">{item.title}</p>
                   </div>
                 </div>
 
                 {isOpen && (
                   <div className="mt-2 pl-[19px] space-y-1.5">
                     <div>
-                      <label className="text-[8px] uppercase tracking-widest text-accent-muted/40">Titre</label>
+                      <label className="text-label uppercase tracking-widest text-fg-secondary/40">Title</label>
                       <input value={item.title}
                         onChange={e => onEdit(item.key, { title: e.target.value })}
-                        className="w-full mt-0.5 bg-black/30 border border-white/10 rounded px-1.5 py-1 text-[10px] text-white/90 focus:border-accent-green/40 focus:outline-none" />
+                        className="w-full mt-0.5 bg-black/30 border border-hairline rounded-control px-1.5 py-1 text-label text-fg/90 focus:border-accent/40 focus:outline-none" />
                     </div>
                     <div>
-                      <label className="text-[8px] uppercase tracking-widest text-accent-muted/40">Description</label>
+                      <label className="text-label uppercase tracking-widest text-fg-secondary/40">Description</label>
                       <textarea value={item.description} rows={4}
                         onChange={e => onEdit(item.key, { description: e.target.value })}
-                        className="w-full mt-0.5 bg-black/30 border border-white/10 rounded px-1.5 py-1 text-[10px] font-mono text-accent-muted resize-y focus:border-accent-green/40 focus:outline-none" />
+                        className="w-full mt-0.5 bg-black/30 border border-hairline rounded-control px-1.5 py-1 text-label font-mono text-fg-secondary resize-y focus:border-accent/40 focus:outline-none" />
                     </div>
                   </div>
                 )}
 
                 <button onClick={() => onUnpin(item.key)}
-                  className="absolute right-2 top-2.5 opacity-0 group-hover:opacity-100 text-accent-muted/30 hover:text-severity-critical transition-all">
+                  className="absolute right-2 top-2.5 opacity-0 group-hover:opacity-100 text-fg-secondary/30 hover:text-severity-critical transition-all">
                   <X size={10} />
                 </button>
               </div>
@@ -478,9 +474,9 @@ function PinnedPanel({ pinned, onUnpin, onClear, onEdit, onExport, exporting }: 
         </div>
       )}
 
-      <div className="px-3 py-3 border-t border-white/5 shrink-0">
+      <div className="px-3 py-3 border-t border-hairline shrink-0">
         <button onClick={onExport} disabled={pinned.length === 0 || exporting}
-          className="w-full flex items-center justify-center gap-1.5 text-[11px] py-2 rounded border border-accent-green/30 text-accent-green bg-accent-green/5 hover:bg-accent-green/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+          className="w-full flex items-center justify-center gap-1.5 text-label py-2 rounded-control border border-accent/30 text-accent bg-accent/5 hover:bg-accent/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
           {exporting
             ? <><Loader2 size={11} className="animate-spin" /> Envoi…</>
             : <><Download size={11} /> Exporter {pinned.length > 0 ? `${pinned.length} → ` : ''}Timeline</>}
@@ -612,9 +608,9 @@ export default function PcapExplorer() {
   if (!caseId) {
     return (
       <div className="p-6">
-        <div className="flex items-center gap-2 text-sm text-accent-muted bg-white/[0.02] border border-white/8 rounded-lg px-4 py-3">
+        <div className="flex items-center gap-2 text-ui text-fg-secondary bg-white/[0.02] border border-hairline px-4 py-3">
           <AlertCircle size={14} />
-          Sélectionnez un case courant depuis la barre du haut pour explorer ses captures.
+          Select a current case from the top bar to explore its captures.
         </div>
       </div>
     )
@@ -623,9 +619,9 @@ export default function PcapExplorer() {
   if (status && !status.available) {
     return (
       <div className="p-6">
-        <div className="flex items-center gap-2 text-sm text-yellow-400 bg-yellow-500/5 border border-yellow-500/20 rounded-lg px-4 py-3">
+        <div className="flex items-center gap-2 text-ui text-severity-medium bg-severity-medium/5 border border-severity-medium/20 px-4 py-3">
           <AlertCircle size={14} />
-          tshark n'est pas disponible dans l'image backend — la dissection PCAP est désactivée.
+          tshark is not available in the backend image - PCAP dissection is disabled.
         </div>
       </div>
     )
@@ -634,142 +630,124 @@ export default function PcapExplorer() {
   const totalPages = rows?.pages ?? 1
 
   return (
-    <div className="flex h-full overflow-hidden">
-      {/* ── Captures sidebar ─────────────────────────────────────────────── */}
-      <div className="w-56 shrink-0 border-r border-white/5 bg-bg-card flex flex-col overflow-hidden">
-        <p className="px-3 py-3 text-[10px] font-semibold uppercase tracking-widest text-accent-muted/50 flex items-center gap-1.5 border-b border-white/5">
+    <PageShell
+      route="/artifacts/pcap"
+      title="Network (PCAP)"
+      subtitle={currentCase?.title}
+      meta={captures.length ? `${captures.length} capture${captures.length > 1 ? 's' : ''}` : undefined}
+      fullHeight
+      asideLeft={(
+        <aside className="w-56 shrink-0 border-r border-hairline bg-panel flex flex-col min-h-0 overflow-hidden">
+        <p className="px-3 py-2 text-label font-mono uppercase tracking-label text-fg-muted flex items-center gap-1.5 border-b border-hairline">
           <Network size={11} /> Captures
-          {captures.length > 0 && (
-            <span className="ml-auto text-accent-muted/30">{captures.length}</span>
-          )}
         </p>
         <div className="flex-1 overflow-y-auto">
           {captures.length === 0 && (
-            <p className="px-3 py-6 text-[10px] text-accent-muted/30 leading-relaxed text-center">
-              Aucune capture dans ce case. Déposez un .pcap / .pcapng dans le drop folder
+            <p className="px-3 py-6 text-label text-fg-secondary/30 leading-relaxed text-center">
+              No capture in this case. Drop a .pcap / .pcapng into the drop folder
               ou depuis l'onglet Collection.
             </p>
           )}
           {captures.map(c => (
             <button key={c.id}
               onClick={() => { setSelectedId(c.id); setPage(1); setFrameNo(null) }}
-              className={`w-full text-left px-3 py-2 border-b border-white/[0.03] transition-colors ${
-                selectedId === c.id
-                  ? 'bg-accent-green/5 border-l-2 border-l-accent-green/40'
+              className={`w-full text-left px-3 py-2 border-b border-strong/[0.03] transition-colors ${ selectedId === c.id
+                  ? 'bg-accent/5 border-l-2 border-l-accent/40'
                   : 'hover:bg-white/[0.02]'
               }`}>
-              <p className="text-[11px] text-white/80 truncate font-mono">{captureName(c.original_name)}</p>
-              <p className="text-[9px] text-accent-muted/35 mt-0.5">
+              <p className="text-label text-fg/80 truncate font-mono">{captureName(c.original_name)}</p>
+              <p className="text-label text-fg-secondary/35 mt-0.5">
                 {c.row_count.toLocaleString()} paquets
               </p>
             </button>
           ))}
         </div>
-      </div>
-
-      {/* ── Main: packet list + detail ───────────────────────────────────── */}
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        </aside>
+      )}
+    >
+      <div className="h-full min-w-0 flex flex-col overflow-hidden">
         {/* Toolbar */}
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-white/5 shrink-0">
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-hairline shrink-0">
           <div className="relative flex-1 max-w-md">
-            <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-accent-muted/30" />
+            <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-fg-secondary/30" />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Filtrer les paquets (recherche plein texte)…"
-              className="w-full bg-black/30 border border-white/10 rounded pl-7 pr-2 py-1 text-[11px] text-white/90 placeholder:text-accent-muted/30 focus:border-accent-green/40 focus:outline-none"
+              placeholder="Filter packets (full-text search)..."
+              className="w-full bg-black/30 border border-hairline rounded-control pl-7 pr-2 py-1 text-label text-fg/90 placeholder:text-fg-secondary/30 focus:border-accent/40 focus:outline-none"
             />
             {search && (
               <button onClick={() => setSearch('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-accent-muted/30 hover:text-white">
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-fg-secondary/30 hover:text-fg">
                 <X size={10} />
               </button>
             )}
           </div>
           {debounced && (
-            <span className="text-[10px] text-accent-green/60 flex items-center gap-1">
+            <span className="text-label text-accent/60 flex items-center gap-1">
               <Filter size={9} /> {rows?.total ?? 0} paquet(s)
             </span>
           )}
-          {isFetching && <Loader2 size={11} className="animate-spin text-accent-green/50" />}
-          <div className="ml-auto flex items-center gap-1.5 text-[10px] text-accent-muted/50">
+          {isFetching && <Loader2 size={11} className="animate-spin text-accent/50" />}
+          <div className="ml-auto flex items-center gap-1.5 text-label text-fg-secondary/50">
             <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
-              className="px-2 py-0.5 rounded border border-white/10 disabled:opacity-25 hover:text-white">←</button>
+              className="px-2 py-0.5 rounded-control border border-hairline disabled:opacity-25 hover:text-fg">←</button>
             <span>page {page} / {totalPages}</span>
             <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}
-              className="px-2 py-0.5 rounded border border-white/10 disabled:opacity-25 hover:text-white">→</button>
+              className="px-2 py-0.5 rounded-control border border-hairline disabled:opacity-25 hover:text-fg">→</button>
           </div>
         </div>
 
         {/* Packet list */}
         <div className="flex-1 min-h-0 overflow-auto">
-          <table className="w-full text-[10px] font-mono border-collapse">
-            <thead className="sticky top-0 bg-bg-card z-10">
-              <tr className="text-accent-muted/40 text-left">
-                <th className="w-7 px-1 py-1.5" />
-                <th className="px-2 py-1.5 w-14">No</th>
-                <th className="px-2 py-1.5 w-48">Time</th>
-                <th className="px-2 py-1.5 w-36">Source</th>
-                <th className="px-2 py-1.5 w-36">Destination</th>
-                <th className="px-2 py-1.5 w-16">Proto</th>
-                <th className="px-2 py-1.5 w-14">Len</th>
-                <th className="px-2 py-1.5">Info</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(rows?.items ?? []).map(row => {
-                const no       = Number(row.No)
-                const key      = `${active?.id}${row.No}`
-                const isPinned = pinnedKeys.has(key)
-                const isActive = frameNo === no
+          <DataTable
+            density="compact"
+            rows={rows?.items ?? []}
+            rowKey={(row) => String(row.No)}
+            empty="No packet matches the filter."
+            onRowClick={(row) => { setFrameNo(Number(row.No)); setHighlight(null) }}
+            isRowSelected={(row) => frameNo === Number(row.No)}
+            leading={{
+              width: 'w-7',
+              render: (row) => {
+                const isPinned = pinnedKeys.has(`${active?.id}${row.No}`)
                 return (
-                  <tr key={row.No}
-                    onClick={() => { setFrameNo(no); setHighlight(null) }}
-                    className={`border-t border-white/[0.03] cursor-pointer transition-colors ${
-                      isActive ? 'bg-accent-green/10' : 'hover:bg-white/[0.03]'
-                    }`}>
-                    <td className="px-1 py-1 align-top">
-                      <button
-                        onClick={e => { e.stopPropagation(); togglePin(row) }}
-                        title={isPinned ? 'Retirer de la sélection' : 'Épingler ce paquet'}
-                        className={`transition-colors ${
-                          isPinned ? 'text-accent-green' : 'text-accent-muted/20 hover:text-accent-green'
-                        }`}>
-                        {isPinned ? <BookmarkCheck size={11} /> : <BookmarkPlus size={11} />}
-                      </button>
-                    </td>
-                    <td className="px-2 py-1 text-accent-muted/50">{row.No}</td>
-                    <td className="px-2 py-1 text-accent-muted/70 whitespace-nowrap">{fmtTime(row.Timestamp ?? '')}</td>
-                    <td className="px-2 py-1 text-white/60 truncate">{row.Source}</td>
-                    <td className="px-2 py-1 text-white/60 truncate">{row.Destination}</td>
-                    <td className={`px-2 py-1 font-semibold ${protoClass(row.Protocol ?? '')}`}>{row.Protocol}</td>
-                    <td className="px-2 py-1 text-accent-muted/40">{row.Length}</td>
-                    <td className="px-2 py-1 text-white/45 truncate max-w-0">{row.Info}</td>
-                  </tr>
+                  <button
+                    onClick={() => togglePin(row)}
+                    title={isPinned ? 'Remove from the selection' : 'Pin this packet'}
+                    aria-label={isPinned ? 'Remove from the selection' : 'Pin this packet'}
+                    className={`block transition-colors ${isPinned ? 'text-accent' : 'text-fg-muted hover:text-accent'}`}
+                  >
+                    {isPinned ? <BookmarkCheck size={11} /> : <BookmarkPlus size={11} />}
+                  </button>
                 )
-              })}
-            </tbody>
-          </table>
-          {rows && rows.items.length === 0 && (
-            <p className="p-6 text-center text-[11px] text-accent-muted/30">
-              Aucun paquet ne correspond au filtre.
-            </p>
-          )}
+              },
+            }}
+            columns={[
+              { key: 'no',    header: 'No',    width: 'w-14', mono: true, render: (row) => <span className="text-fg-muted">{row.No}</span> },
+              { key: 'time',  header: 'Time',  width: 'w-48', mono: true, render: (row) => <span className="text-fg-secondary whitespace-nowrap">{fmtTime(row.Timestamp ?? '')}</span> },
+              { key: 'src',   header: 'Source',      width: 'w-36', mono: true, render: (row) => <span className="block truncate text-fg-secondary">{row.Source}</span> },
+              { key: 'dst',   header: 'Destination', width: 'w-36', mono: true, render: (row) => <span className="block truncate text-fg-secondary">{row.Destination}</span> },
+              { key: 'proto', header: 'Proto', width: 'w-16', mono: true, render: (row) => <span className={`font-semibold ${protoClass(row.Protocol ?? '')}`}>{row.Protocol}</span> },
+              { key: 'len',   header: 'Len',   width: 'w-14', mono: true, align: 'right', render: (row) => <span className="text-fg-muted">{row.Length}</span> },
+              { key: 'info',  header: 'Info',  mono: true, hideBelow: 'md', render: (row) => <span className="block truncate text-fg-muted">{row.Info}</span> },
+            ]}
+          />
         </div>
 
         {/* Detail panes */}
-        <div className="h-64 shrink-0 border-t border-white/8 flex overflow-hidden">
-          <div className="flex-1 min-w-0 border-r border-white/5 flex flex-col overflow-hidden">
-            <div className="flex items-center gap-2 px-2 py-1 border-b border-white/5 shrink-0">
-              <p className="text-[9px] uppercase tracking-widest text-accent-muted/35">
-                Détail du paquet {frameNo !== null && `— n°${frameNo}`}
+        <div className="h-64 shrink-0 border-t border-hairline flex overflow-hidden">
+          <div className="flex-1 min-w-0 border-r border-hairline flex flex-col overflow-hidden">
+            <div className="flex items-center gap-2 px-2 py-1 border-b border-hairline shrink-0">
+              <p className="text-label uppercase tracking-widest text-fg-secondary/35">
+                Packet detail {frameNo !== null && `- #${frameNo}`}
               </p>
               {currentStream !== null && (
                 <button
                   onClick={() => setFollowing(currentStream)}
                   disabled={loadingStream}
-                  title="Reconstruire la conversation complète de ce flux"
-                  className="ml-auto flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border border-accent-green/25 text-accent-green/80 hover:bg-accent-green/10 transition-colors disabled:opacity-40"
+                  title="Reassemble the full conversation for this stream"
+                  className="ml-auto flex items-center gap-1 text-label px-1.5 py-0.5 rounded-control border border-accent/25 text-accent/80 hover:bg-accent/10 transition-colors disabled:opacity-40"
                 >
                   {loadingStream
                     ? <Loader2 size={9} className="animate-spin" />
@@ -779,21 +757,21 @@ export default function PcapExplorer() {
               )}
             </div>
             {streamError && following !== null && (
-              <p className="px-2 py-1 text-[9px] text-severity-critical border-b border-white/5 shrink-0">
-                {(streamError as any)?.response?.data?.detail ?? 'Reconstruction impossible.'}
+              <p className="px-2 py-1 text-label text-severity-critical border-b border-hairline shrink-0">
+                {(streamError as any)?.response?.data?.detail ?? 'Could not reassemble the stream.'}
               </p>
             )}
             {frameNo === null ? (
-              <p className="p-3 text-[10px] text-accent-muted/30 italic">
-                Sélectionnez un paquet pour voir son arborescence de protocoles.
+              <p className="p-3 text-label text-fg-secondary/30 italic">
+                Select a packet to see its protocol tree.
               </p>
             ) : loadingFrame ? (
-              <div className="flex items-center gap-2 p-3 text-[10px] text-accent-muted/40">
+              <div className="flex items-center gap-2 p-3 text-label text-fg-secondary/40">
                 <Loader2 size={11} className="animate-spin" /> Dissection…
               </div>
             ) : frameError ? (
-              <p className="p-3 text-[10px] text-severity-critical">
-                {(frameError as any)?.response?.data?.detail ?? 'Dissection impossible.'}
+              <p className="p-3 text-label text-severity-critical">
+                {(frameError as any)?.response?.data?.detail ?? 'Could not dissect the frame.'}
               </p>
             ) : frame ? (
               <ProtocolTree frame={frame} onHighlight={setHighlight} />
@@ -801,11 +779,11 @@ export default function PcapExplorer() {
           </div>
 
           <div className="w-[420px] shrink-0 flex flex-col overflow-hidden">
-            <p className="px-2 py-1 text-[9px] uppercase tracking-widest text-accent-muted/35 border-b border-white/5 shrink-0">
+            <p className="px-2 py-1 text-label uppercase tracking-widest text-fg-secondary/35 border-b border-hairline shrink-0">
               Octets
             </p>
             {frame ? <HexDump hex={hex} highlight={highlight} /> : (
-              <p className="p-3 text-[10px] text-accent-muted/30 italic">—</p>
+              <p className="p-3 text-label text-fg-secondary/30 italic">—</p>
             )}
           </div>
         </div>
@@ -825,6 +803,6 @@ export default function PcapExplorer() {
         onExport={exportToTimeline}
         exporting={exporting}
       />
-    </div>
+    </PageShell>
   )
 }

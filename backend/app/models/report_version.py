@@ -1,5 +1,7 @@
-from datetime import datetime, timezone
-from sqlalchemy import Column, String, Integer, Text, DateTime, ForeignKey, Index
+from datetime import UTC, datetime
+
+from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String, Text
+
 from app.database import Base
 
 
@@ -14,7 +16,7 @@ class ReportVersion(Base):
     line_count = Column(Integer, nullable=False, default=0)
     created_by = Column(String(64), nullable=True)        # username
     created_at = Column(DateTime,
-                        default=lambda: datetime.now(timezone.utc),
+                        default=lambda: datetime.now(UTC),
                         nullable=False)
 
     __table_args__ = (

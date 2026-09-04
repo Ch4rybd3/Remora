@@ -1,7 +1,8 @@
 import { useState } from 'react'
+import { PageShell } from '../ui/PageShell'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Building2, Plus, FileStack, Star, FolderOpen, FileText, Trash2, Check } from 'lucide-react'
+import { Building2, Plus, FileStack, Star, FolderOpen, FileText, Trash2, Check } from '../ui/icons'
 import { clientsApi } from '../api/clients'
 import type { ClientSummary, ClientDocTemplate, DocSlot } from '../types'
 import Modal from '../components/ui/Modal'
@@ -30,29 +31,29 @@ function NewClientModal({ open, onClose, templates }: {
   })
 
   return (
-    <Modal open={open} onClose={onClose} title="Nouveau client" size="sm">
+    <Modal open={open} onClose={onClose} title="New client" size="sm">
       <div className="space-y-4">
         <div>
-          <label className="label">Nom *</label>
+          <label className="label">Name *</label>
           <input className="input" autoFocus value={name} onChange={e => setName(e.target.value)}
                  placeholder="Ex: Acme Corp" />
         </div>
         <div>
-          <label className="label">Secteur</label>
+          <label className="label">Industry</label>
           <input className="input" value={industry} onChange={e => setIndustry(e.target.value)}
-                 placeholder="Finance, Santé, Industrie…" />
+                 placeholder="Finance, Healthcare, Industry..." />
         </div>
         <div>
-          <label className="label">Template de documentation</label>
+          <label className="label">Documentation template</label>
           <select className="input" value={docTemplateId} onChange={e => setDocTemplateId(e.target.value)}>
-            <option value="">Aucun — base libre</option>
+            <option value="">None - free-form base</option>
             {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </div>
         <div className="flex justify-end gap-3 pt-2">
-          <button className="btn-secondary" onClick={onClose}>Annuler</button>
+          <button className="btn-secondary" onClick={onClose}>Cancel</button>
           <button className="btn-primary" disabled={!name.trim() || create.isPending} onClick={() => create.mutate()}>
-            {create.isPending ? 'Création…' : 'Créer'}
+            {create.isPending ? 'Creating...' : 'Create'}
           </button>
         </div>
       </div>
@@ -95,11 +96,11 @@ function TemplateEditor({ tpl, onSaved, onCancel }: {
   })
 
   return (
-    <div className="card p-5 space-y-4 border-accent-green/20">
+    <div className="card p-5 space-y-4 border-accent/20">
       <div>
-        <label className="label">Nom du template *</label>
+        <label className="label">Template name *</label>
         <input className="input" autoFocus value={name} onChange={e => setName(e.target.value)}
-               placeholder="Ex: Client Entreprise — dossier standard" />
+               placeholder="e.g. Enterprise Client - standard folder" />
       </div>
       <div>
         <label className="label">Description</label>
@@ -112,20 +113,20 @@ function TemplateEditor({ tpl, onSaved, onCancel }: {
           {slots.map((s, i) => (
             <div key={i} className="flex items-start gap-2">
               <input
-                className="input text-sm flex-1"
-                placeholder="Libellé — ex: Schéma réseau"
+                className="input text-ui flex-1"
+                placeholder="Label - e.g. Network diagram"
                 value={s.label}
                 onChange={e => setSlots(prev => prev.map((p, pi) => pi === i ? { ...p, label: e.target.value } : p))}
               />
               <input
-                className="input text-sm flex-1"
-                placeholder="Description (optionnel)"
+                className="input text-ui flex-1"
+                placeholder="Description (optional)"
                 value={s.description}
                 onChange={e => setSlots(prev => prev.map((p, pi) => pi === i ? { ...p, description: e.target.value } : p))}
               />
               <button
                 onClick={() => setSlots(prev => prev.filter((_, pi) => pi !== i))}
-                className="p-2 text-accent-muted/40 hover:text-severity-critical transition-colors shrink-0"
+                className="p-2 text-fg-secondary/40 hover:text-severity-critical transition-colors shrink-0"
                 title="Retirer"
               >
                 <Trash2 size={14} />
@@ -135,22 +136,22 @@ function TemplateEditor({ tpl, onSaved, onCancel }: {
         </div>
         <button
           onClick={() => setSlots(prev => [...prev, emptySlot()])}
-          className="mt-2 text-xs text-accent-green hover:underline flex items-center gap-1"
+          className="mt-2 text-label text-accent hover:underline flex items-center gap-1"
         >
-          <Plus size={12} /> Ajouter un emplacement
+          <Plus size={12} /> Add a slot
         </button>
-        <p className="text-[11px] text-accent-muted/40 mt-1">
-          Ex: Schéma réseau, RACI, Inventaire machines, Contacts pays…
+        <p className="text-label text-fg-secondary/40 mt-1">
+          e.g. Network diagram, RACI, Machine inventory, Country contacts...
         </p>
       </div>
       <div className="flex justify-end gap-2 pt-1">
-        <button className="btn-secondary text-xs" onClick={onCancel}>Annuler</button>
+        <button className="btn-secondary text-label" onClick={onCancel}>Cancel</button>
         <button
-          className="btn-primary text-xs flex items-center gap-1.5"
+          className="btn-primary text-label flex items-center gap-1.5"
           disabled={!name.trim() || save.isPending}
           onClick={() => save.mutate()}
         >
-          <Check size={12} /> {save.isPending ? 'Enregistrement…' : 'Enregistrer'}
+          <Check size={12} /> {save.isPending ? 'Saving...' : 'Save'}
         </button>
       </div>
     </div>
@@ -179,23 +180,23 @@ function TemplatesPanel({ onClose }: { onClose: () => void }) {
         ) : (
           <>
             <button
-              className="btn-secondary text-xs flex items-center gap-1.5"
+              className="btn-secondary text-label flex items-center gap-1.5"
               onClick={() => setEditing('new')}
             >
-              <Plus size={12} /> Nouveau template
+              <Plus size={12} /> New template
             </button>
             {templates.length === 0 ? (
-              <p className="text-sm text-accent-muted/50 py-6 text-center">Aucun template défini.</p>
+              <p className="text-ui text-fg-secondary/50 py-6 text-center">No template defined.</p>
             ) : (
               <div className="space-y-2">
                 {templates.map(t => (
                   <div key={t.id} className="card p-3 flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-white">{t.name}</p>
-                      {t.description && <p className="text-xs text-accent-muted/60 mt-0.5">{t.description}</p>}
+                      <p className="text-ui font-medium text-fg">{t.name}</p>
+                      {t.description && <p className="text-label text-fg-secondary/60 mt-0.5">{t.description}</p>}
                       <div className="flex flex-wrap gap-1 mt-1.5">
                         {t.slots.map(s => (
-                          <span key={s.slug} className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-accent-muted/60">
+                          <span key={s.slug} className="text-label px-1.5 py-0.5 rounded-control border border-hairline text-fg-secondary/60">
                             {s.label}
                           </span>
                         ))}
@@ -204,13 +205,13 @@ function TemplatesPanel({ onClose }: { onClose: () => void }) {
                     <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => setEditing(t)}
-                        className="text-xs text-accent-muted/50 hover:text-accent-green transition-colors px-2 py-1"
+                        className="text-label text-fg-secondary/50 hover:text-accent transition-colors px-2 py-1"
                       >
-                        Modifier
+                        Edit
                       </button>
                       <button
-                        onClick={() => confirm(`Supprimer le template « ${t.name} » ?`) && remove.mutate(t.id)}
-                        className="p-1.5 text-accent-muted/40 hover:text-severity-critical transition-colors"
+                        onClick={() => confirm(`Delete the template "${t.name}"?`) && remove.mutate(t.id)}
+                        className="p-1.5 text-fg-secondary/40 hover:text-severity-critical transition-colors"
                       >
                         <Trash2 size={13} />
                       </button>
@@ -232,21 +233,21 @@ function ClientCard({ client, onClick }: { client: ClientSummary; onClick: () =>
   return (
     <button
       onClick={onClick}
-      className="card p-5 text-left hover:bg-bg-hover hover:border-accent-green/20 transition-colors group"
+      className="card p-5 text-left hover:bg-hover hover:border-accent/20 transition-colors group"
     >
       <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="p-2 rounded-lg bg-accent-green/10 text-accent-green shrink-0">
+        <div className="p-2 bg-accent/10 text-accent shrink-0">
           <Building2 size={16} />
         </div>
         {client.is_default && (
-          <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-400">
-            <Star size={9} /> Par défaut
+          <span className="flex items-center gap-1 text-label px-1.5 py-0.5 rounded-control border border-severity-medium/30 bg-severity-medium/10 text-severity-medium">
+            <Star size={9} /> Default
           </span>
         )}
       </div>
-      <p className="font-semibold text-white group-hover:text-accent-green transition-colors truncate">{client.name}</p>
-      {client.industry && <p className="text-xs text-accent-muted/60 mt-0.5">{client.industry}</p>}
-      <div className="flex items-center gap-3 mt-3 pt-3 border-t border-white/5 text-[11px] text-accent-muted/50">
+      <p className="font-semibold text-fg group-hover:text-accent transition-colors truncate">{client.name}</p>
+      {client.industry && <p className="text-label text-fg-secondary/60 mt-0.5">{client.industry}</p>}
+      <div className="flex items-center gap-3 mt-3 pt-3 border-t border-hairline text-label text-fg-secondary/50">
         <span className="flex items-center gap-1"><FolderOpen size={11} /> {client.case_count} case{client.case_count !== 1 ? 's' : ''}</span>
         <span className="flex items-center gap-1"><FileText size={11} /> {client.document_count} doc{client.document_count !== 1 ? 's' : ''}</span>
       </div>
@@ -265,34 +266,30 @@ export default function Clients() {
   const { data: templates = [] } = useQuery({ queryKey: ['clientDocTemplates'], queryFn: clientsApi.listDocTemplates })
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-accent-green flex items-center gap-2">
-            <Building2 size={22} />
-            Clients
-          </h1>
-          <p className="text-accent-muted text-sm mt-1">
-            Organisations sélectionnables à la création d'un case, avec leur base de connaissance documentaire.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button className="btn-secondary flex items-center gap-2 text-sm" onClick={() => setShowTemplates(true)}>
-            <FileStack size={14} /> Templates
+    <PageShell
+      route="/config/clients"
+      title="Clients"
+      subtitle={"Organisations selectable when creating a case, each with its own knowledge base"}
+      actions={(
+        <>
+          <button className="btn-ghost flex items-center gap-1.5" onClick={() => setShowTemplates(true)}>
+            <FileStack size={13} /> Templates
           </button>
-          <button className="btn-primary flex items-center gap-2 text-sm" onClick={() => setShowNew(true)}>
-            <Plus size={14} /> Nouveau client
+          <button className="btn-primary flex items-center gap-1.5" onClick={() => setShowNew(true)}>
+            <Plus size={13} /> New client
           </button>
-        </div>
-      </div>
+        </>
+      )}
+    >
+      <div className="max-w-6xl mx-auto space-y-6">
 
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3].map(i => <div key={i} className="card p-5 h-32 animate-pulse" />)}
         </div>
       ) : clients.length === 0 ? (
-        <EmptyState icon={Building2} message="Aucun client configuré"
-                    action={{ label: '+ Nouveau client', onClick: () => setShowNew(true) }} />
+        <EmptyState icon={Building2} message="No client configured"
+                    action={{ label: '+ New client', onClick: () => setShowNew(true) }} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {clients.map(c => (
@@ -303,6 +300,7 @@ export default function Clients() {
 
       <NewClientModal open={showNew} onClose={() => setShowNew(false)} templates={templates} />
       {showTemplates && <TemplatesPanel onClose={() => setShowTemplates(false)} />}
-    </div>
+      </div>
+    </PageShell>
   )
 }

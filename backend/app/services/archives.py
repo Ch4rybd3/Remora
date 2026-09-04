@@ -181,17 +181,54 @@ def _7z_extract(path: Path, dest: Path) -> None:
 # ── Per-format backends ──────────────────────────────────────────────────────
 
 def _zip_list(path: Path) -> list[str]:
+    """
+    Entry names in a ZIP.
+
+    Listing works for compression methods the stdlib cannot *decompress*, since
+    the central directory is uncompressed - so a Deflate64 archive lists fine
+    and only fails on extraction. Both paths fall back to the CLI regardless,
+    so the two agree about what the archive contains.
+    """
     try:
         with zipfile.ZipFile(path) as zf:
             return _safe_entries([i.filename for i in zf.infolist() if not i.is_dir()])
-    except zipfile.BadZipFile as e:
-        raise ArchiveError(f"Archive ZIP invalide: {e}") from e
+    except (zipfile.BadZipFile, NotImplementedError, RuntimeError) as e:
+        if _7z_bin():
+            return _safe_entries(_7z_list(path))
+        raise ArchiveError(f"Invalid ZIP archive: {e}") from e
 
 
 def _zip_extract(path: Path, dest: Path) -> None:
-    with zipfile.ZipFile(path) as zf:
-        for name in _safe_entries(zf.namelist()):
-            zf.extract(name, dest)
+    """
+    Extract a ZIP, falling back to the `7z` binary.
+
+    Python's `zipfile` knows the *name* of every compression method and
+    implements only four. Method 9 - Deflate64 - is what 7-Zip and several
+    Windows tools produce for large archives, and the stdlib raises
+    `NotImplementedError: That compression method is not supported`, which is
+    exactly what a 400 MB KAPE triage arrived as.
+
+    `p7zip` is already in the image for `.7z` and `.rar`. It reads Deflate64,
+    so the fallback is a line rather than a dependency.
+
+    Every failure leaves here as `ArchiveError`. A `NotImplementedError` escaping
+    this function killed the entire drop folder sweep - one archive nobody could
+    read stopped every other file in the folder from being ingested, silently.
+    """
+    try:
+        with zipfile.ZipFile(path) as zf:
+            for name in _safe_entries(zf.namelist()):
+                zf.extract(name, dest)
+        return
+    except (zipfile.BadZipFile, NotImplementedError, RuntimeError, OSError) as e:
+        reason = e
+    except Exception as e:   # noqa: BLE001 - see the docstring
+        reason = e
+
+    if _7z_bin():
+        _7z_extract(path, dest)
+        return
+    raise ArchiveError(f"Could not extract the ZIP archive: {reason}") from reason
 
 
 def _tar_list(path: Path) -> list[str]:
@@ -202,7 +239,7 @@ def _tar_list(path: Path) -> list[str]:
         # zstd-compressed tars need the CLI — stdlib tarfile has no zstd support
         if archive_suffix(path.name) in (".tar.zst", ".tar.lz") and _7z_bin():
             return _safe_entries(_7z_list(path))
-        raise ArchiveError(f"Archive TAR invalide: {e}") from e
+        raise ArchiveError(f"Invalid TAR archive: {e}") from e
 
 
 def _tar_extract(path: Path, dest: Path) -> None:
@@ -218,7 +255,7 @@ def _tar_extract(path: Path, dest: Path) -> None:
         if _7z_bin():
             _7z_extract(path, dest)
             return
-        raise ArchiveError(f"Archive TAR invalide: {e}") from e
+        raise ArchiveError(f"Invalid TAR archive: {e}") from e
 
 
 def _sevenz_list(path: Path) -> list[str]:
@@ -229,12 +266,12 @@ def _sevenz_list(path: Path) -> list[str]:
     try:
         with py7zr.SevenZipFile(path, mode="r") as z:
             if z.needs_password():
-                raise ArchiveError("Archive 7z protégée par mot de passe — non supporté")
+                raise ArchiveError("Password-protected 7z archive - not supported")
             return _safe_entries([f.filename for f in z.list() if not f.is_directory])
     except ArchiveError:
         raise
     except Exception as e:
-        raise ArchiveError(f"Archive 7z illisible: {e}") from e
+        raise ArchiveError(f"Could not read the 7z archive: {e}") from e
 
 
 def _sevenz_extract(path: Path, dest: Path) -> None:
@@ -250,7 +287,7 @@ def _sevenz_extract(path: Path, dest: Path) -> None:
         if _7z_bin():
             _7z_extract(path, dest)
             return
-        raise ArchiveError(f"Extraction 7z échouée: {e}") from e
+        raise ArchiveError(f"7z extraction failed: {e}") from e
 
 
 def _rar_list(path: Path) -> list[str]:
@@ -262,10 +299,10 @@ def _rar_list(path: Path) -> list[str]:
         pass
     except Exception as e:
         if not _7z_bin():
-            raise ArchiveError(f"Archive RAR illisible: {e}") from e
+            raise ArchiveError(f"Could not read the RAR archive: {e}") from e
     if _7z_bin():
         return _safe_entries(_7z_list(path))
-    raise ArchiveError("Aucun backend RAR disponible (installez unar ou p7zip-full)")
+    raise ArchiveError("No RAR backend available (install unar or p7zip-full)")
 
 
 def _rar_extract(path: Path, dest: Path) -> None:
@@ -278,7 +315,7 @@ def _rar_extract(path: Path, dest: Path) -> None:
         pass
     except Exception as e:
         if not _7z_bin():
-            raise ArchiveError(f"Extraction RAR échouée: {e}") from e
+            raise ArchiveError(f"RAR extraction failed: {e}") from e
     if _7z_bin():
         _7z_extract(path, dest)
         return
@@ -288,7 +325,7 @@ def _rar_extract(path: Path, dest: Path) -> None:
         if proc.returncode != 0:
             raise ArchiveError(proc.stderr.strip()[:300] or "unar extraction failed")
         return
-    raise ArchiveError("Aucun backend RAR disponible (installez unar ou p7zip-full)")
+    raise ArchiveError("No RAR backend available (install unar or p7zip-full)")
 
 
 _STREAM_OPENERS = {"gz": gzip.open, "bz2": bz2.open, "xz": lzma.open}
@@ -305,14 +342,14 @@ def _stream_extract(path: Path, dest: Path, fmt: str) -> None:
     opener = _STREAM_OPENERS.get(fmt)
     if opener is None:                      # zstd — no stdlib support before 3.14
         if not _7z_bin():
-            raise ArchiveError("Décompression zstd indisponible (installez p7zip-full)")
+            raise ArchiveError("zstd decompression unavailable (install p7zip-full)")
         _7z_extract(path, dest)
         return
     try:
         with opener(path, "rb") as src, out.open("wb") as dst:
             shutil.copyfileobj(src, dst)
     except OSError as e:
-        raise ArchiveError(f"Décompression {fmt} échouée: {e}") from e
+        raise ArchiveError(f"{fmt} decompression failed: {e}") from e
 
 
 # ── Public API ───────────────────────────────────────────────────────────────

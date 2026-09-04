@@ -7,7 +7,7 @@ import {
 import {
   CheckCircle2, Circle, ChevronDown, ChevronUp,
   Plus, X, GitBranch, StickyNote, Save, List, Network,
-} from 'lucide-react'
+} from '../../../ui/icons'
 import { playbooksApi, type CasePlaybook, type StepAssignee } from '../../../api/playbooks'
 import { topoSortNodes } from '../../../utils/playbookUtils'
 import { casesApi } from '../../../api/cases'
@@ -130,7 +130,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
       })
     }, 1500)
     return () => clearTimeout(timer)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [draftNotes, autoSave, activeCp?.id])
 
   /* ── Ctrl+S — save all dirty steps ── */
@@ -149,7 +149,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [activeCp?.id])
 
   /* ── Detach confirmation ── */
@@ -194,21 +194,21 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
     <div className="flex gap-0" style={{ minHeight: 'calc(100vh - 260px)' }}>
 
       {/* ══ LEFT : Playbook 2/3 ══════════════════════════════════════════════ */}
-      <div className="flex-[2] min-w-0 flex flex-col pr-5 border-r border-white/5">
+      <div className="flex-[2] min-w-0 flex flex-col pr-5 border-r border-hairline">
 
         {/* Header */}
         <div className="flex items-center gap-3 mb-4 shrink-0">
           {/* View toggle */}
-          <div className="flex rounded border border-white/10 overflow-hidden">
+          <div className="flex rounded-control border border-hairline overflow-hidden">
             <button
               onClick={() => setPanelView('steps')}
-              className={`flex items-center gap-1.5 text-[11px] px-3 py-1.5 transition-colors ${panelView === 'steps' ? 'bg-accent-green/10 text-accent-green' : 'text-accent-muted hover:text-white'}`}
+              className={`flex items-center gap-1.5 text-label px-3 py-1.5 transition-colors ${panelView === 'steps' ? 'bg-accent/10 text-accent' : 'text-fg-secondary hover:text-fg'}`}
             >
               <List size={12} /> Étapes
             </button>
             <button
               onClick={() => setPanelView('graph')}
-              className={`flex items-center gap-1.5 text-[11px] px-3 py-1.5 transition-colors ${panelView === 'graph' ? 'bg-accent-green/10 text-accent-green' : 'text-accent-muted hover:text-white'}`}
+              className={`flex items-center gap-1.5 text-label px-3 py-1.5 transition-colors ${panelView === 'graph' ? 'bg-accent/10 text-accent' : 'text-fg-secondary hover:text-fg'}`}
               disabled={!activeCp}
             >
               <Network size={12} /> Graphe
@@ -221,14 +221,13 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
               <div
                 key={cp.id}
                 onClick={() => setActivePlaybookId(cp.id)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded border text-[11px] cursor-pointer transition-colors ${
-                  activeCp?.id === cp.id
-                    ? 'bg-accent-green/10 text-accent-green border-accent-green/30'
-                    : 'bg-white/5 text-accent-muted border-white/10 hover:bg-white/10'
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-control border text-label cursor-pointer transition-colors ${ activeCp?.id === cp.id
+                    ? 'bg-accent/10 text-accent border-accent/30'
+                    : 'bg-fg/5 text-fg-secondary border-hairline hover:bg-fg/10'
                 }`}
               >
                 <span className="truncate max-w-[120px]">{cp.playbook.name}</span>
-                <span className="opacity-50 text-[9px] tabular-nums">{doneCount(cp)}/{stepNodes(cp).length}</span>
+                <span className="opacity-50 text-label tabular-nums">{doneCount(cp)}/{stepNodes(cp).length}</span>
                 <button
                   onMouseDown={e => { e.stopPropagation(); setDetachTarget(cp.id) }}
                   className="opacity-40 hover:opacity-100 hover:text-severity-critical ml-0.5"
@@ -240,18 +239,18 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
 
           <button
             onClick={() => setAddOpen(true)}
-            className="flex items-center gap-1 text-[11px] text-accent-muted hover:text-white border border-dashed border-white/20 hover:border-white/40 px-2.5 py-1 rounded transition-colors shrink-0"
+            className="flex items-center gap-1 text-label text-fg-secondary hover:text-fg border border-dashed border-strong hover:border-strong px-2.5 py-1 rounded-control transition-colors shrink-0"
           >
             <Plus size={11} />
           </button>
 
           {/* Autosave toggle */}
-          <label className="flex items-center gap-1.5 text-[10px] text-accent-muted cursor-pointer select-none ml-auto shrink-0">
+          <label className="flex items-center gap-1.5 text-label text-fg-secondary cursor-pointer select-none ml-auto shrink-0">
             <input
               type="checkbox"
               checked={autoSave}
               onChange={e => setAutoSave(e.target.checked)}
-              className="w-3 h-3 accent-accent-green"
+              className="w-3 h-3 accent-accent"
             />
             Autosave
           </label>
@@ -260,9 +259,9 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
         {/* Empty state */}
         {!activeCp && (
           <div className="flex-1 flex flex-col items-center justify-center text-center py-16">
-            <GitBranch size={28} className="text-accent-muted/20 mb-3" />
-            <p className="text-accent-muted text-sm">Aucun playbook attaché</p>
-            <button className="btn-primary mt-4 text-xs flex items-center gap-1.5" onClick={() => setAddOpen(true)}>
+            <GitBranch size={28} className="text-fg-secondary/20 mb-3" />
+            <p className="text-fg-secondary text-ui">No playbook attached</p>
+            <button className="btn-primary mt-4 text-label flex items-center gap-1.5" onClick={() => setAddOpen(true)}>
               <Plus size={12} /> Attacher un playbook
             </button>
           </div>
@@ -270,7 +269,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
 
         {/* ── GRAPH VIEW ── */}
         {activeCp && panelView === 'graph' && (
-          <div className="flex-1 rounded-lg overflow-hidden border border-white/8" style={{ minHeight: 400 }}>
+          <div className="flex-1 overflow-hidden border border-hairline" style={{ minHeight: 400 }}>
             <ReactFlow
               nodes={buildViewNodes(activeCp)}
               edges={activeCp.playbook.edges as Edge[]}
@@ -294,13 +293,13 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
           <>
             {/* Progress */}
             <div className="mb-3 shrink-0">
-              <div className="flex justify-between text-[10px] text-accent-muted mb-1">
+              <div className="flex justify-between text-label text-fg-secondary mb-1">
                 <span className="font-mono">{activeCp.playbook.name}</span>
                 <span>{doneCount(activeCp)} / {stepNodes(activeCp).length}</span>
               </div>
-              <div className="h-1 bg-white/8 rounded-full overflow-hidden">
+              <div className="h-1 bg-fg/8 rounded-pill overflow-hidden">
                 <div
-                  className="h-full bg-accent-green rounded-full transition-all duration-500"
+                  className="h-full bg-accent rounded-pill transition-all duration-500"
                   style={{ width: stepNodes(activeCp).length === 0 ? '0%' : `${(doneCount(activeCp) / stepNodes(activeCp).length) * 100}%` }}
                 />
               </div>
@@ -309,7 +308,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
             {/* Steps */}
             <div className="space-y-1.5 overflow-y-auto flex-1">
               {stepNodes(activeCp).length === 0 && (
-                <p className="text-accent-muted text-xs text-center py-8">Aucune étape dans ce playbook.</p>
+                <p className="text-fg-secondary text-label text-center py-8">No step in this playbook.</p>
               )}
               {stepNodes(activeCp).map((node, idx) => {
                 const state = activeCp.step_states[node.id]
@@ -320,34 +319,33 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
                 const hasNotes = savedNotes.trim().length > 0
 
                 return (
-                  <div key={node.id} className={`rounded-lg border transition-colors ${
-                    done ? 'border-accent-green/15 bg-accent-green/[0.025]' : 'border-white/8 bg-white/[0.015]'
+                  <div key={node.id} className={` border transition-colors ${ done ? 'border-accent/15 bg-accent/[0.025]' : 'border-hairline bg-white/[0.015]'
                   }`}>
                     {/* Row */}
                     <div className="flex items-start gap-2.5 px-3 py-2">
                       <button
                         onClick={() => updateStep.mutate({ cpId: activeCp.id, nodeId: node.id, done: !done })}
-                        className={`mt-0.5 shrink-0 transition-colors ${done ? 'text-accent-green' : 'text-accent-muted/40 hover:text-accent-muted'}`}
+                        className={`mt-0.5 shrink-0 transition-colors ${done ? 'text-accent' : 'text-fg-secondary/40 hover:text-fg-secondary'}`}
                       >
                         {done ? <CheckCircle2 size={15} /> : <Circle size={15} />}
                       </button>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-xs font-medium leading-snug ${done ? 'line-through text-accent-muted/50' : 'text-white'}`}>
-                          <span className="text-accent-muted/30 font-mono mr-1">{String(idx + 1).padStart(2, '0')}.</span>
+                        <p className={`text-label font-medium leading-snug ${done ? 'line-through text-fg-secondary/50' : 'text-fg'}`}>
+                          <span className="text-fg-secondary/30 font-mono mr-1">{String(idx + 1).padStart(2, '0')}.</span>
                           {(node.data as any).label}
                         </p>
                         {(node.data as any).description && !isExpanded && (
-                          <p className="text-[10px] text-accent-muted/40 mt-0.5 leading-snug">{(node.data as any).description}</p>
+                          <p className="text-label text-fg-secondary/40 mt-0.5 leading-snug">{(node.data as any).description}</p>
                         )}
                         {hasNotes && !isExpanded && (
-                          <p className="text-[10px] text-accent-green/50 mt-0.5 font-mono italic line-clamp-1">
+                          <p className="text-label text-accent/50 mt-0.5 font-mono italic line-clamp-1">
                             ↳ {savedNotes.split('\n').find(l => l.trim()) ?? ''}
                           </p>
                         )}
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         {hasNotes && !isExpanded && (
-                          <span className="text-[9px] bg-accent-green/8 text-accent-green/60 border border-accent-green/15 px-1.5 py-0.5 rounded">note</span>
+                          <span className="text-label bg-accent/8 text-accent/60 border border-accent/15 px-1.5 py-0.5 rounded-control">note</span>
                         )}
                         <StepAssigneePicker
                           assignee={state?.assignee}
@@ -357,10 +355,9 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
                         />
                         <button
                           onClick={() => toggleExpand(node.id, activeCp)}
-                          className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border transition-colors ${
-                            isExpanded
-                              ? 'bg-white/10 text-white border-white/20'
-                              : 'text-accent-muted border-white/10 hover:text-white hover:bg-white/5'
+                          className={`flex items-center gap-1 text-label px-2 py-0.5 rounded-control border transition-colors ${ isExpanded
+                              ? 'bg-fg/10 text-fg border-strong'
+                              : 'text-fg-secondary border-hairline hover:text-fg hover:bg-fg/5'
                           }`}
                         >
                           {isExpanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
@@ -371,9 +368,9 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
 
                     {/* Expanded editor */}
                     {isExpanded && (
-                      <div className="px-3 pb-3 pt-1 border-t border-white/5">
+                      <div className="px-3 pb-3 pt-1 border-t border-hairline">
                         {(node.data as any).description && (
-                          <p className="text-[10px] text-accent-muted/40 mb-2">{(node.data as any).description}</p>
+                          <p className="text-label text-fg-secondary/40 mb-2">{(node.data as any).description}</p>
                         )}
                         <MarkdownEditor
                           value={draft}
@@ -384,11 +381,11 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
                         />
                         <div className="flex justify-end gap-2 mt-2">
                           <button
-                            className="text-[10px] text-accent-muted hover:text-white transition-colors"
+                            className="text-label text-fg-secondary hover:text-fg transition-colors"
                             onClick={() => setExpanded(e => ({ ...e, [node.id]: false }))}
-                          >Annuler</button>
+                          >Cancel</button>
                           <button
-                            className="btn-primary text-[10px] py-1 px-3 flex items-center gap-1"
+                            className="btn-primary text-label py-1 px-3 flex items-center gap-1"
                             onClick={() => saveStepNotes(activeCp.id, node.id)}
                             disabled={updateStep.isPending}
                           >
@@ -411,11 +408,11 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
         {/* ── Mini playbook graph ─────────────────────────────────────────── */}
         {activeCp && (
           <div className="mb-4 shrink-0">
-            <p className="text-[9px] font-semibold tracking-widest uppercase text-accent-muted/30 mb-1.5 flex items-center gap-1">
+            <p className="text-label font-semibold tracking-widest uppercase text-fg-secondary/30 mb-1.5 flex items-center gap-1">
               <Network size={9} /> {activeCp.playbook.name}
             </p>
             <div
-              className="w-full rounded-lg border border-white/8 overflow-hidden"
+              className="w-full border border-hairline overflow-hidden"
               style={{ height: 148 }}
             >
               <ReactFlow
@@ -444,12 +441,12 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
 
         {/* ── Notes libres ────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between mb-3 shrink-0">
-          <h3 className="text-accent-muted font-semibold text-[11px] uppercase tracking-wide flex items-center gap-1.5">
+          <h3 className="text-fg-secondary font-semibold text-label uppercase tracking-wide flex items-center gap-1.5">
             <StickyNote size={12} /> Notes libres
           </h3>
           {notesDirty && (
             <button
-              className="btn-primary text-[10px] py-0.5 px-2.5 flex items-center gap-1"
+              className="btn-primary text-label py-0.5 px-2.5 flex items-center gap-1"
               onClick={() => saveNotes.mutate()}
               disabled={saveNotes.isPending}
             >
@@ -457,8 +454,8 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
             </button>
           )}
         </div>
-        <p className="text-[10px] text-accent-muted/30 mb-2 shrink-0">
-          Contexte oral, hypothèses, infos terrain…
+        <p className="text-label text-fg-secondary/30 mb-2 shrink-0">
+          Verbal context, hypotheses, field intel...
         </p>
         <div className="flex-1">
           <MarkdownEditor
@@ -466,7 +463,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
             onChange={v => { setQuickNotes(v); setNotesDirty(true) }}
             caseId={caseId}
             minHeight={300}
-            placeholder={'# Notes libres\n\n- Info donnée à l\'oral…'}
+            placeholder={'# Free notes\n\n- Information given verbally...'}
           />
         </div>
       </div>
@@ -475,23 +472,23 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Attacher un playbook" size="sm">
         <div className="space-y-3">
           {availablePlaybooks.length === 0 ? (
-            <p className="text-accent-muted text-sm text-center py-4">
-              Tous les playbooks sont déjà attachés, ou aucun n'existe.
+            <p className="text-fg-secondary text-ui text-center py-4">
+              Every playbook is already attached, or none exists.
             </p>
           ) : availablePlaybooks.map(pb => (
             <button
               key={pb.id}
               onClick={() => attach.mutate(pb.id)}
               disabled={attach.isPending}
-              className="w-full text-left px-4 py-3 rounded-lg border border-white/10 hover:border-accent-green/40 hover:bg-accent-green/5 transition-colors group"
+              className="w-full text-left px-4 py-3 border border-hairline hover:border-accent/40 hover:bg-accent/5 transition-colors group"
             >
-              <p className="text-sm font-medium text-white group-hover:text-accent-green">{pb.name}</p>
-              {pb.description && <p className="text-xs text-accent-muted mt-0.5">{pb.description}</p>}
-              <p className="text-[10px] text-accent-muted/40 mt-1">{pb.nodes.length} nœud(s)</p>
+              <p className="text-ui font-medium text-fg group-hover:text-accent">{pb.name}</p>
+              {pb.description && <p className="text-label text-fg-secondary mt-0.5">{pb.description}</p>}
+              <p className="text-label text-fg-secondary/40 mt-1">{pb.nodes.length} node(s)</p>
             </button>
           ))}
           <div className="flex justify-end pt-1">
-            <button className="btn-secondary text-xs" onClick={() => setAddOpen(false)}>Fermer</button>
+            <button className="btn-secondary text-label" onClick={() => setAddOpen(false)}>Close</button>
           </div>
         </div>
       </Modal>
@@ -502,7 +499,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
         onClose={() => setDetachTarget(null)}
         onConfirm={() => { if (detachTarget) detach.mutate(detachTarget) }}
         title="Retirer le playbook"
-        message="Toutes les notes et l'état des étapes de ce playbook seront perdus pour ce case. Continuer ?"
+        message="Every note and step state for this playbook will be lost for this case. Continue?"
         confirmLabel="Retirer"
       />
     </div>

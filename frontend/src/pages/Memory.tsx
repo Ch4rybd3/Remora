@@ -1,7 +1,8 @@
 import { useState } from 'react'
+import { PageShell } from '../ui/PageShell'
 import {
   Cpu, ChevronLeft, Menu, CheckCircle2, Info, List, Terminal,
-} from 'lucide-react'
+} from '../ui/icons'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import MemoryDumpList from '../components/memory/MemoryDumpList'
 import DefaultPluginsTab from '../components/memory/DefaultPluginsTab'
@@ -19,10 +20,9 @@ function TabBtn({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 px-4 py-2.5 text-sm border-b-2 transition-colors ${
-        active
-          ? 'border-accent-green text-accent-green'
-          : 'border-transparent text-accent-muted hover:text-white'
+      className={`flex items-center gap-2 px-4 py-2.5 text-ui border-b-2 transition-colors ${ active
+          ? 'border-accent text-accent'
+          : 'border-transparent text-fg-secondary hover:text-fg'
       }`}
     >
       <Icon size={14} />
@@ -41,24 +41,23 @@ function DumpAnalysis({ dump, caseId }: { dump: MemoryDump; caseId: string }) {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Dump info bar */}
-      <div className="shrink-0 px-4 py-2.5 border-b border-white/5 bg-bg-secondary/50 flex items-center gap-3">
-        <Cpu size={13} className="text-accent-muted/50 shrink-0" />
+      <div className="shrink-0 px-4 py-2.5 border-b border-hairline bg-panel/50 flex items-center gap-3">
+        <Cpu size={13} className="text-fg-secondary/50 shrink-0" />
         <div className="flex-1 min-w-0">
-          <span className="text-xs font-medium text-white truncate block">{dump.filename}</span>
-          <span className="text-[10px] text-accent-muted/40 font-mono capitalize">{dump.os_type}</span>
+          <span className="text-label font-medium text-fg truncate block">{dump.filename}</span>
+          <span className="text-label text-fg-secondary/40 font-mono capitalize">{dump.os_type}</span>
         </div>
-        <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
-          dump.status === 'done'      ? 'text-accent-green border-accent-green/30 bg-accent-green/8' :
-          dump.status === 'analyzing' ? 'text-yellow-400 border-yellow-400/30 bg-yellow-400/8' :
+        <span className={`text-label font-mono px-1.5 py-0.5 rounded-control border ${ dump.status === 'done'      ? 'text-accent border-accent/30 bg-accent/8' :
+          dump.status === 'analyzing' ? 'text-severity-medium border-severity-medium/30 bg-severity-medium/8' :
           dump.status === 'error'     ? 'text-severity-critical border-severity-critical/30 bg-severity-critical/8' :
-          'text-accent-muted border-white/10'
+          'text-fg-secondary border-hairline'
         }`}>
           {dump.status}
         </span>
       </div>
 
       {/* Analysis tabs */}
-      <div className="shrink-0 border-b border-white/5 flex items-end px-4">
+      <div className="shrink-0 border-b border-hairline flex items-end px-4">
         <TabBtn active={tab === 'default'} onClick={() => setTab('default')} icon={List}     label="Default Plugins" />
         <TabBtn active={tab === 'custom'}  onClick={() => setTab('custom')}  icon={Terminal} label="Custom Command"   />
       </div>
@@ -79,9 +78,9 @@ function DumpAnalysis({ dump, caseId }: { dump: MemoryDump; caseId: string }) {
 function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-8">
-      <div className="text-5xl opacity-10">🧠</div>
-      <p className="text-sm text-accent-muted/50">Select a memory dump to analyse</p>
-      <p className="text-xs text-accent-muted/30">
+      <div className="text-title opacity-10">🧠</div>
+      <p className="text-ui text-fg-secondary/50">Select a memory dump to analyse</p>
+      <p className="text-label text-fg-secondary/30">
         Upload a dump in the left panel — default Volatility3 plugins will run automatically
       </p>
     </div>
@@ -96,37 +95,31 @@ export default function Memory() {
   const [selectedDump, setSelectedDump] = useState<MemoryDump | null>(null)
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      {/* ── Page header ─────────────────────────────────────────────────── */}
-      <div className="shrink-0 border-b border-white/5 bg-bg-secondary/50 px-5 py-4 flex items-center gap-3">
-        <Cpu size={16} className="text-accent-green" />
-        <div>
-          <h1 className="text-base font-bold text-white leading-tight">Memory Analysis</h1>
-          <p className="text-[11px] text-accent-muted/50 mt-0.5">
-            Upload memory dumps and run Volatility3 analysis
-          </p>
-        </div>
-        <div className="ml-auto">
-          {currentCase ? (
-            <div className="flex items-center gap-1.5 text-[10px] text-accent-green/70 bg-accent-green/5 border border-accent-green/15 rounded-md px-2.5 py-1.5">
-              <CheckCircle2 size={11} />
-              <span className="font-medium">{currentCase.title}</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 text-[10px] text-accent-muted/50 bg-white/[0.02] border border-white/8 rounded-md px-2.5 py-1.5">
-              <Info size={11} />
-              No case selected
-            </div>
-          )}
-        </div>
-      </div>
+    <PageShell
+      route="/artifacts/memory"
+      title="Memory Analysis"
+      subtitle={currentCase?.title ?? 'No case selected'}
+      actions={
+        currentCase ? (
+          <span className="flex items-center gap-1.5 text-label text-accent">
+            <CheckCircle2 size={11} /> current case
+          </span>
+        ) : (
+          <span className="flex items-center gap-1.5 text-label text-fg-muted">
+            <Info size={11} /> set a case from the top bar
+          </span>
+        )
+      }
+      fullHeight
+    >
+      <div className="h-full flex flex-col min-h-0 overflow-hidden">
 
       {/* ── No case guard ────────────────────────────────────────────────── */}
       {!currentCase ? (
         <div className="flex-1 flex items-center justify-center flex-col gap-3 text-center px-8">
-          <div className="text-5xl opacity-10">🗂️</div>
-          <p className="text-sm text-accent-muted/50">No current case selected</p>
-          <p className="text-xs text-accent-muted/30">
+          <div className="text-title opacity-10">🗂️</div>
+          <p className="text-ui text-fg-secondary/50">No current case selected</p>
+          <p className="text-label text-fg-secondary/30">
             Set a current case from the top bar or the Cases page to upload memory dumps
           </p>
         </div>
@@ -134,14 +127,14 @@ export default function Memory() {
         <div className="flex flex-1 overflow-hidden">
           {/* ── Left: dump list panel ──────────────────────────────────── */}
           {showPanel && (
-            <div className="w-72 shrink-0 border-r border-white/5 bg-bg-secondary flex flex-col">
-              <div className="px-3 py-2.5 border-b border-white/5 flex items-center justify-between shrink-0">
-                <span className="text-[10px] font-semibold tracking-widest uppercase text-accent-muted/50">
+            <div className="w-72 shrink-0 border-r border-hairline bg-panel flex flex-col">
+              <div className="px-3 py-2.5 border-b border-hairline flex items-center justify-between shrink-0">
+                <span className="text-label font-semibold tracking-widest uppercase text-fg-secondary/50">
                   Memory Dumps
                 </span>
                 <button
                   onClick={() => setShowPanel(false)}
-                  className="p-1 rounded text-accent-muted/30 hover:text-white hover:bg-white/5 transition-colors"
+                  className="p-1 rounded-control text-fg-secondary/30 hover:text-fg hover:bg-fg/5 transition-colors"
                   title="Collapse panel"
                 >
                   <ChevronLeft size={12} />
@@ -160,16 +153,16 @@ export default function Memory() {
           {/* ── Main: analysis area ────────────────────────────────────── */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {!showPanel && (
-              <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-white/5 bg-bg-secondary/50">
+              <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-hairline bg-panel/50">
                 <button
                   onClick={() => setShowPanel(true)}
-                  className="p-1 rounded text-accent-muted/40 hover:text-white hover:bg-white/5 transition-colors"
+                  className="p-1 rounded-control text-fg-secondary/40 hover:text-fg hover:bg-fg/5 transition-colors"
                   title="Show dump panel"
                 >
                   <Menu size={13} />
                 </button>
-                <Cpu size={12} className="text-accent-muted/30" />
-                <span className="text-[10px] font-semibold tracking-widest uppercase text-accent-muted/30">
+                <Cpu size={12} className="text-fg-secondary/30" />
+                <span className="text-label font-semibold tracking-widest uppercase text-fg-secondary/30">
                   Memory Analysis
                 </span>
               </div>
@@ -184,6 +177,7 @@ export default function Memory() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </PageShell>
   )
 }

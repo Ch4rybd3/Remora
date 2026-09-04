@@ -1,7 +1,8 @@
 from __future__ import annotations
-from pydantic import BaseModel
-from typing import Optional
+
 from datetime import datetime
+
+from pydantic import BaseModel
 
 
 class ChainsawScanOut(BaseModel):
@@ -9,9 +10,9 @@ class ChainsawScanOut(BaseModel):
     file_id:     str
     case_id:     str
     status:      str
-    alert_count: Optional[int]
-    error_msg:   Optional[str]
-    scanned_at:  Optional[datetime]
+    alert_count: int | None
+    error_msg:   str | None
+    scanned_at:  datetime | None
     created_at:  datetime
     model_config = {"from_attributes": True}
 
@@ -22,17 +23,17 @@ class ChainsawAlertOut(BaseModel):
     file_id:      str
     case_id:      str
     rule_name:    str
-    level:        Optional[str]
-    sigma_status: Optional[str]
-    group_name:   Optional[str]
-    tags:         Optional[str]
-    authors:      Optional[str]
-    timestamp:    Optional[datetime]
-    event_id:     Optional[int]
-    channel:      Optional[str]
-    computer:     Optional[str]
-    provider:     Optional[str]
-    event_data:   Optional[dict]
+    level:        str | None
+    sigma_status: str | None
+    group_name:   str | None
+    tags:         str | None
+    authors:      str | None
+    timestamp:    datetime | None
+    event_id:     int | None
+    channel:      str | None
+    computer:     str | None
+    provider:     str | None
+    event_data:   dict | None
     added_to_timeline: bool
     model_config = {"from_attributes": True}
 

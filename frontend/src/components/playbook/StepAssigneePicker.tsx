@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { UserPlus, X, Users, AtSign } from 'lucide-react'
+import { UserPlus, X, Users, AtSign } from '../../ui/icons'
 import type { AuthUser } from '../../api/auth'
 import type { StepAssignee } from '../../api/playbooks'
 
@@ -41,11 +41,11 @@ export function AssigneeChip({ assignee, size = 'sm' }: {
   const color = assignee.color || (assignee.kind === 'user' && assignee.user_id
     ? colorForUser(assignee.user_id)
     : EXTERNAL_COLOR)
-  const dim = size === 'xs' ? 'h-4 text-[8px] px-1' : 'h-5 text-[9px] px-1.5'
+  const dim = size === 'xs' ? 'h-4 text-label px-1' : 'h-5 text-label px-1.5'
 
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded border font-medium shrink-0 ${dim}`}
+      className={`inline-flex items-center gap-1 rounded-control border font-medium shrink-0 ${dim}`}
       style={{ color, borderColor: `${color}40`, backgroundColor: `${color}14` }}
       title={assignee.kind === 'external' ? `${assignee.label} (externe)` : assignee.label}
     >
@@ -133,7 +133,7 @@ export default function StepAssigneePicker({ assignee, users, onChange, disabled
             onClick={() => onChange(null)}
             disabled={disabled}
             title="Retirer l'assignation"
-            className="text-accent-muted/30 hover:text-severity-critical transition-colors disabled:opacity-50"
+            className="text-fg-secondary/30 hover:text-severity-critical transition-colors disabled:opacity-50"
           >
             <X size={10} />
           </button>
@@ -142,15 +142,15 @@ export default function StepAssigneePicker({ assignee, users, onChange, disabled
         <button
           onClick={() => !disabled && setOpen(o => !o)}
           disabled={disabled}
-          title="Assigner cette étape"
-          className="flex items-center gap-1 text-[9px] px-1.5 h-5 rounded border border-dashed border-white/15 text-accent-muted/50 hover:text-accent-green hover:border-accent-green/40 transition-colors disabled:opacity-50"
+          title="Assign this step"
+          className="flex items-center gap-1 text-label px-1.5 h-5 rounded-control border border-dashed border-hairline text-fg-secondary/50 hover:text-accent hover:border-accent/40 transition-colors disabled:opacity-50"
         >
           <UserPlus size={9} /> Assigner
         </button>
       )}
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 w-56 rounded-lg border border-white/10 bg-bg-card shadow-xl overflow-hidden">
+        <div className="absolute right-0 top-full mt-1 z-50 w-56 border border-hairline bg-panel shadow-xl overflow-hidden">
           <input
             ref={inputRef}
             value={query}
@@ -160,14 +160,14 @@ export default function StepAssigneePicker({ assignee, users, onChange, disabled
               if (matches.length === 1) pickUser(matches[0])
               else if (canAddExternal) pickExternal()
             }}
-            placeholder="Analyste ou nom libre…"
-            className="w-full bg-black/30 border-b border-white/10 px-2.5 py-2 text-[11px] text-white/90 placeholder:text-accent-muted/30 focus:outline-none"
+            placeholder="Analyst or free-form name..."
+            className="w-full bg-black/30 border-b border-hairline px-2.5 py-2 text-label text-fg/90 placeholder:text-fg-secondary/30 focus:outline-none"
           />
 
           <div className="max-h-56 overflow-y-auto">
             {matches.length > 0 && (
               <>
-                <p className="px-2.5 pt-2 pb-1 text-[8px] uppercase tracking-widest text-accent-muted/35 flex items-center gap-1">
+                <p className="px-2.5 pt-2 pb-1 text-label uppercase tracking-widest text-fg-secondary/35 flex items-center gap-1">
                   <Users size={8} /> Analystes Remora
                 </p>
                 {matches.map(u => {
@@ -176,17 +176,17 @@ export default function StepAssigneePicker({ assignee, users, onChange, disabled
                     <button
                       key={u.id}
                       onClick={() => pickUser(u)}
-                      className="w-full flex items-center gap-2 px-2.5 py-1.5 hover:bg-white/5 transition-colors text-left"
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 hover:bg-fg/5 transition-colors text-left"
                     >
                       <span
-                        className="w-5 h-5 rounded shrink-0 flex items-center justify-center text-[8px] font-bold"
+                        className="w-5 h-5 rounded-control shrink-0 flex items-center justify-center text-label font-bold"
                         style={{ color, backgroundColor: `${color}1f`, border: `1px solid ${color}40` }}
                       >
                         {initialsOf(u.username)}
                       </span>
                       <span className="flex-1 min-w-0">
-                        <span className="block text-[11px] text-white/85 truncate">{u.username}</span>
-                        <span className="block text-[9px] text-accent-muted/40 truncate">{u.role}</span>
+                        <span className="block text-label text-fg/85 truncate">{u.username}</span>
+                        <span className="block text-label text-fg-secondary/40 truncate">{u.role}</span>
                       </span>
                     </button>
                   )
@@ -196,15 +196,15 @@ export default function StepAssigneePicker({ assignee, users, onChange, disabled
 
             {canAddExternal && (
               <>
-                <p className="px-2.5 pt-2 pb-1 text-[8px] uppercase tracking-widest text-accent-muted/35 flex items-center gap-1">
+                <p className="px-2.5 pt-2 pb-1 text-label uppercase tracking-widest text-fg-secondary/35 flex items-center gap-1">
                   <AtSign size={8} /> Externe
                 </p>
                 <button
                   onClick={pickExternal}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 hover:bg-white/5 transition-colors text-left"
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 hover:bg-fg/5 transition-colors text-left"
                 >
                   <span
-                    className="w-5 h-5 rounded shrink-0 flex items-center justify-center text-[8px] font-bold"
+                    className="w-5 h-5 rounded-control shrink-0 flex items-center justify-center text-label font-bold"
                     style={{
                       color: EXTERNAL_COLOR,
                       backgroundColor: `${EXTERNAL_COLOR}1f`,
@@ -213,15 +213,15 @@ export default function StepAssigneePicker({ assignee, users, onChange, disabled
                   >
                     {initialsOf(trimmed)}
                   </span>
-                  <span className="text-[11px] text-white/85 truncate">
-                    Assigner à « {trimmed} »
+                  <span className="text-label text-fg/85 truncate">
+                    Assign to "{trimmed}"
                   </span>
                 </button>
               </>
             )}
 
             {matches.length === 0 && !canAddExternal && (
-              <p className="px-2.5 py-4 text-[10px] text-accent-muted/35 text-center">
+              <p className="px-2.5 py-4 text-label text-fg-secondary/35 text-center">
                 Saisissez un nom pour assigner
               </p>
             )}

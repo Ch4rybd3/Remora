@@ -3,11 +3,10 @@ import re
 from email import policy
 from email.header import decode_header, make_header
 from email.parser import BytesParser
-from typing import Optional
 
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, File, UploadFile
 
-from ..schemas.email_analysis import EmailAnalysisResult, HeaderItem, AttachmentItem, EmailWarning
+from ..schemas.email_analysis import AttachmentItem, EmailAnalysisResult, EmailWarning, HeaderItem
 
 router = APIRouter(prefix="/artifacts/email", tags=["artifacts"])
 

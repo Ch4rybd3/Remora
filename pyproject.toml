@@ -1,0 +1,141 @@
+# Tooling configuration for the Python backend.
+# Runtime dependencies live in backend/requirements.txt.
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["backend/tests"]
+pythonpath = ["backend"]
+addopts = "-q --strict-markers --strict-config"
+filterwarnings = [
+    # FastAPI 0.115 still ships on_event; migrating to lifespan is separate work.
+    "ignore::DeprecationWarning:fastapi.*",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["backend"]
+exclude = [
+    "backend/alembic/versions",   # generated files
+    "frontend",
+    "data",
+]
+
+[tool.ruff.lint]
+# Rules are chosen to make the codebase consistent, not to impose a house style
+# on code that already has one. Three deliberate exclusions are documented below.
+select = [
+    "F",    # pyflakes — undefined names, unused imports and variables
+    "E4",   # import placement
+    "E7",   # statement-level defects
+    "E9",   # syntax and IO errors
+    "I",    # import sorting
+    "UP",   # pyupgrade — modern Python 3.12 idioms
+    "C4",   # comprehensions
+    "B",    # bugbear
+]
+ignore = [
+    "E501",  # line length — not enforced on prose or aligned tables
+
+    # ── Style this codebase owns, and ruff should not relitigate ─────────────
+    # Assignments are deliberately column-aligned (`f.status    = "imported"`)
+    # and short statements are deliberately compact. Reformatting 77 sites
+    # would be pure churn against a consistent authorial style. This is also
+    # why there is no `ruff format`: Black-style formatting collapses those
+    # alignments, which would be a downgrade here, not an improvement.
+    "E701",  # multiple statements on one line (colon)
+    "E702",  # multiple statements on one line (semicolon)
+
+    # ── Framework idioms ────────────────────────────────────────────────────
+    "B008",  # Depends()/Query() in a default argument IS the FastAPI idiom
+             # (319 sites; flagging them would make the rule useless)
+    "E402",  # deliberate deferred imports — heavy optional dependencies are
+             # imported inside the functions that need them
+
+    # ── Changes with semantics, not style ───────────────────────────────────
+    # UP042 rewrites `class X(str, Enum)` to `StrEnum`. Those differ: str(X.a)
+    # returns "X.a" for the former and "a" for the latter. Role and status
+    # values are serialised, so this is a behaviour change disguised as a
+    # lint fix. It needs its own change with its own tests.
+    "UP042",
+
+    # B904 (`raise ... from`) is worth doing across the 33 sites that need it,
+    # but each one is a judgement call between `from exc` and `from None`.
+    # Tracked as follow-up work rather than done blind.
+    "B904",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# main.py imports models purely to register their tables, after runtime setup.
+"backend/app/main.py" = ["F401", "E402"]
+"backend/alembic/env.py" = ["E402"]
+"backend/tests/conftest.py" = ["E402"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["backend/app"]
+mypy_path = "backend"
+ignore_missing_imports = true
+follow_imports = "silent"
+# Deliberately permissive. The goal is to catch obvious type errors on new
+# code, not to retrofit annotations across 17k lines.
+check_untyped_defs = false
+disallow_untyped_defs = false
+warn_return_any = false
+
+# ── Type-checking ratchet ─────────────────────────────────────────────────────
+# 61 of 102 modules type-check cleanly today and are enforced. The modules below
+# predate type checking and are exempted individually rather than by disabling
+# mypy, so anything new is checked by default.
+#
+# The rule is one-directional: a module may be REMOVED from this list once it is
+# clean; nothing may ever be ADDED. If a change makes an exempt module clean,
+# delete its line in the same pull request.
+[[tool.mypy.overrides]]
+module = [
+    "app.config",
+    "app.core.deps",
+    "app.main",
+    "app.models.asset",
+    "app.models.case",
+    "app.models.evidence",
+    "app.models.ioc",
+    "app.models.user",
+    "app.routers.assets",
+    "app.routers.attack_graph",
+    "app.routers.auth",
+    "app.routers.binary",
+    "app.routers.case_emails",
+    "app.routers.cases",
+    "app.routers.chainsaw",
+    "app.routers.clients",
+    "app.routers.collection_import",
+    "app.routers.connectors",
+    "app.routers.csv_artifacts",
+    "app.routers.cti",
+    "app.routers.dashboard",
+    "app.routers.disk_images",
+    "app.routers.dropzone",
+    "app.routers.email_analysis",
+    "app.routers.evidences",
+    "app.routers.evtx",
+    "app.routers.incident_log",
+    "app.routers.iocs",
+    "app.routers.knowledge",
+    "app.routers.memory",
+    "app.routers.mitre",
+    "app.routers.playbooks",
+    "app.routers.report_doc_templates",
+    "app.routers.reports",
+    "app.routers.timeline",
+    "app.routers.users",
+    "app.routers.vault",
+    "app.schemas.browser",
+    "app.schemas.registry",
+    "app.services.archives",
+    "app.services.dropzone",
+]
+ignore_errors = true

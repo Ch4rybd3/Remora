@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from 'react'
+import { PageShell } from '../ui/PageShell'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Edit2, Save, X, Trash2 } from 'lucide-react'
+import { Edit2, Save, X, Trash2 } from '../ui/icons'
 import { casesApi } from '../api/cases'
 import { usersApi } from '../api/auth'
 import type { Case, CaseSeverity, CaseStatus } from '../types'
@@ -48,7 +49,7 @@ export default function CaseDetail() {
   const [editForm, setEditForm] = useState<Partial<Case>>({})
   const [assigneeTags, setAssigneeTags] = useState<InputTag[]>([])
 
-  const USER_BADGE = 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+  const USER_BADGE = 'bg-severity-low/10 text-severity-low border-severity-low/20'
   const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: usersApi.list })
   const userSuggestions = useMemo(() => users.filter(u => u.is_active).map(u => ({
     value: u.username, label: u.username, sublabel: u.email ?? undefined,
@@ -63,7 +64,7 @@ export default function CaseDetail() {
     enabled: !!id,
   })
 
-  // Définit ce case comme "case courant" dès qu'on le charge
+  // Mark this case as the "current case" as soon as it loads
   useEffect(() => {
     if (case_) setCurrentCase({ id: case_.id, title: case_.title, client_id: case_.client_id })
   }, [case_?.id, case_?.title])
@@ -81,8 +82,8 @@ export default function CaseDetail() {
     onSuccess: () => navigate('/cases'),
   })
 
-  if (isLoading) return <div className="p-8 text-accent-muted text-sm">Loading…</div>
-  if (!case_) return <div className="p-8 text-severity-critical text-sm">Case not found.</div>
+  if (isLoading) return <div className="p-8 text-fg-secondary text-ui">Loading…</div>
+  if (!case_) return <div className="p-8 text-severity-critical text-ui">Case not found.</div>
 
   const startEdit = () => {
     setEditForm({
@@ -97,33 +98,44 @@ export default function CaseDetail() {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="border-b border-white/5 px-6 py-4">
-        <div className="flex items-start gap-4">
-          <button onClick={() => navigate('/cases')} className="text-accent-muted hover:text-white mt-1 transition-colors">
-            <ArrowLeft size={18} />
-          </button>
-          <div className="flex-1 min-w-0">
-            {editing ? (
-              <input
-                className="input text-lg font-bold mb-2 w-full"
-                value={editForm.title}
-                onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
-              />
-            ) : (
-              <h1 className="text-xl font-bold text-white truncate">{case_.title}</h1>
-            )}
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
+    <PageShell
+      route="/cases"
+      backTo="/cases"
+      title={editing ? (
+        <input
+          className="input text-title font-semibold w-full max-w-md"
+          value={editForm.title}
+          onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+        />
+      ) : case_.title}
+      meta={`updated ${fmtDateTimeShort(case_.updated_at)}`}
+      actions={
+        editing ? (
+          <>
+            <button onClick={() => setEditing(false)} className="btn-ghost flex items-center gap-1.5"><X size={12} /> Cancel</button>
+            <button onClick={() => update.mutate(editForm)} disabled={update.isPending} className="btn-primary flex items-center gap-1.5">
+              <Save size={12} />{update.isPending ? 'Saving...' : 'Save'}
+            </button>
+          </>
+        ) : (
+          <>
+            <button onClick={startEdit} className="btn-ghost flex items-center gap-1.5"><Edit2 size={12} /> Edit</button>
+            <button onClick={() => setDeleteOpen(true)} className="btn-danger flex items-center gap-1.5"><Trash2 size={12} /> Delete</button>
+          </>
+        )
+      }
+      toolbar={(
+        <>
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
               {editing ? (
                 <>
-                  <select className="input text-xs py-0.5 w-32" value={editForm.severity} onChange={e => setEditForm(f => ({ ...f, severity: e.target.value as CaseSeverity }))}>
+                  <select className="input text-label py-0.5 w-32" value={editForm.severity} onChange={e => setEditForm(f => ({ ...f, severity: e.target.value as CaseSeverity }))}>
                     {['informational', 'low', 'medium', 'high', 'critical'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
-                  <select className="input text-xs py-0.5 w-32" value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value as CaseStatus }))}>
+                  <select className="input text-label py-0.5 w-32" value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value as CaseStatus }))}>
                     {['open', 'in_progress', 'closed', 'archived'].map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
                   </select>
-                  <select className="input text-xs py-0.5 w-28" value={editForm.tlp} onChange={e => setEditForm(f => ({ ...f, tlp: e.target.value }))}>
+                  <select className="input text-label py-0.5 w-28" value={editForm.tlp} onChange={e => setEditForm(f => ({ ...f, tlp: e.target.value }))}>
                     {['TLP:RED', 'TLP:AMBER', 'TLP:GREEN', 'TLP:CLEAR'].map(t => <option key={t}>{t}</option>)}
                   </select>
                   <div className="w-52">
@@ -134,7 +146,7 @@ export default function CaseDetail() {
                       placeholder="Assign users…"
                     />
                   </div>
-                  <input className="input text-xs py-0.5 flex-1 min-w-32" placeholder="tags, comma, separated" value={editForm.tags} onChange={e => setEditForm(f => ({ ...f, tags: e.target.value }))} />
+                  <input className="input text-label py-0.5 flex-1 min-w-32" placeholder="tags, comma, separated" value={editForm.tags} onChange={e => setEditForm(f => ({ ...f, tags: e.target.value }))} />
                 </>
               ) : (
                 <>
@@ -142,43 +154,25 @@ export default function CaseDetail() {
                   <StatusBadge status={case_.status} />
                   <TLPBadge tlp={case_.tlp} />
                   {case_.assigned_to && case_.assigned_to.split(',').map(s => s.trim()).filter(Boolean).map(name => (
-                    <span key={name} className="text-[10px] font-mono px-1.5 py-0.5 rounded border bg-blue-500/10 text-blue-400 border-blue-500/20">{name}</span>
+                    <span key={name} className="text-label font-mono px-1.5 py-0.5 rounded-control border bg-severity-low/10 text-severity-low border-severity-low/20">{name}</span>
                   ))}
                   {case_.tags && case_.tags.split(',').filter(Boolean).map(t => <Tag key={t} label={t.trim()} />)}
                 </>
               )}
-            </div>
-            <p className="text-xs text-accent-muted/60 mt-1">
-              Created {fmtDateTimeShort(case_.created_at)} ·
-              Updated {fmtDateTimeShort(case_.updated_at)}
-            </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {editing ? (
-              <>
-                <button onClick={() => setEditing(false)} className="btn-secondary text-xs flex items-center gap-1.5"><X size={12} /> Cancel</button>
-                <button onClick={() => update.mutate(editForm)} disabled={update.isPending} className="btn-primary text-xs flex items-center gap-1.5">
-                  <Save size={12} />{update.isPending ? 'Saving…' : 'Save'}
-                </button>
-              </>
-            ) : (
-              <>
-                <button onClick={startEdit} className="btn-secondary text-xs flex items-center gap-1.5"><Edit2 size={12} /> Edit</button>
-                <button onClick={() => setDeleteOpen(true)} className="btn-danger text-xs flex items-center gap-1.5"><Trash2 size={12} /> Delete</button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
+        </>
+      )}
+      fullHeight
+    >
+      <div className="h-full flex flex-col min-h-0 overflow-hidden">
       {/* Tabs */}
-      <div className="border-b border-white/5 px-6">
-        <div className="flex gap-1">
+      <div className="border-b border-hairline px-4 shrink-0">
+        <div className="flex gap-1 overflow-x-auto">
           {TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-3 text-xs font-medium transition-colors ${
+              className={`px-3 py-2 text-ui whitespace-nowrap transition-colors ${
                 activeTab === tab.id ? 'tab-active' : 'tab-inactive'
               }`}
             >
@@ -189,7 +183,7 @@ export default function CaseDetail() {
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {/* Full-height tabs (no padding, custom layout) */}
         {activeTab === 'attack_graph' && (
           <div className="h-full">
@@ -236,6 +230,7 @@ export default function CaseDetail() {
         title="Delete Case"
         message={`"${case_.title}" and all associated data will be permanently deleted.`}
       />
-    </div>
+      </div>
+    </PageShell>
   )
 }

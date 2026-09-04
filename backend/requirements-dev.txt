@@ -1,0 +1,12 @@
+# Development and CI dependencies. Not installed in the runtime image.
+-r requirements.txt
+
+pytest>=8.3
+pytest-cov>=6.0
+# Ships transitively with FastAPI, but the suite uses its pytest plugin for
+# async tests and --strict-markers turns a missing plugin into a suite-wide
+# error rather than a skip. Declared so that cannot happen quietly.
+anyio>=4.0
+ruff>=0.8
+mypy>=1.13
+types-PyYAML
