@@ -25,6 +25,14 @@ describe('PAGE_HELP', () => {
       expect(PAGE_HELP[route], `${route} has no help`).toBeDefined()
     }
   })
+
+  it('covers every destination, not only the ones somebody remembered', () => {
+    // The S14 exit criterion, asserted rather than reviewed. It sat at 11 of 24
+    // for two sprints because nothing counted, and a `?` that is missing looks
+    // exactly like a page that does not need one.
+    const missing = Object.keys(NAV_ICON).filter((route) => !PAGE_HELP[route])
+    expect(missing).toEqual([])
+  })
 })
 
 describe('PageHelp', () => {

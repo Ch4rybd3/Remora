@@ -31,8 +31,12 @@ describe('PageShell', () => {
   })
 
   it('omits the help button on a route that has none, without leaving a gap', () => {
-    render(<PageShell route="/config/vaults" title="Vault Management">body</PageShell>)
-    expect(screen.queryByRole('button', { name: /vault/i })).not.toBeInTheDocument()
+    // Deliberately an unknown route. This used to be `/config/vaults`, which
+    // stopped being an example of a page without help once every destination
+    // had some - and a test whose premise has quietly become false passes for
+    // the wrong reason.
+    render(<PageShell route="/not/a/destination" title="Somewhere">body</PageShell>)
+    expect(screen.queryByRole('button', { name: /help/i })).not.toBeInTheDocument()
   })
 
   it('renders the toolbar row only when given one', () => {
