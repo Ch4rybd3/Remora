@@ -605,7 +605,7 @@ quietly define what "the registry" means for every investigation.
 
 ---
 
-## 13. Process tree (S16)
+## 13. Process tree
 
 Reconstructed where the data allows, from strongest to weakest source:
 
@@ -617,7 +617,34 @@ Rules:
 - PID reuse is resolved by time window, not by PID alone.
 - An orphan process attaches to a synthetic root. It is never dropped — a missing parent is itself a finding.
 - Nodes carry their evidence sources, so an analyst can see whether a link is asserted or inferred.
-- Rendered with the shared graph components extracted in S13, so it inherits the playbook editor's interaction model.
+- Rendered as an **indented, collapsible tree**, not on the shared graph canvas
+  the original plan named. That canvas is right for the attack graph, which is
+  a hand-authored diagram of twenty nodes an analyst *arranges*; a process tree
+  is machine-generated, thousands of nodes deep, and read rather than arranged.
+  Laying it out as a graph would be slower and harder to follow at exactly the
+  sizes that matter.
+
+### Two things the implementation had to get right
+
+**A process id is not an identity.** Windows reuses them, on a busy machine
+within minutes. A process is keyed by its GUID where one exists and by
+`(pid, start time)` otherwise, and a parent is chosen by lifetime window -
+started before the child, and either still running or exited after it. When
+exits were not logged the most recent start wins, and a grace window refuses an
+implausibly old candidate: without one, a boot-time service adopts everything
+that ran on the machine that week.
+
+**The base the process id was written in.** Security 4688 writes `0x1a2c`;
+Sysmon writes `6700`. Reading one as the other produces a number that is
+entirely plausible and entirely wrong, and nothing downstream would notice. It
+has its own parametrised test.
+
+### What it does not do
+
+Corroboration is matched on the executable's name against the prefetch and
+Amcache tables in the case, read once each rather than per node. That is a
+weaker claim than the rest of the tree and is labelled as such - it says the
+executable ran, not that this process is that execution.
 
 ---
 
@@ -907,3 +934,104 @@ table is the normal case and their columns have nothing to do with each other.
 
 Copied before opening, like the browser databases: SQLite replays its
 write-ahead log on open, and that is a write.
+
+
+---
+
+## 20. Uploading through a reverse proxy
+
+**Remora is not what limits an upload.** Its own nginx accepts two gigabytes
+and the backend takes a 409 MB archive in 37 seconds, measured end to end. What
+limits it is whatever sits in front.
+
+Cloudflare caps a request body at **100 MB on every plan below Enterprise**.
+Measured against a real deployment behind it:
+
+| Body | Result |
+|---|---|
+| 99 MB | Reaches the backend. 403 from the auth dependency, 7 s. |
+| 101 MB | **413 from Cloudflare in 0.39 s.** Never reaches the server. |
+
+The failure mode is what makes this worth documenting. The proxy answers 413
+and cuts the connection **while the browser is still sending**, so `fetch`
+rejects at the transport layer rather than returning a status. The browser
+reports a network error on a network that is working perfectly, and the request
+never appears in Remora's own access log - which is what sent an afternoon of
+diagnosis at the wrong machine.
+
+### What the product does about it
+
+A selection over 100 MB is held back before it is sent, with the size named and
+the drop folder offered. A **warning, not a refusal**: an installation with no
+proxy in front handles it, and refusing outright would break the case that
+works. "Upload anyway" is there for exactly that.
+
+When an upload does fail and the file was large, the message names the size and
+the cause rather than suggesting the connection is at fault.
+
+### The route that has no limit
+
+The drop folder, which is the pipeline's single entry point anyway (§2). A
+triage copied in with `scp` or `rsync`, or dropped onto a mounted SMB share,
+has nothing between it and the server:
+
+```
+rsync -avP --partial kapetriage2.zip user@host:/path/to/dropzone/<case-folder>/
+```
+
+The Collection tab's upload is a convenience for artifacts small enough to go
+through a browser. A full triage is not one of them, and the interface now says
+so before the transfer rather than after it.
+
+
+---
+
+## 21. The Python parsers are contained too
+
+Until this landed, the honest answer to *"does Remora execute anything that
+came out of the drop folder?"* was a qualified one. The Eric Zimmerman tools
+ran inside the sandbox from the day they shipped. The parsers written here -
+prefetch, browsers, scheduled tasks, SRUM, the web cache, generic SQLite and
+ESE, the RDP bitmap cache - ran in the worker, as root, on bytes somebody
+dropped in a folder.
+
+Row, cell and tile caps bounded the *work* those parsers do. That is not the
+same as bounding what the code can reach, and an ESE database or a bitmap cache
+is a far larger surface than a prefetch record.
+
+### How
+
+A process boundary, and nothing more clever than that.
+`python_parsers/__main__.py` takes a job file, runs one parser, and writes back
+the paths it produced. `batch.run_sandboxed` stages the inputs, invokes it
+through `services/sandbox.py`, and moves the results out.
+
+The parsers themselves did not change. They are pure
+`(paths, out_dir, scratch, base) -> [paths]` functions with no database and no
+configuration, which is the property that made a boundary drawable at all - and
+a good reason to keep them that way.
+
+Each one carries a `slug`, because a label is prose for an analyst and a set of
+kinds has no canonical order; neither survives a command line.
+
+### Two consequences worth stating
+
+**The parser only sees what was staged.** Not the drop folder, not the rest of
+the collection, not the evidence store. Its idea of the filesystem is a
+directory the worker built for it, mirroring the collection tree so a source
+column still says where a file sat.
+
+**Output is written inside the working directory and moved out afterwards.**
+The confined account cannot write to a directory the worker created as root,
+and handing it the collection's own `_parsed/` would mean granting a sandboxed
+process write access to case data. The move happens as the worker, so the
+boundary stays one-directional.
+
+### What it costs
+
+One interpreter start per parser per collection - not per file. A collection
+that yields prefetch, browsers and tasks pays it three times.
+
+The environment is replaced wholesale by the sandbox, so `PYTHONPATH` is handed
+in explicitly, derived from the module's own location. An installed layout that
+moved would fail loudly rather than quietly running the parser unconfined.

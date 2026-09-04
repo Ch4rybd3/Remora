@@ -6,6 +6,7 @@ import { collectionImportApi, type ImportedCollection, type ImportedFile, type G
 import { CopyableName, CustodyActions } from '../../custody/CustodyActions'
 import { useNavigate } from 'react-router-dom'
 import { TIMEZONE_OPTIONS } from '../../../context/TimezoneContext'
+import { fmtBytes } from '../../../utils/formatUtils'
 import DeleteCollectionDialog from '../DeleteCollectionDialog'
 import DropFolderPanel from '../DropFolderPanel'
 import IngestQueuePanel from '../IngestQueuePanel'
@@ -41,11 +42,22 @@ const isArchiveFile = (name: string) => archiveExt(name) !== null
  * else will work either; and a network failure, because that is not the
  * server's answer at all.
  */
-function readableError(error: Error): string {
+function readableError(error: Error, bytes = 0): string {
   const raw = (error.message ?? '').trim()
+  const large = bytes > PROXY_LIMIT_BYTES
+
+  // A proxy that refuses the body answers 413 and cuts the connection while
+  // the browser is still sending. Sometimes the status survives; often it does
+  // not and `fetch` simply rejects. Both are the same cause, so both say so.
+  if (/\b413\b|payload too large|request entity too large/i.test(raw) || large) {
+    return `${fmtBytes(bytes)} is more than the proxy in front of Remora accepts, `
+      + 'so the upload was refused before reaching it. Copy the archive into the '
+      + "case drop folder instead - the panel below has the path - and it is "
+      + 'ingested the same way with no size limit.'
+  }
 
   if (!raw || /failed to fetch|networkerror|load failed/i.test(raw)) {
-    return 'The upload did not reach the server. Check the connection and try again.'
+    return 'The upload did not reach the server. The connection dropped part way through.'
   }
   if (/^\s*(401|403)\b/.test(raw) || /not authenticated|could not validate/i.test(raw)) {
     return 'Your session has expired. Sign in again and retry the upload.'
@@ -64,6 +76,22 @@ function readableError(error: Error): string {
 const MAX_BATCH_BYTES = 200 * 1024 * 1024          // 200 MB
 // Files above this threshold get a notice about browsing performance
 const LARGE_FILE_BYTES = 500 * 1024 * 1024         // 500 MB
+
+/**
+ * Above this, a browser upload is likely to be refused before it arrives.
+ *
+ * Not a limit Remora imposes - the backend and its own nginx take two
+ * gigabytes, measured. It is the ceiling of whatever sits in front: Cloudflare
+ * caps a request body at 100 MB on every plan below Enterprise, and most
+ * reverse proxies ship with a default far lower than that.
+ *
+ * The failure is unhelpful when it happens. The proxy answers 413 and cuts the
+ * connection while the browser is still sending, so `fetch` rejects at the
+ * transport layer and reports a network error - on a connection that is
+ * working perfectly. Saying so *before* the upload costs nothing; discovering
+ * it costs however long the file took to not arrive.
+ */
+const PROXY_LIMIT_BYTES = 100 * 1024 * 1024       // 100 MB
 
 /** Split a file list into batches where each batch total ≤ MAX_BATCH_BYTES */
 function makeBatches(files: File[]): File[][] {
@@ -602,9 +630,20 @@ export default function CollectionImportTab({ caseId }: Props) {
   }, [collections])
 
   const [uploadError, setUploadError] = useState<string | null>(null)
+  /** Size of a selection held back for confirmation, or null. */
+  const [oversized, setOversized] = useState<number | null>(null)
+
+  /** Bytes of the upload in flight, so a failure can name the size that failed. */
+  const attempted = useRef(0)
+  /** A selection held back for confirmation. Kept out of state: it is not
+      rendered, and re-rendering on a file list would be for nothing. */
+  const pending = useRef<File[]>([])
 
   const upload = useMutation({
-    mutationFn: (files: File[]) => collectionImportApi.upload(caseId, files),
+    mutationFn: (files: File[]) => {
+      attempted.current = files.reduce((n, f) => n + f.size, 0)
+      return collectionImportApi.upload(caseId, files)
+    },
     onMutate: () => setUploadError(null),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['collection-imports', caseId] }),
     // Without this, every failure was silent. The upload goes through `fetch`
@@ -612,7 +651,7 @@ export default function CollectionImportTab({ caseId }: Props) {
     // either: an expired session, a refused type and a server error all looked
     // identical from the outside, which is to say they looked like nothing
     // happening at all.
-    onError: (e: Error) => setUploadError(readableError(e)),
+    onError: (e: Error) => setUploadError(readableError(e, attempted.current)),
   })
 
   /** Upload a list of files, automatically split into ≤200 MB batches, all under one session */
@@ -631,7 +670,7 @@ export default function CollectionImportTab({ caseId }: Props) {
       // `busy` is derived from this state, so a throw here used to leave every
       // upload button disabled until the page was reloaded - which reads
       // exactly like the buttons doing nothing.
-      setUploadError(readableError(e as Error))
+      setUploadError(readableError(e as Error, attempted.current))
       setUploadState(null)
     } finally {
       qc.invalidateQueries({ queryKey: ['collection-imports', caseId] })
@@ -655,8 +694,31 @@ export default function CollectionImportTab({ caseId }: Props) {
 
   function handleArchiveChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? [])
-    if (files.length) upload.mutate(files)
     e.target.value = ''
+    if (files.length) startUpload(files)
+  }
+
+  /**
+   * Send the files, unless they are large enough that a proxy will refuse them.
+   *
+   * Checked here rather than after the attempt, because the attempt is the
+   * expensive part: a 400 MB archive spends half a minute uploading before a
+   * proxy answers 413, and the analyst learns nothing they could not have been
+   * told immediately.
+   *
+   * A warning, not a refusal. An installation with no proxy in front takes two
+   * gigabytes quite happily, and refusing outright would break the case that
+   * works.
+   */
+  function startUpload(files: File[]) {
+    const total = files.reduce((n, f) => n + f.size, 0)
+    if (total > PROXY_LIMIT_BYTES) {
+      attempted.current = total
+      pending.current = files
+      setOversized(total)
+      return
+    }
+    upload.mutate(files)
   }
 
   function handleCsvChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -750,6 +812,44 @@ export default function CollectionImportTab({ caseId }: Props) {
         </div>
       </div>
 
+      {/* A selection too large for a proxy to pass. Held before sending rather
+          than after failing: the attempt is the expensive part. */}
+      {oversized !== null && (
+        <div className="rounded-control border border-severity-medium/30 bg-severity-medium/5 px-3 py-2.5">
+          <p className="flex items-center gap-2 text-label font-semibold text-severity-medium">
+            <AlertTriangle size={13} className="shrink-0" />
+            {fmtBytes(oversized)} is likely to be refused before it arrives
+          </p>
+          <p className="text-label text-fg-secondary mt-1 leading-relaxed">
+            Remora itself has no size limit worth speaking of, but a reverse
+            proxy in front of it usually does &mdash; Cloudflare caps a request
+            body at 100&nbsp;MB on every plan below Enterprise. The refusal
+            arrives as a dropped connection part way through, which reads like a
+            network fault on a network that is fine.
+          </p>
+          <p className="text-label text-fg-secondary mt-1.5 leading-relaxed">
+            <strong>Copy the archive into the case drop folder instead.</strong>{' '}
+            The path is in the panel below; it takes anything, and the file is
+            ingested exactly the same way.
+          </p>
+          <div className="flex items-center gap-2 mt-2">
+            <button onClick={() => setOversized(null)} className="btn-secondary text-label">
+              Use the drop folder
+            </button>
+            <button
+              onClick={() => {
+                const files = pending.current
+                setOversized(null)
+                if (files.length) upload.mutate(files)
+              }}
+              className="btn-secondary text-label text-fg-secondary"
+            >
+              Upload anyway
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Upload failure. Above everything, because until this is dealt with
           nothing else on the page will have changed. */}
       {uploadError && (
@@ -812,7 +912,7 @@ export default function CollectionImportTab({ caseId }: Props) {
       {isLoading ? (
         <p className="text-fg-muted text-ui">Loading…</p>
       ) : sessions.length === 0 ? (
-        <DropZone onFiles={files => upload.mutate(files)} />
+        <DropZone onFiles={startUpload} />
       ) : (
         <>
           <div className="space-y-3">
@@ -825,7 +925,7 @@ export default function CollectionImportTab({ caseId }: Props) {
             ))}
           </div>
           {/* Drop zone below existing collections */}
-          <DropZone onFiles={files => upload.mutate(files)} />
+          <DropZone onFiles={startUpload} />
         </>
       )}
 

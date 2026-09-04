@@ -24,6 +24,264 @@ const Code = ({ children }: { children: ReactNode }) => (
 )
 
 export const PAGE_HELP: Record<string, HelpEntry> = {
+  '/': {
+    title: 'Reading the dashboard',
+    content: (
+      <>
+        <P>
+          Everything here is counted from open cases. A figure that looks wrong
+          is usually a case still marked open that should be closed, rather
+          than a miscount.
+        </P>
+        <P>
+          Trend arrows compare the current period against the one before it. A
+          period with no activity on either side shows no arrow rather than a
+          flat one - nothing happened is not the same as nothing changed.
+        </P>
+      </>
+    ),
+  },
+
+  '/artifacts/email': {
+    title: 'Analysing a message',
+    content: (
+      <>
+        <P>
+          Headers, links and attachments are read from the message as it stands.
+          Authentication results (<Code>SPF</Code>, <Code>DKIM</Code>,{' '}
+          <Code>DMARC</Code>) are reported as the receiving server recorded them
+          - they are a claim in the headers, not something Remora re-verifies.
+        </P>
+        <P>
+          The HTML body renders in a sandboxed frame with remote content
+          blocked. That is deliberate: a tracking pixel that loads tells the
+          sender their message reached an analyst.
+        </P>
+        <P>
+          Messages also arrive through the drop folder like any other artifact.
+          Nothing has to be uploaded from this page.
+        </P>
+      </>
+    ),
+  },
+
+  '/knowledge': {
+    title: 'The vault',
+    content: (
+      <>
+        <P>
+          Shared reference material - tooling notes, rule sets, scripts,
+          playbooks - browsed here and managed under{' '}
+          <Code>Config &rsaquo; Vaults</Code>. It is deliberately not case data:
+          nothing here expires with a collection and nothing here is evidence.
+        </P>
+        <P>
+          What a vault opens into depends on what it holds. An Obsidian folder
+          or a ZIP opens in the knowledge editor; a PDF and an image render in
+          place.
+        </P>
+      </>
+    ),
+  },
+
+  '/config/clients': {
+    title: 'Clients',
+    content: (
+      <>
+        <P>
+          A client owns cases, and an account can be restricted to a set of
+          clients. An account with none attached sees everything - scoping is
+          opt-in, so adding a client never silently widens anybody, and
+          introducing it changed nothing for accounts that already existed.
+        </P>
+        <P>
+          A scoped account reaching for a case outside its clients receives a{' '}
+          <strong>404</strong>, not a 403. Which client an incident belongs to
+          is itself information, so the refusal does not confirm that the case
+          exists. The attempt is recorded in the audit trail.
+        </P>
+      </>
+    ),
+  },
+
+  '/templates': {
+    title: 'Case templates',
+    content: (
+      <>
+        <P>
+          A template pre-fills a new case: its sections, its default TTPs, its
+          starting playbook. Stored as YAML under <Code>templates/</Code>, so a
+          template is reviewable and can travel between installations.
+        </P>
+        <P>
+          Editing a template never touches cases already created from it. A case
+          is a copy taken at creation, not a live reference - otherwise
+          correcting a template would rewrite the history of closed
+          investigations.
+        </P>
+      </>
+    ),
+  },
+
+  '/report-templates': {
+    title: 'Report templates',
+    content: (
+      <>
+        <P>
+          DOCX or Markdown, with <Code>{'{{ tags }}'}</Code> replaced at render
+          time. The full tag list is in{' '}
+          <Code>docs/REPORT_TEMPLATES.md</Code>.
+        </P>
+        <P>
+          A tag that matches nothing renders empty rather than leaving the tag
+          in the document. A report going to a client with{' '}
+          <Code>{'{{ analyst_name }}'}</Code> still printed in it is worse than
+          a blank.
+        </P>
+        <P>
+          Keep the DOCX styles you want in the output: rendering fills the
+          template in place and does not restyle it.
+        </P>
+      </>
+    ),
+  },
+
+  '/playbooks': {
+    title: 'Playbooks',
+    content: (
+      <>
+        <P>
+          A playbook is a graph of steps attached to a case, edited in the
+          playbook editor. Progress is tracked per case, so the same playbook
+          run on two incidents keeps two independent states.
+        </P>
+        <P>
+          Import and export are JSON, which is what makes a playbook shareable
+          between installations and reviewable in a pull request.
+        </P>
+      </>
+    ),
+  },
+
+  '/config/chainsaw-rules': {
+    title: 'Detection rules',
+    content: (
+      <>
+        <P>
+          Sigma rules, run by Chainsaw over the event logs in a case. Remora
+          ships a rule set and accepts your own; both are listed here with the
+          level each rule declares.
+        </P>
+        <P>
+          A rule is only as good as the events it can see. A detection that
+          depends on Sysmon finds nothing on a machine where Sysmon was never
+          installed - an empty result is not the same as a clean machine.
+        </P>
+      </>
+    ),
+  },
+
+  '/config/connectors': {
+    title: 'Connectors',
+    content: (
+      <>
+        <P>
+          Threat-intelligence services used by CTI Lookup - VirusTotal,
+          AbuseIPDB and the rest. Each needs its own API key, entered here and
+          stored encrypted.
+        </P>
+        <P>
+          <strong>A lookup sends the indicator to a third party.</strong> An
+          internal hostname or a customer URL submitted to a public service is
+          disclosure, and on some platforms it is permanent. Configure only what
+          the engagement allows.
+        </P>
+        <P>
+          Test a connector after saving it: a wrong key fails at lookup time
+          otherwise, in the middle of an investigation.
+        </P>
+      </>
+    ),
+  },
+
+  '/config/vaults': {
+    title: 'Managing vaults',
+    content: (
+      <>
+        <P>
+          The shared reference library that <Code>Vault</Code> browses. Files
+          here are not case data: nothing expires with a collection, and nothing
+          here is evidence in a chain of custody.
+        </P>
+        <P>
+          That distinction is the point of the separate page. Reference material
+          an analyst consults during an investigation must not end up in a
+          report as something recovered from the machine.
+        </P>
+      </>
+    ),
+  },
+
+  '/users': {
+    title: 'Accounts and roles',
+    content: (
+      <>
+        <P>
+          Roles are permission sets, not ranks. <Code>read_only</Code> sees
+          everything and writes nothing; <Code>executive</Code> sees dashboards
+          and reports and no artifact data at all. Neither sits above or below
+          the other.
+        </P>
+        <P>
+          Only an owner can hand out <Code>owner</Code>. Everything else an
+          administrator can grant.
+        </P>
+        <P>
+          Two-factor authentication is enrolled by the account holder, never by
+          an administrator - a factor someone else set up is not a second
+          factor.
+        </P>
+      </>
+    ),
+  },
+
+  '/audit': {
+    title: 'The audit trail',
+    content: (
+      <>
+        <P>
+          Who did what, when, and from where. Entries are append-only: nothing
+          in the product edits or deletes one, because a trail that can be
+          tidied is not a trail.
+        </P>
+        <P>
+          <strong>Refusals are recorded too</strong>, not only successful
+          actions - including requests refused with a 404 to avoid confirming
+          that a case exists. &ldquo;Who reached for what they could not
+          have&rdquo; is where an investigation into the investigators starts.
+        </P>
+      </>
+    ),
+  },
+
+  '/design': {
+    title: 'The design system',
+    content: (
+      <>
+        <P>
+          Every primitive rendered live, reading the same tokens the product
+          reads. It cannot drift from what ships: change a token and this page
+          changes with it.
+        </P>
+        <P>
+          Its real job is the four-theme comparison. A panel that works in dark
+          and vanishes in light is the failure this page exists to catch, and it
+          is not one a screenshot review finds.
+        </P>
+      </>
+    ),
+  },
+
   '/account': {
     title: 'Your account',
     content: (

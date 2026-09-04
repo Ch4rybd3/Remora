@@ -211,14 +211,14 @@ storage layout and its own hashing (or none). There is no single answer to
 
 ---
 
-## S16 — Eric Zimmerman parsers and process tree
+## S16 — Eric Zimmerman parsers and process tree — **delivered**
 
 ### Scope
 - .NET 9 runtime in the backend image; EZ tools vendored and version-pinned.
 - Sandboxed execution: non-root user, no network, wall-clock timeout, output quota. This is the answer to the question that will be asked on announcement day — "does Remora execute anything coming from the drop folder?" — which becomes "yes" the moment these parsers ship.
 - `raw → parsed → dual destination` chain: an EVTX lands in Logs *and* its EVTXECmd CSV lands in the Explorer. Same for `$MFT`/MFTECmd, registry hives/RECmd, Amcache, Shimcache, Prefetch, LNK, jump lists, shellbags, SRUM.
 - `services/ez_detection.py` upgraded from filename regex to magic bytes plus content sniffing, and fed by the routing table rather than its own pattern list.
-- **Process tree** reconstructed where the data allows: EVTX 4688 / Sysmon 1, plus Amcache and Prefetch as corroboration. Rendered with the shared graph components from S13. Orphan processes attach to a synthetic root rather than disappearing.
+- **Process tree** reconstructed where the data allows: EVTX 4688 / Sysmon 1, plus Amcache and Prefetch as corroboration. Orphan processes attach to a synthetic root rather than disappearing. **Delivered**, rendered as an indented tree rather than on the shared graph canvas - see `INGESTION.md` section 13 for why.
 
 ### Exit criteria
 - A raw EVTX dropped into a case folder appears in both Logs and the Explorer without manual action.
@@ -230,7 +230,7 @@ storage layout and its own hashing (or none). There is no single answer to
 ## S17 — Security and multi-tenancy
 
 ### Scope
-- **MFA (TOTP)**: enrolment with QR code, recovery codes, per-role enforcement policy, admin reset. **Shipped, except enforcement and admin reset**, which are deliberate follow-ups: a policy that forces MFA on a role can lock an installation out of its own admin account, and an admin reset is a documented bypass of the factor - both need their own thought rather than being bundled in.
+- **MFA (TOTP)**: enrolment with QR code, recovery codes, per-role enforcement policy, admin reset. **Shipped, except enforcement and admin reset**, which remain the only unstarted part of S17 and are deliberate follow-ups: a policy that forces MFA on a role can lock an installation out of its own admin account, and an admin reset is a documented bypass of the factor - both need their own thought rather than being bundled in.
   - Two-step enrolment: the secret is stored on setup, MFA switches on only once a code is proved. One step would lock out anyone whose phone clock is wrong.
   - Login returns an `mfa`-scoped token, never a session, and `get_current_user` refuses that scope. A client that ignores `mfa_required` gets nothing.
   - The secret is encrypted at rest; a code is never accepted twice; failures are counted on the user row so a restart does not reset the budget.
@@ -238,7 +238,7 @@ storage layout and its own hashing (or none). There is no single answer to
   - `read_only` — full read, zero write.
   - `executive` — dashboard, KPIs and reports only; no artifact-level access.
 - **Client scoping.** The `Client` model already exists. Add `user_clients` association; every case-scoped query filters on the caller's client set. Enforced in a dependency, not per-router, so a forgotten filter is impossible.
-- Audit coverage extended to authentication events and permission denials.
+- Audit coverage extended to authentication events and permission denials. **Delivered.** A role denial answers 403 and names the rule that fired; a scope denial answers 404 to avoid confirming that a case exists, which makes the audit entry the only record of the attempt.
 
 ### Exit criteria
 - A `read_only` user receives 403 on every mutating endpoint (asserted by a generated test over all routes).
