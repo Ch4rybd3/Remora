@@ -18,8 +18,61 @@ Any feature that surfaces forensic events must support "Add to Timeline":
 
 ---
 
+## Artifact File List
+
+Every artifact-processing page has the same left sidebar: the files this case
+holds of one kind, one of them selected, the rest waiting. Six pages had grown
+their own, agreeing on the idea and on nothing else.
+
+**Use `ui/ArtifactFileList`.** A new artifact page does not write a file list;
+it supplies items.
+
+```tsx
+<ArtifactFileList
+  items={items}          // id, name, badges?, footnote?, actions?, unavailable?, searchText?
+  selectedId={selected}
+  onSelect={open}
+  title="Captures"
+  icon={Network}
+  emptyMessage="No capture in this case yet."
+/>
+```
+
+What the component owns, because it is the same everywhere: the selected-row
+treatment, the filter box and its count, the empty state, the "nothing matches
+this filter" state, and the row layout.
+
+What the page supplies, because it differs: the chips under the name
+(`badges`), the muted line beneath (`footnote`), and the hover controls
+(`actions`). They are nodes rather than options, so the component never has to
+enumerate what an artifact can be.
+
+Three rules it enforces:
+
+**The full name is on the row.** Artifact names are long, alike and truncated
+at the same point — `Microsoft-Windows-Sysmon%4Operational.evtx` and
+`Microsoft-Windows-SmbClient%4Security.evtx` are the same row until you can
+read one. `title` goes on the row, not on the text node, so hovering anywhere
+reveals it.
+
+**Clicking a row opens it.** The name is text, not a button. Copying the name
+is a separate control that appears on hover — the Explorer once put the whole
+name in a copy button, and it is a trap: everywhere else, clicking a file name
+opens the file.
+
+**A file whose bytes are gone stays listed and says so.** The record is real
+and the analyst needs to see that what it points at is not, which is a
+different thing from the artifact never having existed.
+
+Adopted by: Artifact Explorer, Registry Explorer, PCAP, Email Analysis, Binary
+Analysis. The Disk Image Explorer keeps its own: its sidebar is a tree of
+partitions and directories, not a flat list of files.
+
+---
+
 ## File Sidebar Selection Pattern
-When a page has a left file-list sidebar (like Logs, Chainsaw, MFT, USN):
+Behaviours that hold for any left sidebar, including the trees that cannot use
+`ArtifactFileList`:
 
 - Clicking a file row **selects** it and filters the main content to that file
 - Selected row: `bg-accent-green/5 border-l-2 border-l-accent-green/40`

@@ -7,6 +7,7 @@
  */
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { PageShell } from '../ui/PageShell'
+import { ArtifactFileList } from '../ui/ArtifactFileList'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { DataTable } from '../ui/DataTable'
 import {
@@ -521,6 +522,20 @@ export default function PcapExplorer() {
     [artifacts],
   )
 
+  const captureItems = useMemo(() => captures.map((c: CsvArtifactMeta) => ({
+    id:       c.id,
+    // The stored artifact is the parsed packet list; the capture it came from
+    // is what the analyst named it, and what they are looking for in this list.
+    name:     captureName(c.original_name),
+    searchText: c.original_name,
+    unavailable: c.available === false,
+    badges:   (
+      <span className="text-label text-fg-secondary/40">
+        {c.row_count.toLocaleString()} packets
+      </span>
+    ),
+  })), [captures])
+
   // Select the first capture once they load
   useEffect(() => {
     if (!selectedId && captures.length > 0) setSelectedId(captures[0].id)
@@ -638,30 +653,14 @@ export default function PcapExplorer() {
       fullHeight
       asideLeft={(
         <aside className="w-56 shrink-0 border-r border-hairline bg-panel flex flex-col min-h-0 overflow-hidden">
-        <p className="px-3 py-2 text-label font-mono uppercase tracking-label text-fg-muted flex items-center gap-1.5 border-b border-hairline">
-          <Network size={11} /> Captures
-        </p>
-        <div className="flex-1 overflow-y-auto">
-          {captures.length === 0 && (
-            <p className="px-3 py-6 text-label text-fg-secondary/30 leading-relaxed text-center">
-              No capture in this case. Drop a .pcap / .pcapng into the drop folder
-              ou depuis l'onglet Collection.
-            </p>
-          )}
-          {captures.map(c => (
-            <button key={c.id}
-              onClick={() => { setSelectedId(c.id); setPage(1); setFrameNo(null) }}
-              className={`w-full text-left px-3 py-2 border-b border-strong/[0.03] transition-colors ${ selectedId === c.id
-                  ? 'bg-accent/5 border-l-2 border-l-accent/40'
-                  : 'hover:bg-white/[0.02]'
-              }`}>
-              <p className="text-label text-fg/80 truncate font-mono">{captureName(c.original_name)}</p>
-              <p className="text-label text-fg-secondary/35 mt-0.5">
-                {c.row_count.toLocaleString()} paquets
-              </p>
-            </button>
-          ))}
-        </div>
+          <ArtifactFileList
+            items={captureItems}
+            selectedId={selectedId}
+            onSelect={id => { setSelectedId(id); setPage(1); setFrameNo(null) }}
+            title="Captures"
+            icon={Network}
+            emptyMessage="No capture in this case. Drop a .pcap or .pcapng into the drop folder, or import one from the Collection tab."
+          />
         </aside>
       )}
     >
@@ -685,7 +684,7 @@ export default function PcapExplorer() {
           </div>
           {debounced && (
             <span className="text-label text-accent/60 flex items-center gap-1">
-              <Filter size={9} /> {rows?.total ?? 0} paquet(s)
+              <Filter size={9} /> {rows?.total ?? 0} packet(s)
             </span>
           )}
           {isFetching && <Loader2 size={11} className="animate-spin text-accent/50" />}

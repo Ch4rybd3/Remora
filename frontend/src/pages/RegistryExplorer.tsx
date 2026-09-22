@@ -16,9 +16,10 @@ import { useCallback, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import { PageShell } from '../ui/PageShell'
+import { ArtifactFileList } from '../ui/ArtifactFileList'
 import { DataTable, type Column } from '../ui/DataTable'
 import {
-  AlertTriangle, ChevronRight, FolderTree, Loader2, Search, ShieldCheck, X,
+  AlertTriangle, ChevronRight, Database, FolderTree, Loader2, Search, ShieldCheck, X,
 } from '../ui/icons'
 import {
   registryApi,
@@ -347,40 +348,40 @@ export default function RegistryExplorer() {
     },
   ]
 
+  const hiveItems = useMemo(() => hives.map(hive => ({
+    id:          hive.id,
+    name:        hive.name,
+    unavailable: !hive.available,
+    badges: (
+      <>
+        <span className="text-label text-fg-secondary/40">
+          {hive.available ? fmtBytes(hive.size_bytes) : 'file missing'}
+        </span>
+        {hive.preserved && (
+          <span title="Preserved in the chain of custody"
+            className="flex items-center gap-0.5 text-label text-accent">
+            <ShieldCheck size={9} /> preserved
+          </span>
+        )}
+      </>
+    ),
+  })), [hives])
+
   const hiveList = (
     <div className="flex flex-col h-full min-h-0">
-      <div className="px-3 py-2 border-b border-hairline shrink-0">
-        <p className="text-label uppercase tracking-wide text-fg-secondary/50">Hives</p>
-      </div>
-
-      <div className="overflow-auto shrink-0 max-h-48 border-b border-hairline">
-        {loadingHives && <p className="px-3 py-3 text-label text-fg-secondary/50">Loading…</p>}
-        {!loadingHives && hives.length === 0 && (
-          <p className="px-3 py-3 text-label text-fg-secondary/50 leading-relaxed">
-            No registry hive in this case yet. Drop one in the case folder and it
-            appears here — nothing is uploaded from this page.
-          </p>
-        )}
-        {hives.map((hive) => (
-          <button
-            key={hive.id}
-            onClick={() => openHive(hive)}
-            disabled={!hive.available}
-            className={`block w-full text-left px-3 py-1.5 border-l-2 transition-colors ${
-              hive.id === hiveId
-                ? 'bg-accent/8 border-l-accent/50'
-                : 'border-l-transparent hover:bg-white/[0.03]'
-            } ${hive.available ? '' : 'opacity-50 cursor-not-allowed'}`}
-          >
-            <div className="flex items-center gap-1.5">
-              <span className="text-label font-mono text-fg/85 truncate">{hive.name}</span>
-              {hive.preserved && <ShieldCheck size={10} className="text-accent shrink-0" />}
-            </div>
-            <span className="text-label text-fg-secondary/40">
-              {hive.available ? fmtBytes(hive.size_bytes) : 'file missing'}
-            </span>
-          </button>
-        ))}
+      <div className="shrink-0 max-h-56 flex flex-col border-b border-hairline">
+        <ArtifactFileList
+          items={hiveItems}
+          selectedId={hiveId}
+          onSelect={id => {
+            const hive = hives.find(h => h.id === id)
+            if (hive?.available) openHive(hive)
+          }}
+          title="Hives"
+          icon={Database}
+          loading={loadingHives}
+          emptyMessage="No registry hive in this case yet. Drop one in the case folder and it appears here - nothing is uploaded from this page."
+        />
       </div>
 
       {hiveId && (
