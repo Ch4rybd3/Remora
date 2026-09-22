@@ -438,10 +438,28 @@ def _identify_text(head: bytes, name: str) -> Identification | None:
             return Identification("jsonl", "JSON Lines", DETECTED_BY_CONTENT)
         return Identification("json", "JSON document", DETECTED_BY_CONTENT)
 
+    lowered = stripped[:512].lower()
+
+    # An mbox opens with the `From ` separator - no colon - which is not a
+    # legal RFC822 header and therefore cannot begin a single message. Checked
+    # before the mail headers below, which would otherwise claim the whole
+    # mailbox as one message and silently drop every message after the first.
+    if lowered.startswith("from "):
+        return Identification("mbox", "Mailbox (mbox)", DETECTED_BY_CONTENT)
+
     # Mail headers. `Received:` is the strongest signal because it is inserted
     # by relays and cannot be the first line of a CSV in practice.
-    lowered = stripped[:512].lower()
-    if lowered.startswith(("received:", "return-path:", "from ", "message-id:", "delivered-to:")):
+    if lowered.startswith(("received:", "return-path:", "message-id:", "delivered-to:")):
+        return Identification("eml", "Email message (EML)", DETECTED_BY_CONTENT)
+
+    # A message saved from a client usually opens with `From:` instead, which is
+    # weak on its own - a note can begin that way. A second header makes it
+    # certain, and without this an .eml whose first line is `From:` was filed as
+    # a text file: it reached the Explorer as prose and never reached Email
+    # Analysis at all.
+    if lowered.startswith("from:") and any(
+        f"\n{header}" in lowered for header in ("to:", "subject:", "date:", "cc:")
+    ):
         return Identification("eml", "Email message (EML)", DETECTED_BY_CONTENT)
 
     # CSV: a delimiter that appears the same number of times on the first two
@@ -452,6 +470,13 @@ def _identify_text(head: bytes, name: str) -> Identification | None:
             counts = [ln.count(delim) for ln in lines[:2]]
             if counts[0] >= 1 and counts[0] == counts[1]:
                 return Identification("csv", label, DETECTED_BY_CONTENT)
+
+    # XML before the generic verdict. Without it every XML document was labelled
+    # "Text file": content detection fires first and the `.xml` extension never
+    # got a say. The routing is the same either way, so this is what the
+    # Collection tab calls the file rather than where it ends up.
+    if stripped.startswith(("<?xml", "<")):
+        return Identification("xml", "XML document", DETECTED_BY_CONTENT)
 
     if name.lower().endswith((".log", ".txt")):
         return None  # let the extension label it
