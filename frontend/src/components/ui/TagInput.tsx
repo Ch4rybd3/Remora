@@ -62,6 +62,17 @@ export default function TagInput({ tags, onChange, suggestions, placeholder }: P
       } else {
         commitQuery()
       }
+    } else if (e.key === 'Tab' && showDropdown) {
+      // Completes the highlighted suggestion, or the first one when the
+      // analyst has typed enough to narrow the list but not arrowed into it -
+      // which is the common case, and the whole reason to reach for Tab.
+      //
+      // Only intercepted while the dropdown is open. With no suggestion to
+      // complete, Tab keeps its job of leaving the field: a text input that
+      // swallows Tab unconditionally cannot be escaped from the keyboard.
+      e.preventDefault()
+      const s = filtered[activeIdx >= 0 ? activeIdx : 0]
+      addTag({ value: s.value, badgeColor: s.badgeColor ?? 'bg-fg/5 text-fg-secondary border-hairline' })
     } else if (e.key === 'Backspace' && !query && tags.length > 0) {
       removeTag(tags.length - 1)
     } else if (e.key === 'ArrowDown') {
@@ -152,7 +163,7 @@ export default function TagInput({ tags, onChange, suggestions, placeholder }: P
       )}
 
       <p className="text-label text-fg-secondary/40 mt-1">
-        Enter or comma to confirm - Backspace to remove
+        Tab to complete - Enter or comma to confirm - Backspace to remove
       </p>
     </div>
   )

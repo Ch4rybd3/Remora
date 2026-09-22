@@ -8,6 +8,7 @@ import type { TimelineEvent, TimelineOrigin, IOC, Asset } from '../../../types'
 import type { Suggestion } from '../../ui/SuggestInput'
 import type { InputTag } from '../../ui/TagInput'
 import { fmtDateTime } from '../../../utils/dateUtils'
+import { CUSTOM_TAG_COLOR, stringToTags as parseActorTags, tagsToString } from '../actorTags'
 import Modal from '../../ui/Modal'
 import ConfirmDialog from '../../ui/ConfirmDialog'
 import EmptyState from '../../ui/EmptyState'
@@ -42,7 +43,7 @@ const ASSET_COLOR = (asset: Asset) =>
     ? 'bg-severity-critical/10 text-severity-critical border-severity-critical/20'
     : 'bg-accent/10 text-accent/80 border-accent/20'
 
-const CUSTOM_COLOR = 'bg-fg/5 text-fg-secondary border-hairline'
+const CUSTOM_COLOR = CUSTOM_TAG_COLOR
 
 /** Provenance badge — tells at a glance where an event came from. */
 const ORIGIN_META: Record<TimelineOrigin, { label: string; cls: string }> = {
@@ -138,22 +139,15 @@ function buildSuggestions(iocs: IOC[], assets: Asset[]): Suggestion[] {
   return [...iocSugg, ...assetSugg]
 }
 
-/** Serialize tags → comma-separated string for the backend */
-function tagsToString(tags: InputTag[]): string {
-  return tags.map(t => t.value).join(', ')
-}
-
 /** Deserialize stored actor string → InputTag[] with color lookup */
 function stringToTags(actor: string, iocs: IOC[], assets: Asset[]): InputTag[] {
-  if (!actor) return []
-  return actor.split(',').map(v => {
-    const val = v.trim()
+  return parseActorTags(actor, val => {
     const ioc = iocs.find(i => i.value === val)
-    if (ioc) return { value: val, badgeColor: IOC_COLORS[ioc.type] ?? CUSTOM_COLOR }
+    if (ioc) return IOC_COLORS[ioc.type] ?? CUSTOM_COLOR
     const asset = assets.find(a => a.name === val)
-    if (asset) return { value: val, badgeColor: ASSET_COLOR(asset) }
-    return { value: val, badgeColor: CUSTOM_COLOR }
-  }).filter(t => t.value)
+    if (asset) return ASSET_COLOR(asset)
+    return CUSTOM_COLOR
+  })
 }
 
 // ── Component ────────────────────────────────────────────────────────────────

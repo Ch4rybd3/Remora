@@ -1,22 +1,31 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, Pencil, ScrollText, Download } from '../../../ui/icons'
 import { incidentLogApi } from '../../../api/incidentLog'
+import { assetsApi } from '../../../api/assets'
 import type { IncidentLogEntry, IncidentLogCategory } from '../../../types'
+import type { Suggestion } from '../../ui/SuggestInput'
+import type { InputTag } from '../../ui/TagInput'
+import { useAuth } from '../../../context/AuthContext'
 import { fmtDateTime } from '../../../utils/dateUtils'
+import { CUSTOM_TAG_COLOR, stringToTags, tagsToString } from '../actorTags'
 import Modal from '../../ui/Modal'
+import TagInput from '../../ui/TagInput'
 import ConfirmDialog from '../../ui/ConfirmDialog'
 import EmptyState from '../../ui/EmptyState'
 
 interface Props { caseId: string; caseTitle: string }
 
 const CATEGORY_META: Record<IncidentLogCategory, { label: string; color: string }> = {
-  remediation:   { label: 'Remediation',           color: 'bg-accent/10 text-accent border-accent/20' },
-  handover:      { label: 'Passation',             color: 'bg-severity-low/10 text-severity-low border-severity-low/20' },
-  communication: { label: 'Communication client',  color: 'bg-data-2/10 text-data-2 border-data-2/20' },
-  investigation: { label: 'Investigation',         color: 'bg-severity-high/10 text-severity-high border-severity-high/20' },
-  other:         { label: 'Autre',                 color: 'bg-fg/5 text-fg-secondary border-hairline' },
+  remediation:   { label: 'Remediation',          color: 'bg-accent/10 text-accent border-accent/20' },
+  handover:      { label: 'Handover',             color: 'bg-severity-low/10 text-severity-low border-severity-low/20' },
+  communication: { label: 'Client communication', color: 'bg-data-2/10 text-data-2 border-data-2/20' },
+  investigation: { label: 'Investigation',        color: 'bg-severity-high/10 text-severity-high border-severity-high/20' },
+  other:         { label: 'Other',                color: 'bg-fg/5 text-fg-secondary border-hairline' },
 }
+
+const YOU_COLOR   = 'bg-accent/10 text-accent/80 border-accent/20'
+const ASSET_COLOR = 'bg-data-5/10 text-data-5 border-data-5/20'
 
 const empty = (): Partial<IncidentLogEntry> => ({
   event_ts: new Date().toISOString().slice(0, 16),
@@ -26,15 +35,60 @@ const empty = (): Partial<IncidentLogEntry> => ({
 
 export default function IncidentLogTab({ caseId, caseTitle }: Props) {
   const qc = useQueryClient()
+  const { user } = useAuth()
 
   const { data: entries = [] } = useQuery({
     queryKey: ['incidentLog', caseId],
     queryFn: () => incidentLogApi.list(caseId),
   })
+  const { data: assets = [] } = useQuery({
+    queryKey: ['assets', caseId],
+    queryFn: () => assetsApi.list(caseId),
+  })
+
+  /**
+   * Who can plausibly be the actor of an entry, most likely first.
+   *
+   * Drawn from what this case already contains rather than from the account
+   * directory, which an analyst without the admin permission cannot read.
+   * Offering back the names the log already uses is also what keeps one
+   * responder from appearing as three spellings across a handover document.
+   */
+  const actorSuggestions = useMemo<Suggestion[]>(() => {
+    const seen  = new Set<string>()
+    const out: Suggestion[] = []
+
+    const push = (value: string, sublabel: string, badge: string, badgeColor: string) => {
+      const key = value.trim().toLowerCase()
+      if (!key || seen.has(key)) return
+      seen.add(key)
+      out.push({ value: value.trim(), label: value.trim(), sublabel, badge, badgeColor })
+    }
+
+    if (user) push(user.username, 'Signed in as you', 'you', YOU_COLOR)
+
+    for (const e of entries) {
+      for (const value of e.actor.split(',')) {
+        push(value, 'Already used in this log', 'log', CUSTOM_TAG_COLOR)
+      }
+    }
+
+    for (const asset of assets) {
+      const detail = [asset.ip_address, asset.hostname].filter(Boolean).join(' - ')
+      push(asset.name, detail || 'Case asset', asset.type.replace('_', ' '), ASSET_COLOR)
+    }
+
+    return out
+  }, [user, entries, assets])
+
+  const actorColor = (value: string) =>
+    actorSuggestions.find(s => s.value.toLowerCase() === value.toLowerCase())?.badgeColor
+      ?? CUSTOM_TAG_COLOR
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<Partial<IncidentLogEntry>>(empty())
+  const [actorTags, setActorTags] = useState<InputTag[]>([])
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
 
@@ -43,6 +97,7 @@ export default function IncidentLogTab({ caseId, caseTitle }: Props) {
   const openCreate = () => {
     setEditingId(null)
     setForm(empty())
+    setActorTags([])
     setModalOpen(true)
   }
 
@@ -55,6 +110,7 @@ export default function IncidentLogTab({ caseId, caseTitle }: Props) {
       description: e.description,
       actor:       e.actor,
     })
+    setActorTags(stringToTags(e.actor, actorColor))
     setModalOpen(true)
   }
 
@@ -71,14 +127,16 @@ export default function IncidentLogTab({ caseId, caseTitle }: Props) {
   const create = useMutation({
     mutationFn: () => incidentLogApi.create(caseId, {
       ...form,
+      actor:    tagsToString(actorTags),
       event_ts: new Date(form.event_ts!).toISOString(),
     }),
-    onSuccess: () => { invalidate(); closeModal(); setForm(empty()) },
+    onSuccess: () => { invalidate(); closeModal(); setForm(empty()); setActorTags([]) },
   })
 
   const update = useMutation({
     mutationFn: () => incidentLogApi.update(caseId, editingId!, {
       ...form,
+      actor:    tagsToString(actorTags),
       event_ts: new Date(form.event_ts!).toISOString(),
     }),
     onSuccess: () => { invalidate(); closeModal() },
@@ -128,7 +186,7 @@ export default function IncidentLogTab({ caseId, caseTitle }: Props) {
 
       <p className="text-label text-fg-secondary/70 leading-relaxed">
         Every entry is added both to the case's consolidated timeline and to this log,
-        exportable en Markdown pour les points d'avancement avec le client.
+        exportable as Markdown for progress updates with the client.
       </p>
 
       {entries.length === 0 ? (
@@ -157,7 +215,7 @@ export default function IncidentLogTab({ caseId, caseTitle }: Props) {
                             {meta.label}
                           </span>
                           {e.actor && (
-                            <span className="text-label text-fg-secondary/60 shrink-0">par {e.actor}</span>
+                            <span className="text-label text-fg-secondary/60 shrink-0">by {e.actor}</span>
                           )}
                         </div>
 
@@ -216,7 +274,7 @@ export default function IncidentLogTab({ caseId, caseTitle }: Props) {
           </div>
 
           <div>
-            <label className="label">Horodatage</label>
+            <label className="label">Timestamp</label>
             <input
               type="datetime-local"
               className="input font-mono"
@@ -236,12 +294,12 @@ export default function IncidentLogTab({ caseId, caseTitle }: Props) {
           </div>
 
           <div>
-            <label className="label">Acteur <span className="text-fg-secondary/50">(optionnel)</span></label>
-            <input
-              className="input"
-              placeholder="Analyste, client, tiers…"
-              value={form.actor ?? ''}
-              onChange={e => setForm(f => ({ ...f, actor: e.target.value }))}
+            <label className="label">Actor(s) <span className="text-fg-secondary/50">(optional)</span></label>
+            <TagInput
+              tags={actorTags}
+              onChange={setActorTags}
+              suggestions={actorSuggestions}
+              placeholder="You, a colleague, the client, an asset…"
             />
           </div>
 
