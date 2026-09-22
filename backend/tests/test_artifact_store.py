@@ -411,3 +411,92 @@ def test_a_bare_path_still_works_everywhere(paris):
     assert _timestamps(paris) == ["2026-01-01T10:00:00", "2026-07-01T10:00:00",
                                   "not a timestamp"]
     assert get_store().schema(paris).columns == TZ_COLUMNS
+
+
+# ─── Column filters ───────────────────────────────────────────────────────────
+# The Explorer sends {"mode": ..., "value": ...} per column and the store used
+# to interpolate the whole object into the LIKE pattern, so every per-column
+# filter matched nothing: typing in a column emptied the table.
+
+FILTER_CSV = (
+    "Timestamp,Process,User\n"
+    "2026-01-01T10:00:00,cmd.exe,ADMIN\n"
+    "2026-01-01T10:00:05,powershell.exe,analyst\n"
+    "2026-01-01T10:01:00,,analyst\n"        # no process recorded
+)
+FILTER_COLUMNS = ["Timestamp", "Process", "User"]
+
+
+@pytest.fixture()
+def filterable(tmp_path: Path) -> str:
+    path = tmp_path / "filters.csv"
+    path.write_text(FILTER_CSV)
+    return str(path)
+
+
+def _matching(source: str, col: str, mode: str, value: str) -> int:
+    return get_store().search(
+        source, FILTER_COLUMNS,
+        Query(column_filters={col: {"mode": mode, "value": value}}),
+        page_size=50,
+    ).total
+
+
+@pytest.mark.parametrize("mode,value,expected", [
+    ("contains",  "cmd",     1),
+    ("=",         "cmd.exe", 1),
+    ("!contains", "cmd",     2),
+    ("!=",        "cmd.exe", 2),
+])
+def test_each_column_filter_mode_selects_what_it_says(mode, value, expected, filterable):
+    """The regression. Every one of these returned 0 rows."""
+    assert _matching(filterable, "Process", mode, value) == expected
+
+
+def test_a_column_filter_is_case_insensitive(filterable):
+    """
+    An analyst filtering for `cmd.exe` means the process, not one particular
+    capitalisation of it - the same reasoning the free-text search already used.
+    """
+    assert _matching(filterable, "Process", "=", "CMD.EXE") == 1
+    assert _matching(filterable, "User", "contains", "admin") == 1
+
+
+def test_a_negative_filter_keeps_rows_with_no_value(filterable):
+    """
+    `NULL NOT ILIKE 'x'` is NULL, which drops the row. A row with nothing
+    recorded in the column does not contain the text, and negative filters
+    exist precisely to find what something is absent from.
+    """
+    assert _matching(filterable, "Process", "!contains", "cmd") == 2
+
+
+def test_the_older_bare_string_form_still_means_contains(filterable):
+    """Everything written before the Explorer grew modes sends a plain string."""
+    assert get_store().search(
+        filterable, FILTER_COLUMNS,
+        Query(column_filters={"Process": "cmd"}), page_size=50).total == 1
+
+
+def test_an_empty_filter_value_narrows_nothing(filterable):
+    """A cleared filter box must not become a match on the empty string."""
+    assert get_store().search(
+        filterable, FILTER_COLUMNS,
+        Query(column_filters={"Process": {"mode": "=", "value": "  "}}),
+        page_size=50).total == 3
+
+
+def test_an_unknown_mode_falls_back_to_contains(filterable):
+    """A filter arriving from an older client narrows rather than failing."""
+    assert _matching(filterable, "Process", "startswith", "cmd") == 1
+
+
+def test_column_filters_combine_as_and(filterable):
+    """Two filters narrow together, which is what the Explorer warns about."""
+    assert get_store().search(
+        filterable, FILTER_COLUMNS,
+        Query(column_filters={
+            "Process": {"mode": "contains", "value": "exe"},
+            "User":    {"mode": "=",        "value": "analyst"},
+        }),
+        page_size=50).total == 1

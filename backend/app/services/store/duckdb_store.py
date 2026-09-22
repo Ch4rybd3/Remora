@@ -248,6 +248,46 @@ def _open(source: str | Source) -> tuple[duckdb.DuckDBPyConnection, bool]:
     return conn, False
 
 
+#: The four comparisons the Explorer's per-column filter offers. All are
+#: case-insensitive: an analyst filtering for `cmd.exe` means the process,
+#: not one particular capitalisation of it, and `ILIKE` with no wildcards is
+#: exactly case-insensitive equality.
+_FILTER_MODES = {
+    "contains":  ('CAST("{col}" AS VARCHAR) ILIKE ?',                       "%{v}%"),
+    "=":         ('CAST("{col}" AS VARCHAR) ILIKE ?',                       "{v}"),
+    # COALESCE, not a bare NOT: `NULL NOT ILIKE 'x'` is NULL, which drops the
+    # row. A row with no value in the column does not contain the text, and
+    # negative filters exist precisely to find the rows something is absent from.
+    "!contains": ('COALESCE(CAST("{col}" AS VARCHAR) NOT ILIKE ?, TRUE)',    "%{v}%"),
+    "!=":        ('COALESCE(CAST("{col}" AS VARCHAR) NOT ILIKE ?, TRUE)',    "{v}"),
+}
+
+
+def _column_filter(col: str, raw: object) -> tuple[str, str]:
+    """
+    One column filter, as SQL and its parameter.
+
+    Accepts both shapes the product has sent. The Explorer sends
+    `{"mode": "=", "value": "cmd.exe"}`; everything older sends the bare
+    string, which means `contains`.
+
+    The object form used to be interpolated whole - `%{'mode': '=', 'value':
+    'cmd.exe'}%` - so every per-column filter in the Artifact Explorer matched
+    nothing at all. Typing in a column emptied the table.
+    """
+    if isinstance(raw, dict):
+        mode  = str(raw.get("mode") or "contains")
+        value = str(raw.get("value") or "")
+    else:
+        mode, value = "contains", str(raw or "")
+
+    if not value.strip():
+        return "", ""
+
+    template, pattern = _FILTER_MODES.get(mode, _FILTER_MODES["contains"])
+    return template.format(col=col), pattern.format(v=value)
+
+
 def build_where(columns: list[str], query: Query) -> tuple[str, list]:
     """
     Compile a `Query` into a WHERE clause.
@@ -266,10 +306,13 @@ def build_where(columns: list[str], query: Query) -> tuple[str, list]:
             f'CAST("{c}" AS VARCHAR) ILIKE ?' for c in columns) + ")")
         params.extend([f"%{query.text}%"] * len(columns))
 
-    for col, value in (query.column_filters or {}).items():
-        if col in columns and value:
-            parts.append(f'CAST("{col}" AS VARCHAR) ILIKE ?')
-            params.append(f"%{value}%")
+    for col, raw in (query.column_filters or {}).items():
+        if col not in columns:
+            continue
+        clause, value = _column_filter(col, raw)
+        if clause:
+            parts.append(clause)
+            params.append(value)
 
     if query.rql:
         try:
