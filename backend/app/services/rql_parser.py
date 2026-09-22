@@ -77,6 +77,17 @@ _KEYWORDS: dict[str, str] = {
 _UNITS = {'h', 'd', 'm', 's', 'hours', 'days', 'minutes', 'seconds'}
 
 
+#: A date, optionally with a time. Deliberately narrow: the point is to tell a
+#: range over timestamps from a range over text, and anything looser would
+#: start reinterpreting version numbers and serial numbers as dates.
+_TIMESTAMP_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?)?Z?$")
+
+
+def _looks_like_timestamp(value: str) -> bool:
+    return bool(_TIMESTAMP_RE.match(value.strip()))
+
+
 class RQLSyntaxError(ValueError):
     def __init__(self, message: str, pos: int = -1):
         super().__init__(message)
@@ -516,7 +527,21 @@ def _to_sql(node: Any, columns: list[str], params: list) -> str:
         if isinstance(node.low, (int, float)):
             params.extend([node.low, node.high])
             return f'TRY_CAST("{node.col}" AS DOUBLE) BETWEEN ? AND ?'
-        params.extend([str(node.low), str(node.high)])
+
+        low, high = str(node.low), str(node.high)
+        if _looks_like_timestamp(low) and _looks_like_timestamp(high):
+            # Compared as timestamps, not as text. Lexicographic order agrees
+            # with chronological order only while every value in the column is
+            # written the same way, and they are not: `2026-01-01T10:00:00`
+            # sorts after `2026-01-01 23:00:00` because `T` is greater than a
+            # space. A range over a date column has to mean what it says.
+            params.extend([low, high])
+            return (
+                f'TRY_CAST("{node.col}" AS TIMESTAMP) '
+                f'BETWEEN TRY_CAST(? AS TIMESTAMP) AND TRY_CAST(? AS TIMESTAMP)'
+            )
+
+        params.extend([low, high])
         return f'{_cast_varchar(node.col)} BETWEEN ? AND ?'
 
     if isinstance(node, RegexNode):

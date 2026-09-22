@@ -171,3 +171,61 @@ class TestTokenizer:
     def test_unterminated_string_raises(self) -> None:
         with pytest.raises(RQLSyntaxError):
             tokenize('Computer = "unterminated')
+
+
+class TestTimestampRanges:
+    """
+    A range over a date column has to mean what it says.
+
+    Compiled as text, `BETWEEN` agrees with chronological order only while
+    every value in the column is written the same way - and a real collection
+    mixes them, because the parsers that produced it did. `2026-01-01T10:00:00`
+    sorts *after* `2026-01-01 23:00:00`, because `T` is greater than a space.
+
+    This is what the Explorer's pivot compiles to, so getting it wrong would
+    silently return the wrong neighbourhood of an event.
+    """
+
+    def test_a_range_between_timestamps_compares_timestamps(self) -> None:
+        sql, params = where(
+            'TimeCreated BETWEEN "2026-01-01 09:59:45" AND "2026-01-01 10:00:15"')
+
+        assert "AS TIMESTAMP" in sql
+        assert len(params) == 2
+
+    def test_a_range_between_plain_strings_still_compares_text(self) -> None:
+        """Only a range that looks like time becomes a time comparison."""
+        sql, _ = where('Computer BETWEEN "DC-01" AND "DC-09"')
+
+        assert "AS TIMESTAMP" not in sql
+
+    def test_a_numeric_range_is_unchanged(self) -> None:
+        sql, _ = where("EventID BETWEEN 4600 AND 4700")
+
+        assert "AS DOUBLE" in sql
+
+    @pytest.mark.parametrize("value", [
+        "2026-01-01",
+        "2026-01-01 10:00",
+        "2026-01-01 10:00:00",
+        "2026-01-01T10:00:00",
+        "2026-01-01T10:00:00.123",
+        "2026-01-01T10:00:00Z",
+    ])
+    def test_the_timestamp_shapes_a_collection_actually_carries(self, value: str) -> None:
+        sql, _ = where(f'TimeCreated BETWEEN "{value}" AND "{value}"')
+
+        assert "AS TIMESTAMP" in sql
+
+    @pytest.mark.parametrize("value", ["1.2.3", "4624", "v2026-01-01", "01/01/2026"])
+    def test_something_that_merely_contains_digits_is_not_a_timestamp(self, value: str) -> None:
+        """A version number is not a date, and reading one as a date would
+        quietly drop every row in the column."""
+        sql, _ = where(f'Computer BETWEEN "{value}" AND "{value}"')
+
+        assert "AS TIMESTAMP" not in sql
+
+    def test_a_range_needs_both_bounds_to_be_timestamps(self) -> None:
+        sql, _ = where('TimeCreated BETWEEN "2026-01-01" AND "tomorrow"')
+
+        assert "AS TIMESTAMP" not in sql

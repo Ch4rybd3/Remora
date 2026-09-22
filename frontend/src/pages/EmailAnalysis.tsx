@@ -1,5 +1,6 @@
 import { useRef, useState, useCallback, useMemo } from 'react'
 import { PageShell } from '../ui/PageShell'
+import { ArtifactFileList } from '../ui/ArtifactFileList'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Upload, Mail, Link2, Paperclip, ChevronDown, ChevronRight,
@@ -882,48 +883,25 @@ function EmailResultView({
 
 // ── Sidebar email row ──────────────────────────────────────────────────────
 
-function EmailSidebarRow({
-  email, selected, onSelect, onDelete,
-}: {
-  email: CaseEmailSummary
-  selected: boolean
-  onSelect: () => void
-  onDelete: () => void
-}) {
-  const hasWarnings = email.warning_count > 0
+/**
+ * The chips a message row carries. The row itself is `ui/ArtifactFileList`.
+ *
+ * A message has no filename worth showing - `1a2b3c.eml` says nothing - so the
+ * subject stands in as the name, and the sender is the footnote. That is what
+ * an analyst scans a mailbox by.
+ */
+function emailBadges(email: CaseEmailSummary) {
   return (
-    <div
-      onClick={onSelect}
-      className={`group relative px-3 py-2.5 cursor-pointer border-l-2 transition-colors ${ selected
-          ? 'bg-accent/5 border-l-accent/40'
-          : 'border-l-transparent hover:bg-white/[0.03]'
-      }`}
-    >
-      <div className="flex items-start gap-2 pr-5">
-        <Mail size={12} className={`mt-0.5 shrink-0 ${hasWarnings ? 'text-severity-critical' : 'text-fg-secondary/40'}`} />
-        <div className="flex-1 min-w-0">
-          <p className="text-label text-fg/80 truncate leading-snug">{email.subject || '(no subject)'}</p>
-          <p className="text-label text-fg-secondary/50 truncate mt-0.5">{email.from_addr}</p>
-          <div className="flex items-center gap-2 mt-1">
-            <span className="flex items-center gap-0.5 text-label text-fg-secondary/30">
-              <Clock size={8} />{fmtRelative(email.uploaded_at)}
-            </span>
-            {hasWarnings && (
-              <span className="text-label font-bold text-severity-critical bg-severity-critical/10 border border-severity-critical/20 px-1 py-0.5 rounded-control">
-                {email.warning_count} alert{email.warning_count > 1 ? 's' : ''}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-      <button
-        onClick={e => { e.stopPropagation(); onDelete() }}
-        className="absolute right-2 top-2.5 opacity-0 group-hover:opacity-100 text-fg-secondary/40 hover:text-severity-critical transition-all"
-        title="Delete"
-      >
-        <Trash2 size={11} />
-      </button>
-    </div>
+    <>
+      <span className="flex items-center gap-0.5 text-label text-fg-secondary/30">
+        <Clock size={8} />{fmtRelative(email.uploaded_at)}
+      </span>
+      {email.warning_count > 0 && (
+        <span className="text-label font-bold text-severity-critical bg-severity-critical/10 border border-severity-critical/20 px-1 py-0.5 rounded-control">
+          {email.warning_count} alert{email.warning_count > 1 ? 's' : ''}
+        </span>
+      )}
+    </>
   )
 }
 
@@ -973,6 +951,25 @@ export default function EmailAnalysis() {
       if (selectedEmailId === emailId) setSelectedEmailId(null)
     },
   })
+
+  const emailItems = useMemo(() => storedEmails.map((email: CaseEmailSummary) => ({
+    id:   email.id,
+    name: email.subject || '(no subject)',
+    // Searched by sender as well: "everything from that domain" is the first
+    // question asked of a mailbox, and the sender is not in the name.
+    searchText: email.from_addr,
+    badges:     emailBadges(email),
+    footnote:   email.from_addr,
+    actions: (
+      <button
+        onClick={() => deleteEmail.mutate(email.id)}
+        title="Delete this message"
+        className="opacity-0 group-hover:opacity-100 text-fg-secondary/40 hover:text-severity-critical transition-all"
+      >
+        <Trash2 size={11} />
+      </button>
+    ),
+  })), [storedEmails, deleteEmail])
 
   // ── Upload (persisted when case active, stateless otherwise) ──────────────
   const [loading,  setLoading]  = useState(false)
@@ -1071,22 +1068,17 @@ export default function EmailAnalysis() {
             <input ref={fileRef} type="file" accept=".eml,message/rfc822" className="sr-only" onChange={handleFile} />
           </div>
 
-          {/* Email list */}
-          <div className="flex-1 overflow-y-auto">
-            {storedEmails.length === 0 && !loading && (
-              <p className="text-label text-fg-secondary/30 text-center py-8 px-3">
-                No emails yet.<br />Upload a .eml file to start.
-              </p>
-            )}
-            {storedEmails.map(email => (
-              <EmailSidebarRow
-                key={email.id}
-                email={email}
-                selected={selectedEmailId === email.id}
-                onSelect={() => setSelectedEmailId(email.id)}
-                onDelete={() => deleteEmail.mutate(email.id)}
-              />
-            ))}
+          <div className="flex-1 min-h-0">
+            <ArtifactFileList
+              items={emailItems}
+              selectedId={selectedEmailId}
+              onSelect={setSelectedEmailId}
+              title="Messages"
+              icon={Mail}
+              searchPlaceholder="Filter by subject or sender…"
+              loading={loading}
+              emptyMessage="No message yet. Upload a .eml file to start."
+            />
           </div>
           </aside>
         )}

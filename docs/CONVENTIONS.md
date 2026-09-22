@@ -216,6 +216,16 @@ something else will have to mirror, write the registry first.
 4. `useQuery` / `useMutation` from TanStack Query. Invalidate the affected keys on every mutation.
 5. Query keys are arrays, most general first: `['artifacts', caseId, fileId]`.
 
+### Artifact pages
+
+A page that lists artifacts of one kind and opens them one at a time uses
+`ui/ArtifactFileList` for its left sidebar. It does not write its own — six
+pages did, and they disagreed about the selected row, the search, the count,
+and whether hovering a truncated name showed you the name.
+
+The full contract, and what the page still supplies, is in
+[UI_PATTERNS.md](UI_PATTERNS.md#artifact-file-list).
+
 ### Page contract
 Every page is a `PageShell`, enforced by `npm run check:pages` in CI. The slots
 are fixed; a page that needs a different arrangement is a design-system gap to

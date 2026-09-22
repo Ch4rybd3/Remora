@@ -25,7 +25,7 @@ from ..services.audit_service import audit_log
 # Aliased: `Query` at module scope is FastAPI's, used in every endpoint
 # signature below.
 from ..services.store import Query as StoreQuery
-from ..services.store import SourceMissing, drop_cache, get_store
+from ..services.store import Source, SourceMissing, drop_cache, get_store
 
 router = APIRouter(tags=["csv-artifacts"])
 
@@ -43,6 +43,22 @@ def _get_case_or_404(case_id: str, db: Session) -> Case:
     if not c:
         raise HTTPException(status_code=404, detail="Case not found")
     return c
+
+
+def _source(a: CsvArtifactFile) -> Source:
+    """
+    The artifact, plus what it knows about its own timestamps.
+
+    Built here rather than at each call site so no query can accidentally read
+    an artifact raw. That was the previous state: the source timezone was
+    stored, shown as a badge, and applied by nothing - the Collection tab
+    offered a setting that changed no answer the Explorer gave.
+    """
+    return Source(
+        ref         = str(a.file_path),
+        date_column = str(a.date_column) if a.date_column else None,
+        timezone    = str(a.source_timezone) if a.source_timezone else None,
+    )
 
 
 def _get_artifact_or_404(artifact_id: str, case_id: str, db: Session) -> CsvArtifactFile:
@@ -224,7 +240,7 @@ def omni_search(
         cols = json.loads(a.columns)
         try:
             hit_count, hits = get_store().find(
-                a.file_path, cols, q, limit=limit, regex=regex)
+                _source(a), cols, q, limit=limit, regex=regex)
         except SourceMissing:
             skipped.append({
                 "id":            a.id,
@@ -364,7 +380,7 @@ def get_rows(
 
     try:
         result = get_store().search(
-            a.file_path, cols,
+            _source(a), cols,
             StoreQuery(text=q, column_filters=parsed_cf, rql=rql),
             sort_col=sort_col or a.date_column, sort_dir=sort_dir,
             page=page, page_size=page_size,
@@ -425,7 +441,7 @@ def get_groups(
         groups = [
             {"values": g.values, "count": g.count}
             for g in get_store().aggregate(
-                a.file_path, cols, StoreQuery(text=q, column_filters=parsed_cf, rql=rql),
+                _source(a), cols, StoreQuery(text=q, column_filters=parsed_cf, rql=rql),
                 group_cols)
         ]
     except RQLSyntaxError as exc:
