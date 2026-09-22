@@ -74,6 +74,11 @@ class Case(Base):
                                 cascade="all, delete-orphan", order_by="IncidentLogEntry.event_ts")
     client = relationship("Client", back_populates="cases")
     evtx_files = relationship("EvtxFile", back_populates="case", cascade="all, delete-orphan")
+    # Deleting a case drops its claim on an image, never the image itself: the
+    # bytes sit on a mounted volume this application does not own.
+    disk_images = relationship("DiskImage", back_populates="case",
+                               cascade="all, delete-orphan",
+                               order_by="DiskImage.name")
     ttps = relationship("CaseTTP", cascade="all, delete-orphan",
                         foreign_keys="CaseTTP.case_id",
                         order_by="CaseTTP.tactic, CaseTTP.technique_id")

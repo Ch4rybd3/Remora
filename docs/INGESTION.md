@@ -342,7 +342,7 @@ Each says so on its row rather than showing a generic "no parser":
 |---|---|---|
 | Raw memory dump | Which OS it came from. Guessing would queue the wrong Volatility plugins and produce confident wrong output. | **The dump waits in the queue** - hashed, listed, preservable - and the Collection tab offers `windows` / `linux` on its row. One click registers it in the Memory module. `POST .../ingest/{id}/memory-os`. |
 | PE / ELF / Mach-O | The password the binary is encrypted under at rest. The drop folder cannot ask for one. | Upload from the Binary Analysis page. |
-| Disk image | Nothing - but it must not be copied. | **The drop folder is an allowed root**, so the Disk Images page opens it where it lies. Nothing has to be moved. |
+| Disk image | Which case is working on it. | **The drop folder is an allowed root**, so the image is never copied or moved. The Disk Images page lists what the volume holds and the analyst registers one against the case, which is what makes it browsable. See [section 22](#22-disk-image-registration). |
 
 ### Memory formats
 
@@ -1035,3 +1035,74 @@ that yields prefetch, browsers and tasks pays it three times.
 The environment is replaced wholesale by the sandbox, so `PYTHONPATH` is handed
 in explicitly, derived from the module's own location. An installed layout that
 moved would fail loudly rather than quietly running the parser unconfined.
+
+---
+
+## 22. Disk image registration
+
+An image is the one artifact the pipeline never ingests. It is read in place
+because an acquisition routinely runs to several hundred GB, and copying it
+into the evidence store would double the storage bill to gain nothing.
+
+That in-place rule had a consequence nobody had written down: images were not
+scoped to anything. `GET /disk-images` returned every file under the configured
+roots, so **every case listed every image on the volume**, and no row anywhere
+said which investigation was working on which acquisition. The chain of custody
+had a hole exactly where the largest piece of evidence sat.
+
+### The registration
+
+`disk_images` holds a claim, not the bytes:
+
+| Column | Meaning |
+|---|---|
+| `case_id` | The investigation that examines this image. Cascades on case delete. |
+| `path` | Absolute, always inside a configured root. Re-validated on every use. |
+| `name`, `size_bytes`, `image_format` | Taken at registration, for the list. |
+| `registered_at`, `registered_by` | Who claimed it, and when. Audited as `disk_image.register`. |
+
+Unique on `(case_id, path)`. Not unique on `path` alone: two investigations for
+one client can legitimately examine one acquisition, and a global "one case per
+image" rule would force a 500 GB copy to express it.
+
+### What registration does and does not do
+
+- **Copies nothing, moves nothing, deletes nothing.** The file stays on the
+  mounted volume, owned by whoever put it there.
+- **Unregistering removes the claim only.** Which is why it asks for no
+  confirmation of the kind deleting evidence does - there is no evidence to
+  lose. Deleting the case does the same thing through the cascade.
+- **`available` is computed per request, never stored.** A volume can be
+  unmounted between two calls. The registration deliberately outlives that:
+  remounting makes the image usable again without re-registering it, and until
+  then the row says it is unreachable rather than vanishing.
+
+### Browsing goes through the claim
+
+Every browse endpoint takes a registration id, not a filesystem path:
+
+```
+GET  /cases/{case_id}/disk-images                       registered on this case
+GET  /cases/{case_id}/disk-images/available             on the volume, not yet claimed
+POST /cases/{case_id}/disk-images                       register {path}
+DEL  /cases/{case_id}/disk-images/{image_id}            drop the claim
+GET  /cases/{case_id}/disk-images/{image_id}/partitions
+GET  /cases/{case_id}/disk-images/{image_id}/list
+GET  /cases/{case_id}/disk-images/{image_id}/preview
+GET  /cases/{case_id}/disk-images/{image_id}/hash
+GET  /cases/{case_id}/disk-images/{image_id}/download
+POST /cases/{case_id}/disk-images/{image_id}/extract
+```
+
+`/disk-images/status` is the only case-free route left, and it reports whether
+image exploration is usable at all.
+
+Two things follow from keying on the claim rather than the path. An analyst
+supplied path no longer reaches the filesystem on any browse call - the path
+comes from the row. And the stored path is still re-validated against the roots
+on every request, so narrowing `DISK_IMAGE_PATHS` takes effect immediately
+instead of leaving rows written under the old configuration granting access.
+
+Extraction is unchanged in substance: a carved file lands in the case drop
+folder and re-enters the pipeline as an ordinary artifact, with no separate
+code path.
