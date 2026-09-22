@@ -32,6 +32,7 @@ import {
 import { color } from '../../styles/tokens'
 import { RQLBar } from './RQLBar'
 import type { ColFilter, ColFilters, FilterMode, FlatItem, TabState } from './types'
+import { CellContextMenu, type CellTarget } from './CellContextMenu'
 
 export function makeRowKey(artifactId: string, row: Record<string, string>): string {
   return `${artifactId}\x1f${Object.values(row).join('\x1e')}`
@@ -432,6 +433,7 @@ export function ArtifactTableView({
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [localRql,       setLocalRql]       = useState(state.rql ?? '')
   const [rqlError,       setRqlError]       = useState<string | null>(null)
+  const [cellMenu,       setCellMenu]       = useState<CellTarget | null>(null)
 
   /**
    * Whether this artifact's event times are being converted on the way out.
@@ -728,6 +730,25 @@ export function ArtifactTableView({
       updateFilters({ col_filters: Object.keys(active).length ? JSON.stringify(active) : undefined, page: 1 })
     }, 350)
   }, [onStateChange, updateFilters])
+
+  /**
+   * A filter chosen from the right-click menu.
+   *
+   * Goes through the same handler the filter row uses, so the box above the
+   * column fills in and the analyst can see - and adjust - what was applied.
+   * A filter that narrowed the table invisibly would be the worse feature.
+   */
+  const applyCellFilter = useCallback((col: string, mode: FilterMode, value: string) => {
+    setShowFilters(true)
+    handleColFilterChange(col, { mode, value })
+  }, [handleColFilterChange])
+
+  /** A time pivot. Replaces the RQL rather than appending: two ranges over one
+   *  column ANDed together is an intersection nobody asked for. */
+  const applyPivot = useCallback((rql: string) => {
+    handleRqlRun(rql)
+  }, [handleRqlRun])
+
 
   const handleSort = (col: string) => {
     if (state.filters.sort_col === col) {
@@ -1031,6 +1052,14 @@ export function ArtifactTableView({
                     </td>
                     {orderedCols.map(col => (
                       <td key={col}
+                        onContextMenu={e => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setCellMenu({
+                            x: e.clientX, y: e.clientY, column: col,
+                            value: row[col] ?? '', isDate: col === meta.date_column,
+                          })
+                        }}
                         className={`px-3 py-1.5 truncate ${col === meta.date_column ? 'font-mono text-label text-fg/45 whitespace-nowrap' : 'text-fg/65'}`}
                         style={{ width: colW(col), minWidth: 60, maxWidth: colW(col) }}
                         title={row[col] ?? ''}>
@@ -1060,6 +1089,15 @@ export function ArtifactTableView({
         <PaginationBar page={data.page} pages={pages} total={total} pageSize={data.page_size}
           onPage={p => updateFilters({ page: p })}
           onPageSize={s => updateFilters({ page_size: s, page: 1 })} />
+      )}
+
+      {cellMenu && (
+        <CellContextMenu
+          target={cellMenu}
+          onFilter={applyCellFilter}
+          onPivot={applyPivot}
+          onClose={() => setCellMenu(null)}
+        />
       )}
     </div>
   )

@@ -49,6 +49,37 @@ Applies to any free-form query language box (today: RQL in the Artifact Explorer
 - Cheap incremental controls - the plain search box, column filters - stay
   debounced. The rule is about expression languages, not about all input.
 
+## Pivoting From a Cell
+
+An artifact table is read row by row, and the question that follows a
+suspicious row is always one of two: *show me everything with this value*, or
+*show me what else happened at that moment*. Both were reachable before, and
+both cost the analyst the row they were reading.
+
+Right-clicking a cell offers them where the value already is:
+
+- **`=` `≠` `~` `!~`** — the four modes the per-column filter row already had.
+  The menu writes into that filter rather than into a hidden one, so the box
+  above the column fills in and the analyst can see and adjust what was
+  applied. A filter that narrowed the table invisibly would be worse than no
+  shortcut at all.
+- **±15 seconds / ±1 minute / ±15 minutes** — offered on the artifact's
+  event-time column only, and only when the cell actually parses as a time. It
+  compiles to an RQL `BETWEEN`, which the query bar then shows, so the pivot is
+  an ordinary query the analyst can widen by hand.
+
+Two rules hold this together:
+
+**A pivot replaces the RQL, it does not append to it.** Two ranges over one
+column ANDed together is an intersection nobody asked for.
+
+**The cell value is read as UTC.** The store converts an artifact declaring a
+source timezone before the value reaches the table, so what is on screen is
+already UTC — reading it as browser-local would shift every pivot by the
+analyst's own offset, invisibly, and differently for each analyst.
+
+---
+
 ## Chain of Custody Actions
 Any page that lists artifacts renders `components/custody/CustodyActions` and
 nothing else. It carries the copy button, the preserve action, the IOC
