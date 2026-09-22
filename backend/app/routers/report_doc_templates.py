@@ -1,38 +1,18 @@
 """
-Report document templates — DOCX and Markdown with {{tag}} placeholders.
+Report document templates - DOCX and Markdown with {{tag}} placeholders.
 
-Supported tags
-──────────────
-Text tags (inline replacement):
-  {{case.title}}              Case title
-  {{case.id}}                 Case UUID
-  {{case.status}}             Case status
-  {{case.severity}}           Case severity (upper-case)
-  {{case.tlp}}                TLP classification
-  {{case.created_at}}         Creation date (YYYY-MM-DD HH:MM UTC)
-  {{case.closed_at}}          Closure date  (or "N/A")
-  {{case.description}}        Case description
-  {{case.executive_summary}}  Executive summary
-  {{case.quick_notes}}        Quick notes
-  {{case.assigned_to}}        Assigned analyst(s)
-  {{case.tags}}               Case tags (comma-separated)
-  {{report.date}}             Report generation date (YYYY-MM-DD)
-  {{report.author}}           Username of the analyst generating the report
+The tag vocabulary lives in `services/report_tags.py`, not here. It used to be
+written out in this docstring as well, and a docstring cannot be wrong loudly:
+it drifted from the code it described and no test could tell. This module knows
+how to *render* a tag; the registry knows which ones exist.
 
-Report content (analyst-authored, rendered as formatted DOCX paragraphs):
-  {{report_analysis}}         Analyse Technique (box 1 of the Report tab)
-  {{report_remediation}}      Remediations      (box 2 of the Report tab)
-  {{report_conclusion}}       Conclusion        (box 3 of the Report tab)
-  {{report_content}}          All 3 boxes combined (backward compat alias)
+Three things are resolved at export time:
 
-Block tags (replaced with a table or image):
-  {{ioc_table}}               Full IOC table
-  {{asset_table}}             Full asset table
-  {{evidence_table}}          Full evidence table
-  {{timeline_table}}          Timeline (chronological)
-  {{attack_graph}}            Attack-graph PNG image (DOCX) or placeholder (MD)
-  {{mitre_matrix}}            MITRE ATT&CK coverage table (parents + selected sub-techniques)
-  {{mitre_matrix_img}}        MITRE ATT&CK matrix as a visual PNG image (DOCX only)
+* text tags, substituted inline through the context the registry builds;
+* block tags, which replace their paragraph with a table or an image and are
+  therefore rendered here, differently per format;
+* the case's own report sections, which are per-case and come from
+  `report_tags.section_tags(case)` rather than from any list.
 """
 
 from __future__ import annotations
@@ -59,6 +39,7 @@ from ..models.attack_graph import AttackGraph
 from ..models.case import Case
 from ..models.report_doc_template import ReportDocTemplate
 from ..models.user import User
+from ..services import report_tags
 from ..services.graph_render import render_attack_graph_png
 
 router = APIRouter(prefix="/report-doc-templates", tags=["report-doc-templates"])
@@ -72,26 +53,6 @@ TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 
 TAG_RE = re.compile(r'\{\{[\w.]+\}\}')
 
-BLOCK_TAGS: set[str] = {
-    "ioc_table", "asset_table", "evidence_table", "timeline_table",
-    "attack_graph", "mitre_matrix", "mitre_matrix_img",
-    # Report content tags (markdown → formatted DOCX paragraphs)
-    "report_analysis", "report_remediation", "report_conclusion",
-    "report_content",   # combined alias (backward compat)
-}
-
-ALL_TAGS: list[str] = [
-    "case.title", "case.id", "case.status", "case.severity", "case.tlp",
-    "case.created_at", "case.closed_at", "case.description",
-    "case.executive_summary", "case.quick_notes", "case.assigned_to", "case.tags",
-    "report.date", "report.author",
-    # Report content (split)
-    "report_analysis", "report_remediation", "report_conclusion",
-    "report_content",  # combined backward compat
-    # Annexes
-    "ioc_table", "asset_table", "evidence_table", "timeline_table",
-    "attack_graph", "mitre_matrix", "mitre_matrix_img",
-]
 
 # ── Pydantic schema ────────────────────────────────────────────────────────────
 
@@ -136,27 +97,9 @@ def _detect_tags_docx(file_bytes: bytes) -> list[str]:
 
 # ── Context builder ────────────────────────────────────────────────────────────
 
-def _fmt_dt(dt: datetime | None) -> str:
-    return dt.strftime("%Y-%m-%d %H:%M UTC") if dt else "N/A"
-
-
 def _build_context(case: Case, author: str) -> dict[str, str]:
-    return {
-        "case.title":             case.title or "",
-        "case.id":                case.id or "",
-        "case.status":            (case.status.value if case.status else "").replace("_", " ").title(),
-        "case.severity":          (case.severity.value if case.severity else "").upper(),
-        "case.tlp":               case.tlp or "",
-        "case.created_at":        _fmt_dt(case.created_at),
-        "case.closed_at":         _fmt_dt(case.closed_at),
-        "case.description":       case.description or "",
-        "case.executive_summary": case.executive_summary or "",
-        "case.quick_notes":       case.quick_notes or "",
-        "case.assigned_to":       case.assigned_to or "Unassigned",
-        "case.tags":              case.tags or "",
-        "report.date":            datetime.now(UTC).strftime("%Y-%m-%d"),
-        "report.author":          author,
-    }
+    """Every text tag, resolved. Block tags are rendered per format below."""
+    return report_tags.build_context(case, author)
 
 
 # ── Markdown helpers ───────────────────────────────────────────────────────────
@@ -556,21 +499,17 @@ def _render_markdown(template_text: str, case: Case, ctx: dict[str, str]) -> str
     text = text.replace("{{asset_table}}", _md_asset_table(case))
     text = text.replace("{{evidence_table}}", _md_evidence_table(case))
     text = text.replace("{{timeline_table}}", _md_timeline_table(case))
-    text = text.replace("{{attack_graph}}", "_[Attach the attack graph image — Export PNG in the Attack Graph tab]_")
+    text = text.replace("{{attack_graph}}", "_[Attach the attack graph image - Export PNG in the Attack Graph tab]_")
     text = text.replace("{{mitre_matrix}}", _md_mitre_matrix(case))
-    text = text.replace("{{mitre_matrix_img}}", "_[MITRE ATT&CK matrix image — available in DOCX export only]_")
-    # Split report content tags (fixed 3-section backward compat)
+    text = text.replace("{{mitre_matrix_img}}", "_[MITRE ATT&CK matrix image - available in DOCX export only]_")
+    # The three fixed boxes of the Report tab
     text = text.replace("{{report_analysis}}",    (case.report_analysis    or "").strip() or "_[No analysis written.]_")
     text = text.replace("{{report_remediation}}", (case.report_remediation or "").strip() or "_[No remediation written.]_")
     text = text.replace("{{report_conclusion}}",  (case.report_conclusion  or "").strip() or "_[No conclusion written.]_")
-    # Dynamic per-section tags from report_sections_data
-    import json as _json
-    try:
-        sections_data: dict = _json.loads(getattr(case, "report_sections_data", None) or "{}")
-    except Exception:
-        sections_data = {}
-    for slug, content in sections_data.items():
-        text = text.replace(f"{{{{{slug}}}}}", (content or "").strip() or f"_[Section '{slug}' not written.]_")
+    # The analyst's own sections, derived from the case rather than any list
+    for slug, content in report_tags.section_tags(case).items():
+        text = text.replace(f"{{{{{slug}}}}}",
+                            content.strip() or report_tags.section_placeholder(slug))
     # Combined backward compat
     text = text.replace("{{report_content}}", case.report or "_[No report content written.]_")
     return text
@@ -1091,10 +1030,18 @@ def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
 
     # ── First pass: body paragraphs ────────────────────────────────────────────
     # Collect block-tag paragraphs; replace text in all others.
+    #
+    # The scan covers the registry's block tags *and* this case's own report
+    # sections. Scanning only the fixed set was the bug: a section slug matched
+    # nothing, fell through to the text pass which had no value for it either,
+    # and came out of Word as a literal {{slug}} - while the Markdown exporter
+    # rendered the same template correctly.
+    sections = report_tags.section_tags(case)
+    scannable = list(report_tags.block_names()) + list(sections)
     block_paras: list[tuple] = []
     for para in list(doc.paragraphs):
         full = _para_text(para)
-        block_found = next((bt for bt in BLOCK_TAGS if f"{{{{{bt}}}}}" in full), None)
+        block_found = next((bt for bt in scannable if f"{{{{{bt}}}}}" in full), None)
         if block_found:
             block_paras.append((para, block_found))
         else:
@@ -1131,18 +1078,13 @@ def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
         elif block_tag == "report_conclusion":
             _md_to_docx_paragraphs(doc, para, (case.report_conclusion or "").strip() or "_[No conclusion written.]_")
 
-        elif block_tag.startswith("report_") is False and block_tag not in (
-            "ioc_table", "asset_table", "evidence_table", "timeline_table",
-            "attack_graph", "mitre_matrix", "mitre_matrix_img", "report_content",
-        ):
-            # Dynamic per-section tag — look up in report_sections_data
-            import json as _json
-            try:
-                sd: dict = _json.loads(getattr(case, "report_sections_data", None) or "{}")
-            except Exception:
-                sd = {}
-            content = sd.get(block_tag, "").strip()
-            _md_to_docx_paragraphs(doc, para, content or f"_[Section '{block_tag}' not written.]_")
+        elif not report_tags.is_known(block_tag):
+            # One of the case's own report sections. `section_tags` refuses to
+            # shadow a registered name, so reaching here means this really is
+            # an analyst-created section and not a misspelt built-in.
+            content = sections.get(block_tag, "").strip()
+            _md_to_docx_paragraphs(
+                doc, para, content or report_tags.section_placeholder(block_tag))
 
         elif block_tag == "report_content":
             # Combined backward compat alias
@@ -1202,10 +1144,25 @@ def list_templates(db: Session = Depends(get_db)):
     )
 
 
-@router.get("/tags", response_model=list[str])
+class ReportTagOut(BaseModel):
+    name:        str
+    kind:        str          # "text" - substituted inline, or "block"
+    group:       str
+    group_label: str
+    description: str
+
+
+@router.get("/tags", response_model=list[ReportTagOut])
 def list_available_tags():
-    """Return all supported {{tags}}."""
-    return ALL_TAGS
+    """
+    Every supported {{tag}}, with what it does.
+
+    Served from the registry rather than a list kept beside it, so the
+    reference panel in the UI cannot fall behind the exporter. Descriptions
+    travel with the names for the same reason - the frontend used to carry its
+    own copy of both.
+    """
+    return report_tags.catalogue()
 
 
 @router.post("/upload", response_model=ReportDocTemplateOut)

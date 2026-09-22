@@ -1,5 +1,15 @@
 import api from './client'
 
+/** One supported {{tag}}, as the backend registry describes it. */
+export interface ReportTag {
+  name:        string
+  /** "text" is substituted inline; "block" replaces its whole paragraph. */
+  kind:        'text' | 'block'
+  group:       string
+  group_label: string
+  description: string
+}
+
 export interface ReportDocTemplate {
   id:            number
   name:          string
@@ -17,8 +27,16 @@ export const reportDocTemplatesApi = {
     return res.data
   },
 
-  availableTags: async (): Promise<string[]> => {
-    const res = await api.get('/report-doc-templates/tags')
+  /**
+   * The tag vocabulary, served from the backend registry.
+   *
+   * Names *and* descriptions come over the wire. The page used to hold its own
+   * copy of both, which is how it ended up documenting seven tags in one
+   * language and six in another while the exporter supported a different set
+   * again.
+   */
+  availableTags: async (): Promise<ReportTag[]> => {
+    const res = await api.get<ReportTag[]>('/report-doc-templates/tags')
     return res.data
   },
 

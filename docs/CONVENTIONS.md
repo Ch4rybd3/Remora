@@ -147,6 +147,18 @@ it — so anything new is type-checked by default.
 - Pure functions in `services/` — parsers, detectors, normalisers — get real unit tests. These are where a silent bug is most expensive.
 - No coverage threshold. The gate is a green suite.
 
+### A list that exists twice will drift
+
+Where the same vocabulary is needed by the backend, the API, the UI and the
+documentation, **one registry owns it and everything else reads from it**. The
+documentation is generated between fences and a test regenerates it, so a
+missing entry fails CI instead of being noticed by a client.
+
+`services/report_tags.py` is the worked example: it replaced seven hand-kept
+copies of the `{{tag}}` list, one of which was wrong in a way that wrote
+literal `{{slug}}` into delivered Word documents. When you add a list that
+something else will have to mirror, write the registry first.
+
 ---
 
 ## 5. Frontend

@@ -10,15 +10,76 @@ structural data blocks.
 - The structural/data parts (IOC tables, MITRE, timeline, …) are injected by the **Report Template** via `{{ }}` tags at export time.
 - `{{report_content}}` bridges both worlds: it injects the Report-tab markdown (case.report) into the document.
 
-### DOCX/MD block tags (in `report_doc_templates.py`)
-- `{{ioc_table}}` — IOC table
-- `{{asset_table}}` — Asset table
-- `{{evidence_table}}` — Evidence table
-- `{{timeline_table}}` — Timeline table
-- `{{mitre_matrix}}` — MITRE ATT&CK coverage table (text); parents expanded only when they have selected sub-techniques
-- `{{mitre_matrix_img}}` — MITRE ATT&CK matrix as a **visual PNG image** (DOCX only; placeholder in MD)
-- `{{attack_graph}}` — Attack graph image (ReactFlow nodes rendered via matplotlib)
-- `{{report_content}}` — **analyst-authored report** (the Report tab's markdown editor content, `case.report`)
+---
+
+## The tag vocabulary
+
+Every supported tag lives in one registry, `backend/app/services/report_tags.py`,
+and everything else reads from it: the exporters, the `GET /report-doc-templates/tags`
+endpoint, the reference panel on the Report Templates page, and the table below.
+
+The table is **generated**. `test_report_tags.py` regenerates it between the
+fences and fails when this file has drifted, so a tag added to the registry
+cannot be missing from the documentation — which is what the seven hand-kept
+copies that preceded it could not promise.
+
+A **text** tag is substituted wherever it appears, including inside tables,
+headers and footers. A **block** tag replaces the whole paragraph it sits in
+and must therefore sit *alone on its own paragraph or line* in a DOCX template.
+
+<!-- BEGIN GENERATED TAGS - edit services/report_tags.py, not this -->
+
+### Incident metadata
+
+| Tag | Kind | What it inserts |
+|---|---|---|
+| `{{case.title}}` | text | Case title |
+| `{{case.id}}` | text | Case UUID |
+| `{{case.status}}` | text | Status - Open, In Progress, Closed, Archived |
+| `{{case.severity}}` | text | Severity, upper-case - CRITICAL, HIGH, … |
+| `{{case.tlp}}` | text | TLP classification |
+| `{{case.created_at}}` | text | Creation date - YYYY-MM-DD HH:MM UTC |
+| `{{case.closed_at}}` | text | Closure date, or N/A while the case is open |
+| `{{case.description}}` | text | Case description |
+| `{{case.executive_summary}}` | text | Executive summary |
+| `{{case.quick_notes}}` | text | Quick notes |
+| `{{case.assigned_to}}` | text | Assigned analyst(s), or Unassigned |
+| `{{case.tags}}` | text | Case tags, comma-separated |
+| `{{report.date}}` | text | Report generation date - YYYY-MM-DD |
+| `{{report.author}}` | text | Username of the analyst generating the report |
+
+### Analysis, remediation and conclusions
+
+| Tag | Kind | What it inserts |
+|---|---|---|
+| `{{report_analysis}}` | block | Box 1 of the Report tab - Technical Analysis. In DOCX the Markdown is converted to formatted Word paragraphs; in Markdown it is inserted as it was written. |
+| `{{report_remediation}}` | block | Box 2 of the Report tab - Remediation. |
+| `{{report_conclusion}}` | block | Box 3 of the Report tab - Conclusion and recommendations. |
+| `{{report_content}}` | block | All three boxes in sequence. Kept for templates written before the Report tab was split into three. |
+
+### Annexes - tables and images
+
+| Tag | Kind | What it inserts |
+|---|---|---|
+| `{{ioc_table}}` | block | Table of indicators of compromise |
+| `{{asset_table}}` | block | Table of the assets involved |
+| `{{evidence_table}}` | block | Table of evidence items |
+| `{{timeline_table}}` | block | Consolidated timeline, chronological |
+| `{{attack_graph}}` | block | Attack graph as a PNG image. DOCX only - Markdown gets a placeholder telling the analyst to export the PNG from the Attack Graph tab. |
+| `{{mitre_matrix}}` | block | MITRE ATT&CK coverage as a text table. Parent techniques are expanded only where sub-techniques are selected. |
+| `{{mitre_matrix_img}}` | block | MITRE ATT&CK matrix as a visual PNG image. DOCX only. |
+
+<!-- END GENERATED TAGS -->
+
+### Your own report sections are tags too
+
+The sections an analyst creates in a case's Report tab are usable as
+`{{slug}}`, in both DOCX and Markdown. They are per-case, so no registry can
+list them — the exporters read them off the case at render time. A section may
+not take the name of a registered tag: `{{ioc_table}}` stays the IOC table
+whatever a section is called.
+
+---
 
 #### `{{report_content}}` — Analyst report content
 
@@ -42,10 +103,10 @@ structural data blocks.
 
 ## Annexes
 
-### Indicateurs de Compromission
+### Indicators of compromise
 {{ioc_table}}
 
-### Actifs
+### Assets
 {{asset_table}}
 
 ### Timeline
