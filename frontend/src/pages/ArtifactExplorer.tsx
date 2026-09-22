@@ -48,7 +48,13 @@ function FileSidebarRow({ meta, caseId, isOpen, onOpen, onDelete, onCustodyChang
               : <span className="text-label font-semibold px-1.5 py-0.5 rounded-control border bg-fg-muted/10 text-fg-muted border-fg-muted/20">unknown</span>
             }
             {meta.source_timezone && (
-              <span className="flex items-center gap-0.5 text-label font-semibold px-1.5 py-0.5 rounded-control border border-severity-low/30 bg-severity-low/10 text-severity-low">
+              <span
+                title={meta.source_timezone === 'UTC'
+                  ? 'Recorded in UTC. Timestamps are shown as written.'
+                  : `Recorded in ${meta.source_timezone}. The Explorer converts this file's `
+                    + `event times to UTC so they line up with the rest of the case. `
+                    + `The file itself is untouched.`}
+                className="flex items-center gap-0.5 text-label font-semibold px-1.5 py-0.5 rounded-control border border-severity-low/30 bg-severity-low/10 text-severity-low">
                 <Globe size={7} />
                 {meta.source_timezone.split('/').pop()?.replace('_', ' ') ?? meta.source_timezone}
               </span>

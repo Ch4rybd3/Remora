@@ -389,17 +389,65 @@ victims is a finding, not noise — so it is shown, never used to block.
 
 ## 8. Source timezone
 
-`TimezoneContext` on the frontend is **display only**. The missing half is the
-input side.
+Real acquisitions mix local-time and UTC exports, and once the file is on disk
+the ambiguity cannot be resolved from the data. So the analyst declares it, per
+artifact, in the Collection tab.
 
-- Every collection carries a `source_timezone` (IANA), overridable per file.
-- Set in the Collection tab at import time, before parsing runs.
-- Default: `UTC`, with a visible warning when a collection is left at the default and its parser produced naive timestamps.
-- Parsers store UTC in the database, converting from the declared source zone.
-- The original naive value is retained alongside the converted one, so a wrong declaration is correctable without re-ingesting.
+`TimezoneContext` on the frontend is **display only** and always was. The input
+side is here.
 
-This exists because real acquisitions mix local-time and UTC exports, and once
-the file is on disk the ambiguity cannot be resolved from the data.
+### It is applied on the way out, not on the way in
+
+The conversion happens when the artifact is *read*, in `ArtifactStore`. The
+bytes on disk keep saying what the collecting machine wrote.
+
+That placement is the decision worth understanding:
+
+- **A wrong declaration is corrected by changing one field.** No re-import, no
+  re-parse, no cache to invalidate — the next query answers differently. The
+  Parquet conversion caches the file, not the interpretation.
+- **The stored artifact never disagrees with its source.** A forensic table
+  showing `09:00` for a file that says `10:00`, with nothing recording why,
+  is worse than showing the wrong time.
+- **It cannot be bypassed.** Every question the Explorer asks — paging,
+  filtering, grouping, cross-artifact search — goes through one `_open`, so no
+  endpoint can read an artifact raw by forgetting to convert.
+
+Until this shipped, `source_timezone` was stored, badged in the file list, and
+applied by nothing. The Collection tab offered a setting that changed no answer
+the product gave.
+
+### What is and is not converted
+
+Only the column the artifact names as its event time. A timestamp inside a
+free-text message is not ours to reinterpret.
+
+A value that does not parse as a timestamp is kept exactly as written — a
+column that is only sometimes a date must not lose the rows that are not, which
+would silently shrink the artifact.
+
+Daylight saving is handled by the zone, not by a fixed offset: a collection
+from Paris is UTC+1 in January and UTC+2 in July, and one spanning the change
+is right on both sides of it.
+
+`None` and `UTC` both mean "already UTC" and cost nothing — the untouched path
+is exactly what it was before this existed.
+
+### Two implementation notes
+
+The zone reaches SQL **inlined**, because a DuckDB view definition cannot carry
+a prepared parameter. It is validated against the system tz database
+(`zoneinfo`) first, which is both the correct check and the narrow one.
+
+The converted value is formatted back to a string rather than left as a
+`TIMESTAMPTZ`: DuckDB's Python client needs `pytz` to hand one back and neither
+image carries it. Everything the store returns is a string anyway.
+
+### Still outstanding
+
+The original naive value is not retained alongside the converted one. It does
+not need to be while the conversion is applied at read time — the file is the
+original — but an export that carries only converted times should say so.
 
 ---
 

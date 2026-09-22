@@ -37,6 +37,40 @@ class SourceMissing(Exception):
 
 
 @dataclass(frozen=True)
+class Source:
+    """
+    Which artifact to read, and how to read its timestamps.
+
+    `ref` stays opaque - a file path for the DuckDB implementation, an index
+    name for a future one. The other two are what a *source* knows about
+    itself and a query cannot: a collection taken from a machine in Paris
+    records `10:00` for an event that happened at `09:00Z`, and the only
+    honest way to compare it with a collection from New York is to say so at
+    the point the file is read.
+
+    Storing the zone without applying it - which is what the product did until
+    this existed - is worse than not asking for it. The Collection tab showed
+    the analyst a setting that changed nothing.
+    """
+    ref:         str
+    #: The column holding the event time. Only this column is normalised;
+    #: a timestamp buried in a free-text field is not ours to reinterpret.
+    date_column: str | None = None
+    #: IANA name the artifact's timestamps were recorded in. `None` and `UTC`
+    #: both mean "already UTC", and neither costs a conversion.
+    timezone:    str | None = None
+
+    @property
+    def needs_normalising(self) -> bool:
+        return bool(self.date_column and self.timezone and self.timezone != "UTC")
+
+
+def as_source(value: str | Source) -> Source:
+    """Accept a bare path where no normalisation is wanted."""
+    return value if isinstance(value, Source) else Source(ref=value)
+
+
+@dataclass(frozen=True)
 class Query:
     """What to keep. All three narrow together, as AND."""
     text:           str | None = None    # free text across every column
@@ -71,16 +105,18 @@ class ArtifactStore(Protocol):
     """
     A backend that can answer questions about one artifact.
 
-    `source` identifies the artifact's data - a file path for the DuckDB
-    implementation, an index name for a future one. Callers treat it as opaque.
+    `source` is either a bare reference - a file path for the DuckDB
+    implementation, an index name for a future one - or a `Source` carrying
+    the reference plus what the artifact knows about its own timestamps.
+    Callers treat the reference itself as opaque.
     """
 
-    def schema(self, source: str) -> Schema:
+    def schema(self, source: str | Source) -> Schema:
         """Columns and row count. Called once when an artifact is registered."""
         ...
 
     def search(
-        self, source: str, columns: list[str], query: Query, *,
+        self, source: str | Source, columns: list[str], query: Query, *,
         sort_col: str | None = None, sort_dir: str = "asc",
         page: int = 1, page_size: int = 100,
     ) -> Page:
@@ -88,13 +124,13 @@ class ArtifactStore(Protocol):
         ...
 
     def aggregate(
-        self, source: str, columns: list[str], query: Query, group_by: list[str],
+        self, source: str | Source, columns: list[str], query: Query, group_by: list[str],
     ) -> list[Group]:
         """Counts per distinct combination of `group_by`. No row limit."""
         ...
 
     def find(
-        self, source: str, columns: list[str], text: str, *,
+        self, source: str | Source, columns: list[str], text: str, *,
         limit: int = 50, regex: bool = False,
     ) -> tuple[int, list[dict]]:
         """

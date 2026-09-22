@@ -433,6 +433,15 @@ export function ArtifactTableView({
   const [localRql,       setLocalRql]       = useState(state.rql ?? '')
   const [rqlError,       setRqlError]       = useState<string | null>(null)
 
+  /**
+   * Whether this artifact's event times are being converted on the way out.
+   *
+   * `UTC` and an unset zone both mean "already UTC", and neither is worth
+   * announcing - a badge on every file would stop being read.
+   */
+  const normalised = Boolean(
+    meta.date_column && meta.source_timezone && meta.source_timezone !== 'UTC')
+
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const colDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingCols = useRef<ColFilters>({})
@@ -892,6 +901,16 @@ export function ArtifactTableView({
                     <span className="flex items-center gap-1 pr-2">
                       <GripVertical size={8} className="text-fg-secondary/20 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
                       {col}
+                      {/* The conversion is invisible in the values themselves -
+                          09:00 looks like a recorded 09:00 - so the column says
+                          it. An analyst comparing this file with another has to
+                          know which one moved. */}
+                      {col === meta.date_column && normalised && (
+                        <span title={`Recorded in ${meta.source_timezone}, shown in UTC`}
+                          className="text-severity-low/70 normal-case tracking-normal font-mono">
+                          UTC
+                        </span>
+                      )}
                       {isSort && (state.filters.sort_dir === 'asc' ? <ArrowUp size={9} className="text-accent" /> : <ArrowDown size={9} className="text-accent" />)}
                     </span>
                     <ColResizeHandle col={col} onStart={startColResize} onReset={resetColWidth} />

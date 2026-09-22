@@ -27,7 +27,7 @@ from pathlib import Path
 import duckdb
 
 from ...config import settings
-from .base import Group, Page, Query, Schema, SourceMissing
+from .base import Group, Page, Query, Schema, Source, SourceMissing, as_source
 
 
 #: Cache directory for materialised artifacts. Derived data only.
@@ -130,7 +130,84 @@ def _sql_literal(path: Path) -> str:
     return "'" + str(path).replace("'", "''") + "'"
 
 
-def _open(source: str) -> tuple[duckdb.DuckDBPyConnection, bool]:
+def _validate_zone(name: str) -> str:
+    """
+    An IANA zone name, or a refusal.
+
+    Checked against `zoneinfo` rather than a list of our own: the names come
+    from the database, a view definition cannot carry a prepared parameter, and
+    a zone therefore reaches SQL inlined. Validating against the system's own
+    tz database is both the correct check and the narrow one.
+    """
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    try:
+        ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError, KeyError) as exc:
+        raise ValueError(f"'{name}' is not a known time zone") from exc
+    return name
+
+
+def _normalising_select(source: Source) -> str:
+    """
+    `SELECT * REPLACE (…)` rewriting the date column into UTC.
+
+    Three things this deliberately does *not* do.
+
+    It does not touch the file. The bytes on disk still say what the collecting
+    machine wrote; the conversion is applied on the way out, every time, so an
+    artifact whose declared zone is corrected later needs no re-import and no
+    cache invalidation.
+
+    It does not touch any other column. A timestamp inside a free-text message
+    is not ours to reinterpret - only the column the artifact names as its
+    event time.
+
+    It does not discard a value it cannot parse. `TRY_CAST` yields NULL on a
+    free-form string, and `COALESCE` puts the original back, so a column that
+    is only sometimes a timestamp keeps every row it had.
+
+    The result is formatted back to a string rather than left as a TIMESTAMPTZ:
+    DuckDB's Python client needs `pytz` to hand one back, and neither image
+    carries it. Everything the store returns is a string anyway.
+    """
+    column = source.date_column or ""
+    zone   = _validate_zone(source.timezone or "UTC")
+    quoted = column.replace('"', '""')
+    literal = "'" + zone.replace("'", "''") + "'"
+    return (
+        f'SELECT * REPLACE (COALESCE(strftime('
+        f'TRY_CAST("{quoted}" AS TIMESTAMP) AT TIME ZONE {literal} AT TIME ZONE \'UTC\', '
+        f"'%Y-%m-%d %H:%M:%S'), "
+        f'CAST("{quoted}" AS VARCHAR)) AS "{quoted}") FROM _raw'
+    )
+
+
+def _bind_source(conn: duckdb.DuckDBPyConnection, source: Source, body: str) -> None:
+    """
+    Bind `_src`, through a normalising view when the artifact declares a zone.
+
+    `body` is the relation holding the raw rows. When nothing needs converting
+    it becomes `_src` directly, so the untouched path costs exactly what it did
+    before this existed.
+    """
+    if not source.needs_normalising:
+        conn.execute(f"CREATE TEMP VIEW _src AS {body}")
+        return
+
+    conn.execute(f"CREATE TEMP VIEW _raw AS {body}")
+    columns = {row[0] for row in conn.execute("DESCRIBE _raw").fetchall()}
+    if source.date_column not in columns:
+        # The artifact names a date column the file does not have - a schema
+        # that changed under a stored record. Normalising nothing is the right
+        # answer; refusing the query would hide the rest of the artifact.
+        conn.execute("CREATE TEMP VIEW _src AS SELECT * FROM _raw")
+        return
+
+    conn.execute(f"CREATE TEMP VIEW _src AS {_normalising_select(source)}")
+
+
+def _open(source: str | Source) -> tuple[duckdb.DuckDBPyConnection, bool]:
     """
     A connection with `_src` bound to the artifact.
 
@@ -138,7 +215,8 @@ def _open(source: str) -> tuple[duckdb.DuckDBPyConnection, bool]:
     assert on - a silent fallback to CSV scanning would otherwise look like a
     working cache.
     """
-    path = Path(source)
+    source = as_source(source)
+    path = Path(source.ref)
     if not path.exists():
         # Checked before the cache is consulted. A Parquet conversion outlives
         # the CSV it was made from, so without this a deleted artifact would
@@ -154,18 +232,19 @@ def _open(source: str) -> tuple[duckdb.DuckDBPyConnection, bool]:
         # cache filename we generated ourselves (a hex digest under our own
         # directory), never analyst input, and `_sql_literal` escapes it
         # regardless rather than relying on that.
-        conn.execute(
-            f"CREATE TEMP VIEW _src AS SELECT * FROM read_parquet({_sql_literal(cached)})")
+        _bind_source(conn, source,
+                     f"SELECT * FROM read_parquet({_sql_literal(cached)})")
         return conn, True
 
     conn.execute(
-        "CREATE TEMP TABLE _src AS SELECT * FROM read_csv_auto(?, ignore_errors=true)",
+        "CREATE TEMP TABLE _csv AS SELECT * FROM read_csv_auto(?, ignore_errors=true)",
         [str(path)],
     )
-    for raw in [row[0] for row in conn.execute("DESCRIBE _src").fetchall()]:
+    for raw in [row[0] for row in conn.execute("DESCRIBE _csv").fetchall()]:
         norm = normalize_column(raw)
         if norm != raw:
-            conn.execute(f'ALTER TABLE _src RENAME COLUMN "{raw}" TO "{norm}"')
+            conn.execute(f'ALTER TABLE _csv RENAME COLUMN "{raw}" TO "{norm}"')
+    _bind_source(conn, source, "SELECT * FROM _csv")
     return conn, False
 
 
@@ -223,7 +302,7 @@ def _count(conn: duckdb.DuckDBPyConnection, sql: str, params: list) -> int:
 class DuckDBArtifactStore:
     """Reads artifacts in place, through a Parquet conversion when it can."""
 
-    def schema(self, source: str) -> Schema:
+    def schema(self, source: str | Source) -> Schema:
         try:
             conn, _ = _open(source)
         except Exception:
@@ -239,7 +318,7 @@ class DuckDBArtifactStore:
             conn.close()
 
     def search(
-        self, source: str, columns: list[str], query: Query, *,
+        self, source: str | Source, columns: list[str], query: Query, *,
         sort_col: str | None = None, sort_dir: str = "asc",
         page: int = 1, page_size: int = 100,
     ) -> Page:
@@ -268,7 +347,7 @@ class DuckDBArtifactStore:
             conn.close()
 
     def aggregate(
-        self, source: str, columns: list[str], query: Query, group_by: list[str],
+        self, source: str | Source, columns: list[str], query: Query, group_by: list[str],
     ) -> list[Group]:
         valid = [c for c in group_by if c in set(columns)]
         if not valid:
@@ -294,7 +373,7 @@ class DuckDBArtifactStore:
             conn.close()
 
     def find(
-        self, source: str, columns: list[str], text: str, *,
+        self, source: str | Source, columns: list[str], text: str, *,
         limit: int = 50, regex: bool = False,
     ) -> tuple[int, list[dict]]:
         if not columns:
