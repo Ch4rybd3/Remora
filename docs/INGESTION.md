@@ -655,6 +655,52 @@ quietly define what "the registry" means for every investigation.
 
 ## 13. Process tree
 
+### Where it reads from
+
+The Artifact Explorer's parsed event log tables, through `ArtifactStore` — not
+from a table of its own.
+
+It used to read `evtx_events`, which the Logs module filled by parsing EVTX a
+second time. The Explorer already held the same records, parsed once by
+EvtxECmd, so the product carried two parses of one file that could disagree,
+and the tree could not outlive the module that fed it.
+
+Two consequences of reading the store instead:
+
+- **An artifact's declared source timezone applies.** Two collections from
+  machines in different zones line up in one tree, which they did not before.
+- **The fields come out of `Payload`.** EvtxECmd renders the event XML as JSON
+  there, and its shape varies by event — a list of `{"@Name", "#text"}` for
+  most, a single such object for one-field events, plain keys under `UserData`
+  for some channels. The reader walks rather than indexes, because the
+  alternative is a tree that silently loses Sysmon lineage because one provider
+  nested its fields differently.
+
+An event log table is recognised by carrying both `EventId` and `Payload`
+columns. Not by its name: a triage names them after the channel, after the
+host, or after nothing at all.
+
+### Where it is asked from
+
+A row in the Artifact Explorer. Right-clicking a cell that names a process —
+`ProcessId`, `NewProcessId`, `ProcessGuid`, or either parent column — offers
+*Process tree around this*, and the answer is that process with every ancestor
+up to the root and everything it started.
+
+It was a case tab until then. The question it answers, *how did this get here*,
+belongs next to the event that prompted it.
+
+A focus is identified by whatever the row carries. A Sysmon row has a GUID and
+that is unambiguous; a Security 4688 row has a PID, in hex, and the row's own
+timestamp — which is what tells two processes that reused a PID apart. A GUID
+that matches nothing never falls back to the PID: the two would answer about
+different processes.
+
+`focus.found: false` is a distinct answer from an empty tree. One means nothing
+was collected; the other means this ran on a machine whose logs are not here.
+
+### The sources, strongest to weakest
+
 Reconstructed where the data allows, from strongest to weakest source:
 
 1. **Sysmon Event ID 1** — parent GUID, command line, hashes. Authoritative.

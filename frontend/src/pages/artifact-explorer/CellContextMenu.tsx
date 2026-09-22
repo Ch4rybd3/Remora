@@ -15,7 +15,7 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-import { Clock, Copy, Filter } from '../../ui/icons'
+import { Clock, Copy, Filter, GitBranch } from '../../ui/icons'
 import type { FilterMode } from './types'
 
 /** Where the menu was opened, and on what. */
@@ -26,6 +26,72 @@ export interface CellTarget {
   value:  string
   /** True when this is the artifact's event-time column. */
   isDate: boolean
+  /** The whole row, so a process can be identified from its neighbours. */
+  row?:   Record<string, string>
+  /** The artifact's event-time column, for dating a process focus. */
+  dateColumn?: string | null
+}
+
+/**
+ * Columns that name a process, and what they name.
+ *
+ * Event logs disagree about this and always have: Sysmon writes `ProcessId`
+ * decimal with a `ProcessGuid` beside it; Security 4688 writes `NewProcessId`
+ * in hex and no GUID at all. A parsed table keeps whichever the log used, so
+ * the menu has to recognise both.
+ */
+const PROCESS_COLUMNS: Record<string, 'pid' | 'guid'> = {
+  processid:       'pid',
+  newprocessid:    'pid',
+  parentprocessid: 'pid',
+  processguid:     'guid',
+  parentprocessguid: 'guid',
+}
+
+/** Columns carrying the executable, used only to break a tie between PIDs. */
+const IMAGE_COLUMNS = ['image', 'newprocessname', 'parentimage', 'parentprocessname']
+
+/**
+ * A process id however the log wrote it.
+ *
+ * 4688 writes `0x1a2c` and Sysmon writes `6700`. Reading one as the other
+ * gives a number that is entirely plausible and entirely wrong - the same trap
+ * the backend's `parse_pid` exists for.
+ */
+export function parseProcessId(raw: string): number | null {
+  const value = raw.trim()
+  if (!value) return null
+  const parsed = /^0[xX][0-9a-fA-F]+$/.test(value)
+    ? Number.parseInt(value, 16)
+    : /^\d+$/.test(value) ? Number.parseInt(value, 10) : NaN
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+/** What to ask the process tree for, from the cell that was right-clicked. */
+export function processFocus(target: CellTarget): {
+  guid?: string; pid?: number; at?: string; image?: string
+} | null {
+  const kind = PROCESS_COLUMNS[target.column.toLowerCase()]
+  if (!kind) return null
+
+  const row = target.row ?? {}
+  const image = IMAGE_COLUMNS
+    .map(name => Object.keys(row).find(k => k.toLowerCase() === name))
+    .filter(Boolean)
+    .map(k => row[k as string])
+    .find(v => v && v.trim())
+
+  if (kind === 'guid') {
+    return target.value.trim() ? { guid: target.value.trim() } : null
+  }
+
+  const pid = parseProcessId(target.value)
+  if (pid === null) return null
+
+  // The event's own time, so a PID reused later in the collection resolves to
+  // the process that was actually alive when this row was written.
+  const at = target.dateColumn ? (row[target.dateColumn] ?? '').trim() : ''
+  return { pid, ...(at ? { at } : {}), ...(image ? { image } : {}) }
 }
 
 /** The pivots offered on a timestamp, in the order an analyst reaches for them. */
@@ -70,10 +136,12 @@ export function pivotRql(column: string, range: [string, string]): string {
   return `${column} BETWEEN "${range[0]}" AND "${range[1]}"`
 }
 
-export function CellContextMenu({ target, onFilter, onPivot, onClose }: {
+export function CellContextMenu({ target, onFilter, onPivot, onProcessTree, onClose }: {
   target:   CellTarget
   onFilter: (column: string, mode: FilterMode, value: string) => void
   onPivot:  (rql: string) => void
+  /** Open the process tree around the process this cell names. */
+  onProcessTree?: (focus: NonNullable<ReturnType<typeof processFocus>>) => void
   onClose:  () => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -107,6 +175,7 @@ export function CellContextMenu({ target, onFilter, onPivot, onClose }: {
   }, [onClose])
 
   const empty   = !target.value.trim()
+  const focus   = onProcessTree ? processFocus(target) : null
   const pivots  = target.isDate
     ? PIVOTS.map(p => ({ ...p, range: pivotRange(target.value, p.seconds) }))
           .filter(p => p.range !== null)
@@ -164,6 +233,23 @@ export function CellContextMenu({ target, onFilter, onPivot, onClose }: {
                   {p.label}
                 </button>
               ))}
+            </>
+          )}
+
+          {focus && (
+            <>
+              <div className="mt-1 pt-2 border-t border-hairline px-3 pb-1 flex items-center gap-1.5 text-label uppercase tracking-widest text-fg-secondary/30">
+                <GitBranch size={9} /> Lineage
+              </div>
+              <button
+                role="menuitem"
+                title="Every ancestor up to the root, and everything this process started"
+                onClick={() => { onProcessTree!(focus); onClose() }}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-ui text-fg/75 hover:bg-accent/10 hover:text-accent transition-colors"
+              >
+                <span className="w-4 shrink-0" />
+                Process tree around this
+              </button>
             </>
           )}
 

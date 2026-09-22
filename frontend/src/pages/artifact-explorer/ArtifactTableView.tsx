@@ -32,7 +32,9 @@ import {
 import { color } from '../../styles/tokens'
 import { RQLBar } from './RQLBar'
 import type { ColFilter, ColFilters, FilterMode, FlatItem, TabState } from './types'
-import { CellContextMenu, type CellTarget } from './CellContextMenu'
+import Modal from '../../components/ui/Modal'
+import ProcessTreeView from '../../components/process-tree/ProcessTreeView'
+import { CellContextMenu, processFocus, type CellTarget } from './CellContextMenu'
 
 export function makeRowKey(artifactId: string, row: Record<string, string>): string {
   return `${artifactId}\x1f${Object.values(row).join('\x1e')}`
@@ -434,6 +436,8 @@ export function ArtifactTableView({
   const [localRql,       setLocalRql]       = useState(state.rql ?? '')
   const [rqlError,       setRqlError]       = useState<string | null>(null)
   const [cellMenu,       setCellMenu]       = useState<CellTarget | null>(null)
+  const [treeFocus,      setTreeFocus]      = useState<
+    NonNullable<ReturnType<typeof processFocus>> | null>(null)
 
   /**
    * Whether this artifact's event times are being converted on the way out.
@@ -1058,6 +1062,7 @@ export function ArtifactTableView({
                           setCellMenu({
                             x: e.clientX, y: e.clientY, column: col,
                             value: row[col] ?? '', isDate: col === meta.date_column,
+                            row, dateColumn: meta.date_column,
                           })
                         }}
                         className={`px-3 py-1.5 truncate ${col === meta.date_column ? 'font-mono text-label text-fg/45 whitespace-nowrap' : 'text-fg/65'}`}
@@ -1096,9 +1101,24 @@ export function ArtifactTableView({
           target={cellMenu}
           onFilter={applyCellFilter}
           onPivot={applyPivot}
+          onProcessTree={setTreeFocus}
           onClose={() => setCellMenu(null)}
         />
       )}
+
+      {/* The tree opens over the table rather than beside it. It is read, not
+          arranged, and it needs the width - a lineage is deep and its command
+          lines are long. */}
+      <Modal
+        open={treeFocus !== null}
+        onClose={() => setTreeFocus(null)}
+        title="Process tree"
+        size="xl"
+      >
+        <div className="h-[70vh] min-h-0">
+          {treeFocus && <ProcessTreeView caseId={caseId} focus={treeFocus} />}
+        </div>
+      </Modal>
     </div>
   )
 }

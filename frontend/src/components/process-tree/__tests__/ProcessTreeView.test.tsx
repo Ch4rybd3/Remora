@@ -3,8 +3,8 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ProcessNode, ProcessTree } from '../../../../api/processTree'
-import ProcessTreeTab from '../ProcessTreeTab'
+import type { ProcessNode, ProcessTree } from '../../../api/processTree'
+import ProcessTreeView from '../ProcessTreeView'
 
 /**
  * A process tree is read as a set of claims. The thing this component must not
@@ -14,7 +14,7 @@ import ProcessTreeTab from '../ProcessTreeTab'
 
 const get = vi.fn()
 
-vi.mock('../../../../api/processTree', () => ({
+vi.mock('../../../api/processTree', () => ({
   processTreeApi: { get: (...a: unknown[]) => get(...a) },
 }))
 
@@ -38,6 +38,7 @@ function tree(nodes: ProcessNode[], stats: Partial<ProcessTree['stats']> = {}): 
   return {
     root: '__root__',
     nodes,
+    focus: { requested: false, found: true, key: null },
     stats: {
       processes: nodes.length, events: nodes.length,
       asserted: links.filter((l) => l === 'asserted').length,
@@ -53,12 +54,12 @@ function renderTab() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <ProcessTreeTab caseId="case-1" />
+      <ProcessTreeView caseId="case-1" />
     </QueryClientProvider>,
   )
 }
 
-describe('ProcessTreeTab', () => {
+describe('ProcessTreeView', () => {
   beforeEach(() => {
     get.mockReset().mockResolvedValue(tree([node()]))
   })
