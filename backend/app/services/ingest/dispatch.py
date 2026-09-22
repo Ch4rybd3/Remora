@@ -338,8 +338,9 @@ _BINARY_NOTE = (
 )
 _IMAGE_NOTE = (
     "Disk images are read in place, never copied - an acquisition is far too "
-    "large to duplicate. Open it from the Disk Images page; the drop folder is "
-    "a readable location, so it does not need to be moved anywhere."
+    "large to duplicate. Register it on this case from the Disk Images page; "
+    "the drop folder is a readable location, so it does not need to be moved "
+    "anywhere."
 )
 
 def _unhandled_notes() -> dict[str, str]:

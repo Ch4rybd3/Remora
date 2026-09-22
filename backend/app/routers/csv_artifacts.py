@@ -198,20 +198,53 @@ def omni_search(
     regex:   bool = Query(False, description="Use regex matching instead of ILIKE"),
     db:      Session = Depends(get_db),
 ) -> dict:
-    """Full-text search across ALL CSV artifacts in a case (omnisearch via DuckDB)."""
+    """
+    Full-text search across ALL CSV artifacts in a case (omnisearch via DuckDB).
+
+    A fan-out over every artifact in the case, so one artifact failing must not
+    take the search with it. A collection deleted from disk leaves its rows
+    behind - the file list already badges them as unavailable - and searching a
+    case that holds one of those used to raise `SourceMissing` out of the loop
+    and return a 500 for the whole query. Every failure is therefore contained
+    to its own artifact and reported in `skipped`, so the analyst sees the hits
+    that do exist *and* learns which files could not be read.
+    """
     _get_case_or_404(case_id, db)
     artifacts = (
         db.query(CsvArtifactFile)
         .filter(CsvArtifactFile.case_id == case_id)
         .all()
     )
-    results   = []
+    results    = []
+    skipped    = []
     total_hits = 0
 
     for a in artifacts:
         cols = json.loads(a.columns)
-        hit_count, hits = get_store().find(
-            a.file_path, cols, q, limit=limit, regex=regex)
+        try:
+            hit_count, hits = get_store().find(
+                a.file_path, cols, q, limit=limit, regex=regex)
+        except SourceMissing:
+            skipped.append({
+                "id":            a.id,
+                "original_name": a.original_name,
+                "reason":        "file is no longer on disk",
+            })
+            continue
+        except Exception as exc:
+            # Anything else - an unreadable file, a column the artifact's
+            # recorded schema no longer matches, a regex DuckDB rejects. The
+            # artifact is named so a recurring offender can be found, and the
+            # exception type is enough to tell a bad pattern from a bad file.
+            print(f"[explorer] omnisearch skipped {a.original_name}: "
+                  f"{type(exc).__name__}: {exc}", flush=True)
+            skipped.append({
+                "id":            a.id,
+                "original_name": a.original_name,
+                "reason":        f"could not be searched ({type(exc).__name__})",
+            })
+            continue
+
         if hit_count > 0:
             total_hits += hit_count
             results.append({
@@ -225,7 +258,13 @@ def omni_search(
                 "rows":          hits,
             })
 
-    return {"query": q, "total_hits": total_hits, "files": results}
+    return {
+        "query":      q,
+        "total_hits": total_hits,
+        "files":      results,
+        "skipped":    skipped,
+        "searched":   len(artifacts) - len(skipped),
+    }
 
 
 @router.post("/cases/{case_id}/artifacts/upload", status_code=status.HTTP_201_CREATED)
