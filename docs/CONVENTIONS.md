@@ -54,12 +54,32 @@ Neither gate is a substitute for reading the diff.
 | Branch | Role |
 |---|---|
 | `main` | Production. Protected, linear history, tagged releases only. |
-| `integration` | Preprod. Every feature branch targets this. |
-| `feat/<slug>` `fix/<slug>` `chore/<slug>` `docs/<slug>` | Unit branches. One concern each. |
+| `integration` | Preprod. Every sprint branch targets this. |
+| `feat/s<NN>-<slug>` | **Sprint branch. One per sprint, and the only thing that opens a PR.** |
+| `feat/<slug>` `fix/<slug>` `chore/<slug>` `docs/<slug>` | Working branches, one concern each. Local to the sprint, never merged on their own. |
 | `spike/<slug>` | Timeboxed experiments. Never merged; findings are written up, code is discarded. |
 
-Feature branches are **squash-merged** into `integration`. `integration` is
+Sprint branches are **squash-merged** into `integration`. `integration` is
 **merge-committed** into `main` — that merge is what produces a release.
+
+### One PR per sprint, one commit per concern
+
+Work happens on unit branches — a concern each, verified on its own. At the end
+of the sprint they are collected onto `feat/s<NN>-<slug>` with
+`git cherry-pick -x`, in order, and that branch is what gets the PR.
+
+Two rules make this safe rather than merely tidy:
+
+- **Re-run the suites on the collected branch.** Each unit branch was green in
+  isolation and none of them was ever green *together*. That check is not
+  optional.
+- **Number from the repository, not from the plan.** `git log --merges` shows
+  the last `feat/s<NN>-*` that landed. A roadmap written weeks earlier will be
+  off by one or more.
+
+Unit branches are deleted, locally and on the remote, once collected. The
+commits survive on the sprint branch, so reviewers still read the work one
+concern at a time.
 
 ### Commits
 Conventional Commits. Because merges are squashed, **the PR title is the commit
@@ -80,7 +100,7 @@ major. Release notes are generated from these, so a lazy commit message becomes
 a lazy public changelog.
 
 ### Pull requests
-- One concern per PR. A PR that renames things *and* changes behaviour will be asked to split.
+- **One PR per sprint**, from the sprint branch. Inside it, one commit per concern — a commit that renames things *and* changes behaviour will be asked to split, the PR itself will not.
 - A PR touching `backend/app/models/` needs an Alembic revision whenever the *schema* changes. This is enforced by `test_models_match_the_migrated_schema`, which compares the live schema against the models — not by a rule about which files were edited, because a cosmetic edit to a model file needs no migration and an empty revision would satisfy such a rule anyway.
 - Green CI is required to merge. Never merge through a red check.
 
