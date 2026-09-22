@@ -779,7 +779,7 @@ No step requires downtime, and each is independently revertible.
 ### The output registry
 
 Ingesting a collection creates records in other modules: a table in the
-Artifact Explorer, a file in the Logs module, a capture in PCAP, a dump in
+Artifact Explorer, a file in the Detections module, a capture in PCAP, a dump in
 Memory. Until `collection_outputs` existed nothing recorded that it had, so
 deleting a collection removed its directory and its ingest rows and left every
 one of those records behind - still listed, still counted, pointing at bytes
@@ -864,7 +864,7 @@ Artifacts that are genuinely one-per-machine stay per-file: `$MFT`, `$J`,
 ### An event log still has two homes
 
 Batching the Explorer table must not cost the EVTX its other destination. The
-Logs module registration stays per file - Sigma detections run against a file -
+Detections registration stays per file - Sigma runs against a file -
 and the Explorer table is built once for the collection. The row in the ingest
 queue says so, rather than reporting a failure.
 

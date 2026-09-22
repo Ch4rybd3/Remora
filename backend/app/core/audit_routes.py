@@ -93,9 +93,7 @@ ACTIONS: dict[tuple[str, str], str] = {
     # ── Artifact modules ─────────────────────────────────────────────────────
     ("POST",   "/api/v1/evtx/{case_id}/upload"):                      "evtx.upload",
     ("DELETE", "/api/v1/evtx/{case_id}/files/{file_id}"):             "evtx.delete",
-    ("POST",   "/api/v1/evtx/{case_id}/files/{file_id}/reparse"):     "evtx.reparse",
     ("POST",   "/api/v1/evtx/{case_id}/files/{file_id}/add-evidence"): "evtx.promote_to_evidence",
-    ("PUT",    "/api/v1/evtx/{case_id}/selection"):                   "evtx.selection",
     ("POST",   "/api/v1/binary/{case_id}/upload"):                    "binary.upload",
     ("DELETE", "/api/v1/binary/{case_id}/files/{file_id}"):           "binary.delete",
     ("POST",   "/api/v1/binary/{case_id}/files/{file_id}/reanalyse"): "binary.reanalyse",
@@ -239,7 +237,6 @@ PENDING: frozenset[tuple[str, str]] = frozenset({
     ("DELETE", "/api/v1/cases/{case_id}/emails/{email_id}"),
     ("POST",   "/api/v1/binary/{case_id}/files/{file_id}/reanalyse"),
     ("POST",   "/api/v1/memory/{case_id}/dumps/{dump_id}/plugins/{plugin_id}/rerun"),
-    ("PUT",    "/api/v1/evtx/{case_id}/selection"),
     ("PUT",    "/api/v1/chainsaw/{case_id}/selection"),
     ("POST",   "/api/v1/chainsaw/rules/custom/upload"),
     ("DELETE", "/api/v1/chainsaw/rules/custom/{filename}"),

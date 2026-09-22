@@ -181,7 +181,7 @@ export const NAV_ICON: Record<string, LucideIcon> = {
 
   '/artifacts/explorer':    Table2,
   '/artifacts/email':       Mail,
-  '/artifacts/filesystem':  ScrollText,     // Logs — was HardDrive, shared with Disk Images
+  '/artifacts/detections':  ShieldAlert,    // Detections — what the rules found, not the rules
   '/artifacts/pcap':        Network,
   '/artifacts/images':      HardDrive,      // Disk Images — keeps the drive
   '/artifacts/registry':    FolderTree,     // Registry Explorer — a tree of keys
@@ -196,7 +196,7 @@ export const NAV_ICON: Record<string, LucideIcon> = {
   '/templates':             FileText,       // Case Templates — keeps FileText
   '/report-templates':      FileOutput,
   '/playbooks':             GitBranch,
-  '/config/chainsaw-rules': Swords,
+  '/config/chainsaw-rules': Swords,         // Detection Rules — the rule packs themselves
   '/config/connectors':     Plug,
   '/config/vaults':         Archive,
   '/users':                 Users,

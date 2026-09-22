@@ -6,7 +6,7 @@ one row here plus one parser — not an edit inside a router, which is how the
 current logic ended up duplicated across fourteen of them with no two agreeing.
 
 The rule the table encodes (`docs/INGESTION.md` section 6): **two destinations
-are the norm.** A raw EVTX belongs in the Logs module *and*, once parsed, in
+are the norm.** A raw EVTX belongs in Detections *and*, once parsed, in
 the Artifact Explorer. The analyst chasing Sigma detections goes to Logs; the
 one pivoting on a field goes to the Explorer. Producing only one of the two is
 exactly what forces the manual re-import that exists today.
@@ -18,6 +18,8 @@ from dataclasses import dataclass, field
 # ─── Destination modules ──────────────────────────────────────────────────────
 
 DEST_EXPLORER   = "artifact_explorer"
+#: Detections - Sigma rules over the file itself. The value is kept as
+#: "logs" because `collection_outputs.kind` rows carry it.
 DEST_LOGS       = "logs"
 DEST_DISK       = "disk_images"
 DEST_MEMORY     = "memory"

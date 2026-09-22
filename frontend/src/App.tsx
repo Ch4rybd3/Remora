@@ -14,7 +14,7 @@ import PlaybookEditor from './pages/PlaybookEditor'
 import EmailAnalysis from './pages/EmailAnalysis'
 import KnowledgeBase from './pages/KnowledgeBase'
 import KnowledgeEditor from './pages/KnowledgeEditor'
-import FilesystemLogs from './pages/FilesystemLogs'
+import Detections from './pages/Detections'
 import AuditLog from './pages/AuditLog'
 import Memory from './pages/Memory'
 import BinaryAnalysis from './pages/BinaryAnalysis'
@@ -64,7 +64,10 @@ export default function App() {
         <Route path="/playbooks" element={<Playbooks />} />
         <Route path="/playbooks/:id/edit" element={<PlaybookEditor />} />
         <Route path="/artifacts/email" element={<EmailAnalysis />} />
-        <Route path="/artifacts/filesystem" element={<FilesystemLogs />} />
+        <Route path="/artifacts/detections" element={<Detections />} />
+        {/* The Logs page read events; the Explorer does that now. Old links
+            and bookmarks land on what replaced it. */}
+        <Route path="/artifacts/filesystem" element={<Navigate to="/artifacts/detections" replace />} />
         <Route path="/artifacts/memory" element={<Memory />} />
         <Route path="/artifacts/binary"   element={<BinaryAnalysis />} />
         <Route path="/artifacts/cti"      element={<CTILookup />} />

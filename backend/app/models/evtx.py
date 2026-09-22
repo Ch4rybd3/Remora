@@ -20,12 +20,25 @@ from app.database import Base
 
 class EvtxFileStatus(str, enum.Enum):
     pending  = "pending"
+    #: Retired with the module's second parse. Rows written before that may
+    #: still carry it; nothing sets it any more.
     parsing  = "parsing"
     ready    = "ready"
     error    = "error"
 
 
 class EvtxFile(Base):
+    """
+    An event log this case holds.
+
+    The registry, not a reader. It records which EVTX files are in the case and
+    where their bytes are - which is what Chainsaw scans, since a Sigma run
+    reads the file itself rather than a database of it.
+
+    `event_count` and `parsed_at` were filled by a second parse this module no
+    longer performs. They are kept because rows written before that carry real
+    values, and a column removed is a column that cannot be looked back at.
+    """
     __tablename__ = "evtx_files"
 
     id           = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -45,6 +58,20 @@ class EvtxFile(Base):
 
 
 class EvtxEvent(Base):
+    """
+    Records from the module's own parse of an EVTX. **No longer written.**
+
+    The Logs module parsed every event log a second time and stored the
+    records here, while EvtxECmd had already parsed the same file into the
+    Artifact Explorer during ingestion. Two parses of one file, and two tables
+    that could disagree. The Explorer's is the one that stayed.
+
+    The table is kept rather than dropped. Nothing writes it and nothing reads
+    it, but it holds records from real collections, the source EVTX may since
+    have been removed from the case, and destroying forensic records is not a
+    side effect a refactor gets to have. Dropping it is a separate decision
+    with its own migration.
+    """
     __tablename__ = "evtx_events"
 
     id             = Column(Integer, primary_key=True, autoincrement=True)
@@ -74,8 +101,13 @@ class EvtxEvent(Base):
 
 class EvtxCaseSelection(Base):
     """
-    Persists the analyst's pinned-event selection for a case in the
-    Filesystem & Logs page.  One row per case (upserted on every save).
+    Events an analyst pinned in the Logs page. **No longer written.**
+
+    Pinning lives in the Artifact Explorer now. This table is kept for a
+    stronger reason than `evtx_events`: those were a machine re-parse, these
+    are a person's judgement about which events mattered. Anything already
+    sent to the case timeline is there; the rest is work that exists nowhere
+    else, and it is not this refactor's to discard.
 
     events   – JSON array of full event objects (EvtxEvent fields + _filename).
     sent_ids – JSON array of event IDs (int) already pushed to the case timeline.
