@@ -40,6 +40,7 @@ from ..models.case import Case
 from ..models.report_doc_template import ReportDocTemplate
 from ..models.user import User
 from ..services import report_tags
+from ..services.audit_service import audit_log
 from ..services.graph_render import render_attack_graph_png
 
 router = APIRouter(prefix="/report-doc-templates", tags=["report-doc-templates"])
@@ -1207,6 +1208,12 @@ async def upload_template(
         created_by=current_user.username,
     )
     db.add(tpl)
+    # A report template decides what every future deliverable for every client
+    # contains. Who installed one is worth as much as who generated a report
+    # from it - it is configuration with the reach of content.
+    audit_log(db, user=current_user, action="report_template.upload",
+              resource_type="report_template", resource_name=name,
+              details={"format": fmt, "size": len(file_bytes), "tags": tags})
     db.commit()
     db.refresh(tpl)
     return tpl
@@ -1225,6 +1232,9 @@ def delete_template(
         Path(tpl.file_path).unlink(missing_ok=True)
     except Exception:
         pass
+    audit_log(db, user=current_user, action="report_template.delete",
+              resource_type="report_template", resource_id=str(tpl.id),
+              resource_name=str(tpl.name), details={"format": tpl.format})
     db.delete(tpl)
     db.commit()
     return {"deleted": template_id}
@@ -1249,6 +1259,15 @@ def generate_report(
 
     ctx = _build_context(case, current_user.username)
     safe_title = re.sub(r"[^\w\-]", "_", case.title or "report")
+
+    # The moment case data leaves the platform in a form that goes to a client.
+    # Recorded before the document is built: an export that then failed still
+    # says somebody asked for one.
+    audit_log(db, user=current_user, action="report.generate",
+              resource_type="report", resource_id=str(tpl.id),
+              resource_name=str(tpl.name), case_id=case.id, case_title=case.title,
+              details={"format": tpl.format})
+    db.commit()
 
     if tpl.format == "markdown":
         template_text = Path(tpl.file_path).read_text(encoding="utf-8")

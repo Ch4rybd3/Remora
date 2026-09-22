@@ -145,8 +145,13 @@ _ROUTES: dict[str, Route] = {
     # ── Mail ────────────────────────────────────────────────────────────────
     "eml":   Route(DEST_MAIL, parser="mail",
                    pages=("/cases/{case_id}/emails", "/artifacts/explorer")),
-    "msg":   Route(DEST_MAIL, parser="mail",
-                   pages=("/cases/{case_id}/emails", "/artifacts/explorer")),
+    # Pending, like mbox and pst: an MSG is an OLE compound file, and the mail
+    # parser is `email.parser.BytesParser`, which reads RFC822 and nothing
+    # else. Routing it to the mail handler would register a message whose
+    # every field was empty. Reading it needs a dependency that is not in the
+    # image, and the Email Analysis page accepts `.eml` only.
+    "msg":   Route(DEST_MAIL, parser="mail", pending=True,
+                   pages=("/cases/{case_id}/emails",)),
     "mbox":  Route(DEST_MAIL, parser="mail", pending=True,
                    pages=("/cases/{case_id}/emails",)),
     "pst":   Route(DEST_MAIL, parser="mail", pending=True,
