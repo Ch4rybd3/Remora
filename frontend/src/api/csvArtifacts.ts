@@ -52,10 +52,27 @@ export interface OmniSearchFile {
   rows: Record<string, string>[]
 }
 
+/** An artifact the search could not read, and why. */
+export interface OmniSearchSkipped {
+  id: string
+  original_name: string
+  reason: string
+}
+
 export interface OmniSearchResponse {
   query: string
   total_hits: number
   files: OmniSearchFile[]
+  /**
+   * Artifacts that failed rather than matched nothing.
+   *
+   * The two are not the same answer and the Explorer must not merge them: a
+   * case holding one deleted collection would otherwise report "no results"
+   * for a query that was never actually run against the rest of the files.
+   */
+  skipped: OmniSearchSkipped[]
+  /** How many artifacts the query did reach. */
+  searched: number
 }
 
 export interface GroupResult {
