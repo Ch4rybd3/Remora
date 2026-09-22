@@ -35,10 +35,9 @@ claims it). The same data is served by `GET /api/v1/coverage`.
 - **18** parsed
 - **3** browsable, not tabulated
 - **11** needs an analyst
-- **12** parser not shipped
+- **13** parser not shipped
 - **7** unpacked
 - **5** held for a decision
-- **1** routed but never dispatched
 
 ### Tabular already
 
@@ -110,6 +109,7 @@ claims it). The same data is served by `GET /api/v1/coverage`.
 | `jumplist_custom` | Jump list, custom | `extension`, `inside olecf` | `.customdestinations-ms`, `customdestinations-ms` | JLECmd, over a directory |
 | `lnk` | Shortcut (LNK) | `extension`, `magic` | `.lnk` | LECmd, over a directory |
 | `mbox` | Mailbox (mbox) | `extension` | `.mbox` | Email Analysis module |
+| `msg` | Outlook message (MSG) | `inside olecf` | `.msg` | Email Analysis module |
 | `ntfs_logfile` | NTFS transaction log ($LogFile) | `filename` | `$logfile` | `logfile` |
 | `prefetch` | Prefetch (compressed) | `extension`, `magic` | `.pf` | Remora parser (Prefetch) |
 | `pst` | Outlook store (PST/OST) | `magic` | — | Email Analysis module |
@@ -136,12 +136,6 @@ claims it). The same data is served by `GET /api/v1/coverage`.
 | `olecf` | OLE compound file | `magic` | — | — |
 | `pdf` | PDF document | `magic` | — | — |
 | `unknown` | Unknown | — | — | — |
-
-### Routed but never dispatched
-
-| Kind | Artifact | Recognised by | Formats | Parser |
-|---|---|---|---|---|
-| `msg` | Outlook message (MSG) | `inside olecf` | `.msg` | Email Analysis module |
 
 <!-- END GENERATED COVERAGE -->
 

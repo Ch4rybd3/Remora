@@ -94,6 +94,30 @@ def test_a_parsed_kind_names_who_parses_it(rows):
             assert row.engine, f"{row.kind} is parsed by nothing named"
 
 
+def test_no_kind_is_routed_to_a_parser_nothing_calls(rows):
+    """
+    The invariant the catalogue exists to hold.
+
+    A kind whose route names a parser that no dispatch stage claims is stored
+    and silently does nothing - no table, no module record, no error. The
+    first run of this catalogue found one: `msg` promised the mail parser,
+    which is `email.parser.BytesParser` and reads RFC822 only, while an MSG is
+    an OLE compound file. It is now `pending`, which is the truthful state.
+
+    A row here is always a bug. Either ship the handler, or mark the route
+    pending so the Collection tab says so.
+    """
+    gaps = [r.kind for r in rows if r.status == coverage.STATUS_GAP]
+
+    assert not gaps, (
+        f"routed to a parser nothing calls: {sorted(gaps)}. Ship a handler in "
+        f"dispatch._HANDLERS, or set pending=True on the route.")
+
+
+def test_msg_is_pending_rather_than_claiming_a_parser_that_cannot_read_it(rows):
+    assert _row(rows, "msg").status == coverage.STATUS_PENDING
+
+
 def test_a_pending_kind_names_the_parser_it_is_waiting_for(rows):
     for row in rows:
         if row.status == coverage.STATUS_PENDING:
