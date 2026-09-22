@@ -15,7 +15,7 @@ describe('NAV_ICON', () => {
       '/artifacts/binary', '/artifacts/cti',
       '/knowledge',
       '/config/clients', '/templates', '/report-templates', '/playbooks',
-      '/config/chainsaw-rules', '/config/connectors', '/config/vaults',
+      '/config/chainsaw-rules', '/config/connectors',
       '/users', '/audit', '/design',
     ]
     const missing = routes.filter((route) => !NAV_ICON[route])

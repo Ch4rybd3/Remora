@@ -158,7 +158,7 @@ export default function Sidebar() {
     {
       heading: 'Knowledge Base',
       items: [
-        { to: '/knowledge', label: 'Vault' },
+        { to: '/knowledge', label: 'Knowledge Base' },
       ],
     },
     {
@@ -170,7 +170,6 @@ export default function Sidebar() {
         { to: '/playbooks', label: 'Playbooks' },
         { to: '/config/chainsaw-rules', label: 'Detection Rules' },
         { to: '/config/connectors', label: 'Connectors' },
-        { to: '/config/vaults', label: 'Vault Management' },
         ...(isAdmin ? [{ to: '/users', label: 'Users' }] : []),
         ...(isAdmin ? [{ to: '/audit', label: 'Audit' }] : []),
         ...(isAdmin ? [{ to: '/design', label: 'Design System' }] : []),

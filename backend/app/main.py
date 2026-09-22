@@ -39,7 +39,6 @@ from .models import memory as _memory_models  # ensure tables are registered
 from .models import mitre as _mitre_models  # ensure tables are registered
 from .models import report_doc_template as _rdt_models  # ensure tables are registered
 from .models import report_version as _rv_models  # ensure tables are registered
-from .models import vault as _vault_models  # ensure table is registered
 from .models.user import User, UserRole
 from .routers import assets, auth, cases, evidences, iocs, reports, templates, timeline
 from .routers import attack_graph as attack_graph_router
@@ -73,7 +72,6 @@ from .routers import rdp_cache as rdp_cache_router
 from .routers import registry as registry_router
 from .routers import report_doc_templates as report_doc_templates_router
 from .routers import users as users_router
-from .routers import vault as vault_router
 from .services.auth_service import hash_password
 from .services.chainsaw_setup import setup_chainsaw
 from .services.cti_tools_setup import setup_cti_tools
@@ -528,7 +526,6 @@ app.include_router(chainsaw_router.router,             prefix="/api/v1", **_auth
 app.include_router(chainsaw_rules_router.router,       prefix="/api/v1", **_auth)
 app.include_router(mitre_router.router,                prefix="/api/v1", **_auth)
 app.include_router(dashboard_router.router,            prefix="/api/v1", **_auth)
-app.include_router(vault_router.router,                prefix="/api/v1", **_auth)
 app.include_router(connectors_router.router,           prefix="/api/v1", **_auth)
 app.include_router(cti_router.router,                  prefix="/api/v1", **_auth)
 app.include_router(collection_import_router.router,    prefix="/api/v1", **_auth)

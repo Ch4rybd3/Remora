@@ -5,7 +5,7 @@
  *
  * `NAV_ICON` is the semantic layer: one concept, one icon, defined once. Before
  * this file existed, HardDrive stood for both *Logs* and *Disk Images*, FileText
- * for both *Vault* and *Case Templates*, and Shield for both *CTI Lookup* and
+ * for both *Knowledge Base* and *Case Templates*, and Shield for both *CTI Lookup* and
  * *Audit*. Nothing enforced otherwise, so the drift was invisible until someone
  * looked at the sidebar. Anything that needs to render a destination — the
  * sidebar, breadcrumbs, tabs, empty states, search results — reads it from here
@@ -190,7 +190,7 @@ export const NAV_ICON: Record<string, LucideIcon> = {
   '/artifacts/binary':      Binary,
   '/artifacts/cti':         Radar,          // CTI Lookup — was Shield, shared with Audit
 
-  '/knowledge':             BookOpen,       // Vault — was FileText, shared with Case Templates
+  '/knowledge':             BookOpen,       // Knowledge Base — was FileText, shared with Case Templates
 
   '/config/clients':        Building2,
   '/templates':             FileText,       // Case Templates — keeps FileText
@@ -198,7 +198,6 @@ export const NAV_ICON: Record<string, LucideIcon> = {
   '/playbooks':             GitBranch,
   '/config/chainsaw-rules': Swords,         // Detection Rules — the rule packs themselves
   '/config/connectors':     Plug,
-  '/config/vaults':         Archive,
   '/users':                 Users,
   '/audit':                 ShieldCheck,
   '/account':               User,          // the signed-in user's own account

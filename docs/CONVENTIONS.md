@@ -261,7 +261,7 @@ The file has two halves:
   Routing them through this file is what makes the lint rule possible.
 
 One concept, one icon, everywhere. Before the registry existed, `HardDrive`
-stood for both *Logs* and *Disk Images*, `FileText` for both *Vault* and *Case
+stood for both *Logs* and *Disk Images*, `FileText` for both *Knowledge Base* and *Case
 Templates*, and `Shield` for both *CTI Lookup* and *Audit* — drift that was
 invisible until someone looked at the sidebar.
 

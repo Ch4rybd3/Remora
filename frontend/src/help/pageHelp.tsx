@@ -66,19 +66,24 @@ export const PAGE_HELP: Record<string, HelpEntry> = {
   },
 
   '/knowledge': {
-    title: 'The vault',
+    title: 'The knowledge base',
     content: (
       <>
         <P>
-          Shared reference material - tooling notes, rule sets, scripts,
-          playbooks - browsed here and managed under{' '}
-          <Code>Config &rsaquo; Vaults</Code>. It is deliberately not case data:
-          nothing here expires with a collection and nothing here is evidence.
+          Shared reference material - tooling notes, rule sets, methodology,
+          playbooks - written as markdown and linked by wikilinks. It is
+          deliberately not case data: nothing here expires with a collection
+          and nothing here is evidence in a chain of custody.
         </P>
         <P>
-          What a vault opens into depends on what it holds. An Obsidian folder
-          or a ZIP opens in the knowledge editor; a PDF and an image render in
-          place.
+          That distinction is the point. Reference material an analyst consults
+          during an investigation must not end up in a report as something
+          recovered from the machine.
+        </P>
+        <P>
+          Import an Obsidian vault as a <Code>.zip</Code> from the tree on the
+          left. The graph on the right shows how the note you are reading links
+          to the others.
         </P>
       </>
     ),
@@ -199,24 +204,6 @@ export const PAGE_HELP: Record<string, HelpEntry> = {
         <P>
           Test a connector after saving it: a wrong key fails at lookup time
           otherwise, in the middle of an investigation.
-        </P>
-      </>
-    ),
-  },
-
-  '/config/vaults': {
-    title: 'Managing vaults',
-    content: (
-      <>
-        <P>
-          The shared reference library that <Code>Vault</Code> browses. Files
-          here are not case data: nothing expires with a collection, and nothing
-          here is evidence in a chain of custody.
-        </P>
-        <P>
-          That distinction is the point of the separate page. Reference material
-          an analyst consults during an investigation must not end up in a
-          report as something recovered from the machine.
         </P>
       </>
     ),

@@ -820,13 +820,10 @@ def _build_mitre_word_table(doc, case: Case) -> Table:
 
 def _resolve_image_url(url: str) -> Path | None:
     """
-    Map a note-image URL (or vault view URL) to an absolute local path.
+    Map a note-image URL to an absolute local path.
 
-    Handles:
-      /note-images/{case_id}/{filename}   → note_images dir on disk
-      /api/v1/vaults/{id}/view            → vault file path from DB (not resolved here —
-                                            caller should pass the path directly if needed)
-    Returns None if the file cannot be resolved or does not exist.
+    Handles `/note-images/{case_id}/{filename}`. Returns None if the file
+    cannot be resolved or does not exist.
     """
     base = settings.evidence_store_path.parent
 

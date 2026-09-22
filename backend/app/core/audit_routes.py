@@ -165,10 +165,6 @@ ACTIONS: dict[tuple[str, str], str] = {
     ("POST",   "/api/v1/knowledge/images"):                           "knowledge.image_upload",
     ("POST",   "/api/v1/knowledge/import"):                           "knowledge.vault_import",
 
-    # ── Vault ────────────────────────────────────────────────────────────────
-    ("POST",   "/api/v1/vaults/upload"):                              "vault.upload",
-    ("PATCH",  "/api/v1/vaults/{vault_id}"):                          "vault.update",
-    ("DELETE", "/api/v1/vaults/{vault_id}"):                          "vault.delete",
 
     # ── Accounts ─────────────────────────────────────────────────────────────
     ("POST",   "/api/v1/users/"):                                     "user.create",
@@ -249,9 +245,6 @@ PENDING: frozenset[tuple[str, str]] = frozenset({
     ("DELETE", "/api/v1/connectors/{name}/key"),
     ("PUT",    "/api/v1/knowledge/file"),
     ("POST",   "/api/v1/knowledge/images"),
-    ("POST",   "/api/v1/vaults/upload"),
-    ("PATCH",  "/api/v1/vaults/{vault_id}"),
-    ("DELETE", "/api/v1/vaults/{vault_id}"),
 })
 
 

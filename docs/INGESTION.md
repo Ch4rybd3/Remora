@@ -12,7 +12,7 @@ layout, its own naming, and its own hashing — or none:
 
 ```
 assets  binary  case_emails  cases  chainsaw_rules  clients  collection_import
-csv_artifacts  email_analysis  evidences  evtx  knowledge  memory  report_doc_templates  vault
+csv_artifacts  email_analysis  evidences  evtx  knowledge  memory  report_doc_templates
 ```
 
 Seven of them ingest case artifacts and are in scope for consolidation:
@@ -95,7 +95,7 @@ cover platform content that happens to arrive as a file:
 | Report DOCX/Markdown templates | Configuration, global, not case-scoped |
 | Chainsaw / Sigma rule packs | Detection content, versioned with the tool |
 | Knowledge base attachments, client and user avatars | Not evidence |
-| Vault entries | Encrypted at rest by a different path on purpose |
+| Knowledge base notes | Reference material, not evidence. Imported as a ZIP into one directory. |
 
 Running these through hashing, magic-byte routing and a parser queue would buy
 nothing and would put a report template in the Artifact Explorer. They keep

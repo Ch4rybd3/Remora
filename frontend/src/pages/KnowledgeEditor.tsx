@@ -1,19 +1,24 @@
 /**
- * Knowledge Editor — Obsidian-style markdown editor for ZIP vaults.
+ * Knowledge Base — an Obsidian vault of methodology notes, read in place.
  *
- * Accessed via /knowledge/editor when an Obsidian vault is selected
- * in the Vault Browser (/knowledge).
+ * This is `/knowledge` itself now. It used to sit behind a browser over a
+ * `vaults` table - a generic file store that also held PDFs, images and
+ * archives - and reaching a note meant picking a vault first. That store was
+ * removed; the notes live in one directory on disk and this reads it.
+ *
+ * "Vault" here means what Obsidian means by it: a folder of markdown notes
+ * linked by wikilinks. It is not the file store that was deleted, which
+ * shared nothing with it but the word.
  *
  * Layout:
- *   Left   — FileTree (vault file browser)
+ *   Left   — FileTree (note browser)
  *   Center — NoteEditor (markdown reader + wikilink navigation)
  *   Right  — NoteGraph (inter-note links) + NoteTOC (outline)
  */
 
 import { useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { FileText, GitBranch, ChevronLeft, Menu, ArrowLeft } from '../ui/icons'
-import { useNavigate } from 'react-router-dom'
+import { FileText, GitBranch, ChevronLeft, Menu } from '../ui/icons'
 import { knowledgeApi } from '../api/knowledge'
 import FileTree from '../components/knowledge/FileTree'
 import NoteEditor, { type ScrollRequest } from '../components/knowledge/NoteEditor'
@@ -21,7 +26,6 @@ import NoteGraph from '../components/knowledge/NoteGraph'
 import NoteTOC from '../components/knowledge/NoteTOC'
 
 export default function KnowledgeEditor() {
-  const navigate = useNavigate()
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [showTree, setShowTree]         = useState(true)
   const [showGraph, setShowGraph]       = useState(true)
@@ -56,22 +60,15 @@ export default function KnowledgeEditor() {
         {/* Mini toolbar */}
         <div className="flex items-center gap-2 px-3 py-1.5 border-b border-hairline shrink-0 bg-panel/50">
           <button
-            onClick={() => navigate('/knowledge')}
-            title="Back to vaults"
-            className="p-1 rounded-control text-fg-secondary/40 hover:text-fg hover:bg-fg/5 transition-colors"
-          >
-            <ArrowLeft size={13} />
-          </button>
-          <button
             onClick={() => setShowTree(t => !t)}
-            title={showTree ? 'Masquer l\'arborescence' : 'Afficher l\'arborescence'}
+            title={showTree ? 'Hide the note tree' : 'Show the note tree'}
             className="p-1 rounded-control text-fg-secondary/40 hover:text-fg hover:bg-fg/5 transition-colors"
           >
             {showTree ? <ChevronLeft size={13} /> : <Menu size={13} />}
           </button>
           <div className="flex items-center gap-1.5 text-fg-secondary/30">
             <FileText size={12} />
-            <span className="text-label font-semibold tracking-widest uppercase">Knowledge Editor</span>
+            <span className="text-label font-semibold tracking-widest uppercase">Knowledge Base</span>
           </div>
           <div className="flex-1" />
           <button
