@@ -20,6 +20,7 @@ from ..database import get_db
 from ..models.case import Case
 from ..models.csv_artifact import CsvArtifactFile
 from ..models.user import User
+from ..services.audit_service import audit_log
 
 # Aliased: `Query` at module scope is FastAPI's, used in every endpoint
 # signature below.
@@ -326,6 +327,10 @@ async def upload_artifact(
         ez_category=ez_category,
     )
     db.add(rec)
+    audit_log(db, user=current_user, action="artifact.upload",
+              resource_type="artifact", resource_id=artifact_id,
+              resource_name=safe_name, case_id=case_id,
+              details={"rows": row_count, "columns": len(cols)})
     db.commit()
     db.refresh(rec)
 
@@ -479,6 +484,12 @@ def add_evidence_for_artifact(
     except PromotionError as e:
         raise HTTPException(status_code=409, detail=str(e)) from None
 
+    audit_log(db, user=current_user, action="artifact.promote_to_evidence",
+              resource_type="evidence", resource_id=str(ev.id),
+              resource_name=str(a.original_name), case_id=case_id,
+              details={"artifact_id": artifact_id, "sha256": ev.sha256_hash})
+    db.commit()
+
     return _evidence_dto(ev)
 
 
@@ -506,6 +517,10 @@ def append_coc_note(
     entry   = f"[{now_str}] {current_user.username}: {note}\n"
 
     ev.chain_of_custody = (ev.chain_of_custody or "") + entry
+    audit_log(db, user=current_user, action="artifact.custody_note",
+              resource_type="evidence", resource_id=str(ev.id),
+              resource_name=str(a.original_name), case_id=case_id,
+              details={"note": note[:500]})
     db.commit()
 
 
@@ -531,7 +546,15 @@ def patch_artifact(
     """Update mutable fields on a CsvArtifactFile (currently: source_timezone)."""
     a = _get_artifact_or_404(artifact_id, case_id, db)
     if "source_timezone" in body:
+        previous = a.source_timezone
         a.source_timezone = body["source_timezone"] or None
+        # Re-dates every event in the artifact. A timeline that moved by an
+        # hour between two readings has to be traceable to this moment.
+        audit_log(db, user=current_user, action="artifact.update",
+                  resource_type="artifact", resource_id=artifact_id,
+                  resource_name=str(a.original_name), case_id=case_id,
+                  details={"source_timezone": {"from": previous,
+                                               "to": a.source_timezone}})
     db.commit()
     db.refresh(a)
     return _artifact_dto(a)
@@ -553,6 +576,10 @@ def delete_artifact(
         os.unlink(a.file_path)
     except OSError:
         pass
+    audit_log(db, user=current_user, action="artifact.delete",
+              resource_type="artifact", resource_id=artifact_id,
+              resource_name=str(a.original_name), case_id=case_id,
+              details={"rows": a.row_count, "ez_label": a.ez_label})
     db.delete(a)
     db.commit()
 

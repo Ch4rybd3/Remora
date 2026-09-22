@@ -126,6 +126,32 @@ a lazy public changelog.
 6. Business logic lives in `services/`. **A router body over ~40 lines is a service that has not been extracted yet.**
 7. Heavy work (downloads, scans, parsing) runs through `BackgroundTasks`, never inline in the request.
 
+### Auditing
+
+Every mutating route (`POST` `PUT` `PATCH` `DELETE`) declares what it records,
+in `core/audit_routes.py`. There is no third option: either an action in
+`ACTIONS`, or an entry in `EXEMPT` saying why the route writes nothing. A POST
+that is really a query — a CTI lookup whose indicator is too structured for a
+query string — is exempt; a POST that changes anything is not.
+
+`test_audit_coverage.py` enforces three things, and the third is what stops
+this becoming a wish:
+
+1. no mutating route is undeclared;
+2. a declared route's handler actually calls `audit_log` — checked against the
+   handler's source, so "declared" cannot drift from "implemented";
+3. `PENDING` is a **ratchet**, exactly like the mypy one. A route may be
+   removed from it once it audits. Nothing may ever be added.
+
+Actions are `<domain>.<verb>`, lower case and dotted. The domain is the thing
+acted on, not the router that happens to serve it — so filtering the Audit page
+for `evidence.` finds every way evidence was touched.
+
+The entry rides on the caller's transaction: `audit_log` adds to the session
+and the handler's `commit` persists it, so an operation that rolls back takes
+its audit entry with it. A denial is the exception — it commits itself, because
+the request it rides on is about to raise.
+
 ### Errors
 `HTTPException(status_code=..., detail="...")` with an English, actionable
 message naming the entity:

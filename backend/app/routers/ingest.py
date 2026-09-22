@@ -31,6 +31,7 @@ from ..models.ingest import (
     IngestedFile,
 )
 from ..services import dropzone as dz
+from ..services.audit_service import audit_log
 from ..services.ingest import case_summary, force_kind, route_for
 from ..services.ingest.dropfolder import UploadTooLarge, stage_upload
 from ..services.ingest.routing import KNOWN_KINDS
@@ -117,6 +118,16 @@ async def upload_into_drop_folder(
                 "Collection tab for the path.",
             ) from None
         accepted.append(landed.name)
+
+    # Recorded here, at the door, rather than after identification. What
+    # entered a case and who let it in is the first question a dispute about
+    # evidence asks, and it has to be answerable even for a file the pipeline
+    # then failed to parse.
+    audit_log(db, user=current_user, action="ingest.upload",
+              resource_type="ingest", resource_name=", ".join(accepted)[:255],
+              case_id=str(case.id), case_title=str(case.title),
+              details={"files": accepted, "count": len(accepted)})
+    db.commit()
 
     # No extension check, deliberately. The pipeline identifies by content, and
     # refusing a name here would mean guessing from the very thing that has
@@ -241,7 +252,13 @@ def force_file_kind(
     if not row:
         raise HTTPException(404, "Ingested file not found")
 
-    force_kind(db, row, kind)
+    previous = row.detected_kind
+    force_kind(db, row, kind, commit=False)
+    audit_log(db, user=current_user, action="ingest.force_kind",
+              resource_type="ingest", resource_id=str(row.id),
+              resource_name=str(row.original_name), case_id=case_id,
+              details={"from": previous, "to": kind})
+    db.commit()
     return _dto(row, case_id)
 
 
@@ -273,8 +290,13 @@ def retry_file(
             f"{', '.join(sorted(RECOVERABLE_STATES))} can.",
         )
 
+    previous_error = row.error
     row.state = STATE_DISCOVERED
     row.error = None
+    audit_log(db, user=current_user, action="ingest.retry",
+              resource_type="ingest", resource_id=str(row.id),
+              resource_name=str(row.original_name), case_id=case_id,
+              details={"previous_error": previous_error})
     db.commit()
     return _dto(row, case_id)
 
@@ -324,6 +346,11 @@ def set_memory_os(
         raise HTTPException(409, "The dump is no longer on disk")
 
     register_memory_dump(path, case_id, str(row.original_name), os_type, db)
+
+    audit_log(db, user=current_user, action="ingest.set_memory_os",
+              resource_type="ingest", resource_id=str(row.id),
+              resource_name=str(row.original_name), case_id=case_id,
+              details={"os_type": os_type})
 
     row.state = STATE_PARSED
     row.error = None
