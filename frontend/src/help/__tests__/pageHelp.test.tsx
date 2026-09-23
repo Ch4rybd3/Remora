@@ -21,7 +21,7 @@ describe('PAGE_HELP', () => {
   })
 
   it('covers the pages an analyst arrives at without knowing the syntax', () => {
-    for (const route of ['/artifacts/explorer', '/artifacts/filesystem', '/artifacts/images']) {
+    for (const route of ['/artifacts/explorer', '/artifacts/detections', '/artifacts/images']) {
       expect(PAGE_HELP[route], `${route} has no help`).toBeDefined()
     }
   })

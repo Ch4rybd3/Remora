@@ -3,7 +3,7 @@ Turning a routed file into something the analyst can query.
 
 Routing decides *where* a file belongs; this decides *what happens to it*. Until
 this stage existed, `identify` and `route_for` produced a correct answer that
-led nowhere - the pipeline knew a file was an EVTX bound for the Logs module and
+led nowhere - the pipeline knew a file was an EVTX bound for Detections and
 had no way to send it there.
 
 The handler table is declarative for the same reason the routing table is: a new
@@ -166,18 +166,20 @@ def _to_logs(ctx: Context) -> ParseResult:
     """
     An EVTX has **two homes**, and gets both.
 
-    It goes to the Logs module, where Sigma detections run against it, and its
-    EvtxECmd output goes to the Artifact Explorer, where a field can be pivoted
-    on. Producing only one of the two is what forced a manual re-import: the
-    analyst chasing a detection and the analyst chasing an account name are
-    looking at the same file and need different tools on it.
+    It is registered in Detections, where Sigma rules run against the file
+    itself, and its EvtxECmd output goes to the Artifact Explorer, where a
+    field can be pivoted on. Producing only one of the two is what forced a
+    manual re-import: the analyst chasing a detection and the analyst chasing
+    an account name are looking at the same file and need different tools on it.
 
-    Only the Logs half happens here. The Explorer half is built once for the
-    whole collection by the batch stage, because a triage holds hundreds of
-    event logs and parsing them one at a time produced hundreds of one-file
-    tables - each named `..._EvtxECmd_Output.csv`, none of them the table the
-    analyst wanted. EvtxECmd pointed at a directory writes a single table with
-    a `SourceFile` column instead.
+    Only the registration happens here, and registration is all it is - the
+    module used to parse the file a second time into a table of its own, which
+    is what the Explorer's table already was. The Explorer half is built once
+    for the whole collection by the batch stage, because a triage holds
+    hundreds of event logs and parsing them one at a time produced hundreds of
+    one-file tables - each named `..._EvtxECmd_Output.csv`, none of them the
+    table the analyst wanted. EvtxECmd pointed at a directory writes a single
+    table with a `SourceFile` column instead.
     """
     from ...models.collection_output import OUTPUT_EVTX_FILE
     from ...routers.evtx import register_evtx_file
@@ -193,12 +195,12 @@ def _to_logs(ctx: Context) -> ParseResult:
               flush=True)
         return ParseResult(STATE_FAILED, error=str(e)[:500])
 
-    # `parsed`, not `indexed`: the module parses in a daemon thread, and the
-    # Explorer table is built at the end of the collection rather than here.
+    # `parsed`, not `indexed`: the Explorer table is built at the end of the
+    # collection rather than here.
     return ParseResult(
         STATE_PARSED,
-        error="In Logs. Its table is built with the rest of the event logs "
-              "in this collection.",
+        error="Registered for Sigma scanning. Its table is built with the rest "
+              "of the event logs in this collection.",
     )
 
 

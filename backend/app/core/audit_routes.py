@@ -93,9 +93,7 @@ ACTIONS: dict[tuple[str, str], str] = {
     # ── Artifact modules ─────────────────────────────────────────────────────
     ("POST",   "/api/v1/evtx/{case_id}/upload"):                      "evtx.upload",
     ("DELETE", "/api/v1/evtx/{case_id}/files/{file_id}"):             "evtx.delete",
-    ("POST",   "/api/v1/evtx/{case_id}/files/{file_id}/reparse"):     "evtx.reparse",
     ("POST",   "/api/v1/evtx/{case_id}/files/{file_id}/add-evidence"): "evtx.promote_to_evidence",
-    ("PUT",    "/api/v1/evtx/{case_id}/selection"):                   "evtx.selection",
     ("POST",   "/api/v1/binary/{case_id}/upload"):                    "binary.upload",
     ("DELETE", "/api/v1/binary/{case_id}/files/{file_id}"):           "binary.delete",
     ("POST",   "/api/v1/binary/{case_id}/files/{file_id}/reanalyse"): "binary.reanalyse",
@@ -167,10 +165,6 @@ ACTIONS: dict[tuple[str, str], str] = {
     ("POST",   "/api/v1/knowledge/images"):                           "knowledge.image_upload",
     ("POST",   "/api/v1/knowledge/import"):                           "knowledge.vault_import",
 
-    # ── Vault ────────────────────────────────────────────────────────────────
-    ("POST",   "/api/v1/vaults/upload"):                              "vault.upload",
-    ("PATCH",  "/api/v1/vaults/{vault_id}"):                          "vault.update",
-    ("DELETE", "/api/v1/vaults/{vault_id}"):                          "vault.delete",
 
     # ── Accounts ─────────────────────────────────────────────────────────────
     ("POST",   "/api/v1/users/"):                                     "user.create",
@@ -239,7 +233,6 @@ PENDING: frozenset[tuple[str, str]] = frozenset({
     ("DELETE", "/api/v1/cases/{case_id}/emails/{email_id}"),
     ("POST",   "/api/v1/binary/{case_id}/files/{file_id}/reanalyse"),
     ("POST",   "/api/v1/memory/{case_id}/dumps/{dump_id}/plugins/{plugin_id}/rerun"),
-    ("PUT",    "/api/v1/evtx/{case_id}/selection"),
     ("PUT",    "/api/v1/chainsaw/{case_id}/selection"),
     ("POST",   "/api/v1/chainsaw/rules/custom/upload"),
     ("DELETE", "/api/v1/chainsaw/rules/custom/{filename}"),
@@ -252,9 +245,6 @@ PENDING: frozenset[tuple[str, str]] = frozenset({
     ("DELETE", "/api/v1/connectors/{name}/key"),
     ("PUT",    "/api/v1/knowledge/file"),
     ("POST",   "/api/v1/knowledge/images"),
-    ("POST",   "/api/v1/vaults/upload"),
-    ("PATCH",  "/api/v1/vaults/{vault_id}"),
-    ("DELETE", "/api/v1/vaults/{vault_id}"),
 })
 
 

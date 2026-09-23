@@ -6,10 +6,12 @@ interface Props {
   onClose: () => void
   title: string
   children: ReactNode
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'sm' | 'md' | 'lg' | 'xl'
 }
 
-const sizes = { sm: 'max-w-md', md: 'max-w-xl', lg: 'max-w-3xl' }
+// `xl` is for content that is read rather than filled in - a process tree,
+// where a lineage is deep and its command lines are long.
+const sizes = { sm: 'max-w-md', md: 'max-w-xl', lg: 'max-w-3xl', xl: 'max-w-6xl' }
 
 export default function Modal({ open, onClose, title, children, size = 'md' }: Props) {
   useEffect(() => {

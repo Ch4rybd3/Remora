@@ -30,7 +30,7 @@ PERM_WRITE = "write"
 PERM_ARTIFACTS = "artifacts"
 #: User administration.
 PERM_USERS = "users"
-#: Global configuration: connectors, rule packs, templates, vaults, backups.
+#: Global configuration: connectors, rule packs, templates, backups.
 PERM_CONFIG = "config"
 
 
@@ -98,7 +98,7 @@ READING_POST_PATTERNS = (
 ARTIFACT_SEGMENTS = frozenset({
     "artifacts", "evtx", "memory", "binary", "pcap", "disk-images", "emails",
     "chainsaw", "ingest", "collection-imports", "dropzone", "evidences",
-    "custody", "vaults", "cti", "knowledge", "backup", "connectors", "audit",
+    "custody", "cti", "knowledge", "backup", "connectors", "audit",
     "iocs", "assets", "timeline", "incident-log", "attack-graph", "playbooks",
     "ttp", "notes", "templates", "report-doc-templates", "registry",
     "rdp-cache", "process-tree",

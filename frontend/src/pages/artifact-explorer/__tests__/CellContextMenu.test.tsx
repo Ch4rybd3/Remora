@@ -10,7 +10,10 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
-import { CellContextMenu, pivotRange, pivotRql, type CellTarget } from '../CellContextMenu'
+import {
+  CellContextMenu, parseProcessId, pivotRange, pivotRql, processFocus,
+  type CellTarget,
+} from '../CellContextMenu'
 
 const AT = (over: Partial<CellTarget> = {}): CellTarget => ({
   x: 10, y: 10, column: 'Process', value: 'cmd.exe', isDate: false, ...over,
@@ -127,5 +130,109 @@ describe('CellContextMenu', () => {
 
     expect(screen.getByText(/Nothing to filter on/)).toBeInTheDocument()
     expect(screen.queryByRole('menuitem', { name: /Equals/ })).not.toBeInTheDocument()
+  })
+})
+
+// ─── Lineage ──────────────────────────────────────────────────────────────────
+// The process tree stopped being a case tab and became a question asked of a
+// row. What has to be right is reading the process id out of that row: event
+// logs disagree about how they write one, and reading hex as decimal gives a
+// number that is entirely plausible and entirely wrong.
+
+describe('parseProcessId', () => {
+  it('reads the base the log wrote', () => {
+    expect(parseProcessId('0x1a2c')).toBe(6700)   // Security 4688
+    expect(parseProcessId('6700')).toBe(6700)     // Sysmon
+    expect(parseProcessId('0X1A2C')).toBe(6700)
+  })
+
+  it('refuses anything that is not a process id', () => {
+    for (const value of ['', '   ', 'nonsense', '12ab', '-4']) {
+      expect(parseProcessId(value)).toBeNull()
+    }
+  })
+})
+
+describe('processFocus', () => {
+  const ROW = {
+    TimeCreated: '2026-01-01 10:00:00',
+    NewProcessId: '0xc8',
+    NewProcessName: 'C:\\Windows\\System32\\cmd.exe',
+    ProcessGuid: '{B}',
+  }
+
+  const at = (column: string, value: string) =>
+    AT({ column, value, row: ROW, dateColumn: 'TimeCreated' })
+
+  it('identifies a process by GUID when the log wrote one', () => {
+    expect(processFocus(at('ProcessGuid', '{B}'))).toEqual({ guid: '{B}' })
+  })
+
+  it('identifies a process by id, dated by the row it sits in', () => {
+    /* The date is what tells two processes that reused a PID apart. */
+    expect(processFocus(at('NewProcessId', '0xc8'))).toEqual({
+      pid: 200,
+      at: '2026-01-01 10:00:00',
+      image: 'C:\\Windows\\System32\\cmd.exe',
+    })
+  })
+
+  it('offers nothing on a column that does not name a process', () => {
+    expect(processFocus(at('Computer', 'WS01'))).toBeNull()
+  })
+
+  it('offers nothing when the cell holds no usable id', () => {
+    expect(processFocus(at('NewProcessId', '-'))).toBeNull()
+    expect(processFocus(at('ProcessGuid', '  '))).toBeNull()
+  })
+
+  it('works on a parent column too', () => {
+    /* "What started this" is asked as often as "what is this". */
+    expect(processFocus(at('ParentProcessId', '0x64'))).toMatchObject({ pid: 100 })
+  })
+})
+
+describe('the lineage menu item', () => {
+  const ROW = { TimeCreated: '2026-01-01 10:00:00', ProcessGuid: '{B}' }
+
+  it('is offered on a process column when the page can open a tree', () => {
+    const onProcessTree = vi.fn()
+    render(
+      <CellContextMenu
+        target={AT({ column: 'ProcessGuid', value: '{B}', row: ROW })}
+        onFilter={vi.fn()} onPivot={vi.fn()} onProcessTree={onProcessTree}
+        onClose={() => {}}
+      />,
+    )
+
+    expect(screen.getByRole('menuitem', { name: /Process tree around this/ }))
+      .toBeInTheDocument()
+  })
+
+  it('is absent on a column that names no process', () => {
+    render(
+      <CellContextMenu
+        target={AT({ column: 'Computer', value: 'WS01' })}
+        onFilter={vi.fn()} onPivot={vi.fn()} onProcessTree={vi.fn()}
+        onClose={() => {}}
+      />,
+    )
+
+    expect(screen.queryByText(/Process tree/)).not.toBeInTheDocument()
+  })
+
+  it('hands back the focus, not the raw cell', async () => {
+    const onProcessTree = vi.fn()
+    render(
+      <CellContextMenu
+        target={AT({ column: 'ProcessGuid', value: '{B}', row: ROW })}
+        onFilter={vi.fn()} onPivot={vi.fn()} onProcessTree={onProcessTree}
+        onClose={() => {}}
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('menuitem', { name: /Process tree around this/ }))
+
+    expect(onProcessTree).toHaveBeenCalledWith({ guid: '{B}' })
   })
 })

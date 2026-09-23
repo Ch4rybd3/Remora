@@ -66,19 +66,24 @@ export const PAGE_HELP: Record<string, HelpEntry> = {
   },
 
   '/knowledge': {
-    title: 'The vault',
+    title: 'The knowledge base',
     content: (
       <>
         <P>
-          Shared reference material - tooling notes, rule sets, scripts,
-          playbooks - browsed here and managed under{' '}
-          <Code>Config &rsaquo; Vaults</Code>. It is deliberately not case data:
-          nothing here expires with a collection and nothing here is evidence.
+          Shared reference material - tooling notes, rule sets, methodology,
+          playbooks - written as markdown and linked by wikilinks. It is
+          deliberately not case data: nothing here expires with a collection
+          and nothing here is evidence in a chain of custody.
         </P>
         <P>
-          What a vault opens into depends on what it holds. An Obsidian folder
-          or a ZIP opens in the knowledge editor; a PDF and an image render in
-          place.
+          That distinction is the point. Reference material an analyst consults
+          during an investigation must not end up in a report as something
+          recovered from the machine.
+        </P>
+        <P>
+          Import an Obsidian vault as a <Code>.zip</Code> from the tree on the
+          left. The graph on the right shows how the note you are reading links
+          to the others.
         </P>
       </>
     ),
@@ -204,24 +209,6 @@ export const PAGE_HELP: Record<string, HelpEntry> = {
     ),
   },
 
-  '/config/vaults': {
-    title: 'Managing vaults',
-    content: (
-      <>
-        <P>
-          The shared reference library that <Code>Vault</Code> browses. Files
-          here are not case data: nothing expires with a collection, and nothing
-          here is evidence in a chain of custody.
-        </P>
-        <P>
-          That distinction is the point of the separate page. Reference material
-          an analyst consults during an investigation must not end up in a
-          report as something recovered from the machine.
-        </P>
-      </>
-    ),
-  },
-
   '/users': {
     title: 'Accounts and roles',
     content: (
@@ -332,23 +319,35 @@ export const PAGE_HELP: Record<string, HelpEntry> = {
     ),
   },
 
-  '/artifacts/filesystem': {
-    title: 'Working with logs',
+  '/artifacts/detections': {
+    title: 'Running Sigma rules',
     content: (
       <>
         <P>
-          EVTX files dropped into the case folder are parsed and listed here. Select a
-          file in the left sidebar to filter the events to it; select it again to clear.
+          Chainsaw runs Sigma rules against the event logs in this case. Upload a{' '}
+          <Code>.evtx</Code> in the left sidebar, or drop one into the case folder and
+          scan it from the Collection tab — either way it appears here and can be
+          scanned.
         </P>
         <P>
-          Column filters sit under each header. The <Code>date range</Code> in the toolbar
-          filters time — there is deliberately no per-column time filter, because two
-          controls for one dimension disagree sooner or later.
+          The rules read the event log file itself, not a database of it, which is why
+          a log only has to be <em>present</em> to be scannable. There is nothing to
+          wait for after the upload.
         </P>
         <P>
-          The Chainsaw tab runs Sigma rules over the selected file. Rules are managed
-          under Config → Detection Rules; alerts can be pinned to the timeline the same
-          way events can.
+          <strong>Reading events is the Artifact Explorer's job.</strong> This page used
+          to parse every log a second time and offer its own browser over the records,
+          while the Explorer already held the same events parsed at ingestion. One
+          parse, one table, one place to read a record.
+        </P>
+        <P>
+          <strong>Lineage is the process tree's.</strong> Right-click a process id or a
+          process GUID in the Explorer and ask for the tree around it: that process,
+          every ancestor up to the root, and everything it started.
+        </P>
+        <P>
+          An alert can be sent straight to the case timeline from its row, which is
+          what turns a detection into part of the narrative.
         </P>
       </>
     ),

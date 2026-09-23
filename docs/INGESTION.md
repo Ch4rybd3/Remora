@@ -12,7 +12,7 @@ layout, its own naming, and its own hashing — or none:
 
 ```
 assets  binary  case_emails  cases  chainsaw_rules  clients  collection_import
-csv_artifacts  email_analysis  evidences  evtx  knowledge  memory  report_doc_templates  vault
+csv_artifacts  email_analysis  evidences  evtx  knowledge  memory  report_doc_templates
 ```
 
 Seven of them ingest case artifacts and are in scope for consolidation:
@@ -95,7 +95,7 @@ cover platform content that happens to arrive as a file:
 | Report DOCX/Markdown templates | Configuration, global, not case-scoped |
 | Chainsaw / Sigma rule packs | Detection content, versioned with the tool |
 | Knowledge base attachments, client and user avatars | Not evidence |
-| Vault entries | Encrypted at rest by a different path on purpose |
+| Knowledge base notes | Reference material, not evidence. Imported as a ZIP into one directory. |
 
 Running these through hashing, magic-byte routing and a parser queue would buy
 nothing and would put a report template in the Artifact Explorer. They keep
@@ -655,6 +655,52 @@ quietly define what "the registry" means for every investigation.
 
 ## 13. Process tree
 
+### Where it reads from
+
+The Artifact Explorer's parsed event log tables, through `ArtifactStore` — not
+from a table of its own.
+
+It used to read `evtx_events`, which the Logs module filled by parsing EVTX a
+second time. The Explorer already held the same records, parsed once by
+EvtxECmd, so the product carried two parses of one file that could disagree,
+and the tree could not outlive the module that fed it.
+
+Two consequences of reading the store instead:
+
+- **An artifact's declared source timezone applies.** Two collections from
+  machines in different zones line up in one tree, which they did not before.
+- **The fields come out of `Payload`.** EvtxECmd renders the event XML as JSON
+  there, and its shape varies by event — a list of `{"@Name", "#text"}` for
+  most, a single such object for one-field events, plain keys under `UserData`
+  for some channels. The reader walks rather than indexes, because the
+  alternative is a tree that silently loses Sysmon lineage because one provider
+  nested its fields differently.
+
+An event log table is recognised by carrying both `EventId` and `Payload`
+columns. Not by its name: a triage names them after the channel, after the
+host, or after nothing at all.
+
+### Where it is asked from
+
+A row in the Artifact Explorer. Right-clicking a cell that names a process —
+`ProcessId`, `NewProcessId`, `ProcessGuid`, or either parent column — offers
+*Process tree around this*, and the answer is that process with every ancestor
+up to the root and everything it started.
+
+It was a case tab until then. The question it answers, *how did this get here*,
+belongs next to the event that prompted it.
+
+A focus is identified by whatever the row carries. A Sysmon row has a GUID and
+that is unambiguous; a Security 4688 row has a PID, in hex, and the row's own
+timestamp — which is what tells two processes that reused a PID apart. A GUID
+that matches nothing never falls back to the PID: the two would answer about
+different processes.
+
+`focus.found: false` is a distinct answer from an empty tree. One means nothing
+was collected; the other means this ran on a machine whose logs are not here.
+
+### The sources, strongest to weakest
+
 Reconstructed where the data allows, from strongest to weakest source:
 
 1. **Sysmon Event ID 1** — parent GUID, command line, hashes. Authoritative.
@@ -733,7 +779,7 @@ No step requires downtime, and each is independently revertible.
 ### The output registry
 
 Ingesting a collection creates records in other modules: a table in the
-Artifact Explorer, a file in the Logs module, a capture in PCAP, a dump in
+Artifact Explorer, a file in the Detections module, a capture in PCAP, a dump in
 Memory. Until `collection_outputs` existed nothing recorded that it had, so
 deleting a collection removed its directory and its ingest rows and left every
 one of those records behind - still listed, still counted, pointing at bytes
@@ -818,7 +864,7 @@ Artifacts that are genuinely one-per-machine stay per-file: `$MFT`, `$J`,
 ### An event log still has two homes
 
 Batching the Explorer table must not cost the EVTX its other destination. The
-Logs module registration stays per file - Sigma detections run against a file -
+Detections registration stays per file - Sigma runs against a file -
 and the Explorer table is built once for the collection. The row in the ingest
 queue says so, rather than reporting a failure.
 

@@ -10,12 +10,12 @@ describe('NAV_ICON', () => {
   it('covers every navigable destination', () => {
     const routes = [
       '/', '/cases',
-      '/artifacts/explorer', '/artifacts/email', '/artifacts/filesystem',
+      '/artifacts/explorer', '/artifacts/email', '/artifacts/detections',
       '/artifacts/pcap', '/artifacts/images', '/artifacts/memory',
       '/artifacts/binary', '/artifacts/cti',
       '/knowledge',
       '/config/clients', '/templates', '/report-templates', '/playbooks',
-      '/config/chainsaw-rules', '/config/connectors', '/config/vaults',
+      '/config/chainsaw-rules', '/config/connectors',
       '/users', '/audit', '/design',
     ]
     const missing = routes.filter((route) => !NAV_ICON[route])
