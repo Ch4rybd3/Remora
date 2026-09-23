@@ -42,7 +42,7 @@ from ..models.collection_output import (
 )
 from ..models.csv_artifact import CsvArtifactFile
 from ..models.email_file import EmailFile
-from ..models.evtx import EvtxEvent, EvtxFile
+from ..models.evtx import EvtxFile
 from ..models.ez_artifacts import ImportedCollection, ImportedFile
 from ..models.ingest import IngestedFile
 from ..models.memory import MemoryDump
@@ -267,10 +267,9 @@ def _delete_record(db: Session, output: CollectionOutput) -> bool:
         evtx = db.get(EvtxFile, record_id)
         if evtx is None:
             return False
-        # The events carry no cascade of their own, so they are removed here.
-        # Left behind they are unreachable rows that still answer a count.
-        db.query(EvtxEvent).filter(EvtxEvent.file_id == record_id).delete(
-            synchronize_session=False)
+        # The registration only. There is no second table of parsed events to
+        # clear any more - the module stopped keeping one, and the Explorer's
+        # table is removed on its own row above.
         db.delete(evtx)
         return True
 
