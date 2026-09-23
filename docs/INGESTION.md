@@ -663,7 +663,7 @@ from a table of its own.
 It used to read `evtx_events`, which the Logs module filled by parsing EVTX a
 second time. The Explorer already held the same records, parsed once by
 EvtxECmd, so the product carried two parses of one file that could disagree,
-and the tree could not outlive the module that fed it.
+and the tree could not outlive the module that fed it. That table is gone.
 
 Two consequences of reading the store instead:
 
