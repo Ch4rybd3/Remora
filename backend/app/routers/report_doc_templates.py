@@ -27,7 +27,7 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -42,6 +42,7 @@ from ..models.user import User
 from ..services import report_tags
 from ..services.audit_service import audit_log
 from ..services.graph_render import render_attack_graph_png
+from ..services.template_service import TemplateService
 
 router = APIRouter(prefix="/report-doc-templates", tags=["report-doc-templates"])
 
@@ -503,11 +504,7 @@ def _render_markdown(template_text: str, case: Case, ctx: dict[str, str]) -> str
     text = text.replace("{{attack_graph}}", "_[Attach the attack graph image - Export PNG in the Attack Graph tab]_")
     text = text.replace("{{mitre_matrix}}", _md_mitre_matrix(case))
     text = text.replace("{{mitre_matrix_img}}", "_[MITRE ATT&CK matrix image - available in DOCX export only]_")
-    # The three fixed boxes of the Report tab
-    text = text.replace("{{report_analysis}}",    (case.report_analysis    or "").strip() or "_[No analysis written.]_")
-    text = text.replace("{{report_remediation}}", (case.report_remediation or "").strip() or "_[No remediation written.]_")
-    text = text.replace("{{report_conclusion}}",  (case.report_conclusion  or "").strip() or "_[No conclusion written.]_")
-    # The analyst's own sections, derived from the case rather than any list
+    # The report's sections, derived from the case rather than from any list
     for slug, content in report_tags.section_tags(case).items():
         text = text.replace(f"{{{{{slug}}}}}",
                             content.strip() or report_tags.section_placeholder(slug))
@@ -1067,16 +1064,7 @@ def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
     # ── Second pass: replace block-tag paragraphs ──────────────────────────────
     for para, block_tag in block_paras:
 
-        if block_tag == "report_analysis":
-            _md_to_docx_paragraphs(doc, para, (case.report_analysis or "").strip() or "_[No analysis written.]_")
-
-        elif block_tag == "report_remediation":
-            _md_to_docx_paragraphs(doc, para, (case.report_remediation or "").strip() or "_[No remediation written.]_")
-
-        elif block_tag == "report_conclusion":
-            _md_to_docx_paragraphs(doc, para, (case.report_conclusion or "").strip() or "_[No conclusion written.]_")
-
-        elif not report_tags.is_known(block_tag):
+        if not report_tags.is_known(block_tag):
             # One of the case's own report sections. `section_tags` refuses to
             # shadow a registered name, so reaching here means this really is
             # an analyst-created section and not a misspelt built-in.
@@ -1151,7 +1139,10 @@ class ReportTagOut(BaseModel):
 
 
 @router.get("/tags", response_model=list[ReportTagOut])
-def list_available_tags():
+def list_available_tags(
+    case_template_id: str | None = Query(
+        None, description="Include the report sections this case template declares"),
+):
     """
     Every supported {{tag}}, with what it does.
 
@@ -1159,8 +1150,22 @@ def list_available_tags():
     reference panel in the UI cannot fall behind the exporter. Descriptions
     travel with the names for the same reason - the frontend used to carry its
     own copy of both.
+
+    **The registry is not the whole vocabulary.** A report's sections come from
+    the *case* template, so which `{{slug}}` tags exist depends on the kind of
+    investigation - and a report-template author had no way to find out what
+    they were. Passing `case_template_id` appends that half, which is what the
+    reference panel's dropdown does.
     """
-    return report_tags.catalogue()
+    catalogue = report_tags.catalogue()
+
+    if case_template_id:
+        template = TemplateService().get_template(case_template_id)
+        if template is None:
+            raise HTTPException(404, "Case template not found")
+        catalogue += report_tags.template_section_tags(template)
+
+    return catalogue
 
 
 @router.post("/upload", response_model=ReportDocTemplateOut)

@@ -163,20 +163,14 @@ def _report_author(case: Case, author: str) -> str:
 
 
 # ─── Analyst-authored content ─────────────────────────────────────────────────
-# Block tags: the Markdown in these boxes becomes formatted DOCX paragraphs,
-# which is a paragraph-level rewrite rather than a string substitution.
+# One block tag, because there is one shape. The report itself is the case
+# template's sections, and each of those is a tag of its own that no registry
+# can list - see `section_tags` below.
 
-block_tag("report_analysis", GROUP_CONTENT,
-          "Box 1 of the Report tab - Technical Analysis. In DOCX the Markdown "
-          "is converted to formatted Word paragraphs; in Markdown it is "
-          "inserted as it was written.")
-block_tag("report_remediation", GROUP_CONTENT,
-          "Box 2 of the Report tab - Remediation.")
-block_tag("report_conclusion", GROUP_CONTENT,
-          "Box 3 of the Report tab - Conclusion and recommendations.")
 block_tag("report_content", GROUP_CONTENT,
-          "All three boxes in sequence. Kept for templates written before the "
-          "Report tab was split into three.")
+          "Every section of the report, in the order the case template "
+          "declares them. For a template that wants the whole report in one "
+          "place rather than placing each section itself.")
 
 
 # ─── Annexes ──────────────────────────────────────────────────────────────────
@@ -240,12 +234,11 @@ def build_context(case: Case, author: str) -> dict[str, str]:
 
 def section_tags(case: Case) -> dict[str, str]:
     """
-    The analyst's own report sections, as tag name to written content.
+    The report's own sections, as tag name to written content.
 
-    These cannot be registered: they are created per case in the Report tab and
-    stored as a slug-keyed JSON blob on the case. Deriving them at render time
-    is what makes a section invented this morning usable in a template this
-    afternoon.
+    These cannot be registered: they come from the case template, which an
+    analyst writes, so a section invented this morning has to be a usable tag
+    this afternoon. That is the point of deriving them at render time.
 
     Reading it was also where the two exporters disagreed. The Markdown path
     looped over this blob and substituted; the DOCX path scanned for a fixed
@@ -271,6 +264,32 @@ def section_tags(case: Case) -> dict[str, str]:
 def section_placeholder(slug: str) -> str:
     """What an unwritten section renders as, identically in both exporters."""
     return f"_[Section '{slug}' not written.]_"
+
+
+def template_section_tags(template: dict | None) -> list[dict]:
+    """
+    The tags a *case template* contributes, without needing a case.
+
+    What the report-template reference panel shows once an author picks which
+    case template they are writing against. The registry above is the same for
+    everyone; this half changes per investigation type, which is exactly the
+    thing the panel could not previously say.
+    """
+    from .report_service import sections_for
+
+    return [
+        {
+            "name":        section.slug,
+            "kind":        "block",
+            "group":       GROUP_CONTENT,
+            "group_label": "Report sections - from the case template",
+            "description": (
+                f"{section.name}"
+                + (" - required" if section.required else "")
+            ),
+        }
+        for section in sections_for(template)
+    ]
 
 
 # ─── Documentation ────────────────────────────────────────────────────────────

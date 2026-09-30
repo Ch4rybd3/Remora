@@ -52,10 +52,7 @@ and must therefore sit *alone on its own paragraph or line* in a DOCX template.
 
 | Tag | Kind | What it inserts |
 |---|---|---|
-| `{{report_analysis}}` | block | Box 1 of the Report tab - Technical Analysis. In DOCX the Markdown is converted to formatted Word paragraphs; in Markdown it is inserted as it was written. |
-| `{{report_remediation}}` | block | Box 2 of the Report tab - Remediation. |
-| `{{report_conclusion}}` | block | Box 3 of the Report tab - Conclusion and recommendations. |
-| `{{report_content}}` | block | All three boxes in sequence. Kept for templates written before the Report tab was split into three. |
+| `{{report_content}}` | block | Every section of the report, in the order the case template declares them. For a template that wants the whole report in one place rather than placing each section itself. |
 
 ### Annexes - tables and images
 

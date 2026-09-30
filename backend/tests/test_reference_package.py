@@ -226,9 +226,6 @@ def written_case(auth_client: TestClient, reference_case: str, db_session) -> st
 
     case = db_session.query(Case).filter(Case.id == reference_case).one()
     case.report_sections_data = json.dumps(templates.REFERENCE_SECTIONS)
-    case.report_analysis      = "The loader ran from the Outlook temporary folder."
-    case.report_remediation   = "WKS-042 was isolated and reimaged."
-    case.report_conclusion    = "No lateral movement was observed."
     case.executive_summary    = "One workstation compromised by a phishing loader."
     db_session.commit()
     return reference_case

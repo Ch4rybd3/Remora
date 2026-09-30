@@ -11,7 +11,7 @@ from ..database import get_db
 from ..models.case import Case
 from ..models.report_version import ReportVersion
 from ..models.user import User
-from ..services.report_service import ReportService
+from ..services.report_service import ReportService, sections_for
 from ..services.template_service import TemplateService
 
 router = APIRouter(prefix="/cases/{case_id}/report", tags=["report"])
@@ -36,18 +36,22 @@ class ReportVersionFull(ReportVersionMeta):
 
 
 class SaveReportPayload(BaseModel):
-    content:              str = ""       # legacy combined field (kept for backward compat)
-    analysis:             str | None = None
-    remediation:          str | None = None
-    conclusion:           str | None = None
-    sections_data:        dict | None = None   # {slug: markdown_text} for dynamic sections
+    #: {slug: markdown} - one entry per section the case template declares.
+    sections_data: dict
+
+
+class SectionMeta(BaseModel):
+    slug:     str
+    name:     str
+    category: str
+    required: bool
 
 
 class GenerateResponse(BaseModel):
-    analysis:      str
-    remediation:   str
-    conclusion:    str
-    sections_data: dict = {}   # {slug: markdown_text} when template has dynamic sections
+    #: The sections themselves, in template order, so the Report tab can lay
+    #: out its editors without fetching the template separately.
+    sections:      list[SectionMeta]
+    sections_data: dict
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -68,8 +72,12 @@ def generate_report(
     current_user: User    = Depends(get_current_user),
 ):
     """
-    Generate the analyst-facing sections from the case template's report_sections.
-    Returns { analysis, remediation, conclusion, sections_data }.
+    The starting draft: every section the case template declares, filled with
+    its own guidance.
+
+    Generating never overwrites: the Report tab merges this into what is
+    already written, so an analyst who regenerates after the template changed
+    gains the new sections and keeps their text.
     """
     case = _get_case_or_404(case_id, db)
     template = None
@@ -113,41 +121,35 @@ def save_report(
     current_user: User    = Depends(get_current_user),
 ):
     """
-    Save the 3 report sections on the case AND create a new version snapshot.
-    Also keeps case.report in sync (combined) for backward compat with {{report_content}}.
+    Save the report and snapshot it.
+
+    `case.report` is derived here rather than edited: it is every section in
+    template order, which is what `{{report_content}}` injects and what a
+    version stores. Deriving it on save is what keeps the combined view from
+    drifting away from the sections it claims to combine.
+
     Keeps only the last MAX_VERSIONS versions.
     """
     case = _get_case_or_404(case_id, db)
 
     import json as _json
 
-    # Persist individual sections
-    if payload.analysis    is not None: case.report_analysis    = payload.analysis
-    if payload.remediation is not None: case.report_remediation = payload.remediation
-    if payload.conclusion  is not None: case.report_conclusion  = payload.conclusion
+    case.report_sections_data = _json.dumps(payload.sections_data, ensure_ascii=False)
 
-    # Persist dynamic per-section data
-    if payload.sections_data is not None:
-        case.report_sections_data = _json.dumps(payload.sections_data, ensure_ascii=False)
+    # Template order, not dictionary order: the sections are laid out in the
+    # order the case template declares them, and the combined report has to
+    # read the same way the Report tab does.
+    template = TemplateService().get_template(case.template_id) if case.template_id else None
+    ordered  = [s.slug for s in sections_for(template)]
+    extra    = [k for k in payload.sections_data if k not in ordered]
 
-    # Keep combined `report` in sync for {{report_content}} backward compat
-    parts = []
-    # Include dynamic sections if present
-    try:
-        sd = _json.loads(case.report_sections_data or '{}')
-    except Exception:
-        sd = {}
-    if sd:
-        for v in sd.values():
-            if v and str(v).strip():
-                parts.append(str(v).strip())
-    else:
-        for field in (case.report_analysis, case.report_remediation, case.report_conclusion):
-            if field and field.strip():
-                parts.append(field.strip())
-    case.report = "\n\n---\n\n".join(parts) if parts else (payload.content or "")
+    parts = [
+        str(payload.sections_data[slug]).strip()
+        for slug in ordered + extra
+        if str(payload.sections_data.get(slug) or "").strip()
+    ]
+    case.report = "\n\n---\n\n".join(parts)
 
-    # Snapshot content = combined markdown
     snapshot_content = case.report
 
     # Next version number
