@@ -27,9 +27,6 @@ export interface Case extends CaseSummary {
   executive_summary: string
   quick_notes: string
   report: string             // legacy combined (backward compat)
-  report_analysis:    string
-  report_remediation: string
-  report_conclusion:  string
   report_sections_data: string   // JSON: { slug: markdown_text }
   closed_at: string | null
 }

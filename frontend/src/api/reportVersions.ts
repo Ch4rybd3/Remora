@@ -22,10 +22,8 @@ export const reportVersionsApi = {
   save: (
     caseId: string,
     payload: {
-      analysis?:      string
-      remediation?:   string
-      conclusion?:    string
-      sections_data?: Record<string, string>
+      /** One entry per section the case template declares. */
+      sections_data: Record<string, string>
     },
   ): Promise<ReportVersionMeta> =>
     api.post<ReportVersionMeta>(`/cases/${caseId}/report/save`, payload).then(r => r.data),
