@@ -239,3 +239,48 @@ def test_an_unknown_case_template_is_a_404_not_a_silent_registry(auth_client: Te
                                params={"case_template_id": "does-not-exist"})
 
     assert response.status_code == 404
+
+
+# ─── The case template editor sees the tags it produces ───────────────────────
+
+def test_a_template_reports_the_tag_each_section_produces(auth_client: TestClient):
+    """
+    Resolved by the backend, not slugified in the browser. The editor has to
+    show what the exporter will actually look for, and two implementations of
+    that rule drift on the first edge case.
+    """
+    listed = auth_client.get("/api/v1/templates/").json()
+    assert listed, "no case template is installed"
+
+    with_sections = [t for t in listed if t.get("report_sections")]
+    assert with_sections, "no installed template declares report sections"
+
+    for section in with_sections[0]["report_sections"]:
+        assert section["slug"], f"{section['name']} produces no tag"
+        assert section["slug"] == section_slug(section)
+        assert section["shadowed"] is False
+
+
+def test_a_shadowed_section_is_marked_rather_than_dropped():
+    """
+    Two sections resolving to one tag: the exporter keeps the first, so the
+    second is unaddressable. Saying so in the editor is the only place an
+    author can notice before a client does - silently hiding it would look
+    like the section had been deleted.
+    """
+    from app.routers.templates import _with_section_slugs
+
+    resolved = _with_section_slugs({"report_sections": [
+        {"name": "Impact"},
+        {"name": "impact!"},                     # same slug
+        {"name": "Scope", "tag": "blast_radius"},
+    ]})["report_sections"]
+
+    assert [s["slug"] for s in resolved] == ["impact", "impact", "blast_radius"]
+    assert [s["shadowed"] for s in resolved] == [False, True, False]
+
+
+def test_a_template_with_no_sections_is_left_alone():
+    from app.routers.templates import _with_section_slugs
+
+    assert _with_section_slugs({"name": "Bare"}) == {"name": "Bare"}

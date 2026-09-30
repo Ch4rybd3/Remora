@@ -160,7 +160,17 @@ export interface Template {
   severity: CaseSeverity
   tlp: string
   executive_summary_template?: string
-  report_sections?: { name: string; tag?: string; category?: string; template?: string }[]
+  report_sections?: {
+    name:      string
+    tag?:      string
+    category?: string
+    template?: string
+    required?: boolean
+    /** The tag this section produces, resolved by the backend. */
+    slug?:     string
+    /** A section above already claims this slug, so this one is unaddressable. */
+    shadowed?: boolean
+  }[]
   metadata?: Record<string, unknown>
   ttp_definitions?: TTPDefinition[]
 }
