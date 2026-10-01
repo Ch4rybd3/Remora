@@ -17,6 +17,11 @@ export interface ReportDocTemplate {
   format:        'docx' | 'markdown'
   file_size:     number
   tags_detected: string[]
+  /**
+   * The Word table style this template's annex tables take, or null for
+   * Remora's own rendering. Resolved by the backend when the file is uploaded.
+   */
+  annex_style: string | null
   created_at:    string
   created_by:    string | null
 }

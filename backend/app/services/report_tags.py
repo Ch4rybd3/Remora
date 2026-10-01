@@ -37,11 +37,13 @@ if TYPE_CHECKING:
 
 #: Groups, in the order the reference panel and the documentation show them.
 GROUP_METADATA = "metadata"
+GROUP_DOCUMENT = "document"
 GROUP_CONTENT  = "content"
 GROUP_ANNEX    = "annex"
 
 GROUP_LABELS: dict[str, str] = {
     GROUP_METADATA: "Incident metadata",
+    GROUP_DOCUMENT: "Document structure",
     GROUP_CONTENT:  "Analysis, remediation and conclusions",
     GROUP_ANNEX:    "Annexes - tables and images",
 }
@@ -160,6 +162,14 @@ def _report_date(case: Case, author: str) -> str:
 @text_tag("report.author", GROUP_METADATA, "Username of the analyst generating the report")
 def _report_author(case: Case, author: str) -> str:
     return author
+
+
+# ─── Document structure ───────────────────────────────────────────────────────
+
+block_tag("toc", GROUP_DOCUMENT,
+          "Table of contents. In DOCX a real Word field, built from the Heading "
+          "1-3 styles of the finished document and clickable; Word fills it in "
+          "when the file is opened. In Markdown, a list of the headings.")
 
 
 # ─── Analyst-authored content ─────────────────────────────────────────────────
@@ -305,7 +315,7 @@ DOC_END   = "<!-- END GENERATED TAGS -->"
 def as_markdown() -> str:
     """The registry as the Markdown table that belongs in the tag reference."""
     lines: list[str] = []
-    for group in (GROUP_METADATA, GROUP_CONTENT, GROUP_ANNEX):
+    for group in (GROUP_METADATA, GROUP_DOCUMENT, GROUP_CONTENT, GROUP_ANNEX):
         tags = [t for t in _REGISTRY.values() if t.group == group]
         if not tags:
             continue

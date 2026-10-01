@@ -27,6 +27,58 @@ A **text** tag is substituted wherever it appears, including inside tables,
 headers and footers. A **block** tag replaces the whole paragraph it sits in
 and must therefore sit *alone on its own paragraph or line* in a DOCX template.
 
+---
+
+## The design of the annex tables
+
+Remora used to paint every annex table itself — navy header, white bold text,
+grey banding, 9/8 pt — with the colours written as literals in the exporter. A
+firm whose report template is set in their own typeface and palette got four
+tables in Remora's in the middle of their deliverable, and no amount of work in
+Word could change it.
+
+The document decides now, by convention, with two fallbacks:
+
+| Order | What Remora looks for | Result |
+|---|---|---|
+| 1 | A table style named **`Remora Annex`** in the DOCX template | Applied to every annex table. Remora paints nothing. |
+| 2 | The document's own default table style, when it is not Word's borderless `Normal Table` | Applied the same way. |
+| 3 | Neither | The rendering Remora always had. |
+
+To create it: build a table in Word, style it, then **Table Design → New Table
+Style**, and name it exactly `Remora Annex`. Set the *Header row* and *Banded
+row* formats — Remora marks the tables so Word applies both.
+
+The Report Templates page says which of the three a template resolved to, on
+the card, as soon as it is uploaded. A style named `Remora Anex` matches
+nothing and falls back silently at export, which looks exactly like the feature
+not working; the card is where that typo is found.
+
+**What a style never takes over:** the column proportions, the order of the
+rows, the `↳` that marks a sub-technique, and the header row repeating across
+page breaks. Those say what the table *means*, not how it looks.
+
+---
+
+## The table of contents
+
+`{{toc}}` becomes a real Word `TOC` field, built from the `Heading 1` to
+`Heading 3` styles of the finished document. It is clickable, it renumbers when
+the document is edited, and it is marked *dirty* so Word fills it in when the
+file is opened — no keystroke needed.
+
+Two things follow from that:
+
+- The headings have to exist as **heading styles**. Remora maps `#`, `##` and
+  `###` in a report section to `Heading 1/2/3`, so they do. A template that
+  defines no heading styles at all gets an empty table of contents.
+- Until the field is built, it reads *"right-click here and choose Update
+  Field"*. That is what shows in a reader that refuses to build fields, such as
+  a browser preview.
+
+In Markdown there is no field to update, so `{{toc}}` becomes an actual nested
+list of the headings, with anchors.
+
 <!-- BEGIN GENERATED TAGS - edit services/report_tags.py, not this -->
 
 ### Incident metadata
@@ -47,6 +99,12 @@ and must therefore sit *alone on its own paragraph or line* in a DOCX template.
 | `{{case.tags}}` | text | Case tags, comma-separated |
 | `{{report.date}}` | text | Report generation date - YYYY-MM-DD |
 | `{{report.author}}` | text | Username of the analyst generating the report |
+
+### Document structure
+
+| Tag | Kind | What it inserts |
+|---|---|---|
+| `{{toc}}` | block | Table of contents. In DOCX a real Word field, built from the Heading 1-3 styles of the finished document and clickable; Word fills it in when the file is opened. In Markdown, a list of the headings. |
 
 ### Analysis, remediation and conclusions
 

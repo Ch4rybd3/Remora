@@ -53,7 +53,7 @@ function DetailPanel({ entry, onClose }: { entry: AuditLogEntry; onClose: () => 
           ['ID ressource',   entry.resource_id ?? '—'],
           ['Resource name',  entry.resource_name ?? '—'],
           ['Case ID',        entry.case_id ?? '—'],
-          ['Case titre',     entry.case_title ?? '—'],
+          ['Case title',     entry.case_title ?? '—'],
           ['IP',             entry.ip_address ?? '—'],
         ].map(([k, v]) => (
           <div key={k} className="flex gap-2">

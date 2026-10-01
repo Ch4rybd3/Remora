@@ -39,7 +39,7 @@ from ..models.attack_graph import AttackGraph
 from ..models.case import Case
 from ..models.report_doc_template import ReportDocTemplate
 from ..models.user import User
-from ..services import report_tags
+from ..services import docx_style, report_tags
 from ..services.audit_service import audit_log
 from ..services.graph_render import render_attack_graph_png
 from ..services.template_service import TemplateService
@@ -65,6 +65,8 @@ class ReportDocTemplateOut(BaseModel):
     format:        str
     file_size:     int
     tags_detected: list[str]
+    #: The table style the annex tables take, or null for Remora's own rendering.
+    annex_style:   str | None
     created_at:    datetime
     created_by:    str | None
 
@@ -95,6 +97,23 @@ def _detect_tags_docx(file_bytes: bytes) -> list[str]:
                 for para in hdr_ftr.paragraphs:
                     parts.append("".join(r.text for r in para.runs))
     return _detect_tags("\n".join(parts))
+
+
+def _detect_annex_style(file_bytes: bytes) -> str | None:
+    """
+    The table style this template's annex tables will take, if any.
+
+    Read at upload rather than only at export so the author gets told. A style
+    named `Remora Anex` is not an error anywhere - it simply never matches, and
+    every export quietly uses Remora's own rendering instead. Saying which
+    branch the document landed on is the only way that typo is ever found.
+    """
+    from docx import Document  # type: ignore
+
+    try:
+        return docx_style.annex_style(Document(io.BytesIO(file_bytes))).name
+    except Exception:
+        return None
 
 
 # ── Context builder ────────────────────────────────────────────────────────────
@@ -510,6 +529,10 @@ def _render_markdown(template_text: str, case: Case, ctx: dict[str, str]) -> str
                             content.strip() or report_tags.section_placeholder(slug))
     # Combined backward compat
     text = text.replace("{{report_content}}", case.report or "_[No report content written.]_")
+    # Last, and deliberately so: the headings it lists live inside the sections
+    # substituted above.
+    if "{{toc}}" in text:
+        text = text.replace("{{toc}}", docx_style.markdown_toc(text.replace("{{toc}}", "")))
     return text
 
 
@@ -556,14 +579,23 @@ def _build_word_table(
     headers: list[str],
     rows: list[list[str]],
     header_color: str = "1E3A5F",
+    style: docx_style.AnnexStyle = docx_style.BUILT_IN,
 ) -> Table:
     """
-    Create a fully styled Word table:
-    - Extends ~0.5 cm beyond the page text-area on both sides
-    - Solid borders (outer 1pt, inner 0.5pt) in neutral grey
-    - Coloured header row with white bold text (colour per table type)
-    - Alternating light-grey row shading for readability
-    - Font size 9pt header / 8pt body
+    An annex table, laid out here and *painted by the document* where it can be.
+
+    Layout is Remora's in every case: even columns, the header row marked to
+    repeat across pages, and one row per record in the order given.
+
+    The look depends on `style`. When the report template names a table style -
+    see `docx_style` - it is applied and nothing below is: no borders, no header
+    fill, no banding, no font sizes, and the table sits inside the text area
+    rather than bleeding into the margins, because the bleed was chosen to go
+    with Remora's own palette and not with the client's.
+
+    Otherwise, the rendering Remora always had: ~0.5 cm into each margin, grey
+    1.5 pt outer and 0.75 pt inner borders, a coloured header row in white bold
+    9 pt, alternating grey banding, 8 pt body.
     """
     from docx.oxml import OxmlElement  # type: ignore
     from docx.oxml.ns import qn  # type: ignore
@@ -576,6 +608,7 @@ def _build_word_table(
     n_cols = len(headers)
     n_rows = len(rows)
     table = doc.add_table(rows=1 + n_rows, cols=n_cols)
+    docx_style.apply_annex_style(table, style)
 
     tbl  = table._tbl
     tblPr = tbl.find(qn("w:tblPr"))
@@ -584,22 +617,24 @@ def _build_word_table(
         tbl.insert(0, tblPr)
 
     # ── Width: extend beyond the text area ───────────────────────────────────
+    bleed = EXT_TWIPS if style.paints else 0
     col_w_twips: int | None = None
     try:
         section  = doc.sections[0]
         text_w   = int((section.page_width - section.left_margin - section.right_margin)
                        / EMU_PER_TWIP)
-        table_w  = text_w + 2 * EXT_TWIPS
+        table_w  = text_w + 2 * bleed
 
         tblW = OxmlElement("w:tblW")
         tblW.set(qn("w:w"), str(table_w))
         tblW.set(qn("w:type"), "dxa")
         tblPr.append(tblW)
 
-        tblInd = OxmlElement("w:tblInd")
-        tblInd.set(qn("w:w"), str(-EXT_TWIPS))
-        tblInd.set(qn("w:type"), "dxa")
-        tblPr.append(tblInd)
+        if bleed:
+            tblInd = OxmlElement("w:tblInd")
+            tblInd.set(qn("w:w"), str(-bleed))
+            tblInd.set(qn("w:type"), "dxa")
+            tblPr.append(tblInd)
 
         col_w_twips = table_w // n_cols
     except Exception:
@@ -609,19 +644,20 @@ def _build_word_table(
         tblW.set(qn("w:type"), "pct")
         tblPr.append(tblW)
 
-    # ── Borders ───────────────────────────────────────────────────────────────
-    tblBorders = OxmlElement("w:tblBorders")
-    for side, sz in [
-        ("top", "12"), ("left", "12"), ("bottom", "12"), ("right", "12"),
-        ("insideH", "6"), ("insideV", "4"),
-    ]:
-        b = OxmlElement(f"w:{side}")
-        b.set(qn("w:val"), "single")
-        b.set(qn("w:sz"), sz)       # half-points: 12 = 1.5 pt, 6 = 0.75 pt
-        b.set(qn("w:space"), "0")
-        b.set(qn("w:color"), BORDER_COLOR)
-        tblBorders.append(b)
-    tblPr.append(tblBorders)
+    # ── Borders — the style's job when there is one ───────────────────────────
+    if style.paints:
+        tblBorders = OxmlElement("w:tblBorders")
+        for side, sz in [
+            ("top", "12"), ("left", "12"), ("bottom", "12"), ("right", "12"),
+            ("insideH", "6"), ("insideV", "4"),
+        ]:
+            b = OxmlElement(f"w:{side}")
+            b.set(qn("w:val"), "single")
+            b.set(qn("w:sz"), sz)       # half-points: 12 = 1.5 pt, 6 = 0.75 pt
+            b.set(qn("w:space"), "0")
+            b.set(qn("w:color"), BORDER_COLOR)
+            tblBorders.append(b)
+        tblPr.append(tblBorders)
 
     # ── tblGrid: even column widths ───────────────────────────────────────────
     if col_w_twips:
@@ -636,7 +672,8 @@ def _build_word_table(
     hdr_cells = table.rows[0].cells
     for i, h in enumerate(headers):
         cell = hdr_cells[i]
-        _set_cell_bg(cell, header_color)
+        if style.paints:
+            _set_cell_bg(cell, header_color)
         # Set column width on header cell too
         if col_w_twips:
             tc = cell._tc
@@ -647,9 +684,11 @@ def _build_word_table(
             tcPr.append(tcW)
         para = cell.paragraphs[0]
         run = para.add_run(h)
-        run.bold = True
-        run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
-        run.font.size = Pt(9)
+        if style.paints:
+            run.bold = True
+            run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+            run.font.size = Pt(9)
+    docx_style.repeat_header_row(table)
 
     # ── Data rows ─────────────────────────────────────────────────────────────
     ALT_BG = "F3F4F6"   # tailwind gray-100 — subtle alternating shade
@@ -657,7 +696,7 @@ def _build_word_table(
         cells = table.rows[r_i + 1].cells
         for c_i, val in enumerate(row_data):
             cell = cells[c_i]
-            if r_i % 2 == 1:
+            if style.paints and r_i % 2 == 1:
                 _set_cell_bg(cell, ALT_BG)
             if col_w_twips:
                 tc = cell._tc
@@ -668,14 +707,22 @@ def _build_word_table(
                 tcPr.append(tcW)
             para = cell.paragraphs[0]
             run = para.add_run(str(val) if val is not None else "")
-            run.font.size = Pt(8)
+            if style.paints:
+                run.font.size = Pt(8)
 
     return table
 
 
-def _build_mitre_word_table(doc, case: Case) -> Table:
+def _build_mitre_word_table(
+    doc, case: Case, style: docx_style.AnnexStyle = docx_style.BUILT_IN,
+) -> Table:
     """
     Build a MITRE ATT&CK coverage Word table for the case.
+
+    Like every annex table, the look is the document's where the report template
+    names a table style - see `docx_style`. The hierarchy is not: the `↳` prefix
+    and the indent say "sub-technique" whatever paints the row, because that is
+    what the row means rather than how it looks.
 
     Layout: Tactic | Technique ID | Technique Name
     Rules:
@@ -700,7 +747,8 @@ def _build_mitre_word_table(doc, case: Case) -> Table:
     if not ttps:
         # Return an empty placeholder paragraph cast as a table-like object
         # by abusing _build_word_table with empty rows
-        return _build_word_table(doc, ["Tactic", "Technique ID", "Technique Name"], [], HEADER_COLOR)
+        return _build_word_table(doc, ["Tactic", "Technique ID", "Technique Name"], [],
+                                 HEADER_COLOR, style)
 
     selected_ids = {t.technique_id for t in ttps}
     ttp_by_id    = {t.technique_id: t for t in ttps}
@@ -743,6 +791,7 @@ def _build_mitre_word_table(doc, case: Case) -> Table:
     # ── Build the Word table ──────────────────────────────────────────────────
     n_rows = len(display)
     table  = doc.add_table(rows=1 + n_rows, cols=3)
+    docx_style.apply_annex_style(table, style)
     tbl    = table._tbl
     tblPr  = tbl.find(qn("w:tblPr"))
     if tblPr is None:
@@ -755,15 +804,16 @@ def _build_mitre_word_table(doc, case: Case) -> Table:
     tblW.set(qn("w:type"), "pct")
     tblPr.append(tblW)
 
-    # Borders
-    BORDER = "9CA3AF"
-    tblBorders = OxmlElement("w:tblBorders")
-    for side, sz in [("top","12"),("left","12"),("bottom","12"),("right","12"),("insideH","6"),("insideV","4")]:
-        b = OxmlElement(f"w:{side}")
-        b.set(qn("w:val"), "single"); b.set(qn("w:sz"), sz)
-        b.set(qn("w:space"), "0");    b.set(qn("w:color"), BORDER)
-        tblBorders.append(b)
-    tblPr.append(tblBorders)
+    # Borders — the style's job when there is one
+    if style.paints:
+        BORDER = "9CA3AF"
+        tblBorders = OxmlElement("w:tblBorders")
+        for side, sz in [("top","12"),("left","12"),("bottom","12"),("right","12"),("insideH","6"),("insideV","4")]:
+            b = OxmlElement(f"w:{side}")
+            b.set(qn("w:val"), "single"); b.set(qn("w:sz"), sz)
+            b.set(qn("w:space"), "0");    b.set(qn("w:color"), BORDER)
+            tblBorders.append(b)
+        tblPr.append(tblBorders)
 
     # Column widths (approx): Tactic 25%, ID 20%, Name 55%
     COL_PCTS = [1250, 1000, 2750]  # out of 5000 twips
@@ -779,9 +829,12 @@ def _build_mitre_word_table(doc, case: Case) -> Table:
     # Header row
     hdr = table.rows[0].cells
     for i, (label, w) in enumerate(zip(["Tactic", "Technique ID", "Technique Name"], COL_PCTS, strict=True)):
-        _set_cell_bg(hdr[i], HEADER_COLOR); _set_col_w(hdr[i], w)
+        _set_col_w(hdr[i], w)
         run = hdr[i].paragraphs[0].add_run(label)
-        run.bold = True; run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF); run.font.size = Pt(9)
+        if style.paints:
+            _set_cell_bg(hdr[i], HEADER_COLOR)
+            run.bold = True; run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF); run.font.size = Pt(9)
+    docx_style.repeat_header_row(table)
 
     # Data rows
     prev_tactic = None
@@ -791,23 +844,26 @@ def _build_mitre_word_table(doc, case: Case) -> Table:
             _set_col_w(cells[c_i], w)
 
         if is_sub:
-            # Sub-technique row: light green background, indented ID
-            for c in cells: _set_cell_bg(c, SUB_BG.lstrip("#"))
-            cells[0].paragraphs[0].add_run("").font.size = Pt(8)   # blank tactic cell
+            # Sub-technique row: indented ID, and a green tint where Remora paints
+            cells[0].paragraphs[0].add_run("")                     # blank tactic cell
             id_run  = cells[1].paragraphs[0].add_run(f"  ↳ {tid}")
             name_run = cells[2].paragraphs[0].add_run(name)
-            for r in (id_run, name_run):
-                r.font.size = Pt(8)
-                r.font.color.rgb = RGBColor(0x16, 0x6A, 0x34)  # forest green
+            if style.paints:
+                for c in cells: _set_cell_bg(c, SUB_BG.lstrip("#"))
+                cells[0].paragraphs[0].runs[0].font.size = Pt(8)
+                for r in (id_run, name_run):
+                    r.font.size = Pt(8)
+                    r.font.color.rgb = RGBColor(0x16, 0x6A, 0x34)  # forest green
         else:
-            # Parent technique row: alternate shading
-            if r_i % 2 == 1:
+            # Parent technique row: alternate shading where Remora paints
+            if style.paints and r_i % 2 == 1:
                 for c in cells: _set_cell_bg(c, ALT_BG.lstrip("#"))
             tact_text = tact if tact != prev_tactic else ""  # only show tactic on first row of group
             prev_tactic = tact
             for c_i, (text, _w) in enumerate(zip([tact_text, tid, name], COL_PCTS, strict=True)):
                 run = cells[c_i].paragraphs[0].add_run(text)
-                run.font.size = Pt(8)
+                if style.paints:
+                    run.font.size = Pt(8)
                 if c_i == 1:  # technique ID — slightly bold
                     run.bold = True
 
@@ -990,6 +1046,11 @@ def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
 
     doc = Document(template_path)
 
+    # Who paints the annex tables - the template, the document, or Remora.
+    # Resolved once: four tables in three different looks would be worse than
+    # any one of the three.
+    annex = docx_style.annex_style(doc)
+
     # ── Table data ─────────────────────────────────────────────────────────────
     ioc_headers = ["Type", "Value", "Confidence", "TLP", "Description"]
     ioc_rows = (
@@ -1076,6 +1137,13 @@ def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
             # Combined backward compat alias
             _md_to_docx_paragraphs(doc, para, case.report or "")
 
+        elif block_tag == "toc":
+            # A real Word field. It reads the Heading 1-3 styles of the finished
+            # document, which is why it is resolved here and not generated: the
+            # headings do not exist until the sections have been written in, and
+            # a list rendered now would be stale the first time anyone edits.
+            docx_style.insert_toc_field(para)
+
         elif block_tag in ("attack_graph", "mitre_matrix_img"):
             # Image blocks — clear runs and embed a PNG picture
             for r_elem in list(para._p.findall(qn("w:r"))):
@@ -1099,15 +1167,15 @@ def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
         else:
             # Table blocks
             if block_tag == "ioc_table":
-                tbl = _build_word_table(doc, ioc_headers, ioc_rows, "7F1D1D")
+                tbl = _build_word_table(doc, ioc_headers, ioc_rows, "7F1D1D", annex)
             elif block_tag == "asset_table":
-                tbl = _build_word_table(doc, asset_headers, asset_rows, "1E3A5F")
+                tbl = _build_word_table(doc, asset_headers, asset_rows, "1E3A5F", annex)
             elif block_tag == "evidence_table":
-                tbl = _build_word_table(doc, evidence_headers, evidence_rows, "1E293B")
+                tbl = _build_word_table(doc, evidence_headers, evidence_rows, "1E293B", annex)
             elif block_tag == "mitre_matrix":
-                tbl = _build_mitre_word_table(doc, case)
+                tbl = _build_mitre_word_table(doc, case, annex)
             else:  # timeline_table
-                tbl = _build_word_table(doc, timeline_headers, timeline_rows, "14532D")
+                tbl = _build_word_table(doc, timeline_headers, timeline_rows, "14532D", annex)
 
             # Move the new table (currently at end of body) to replace the paragraph.
             para._p.addnext(tbl._tbl)
@@ -1189,8 +1257,10 @@ async def upload_template(
         raise HTTPException(400, "Uploaded file is empty")
 
     # Detect tags
+    annex: str | None = None
     if fmt == "docx":
-        tags = _detect_tags_docx(file_bytes)
+        tags  = _detect_tags_docx(file_bytes)
+        annex = _detect_annex_style(file_bytes)
     else:
         tags = _detect_tags(file_bytes.decode("utf-8", errors="replace"))
 
@@ -1207,6 +1277,7 @@ async def upload_template(
         file_path=str(dest),
         file_size=len(file_bytes),
         tags_detected=tags,
+        annex_style=annex,
         created_by=current_user.username,
     )
     db.add(tpl)
@@ -1215,7 +1286,8 @@ async def upload_template(
     # from it - it is configuration with the reach of content.
     audit_log(db, user=current_user, action="report_template.upload",
               resource_type="report_template", resource_name=name,
-              details={"format": fmt, "size": len(file_bytes), "tags": tags})
+              details={"format": fmt, "size": len(file_bytes), "tags": tags,
+                       "annex_style": annex})
     db.commit()
     db.refresh(tpl)
     return tpl

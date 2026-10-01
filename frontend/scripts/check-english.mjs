@@ -38,6 +38,10 @@ const FRENCH = [
   // Slipped through as "Une seule archive par upload": no accent, and every
   // other word in it is English or a shared spelling.
   'seul', 'seule', 'seuls', 'seules',
+  // Slipped through capitalised - "Echec", "Editer", "Etapes" - because the
+  // accent gate's character class was lower case only. The class is fixed, and
+  // these are here so the unaccented spellings cannot come back either.
+  'echec', 'editer', 'etape', 'etapes', 'envoi', 'titre', 'replier',
 ]
 
 const PATTERN = new RegExp(`(?<![\\w-])(${FRENCH.join('|')})(?![\\w-])`, 'gi')

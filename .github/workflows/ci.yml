@@ -37,9 +37,14 @@ jobs:
       # accent - "Scanner", "Fichiers", "Effacer", "attente" - is
       # `npm run check:english` in the frontend job. This one alone missed
       # French seven times in this project before that existed.
+      #
+      # The class was lower case only, and French capitalises the first letter
+      # of a label. So "Echec de l'envoi", "Editer titre et description" and
+      # "Etapes" - written with their real accents - sat in shipped pages while
+      # this gate reported clean. Both cases now.
       - name: Source is English (accents)
         run: |
-          if grep -rIn "[éèêàùçôîœâêûïëäöüñ]" backend/app frontend/src \
+          if grep -rIn "[éèêàùçôîœâêûïëäöüñÉÈÊÀÙÇÔÎŒÂÛÏËÄÖÜÑ]" backend/app frontend/src \
                --include='*.py' --include='*.ts' --include='*.tsx'; then
             echo "::error::Non-English source found. See docs/CONVENTIONS.md section 1."
             exit 1

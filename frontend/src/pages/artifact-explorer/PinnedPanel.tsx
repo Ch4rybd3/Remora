@@ -71,7 +71,7 @@ export function PinnedPanel({ pinned, onUnpin, onClear, onExport, onEdit, onRese
                 <div className="flex items-start gap-2 pr-5">
                   <button
                     onClick={() => toggleExpanded(item.key)}
-                    title={isOpen ? 'Replier' : 'Éditer titre et description'}
+                    title={isOpen ? 'Collapse' : 'Edit title and description'}
                     className="mt-0.5 shrink-0 text-fg-secondary/30 hover:text-accent transition-colors"
                   >
                     <ChevronRightIcon size={11} className={`transition-transform ${isOpen ? 'rotate-90' : ''}`} />
@@ -85,7 +85,7 @@ export function PinnedPanel({ pinned, onUnpin, onClear, onExport, onEdit, onRese
                       <p className="text-label font-mono text-fg/50 mt-0.5 truncate">{ts}</p>
                     )}
                     <p className="text-label text-fg/70 mt-0.5 leading-snug line-clamp-2">
-                      {item.title || <span className="text-fg-secondary/30 italic">Sans titre</span>}
+                      {item.title || <span className="text-fg-secondary/30 italic">Untitled</span>}
                     </p>
                     {!isOpen && item.description && (
                       <p className="text-label text-fg-secondary/35 truncate leading-snug">
@@ -147,8 +147,8 @@ export function PinnedPanel({ pinned, onUnpin, onClear, onExport, onEdit, onRese
           className="w-full flex items-center justify-center gap-1.5 text-label py-2 rounded-control border border-accent/30 text-accent bg-accent/5 hover:bg-accent/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
           {exporting
-            ? <><Loader2 size={11} className="animate-spin" /> Envoi…</>
-            : <><Download size={11} /> Exporter {pinned.length > 0 ? `${pinned.length} → ` : ''}Timeline</>
+            ? <><Loader2 size={11} className="animate-spin" /> Sending…</>
+            : <><Download size={11} /> Export {pinned.length > 0 ? `${pinned.length} → ` : ''}Timeline</>
           }
         </button>
         {pinned.length > 0 && (

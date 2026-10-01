@@ -204,7 +204,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
               onClick={() => setPanelView('steps')}
               className={`flex items-center gap-1.5 text-label px-3 py-1.5 transition-colors ${panelView === 'steps' ? 'bg-accent/10 text-accent' : 'text-fg-secondary hover:text-fg'}`}
             >
-              <List size={12} /> Étapes
+              <List size={12} /> Steps
             </button>
             <button
               onClick={() => setPanelView('graph')}
