@@ -7,12 +7,14 @@
  */
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { PageShell } from '../ui/PageShell'
+import ConversationMapView from '../components/pcap/ConversationMap'
 import { ArtifactFileList } from '../ui/ArtifactFileList'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { DataTable } from '../ui/DataTable'
 import {
   Network, Search, X, ChevronRight, BookmarkPlus, BookmarkCheck,
   Loader2, Download, AlertCircle, Filter, ArrowLeftRight, Copy, Check,
+  List, Spline,
 } from '../ui/icons'
 import { csvArtifactsApi, type CsvArtifactMeta } from '../api/csvArtifacts'
 import {
@@ -503,6 +505,7 @@ export default function PcapExplorer() {
   const [pinned,     setPinned]     = useState<PinnedPacket[]>([])
   const [exporting,  setExporting]  = useState(false)
   const [following,  setFollowing]  = useState<number | null>(null)
+  const [view,       setView]       = useState<'packets' | 'map'>('packets')
 
   useEffect(() => {
     const t = setTimeout(() => { setDebounced(search); setPage(1) }, 400)
@@ -667,7 +670,25 @@ export default function PcapExplorer() {
       <div className="h-full min-w-0 flex flex-col overflow-hidden">
         {/* Toolbar */}
         <div className="flex items-center gap-2 px-3 py-2 border-b border-hairline shrink-0">
-          <div className="relative flex-1 max-w-md">
+          {/* The packet list and the map answer different questions about the
+              same capture - what was on the wire, and what shape the network
+              is - so they are two views of it rather than two pages. */}
+          <div className="flex gap-1 border border-hairline rounded-control p-0.5 shrink-0">
+            {(['packets', 'map'] as const).map(name => (
+              <button
+                key={name}
+                onClick={() => setView(name)}
+                className={`flex items-center gap-1 px-2 py-0.5 text-label rounded-control capitalize transition-colors ${
+                  view === name
+                    ? 'bg-accent text-canvas font-semibold'
+                    : 'text-fg-secondary hover:text-fg'
+                }`}
+              >
+                {name === 'map' ? <Spline size={10} /> : <List size={10} />} {name}
+              </button>
+            ))}
+          </div>
+          <div className={`relative flex-1 max-w-md ${view === 'map' ? 'hidden' : ''}`}>
             <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-fg-secondary/30" />
             <input
               value={search}
@@ -682,13 +703,13 @@ export default function PcapExplorer() {
               </button>
             )}
           </div>
-          {debounced && (
+          {debounced && view === 'packets' && (
             <span className="text-label text-accent/60 flex items-center gap-1">
               <Filter size={9} /> {rows?.total ?? 0} packet(s)
             </span>
           )}
-          {isFetching && <Loader2 size={11} className="animate-spin text-accent/50" />}
-          <div className="ml-auto flex items-center gap-1.5 text-label text-fg-secondary/50">
+          {isFetching && view === 'packets' && <Loader2 size={11} className="animate-spin text-accent/50" />}
+          <div className={`ml-auto flex items-center gap-1.5 text-label text-fg-secondary/50 ${view === 'map' ? 'hidden' : ''}`}>
             <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
               className="px-2 py-0.5 rounded-control border border-hairline disabled:opacity-25 hover:text-fg">←</button>
             <span>page {page} / {totalPages}</span>
@@ -697,8 +718,12 @@ export default function PcapExplorer() {
           </div>
         </div>
 
+        {view === 'map' && active && caseId && (
+          <ConversationMapView caseId={caseId} artifactId={active.id} />
+        )}
+
         {/* Packet list */}
-        <div className="flex-1 min-h-0 overflow-auto">
+        <div className={`flex-1 min-h-0 overflow-auto ${view === 'map' ? 'hidden' : ''}`}>
           <DataTable
             density="compact"
             rows={rows?.items ?? []}

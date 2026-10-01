@@ -99,6 +99,15 @@ class Page:
 class Group:
     values: dict[str, str]
     count:  int
+    #: Totals of the numeric columns the caller asked to sum, by column name.
+    #: Empty unless `aggregate` was given `sums`.
+    #:
+    #: Counting rows answers "how many packets"; it cannot answer "how many
+    #: bytes", and a conversation map without volume is half a map. Rather than
+    #: grouping by the byte column - which turns a hundred conversations into
+    #: millions of groups - the backend adds the column up, which every engine
+    #: this interface could sit on does natively.
+    sums:   dict[str, float] = field(default_factory=dict)
 
 
 class ArtifactStore(Protocol):
@@ -124,9 +133,17 @@ class ArtifactStore(Protocol):
         ...
 
     def aggregate(
-        self, source: str | Source, columns: list[str], query: Query, group_by: list[str],
+        self, source: str | Source, columns: list[str], query: Query,
+        group_by: list[str], sums: list[str] | None = None,
     ) -> list[Group]:
-        """Counts per distinct combination of `group_by`. No row limit."""
+        """
+        Counts per distinct combination of `group_by`. No row limit.
+
+        `sums` names numeric columns to total alongside the count. A column that
+        does not parse as a number contributes zero rather than failing the
+        query: a packet-length column with one blank row in it is still worth
+        adding up.
+        """
         ...
 
     def find(
