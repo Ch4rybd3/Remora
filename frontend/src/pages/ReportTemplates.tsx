@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useMemo } from 'react'
 import { PageShell } from '../ui/PageShell'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  FileOutput, Upload, Trash2, Tag, Info,
+  FileOutput, Upload, Trash2, Tag, Info, Palette,
   ChevronDown, ChevronUp, X, Check, AlertCircle,
 } from '../ui/icons'
 import {
@@ -47,6 +47,8 @@ function TagPill({ tag, known }: { tag: string; known: Map<string, ReportTag> })
     ? 'bg-data-2/10 text-data-2 border-data-2/20'
     : meta.group === GROUP_ANNEX
     ? 'bg-accent/10 text-accent border-accent/20'
+    : meta.group === GROUP_DOCUMENT
+    ? 'bg-data-1/10 text-data-1 border-data-1/20'
     : 'bg-severity-low/10 text-severity-low border-severity-low/20'
 
   return (
@@ -54,6 +56,31 @@ function TagPill({ tag, known }: { tag: string; known: Map<string, ReportTag> })
       className={`text-label font-mono px-1.5 py-0.5 rounded-control border ${style}`}>
       {`{{${tag}}}`}
     </span>
+  )
+}
+
+// ── Annex design ───────────────────────────────────────────────────────────────
+
+/**
+ * Which design the annex tables of a DOCX template take.
+ *
+ * Shown because the convention has a silent fallback: a table style named
+ * `Remora Anex` matches nothing and every export uses Remora's own rendering
+ * instead, which looks exactly like the feature not working. Saying which
+ * branch the document landed on is how that typo gets found.
+ */
+function AnnexDesign({ style }: { style: string | null }) {
+  return style ? (
+    <p className="text-label text-data-1/70 mt-1 flex items-center gap-1">
+      <Palette size={10} />
+      Annex tables use the <span className="font-mono">{style}</span> style of this document
+    </p>
+  ) : (
+    <p className="text-label text-fg-secondary/30 mt-1 flex items-center gap-1">
+      <Palette size={10} />
+      Annex tables use Remora&apos;s own design — add a table style named{' '}
+      <span className="font-mono">Remora Annex</span> to take it over
+    </p>
   )
 }
 
@@ -88,6 +115,7 @@ function TemplateCard({
           <p className="text-label text-fg-secondary/30 mt-1">
             Imported {fmtDateTimeShort(tpl.created_at)}{tpl.created_by ? ` by ${tpl.created_by}` : ''}
           </p>
+          {tpl.format === 'docx' && <AnnexDesign style={tpl.annex_style} />}
         </div>
 
         <button
@@ -251,6 +279,7 @@ function UploadForm({ onDone }: { onDone: () => void }) {
 // ── Tag reference ─────────────────────────────────────────────────────────────
 
 const GROUP_METADATA = 'metadata'
+const GROUP_DOCUMENT = 'document'
 const GROUP_CONTENT  = 'content'
 const GROUP_ANNEX    = 'annex'
 
@@ -259,6 +288,7 @@ const GROUP_STYLE: Record<string, {
   border: string; header: string; badge: string; badgeText: string; codeColor: string
 }> = {
   [GROUP_METADATA]: { border: 'border-severity-low/15', header: 'text-severity-low/70', badge: 'bg-severity-low/8 border-severity-low/20 text-severity-low', badgeText: 'Metadata', codeColor: 'text-severity-low' },
+  [GROUP_DOCUMENT]: { border: 'border-data-1/20',       header: 'text-data-1/80',       badge: 'bg-data-1/8 border-data-1/20 text-data-1',                   badgeText: 'Structure', codeColor: 'text-data-1' },
   [GROUP_CONTENT]:  { border: 'border-data-2/20',       header: 'text-data-2/80',       badge: 'bg-data-2/8 border-data-2/20 text-data-2',                   badgeText: 'Report',   codeColor: 'text-data-2' },
   [GROUP_ANNEX]:    { border: 'border-accent/15',       header: 'text-accent/70',       badge: 'bg-accent/8 border-accent/20 text-accent',                   badgeText: 'Annex',    codeColor: 'text-accent' },
 }
