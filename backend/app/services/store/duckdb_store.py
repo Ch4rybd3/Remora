@@ -390,26 +390,43 @@ class DuckDBArtifactStore:
             conn.close()
 
     def aggregate(
-        self, source: str | Source, columns: list[str], query: Query, group_by: list[str],
+        self, source: str | Source, columns: list[str], query: Query,
+        group_by: list[str], sums: list[str] | None = None,
     ) -> list[Group]:
         valid = [c for c in group_by if c in set(columns)]
         if not valid:
             return []
+        totals = [c for c in (sums or []) if c in set(columns)]
 
         conn, _ = _open(source)
         try:
             where, params = build_where(columns, query)
             selected = ", ".join(f'CAST("{c}" AS VARCHAR) AS "{c}"' for c in valid)
             grouped = ", ".join(f'CAST("{c}" AS VARCHAR)' for c in valid)
+            # TRY_CAST, not CAST: a CSV column is text until proven otherwise,
+            # and one blank cell would otherwise fail the whole query. COALESCE
+            # because TRY_CAST answers NULL for the cell that did not parse.
+            summed = "".join(
+                f', SUM(COALESCE(TRY_CAST("{c}" AS DOUBLE), 0)) AS "_sum_{i}"'
+                for i, c in enumerate(totals)
+            )
 
             raw = conn.execute(
-                f"SELECT {selected}, COUNT(*) AS _count FROM _src {where} "
+                f"SELECT {selected}, COUNT(*) AS _count{summed} FROM _src {where} "
                 f"GROUP BY {grouped} ORDER BY {grouped} ASC",
                 params,
             ).fetchall()
 
+            width = len(valid)
             return [
-                Group(dict(zip(valid, row[: len(valid)], strict=True)), int(row[len(valid)]))
+                Group(
+                    values = dict(zip(valid, row[:width], strict=True)),
+                    count  = int(row[width]),
+                    sums   = {
+                        column: float(row[width + 1 + i] or 0)
+                        for i, column in enumerate(totals)
+                    },
+                )
                 for row in raw
             ]
         finally:
