@@ -278,8 +278,8 @@ describe('DataTable — multi-select', () => {
   it('extends the selection to a shift-clicked row', async () => {
     // Selecting thirty cases one at a time is the reason bulk actions get
     // avoided, so the range click is part of the feature, not a nicety.
-    // One `user` for the whole interaction: a held modifier only survives
-    // within a single session.
+    // One `user` for the whole interaction: a held Shift key only
+    // survives within a single session.
     const user = userEvent.setup()
     const onChange = vi.fn()
     table({ selection: { selected: new Set(), onChange } })
@@ -289,6 +289,7 @@ describe('DataTable — multi-select', () => {
     await user.click(screen.getByRole('checkbox', { name: /select 2/i }))
     await user.keyboard('{/Shift}')
 
-    expect([...onChange.mock.calls.at(-1)![0]].sort()).toEqual(['1', '2'])
+    const last = onChange.mock.calls[onChange.mock.calls.length - 1]
+    expect([...last[0]].sort()).toEqual(['1', '2'])
   })
 })

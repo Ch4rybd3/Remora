@@ -197,6 +197,11 @@ block_tag("mitre_matrix", GROUP_ANNEX,
           "only where sub-techniques are selected.")
 block_tag("mitre_matrix_img", GROUP_ANNEX,
           "MITRE ATT&CK matrix as a visual PNG image. DOCX only.")
+block_tag("timeline_portrait", GROUP_ANNEX,
+          "The timeline as a portrait figure: a central spine with events "
+          "alternating left and right, spaced by the real interval between them. "
+          "Long gaps are compressed and labelled with the duration they stand "
+          "for. Date, time and title only. DOCX only.")
 
 
 # ─── Reading the registry ─────────────────────────────────────────────────────
