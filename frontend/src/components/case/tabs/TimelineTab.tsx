@@ -47,9 +47,9 @@ const CUSTOM_COLOR = CUSTOM_TAG_COLOR
 
 /** Provenance badge — tells at a glance where an event came from. */
 const ORIGIN_META: Record<TimelineOrigin, { label: string; cls: string }> = {
-  manual:       { label: 'Manuel',       cls: 'bg-fg/5 text-fg-secondary border-hairline' },
+  manual:       { label: 'Manual',       cls: 'bg-fg/5 text-fg-secondary border-hairline' },
   incident_log: { label: 'Incident log', cls: 'bg-severity-low/10 text-severity-low border-severity-low/20' },
-  artifact:     { label: 'Artefact',     cls: 'bg-accent/10 text-accent/80 border-accent/20' },
+  artifact:     { label: 'Artifact',     cls: 'bg-accent/10 text-accent/80 border-accent/20' },
   ioc:          { label: 'IOC',          cls: 'bg-data-2/10 text-data-2 border-data-2/20' },
 }
 
@@ -84,8 +84,8 @@ function RawPayloadPanel({ entries, source }: { entries: [string, string][]; sou
         className="flex items-center gap-1 text-label text-fg-secondary/60 hover:text-accent transition-colors"
       >
         <ChevronRight size={11} className={`transition-transform ${open ? 'rotate-90' : ''}`} />
-        Event brut
-        <span className="text-fg-secondary/40">({entries.length} champs{source ? ` · ${source}` : ''})</span>
+        Raw event
+        <span className="text-fg-secondary/40">({entries.length} fields{source ? ` · ${source}` : ''})</span>
       </button>
 
       {open && (

@@ -127,7 +127,7 @@ function QuickTimelineModal({ caseId, onClose }: { caseId: string; onClose: () =
           {/* Actor */}
           <div>
             <label className="block text-label text-fg-muted uppercase tracking-wide mb-1">
-              Acteur <span className="text-fg-muted">(optionnel)</span>
+              Actor <span className="text-fg-muted">(optional)</span>
             </label>
             <input
               type="text"
@@ -141,7 +141,7 @@ function QuickTimelineModal({ caseId, onClose }: { caseId: string; onClose: () =
           {/* Description */}
           <div>
             <label className="block text-label text-fg-muted uppercase tracking-wide mb-1">
-              Description <span className="text-fg-muted">(optionnel)</span>
+              Description <span className="text-fg-muted">(optional)</span>
             </label>
             <textarea
               value={desc}
