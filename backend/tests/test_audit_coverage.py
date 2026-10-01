@@ -137,6 +137,20 @@ def test_the_pending_list_only_shrinks():
         f"PENDING is a ratchet - nothing may be added to it.")
 
 
+def test_the_ratchet_is_empty_and_stays_that_way():
+    """
+    It started at 56 routes that wrote nothing and ended at none.
+
+    `test_the_pending_list_only_shrinks` already stops a new route being added
+    to the list; this says the list is finished. Re-introducing it would need
+    deleting this test, which is a decision somebody has to make in the open
+    rather than a line quietly appended to a frozenset.
+    """
+    assert audit_routes.PENDING == frozenset(), (
+        "the ratchet was refilled: "
+        f"{sorted(audit_routes.PENDING)}")
+
+
 def test_the_ratchet_carries_no_route_that_already_audits():
     """
     Housekeeping that keeps the list honest: a route on PENDING whose handler

@@ -538,7 +538,7 @@ export default function Cases() {
             <div>
               <label className="label flex items-center gap-1.5">
                 <GitBranch size={11} /> Playbooks
-                <span className="normal-case font-normal text-fg-secondary/50">(optionnel)</span>
+                <span className="normal-case font-normal text-fg-secondary/50">(optional)</span>
               </label>
               <div className="flex flex-wrap gap-2 mt-1">
                 {allPlaybooks.map(pb => {

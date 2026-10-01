@@ -296,7 +296,19 @@ def delete_case(
 # ── Note images ───────────────────────────────────────────────────────────────
 
 @router.post("/{case_id}/notes/images")
-async def upload_note_image(case_id: str, file: UploadFile = File(...)):
+async def upload_note_image(
+    case_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    An image pasted into a case note.
+
+    Audited because the directory it lands in is **served without
+    authentication** - anything uploaded here is readable by anyone who can
+    guess the URL, and the trail is the only record of what was put there.
+    """
     dest_dir = NOTE_IMAGES_DIR / case_id
     dest_dir.mkdir(parents=True, exist_ok=True)
     ext = Path(file.filename or "image.png").suffix or ".png"
@@ -304,5 +316,12 @@ async def upload_note_image(case_id: str, file: UploadFile = File(...)):
     dest = dest_dir / filename
     with open(dest, "wb") as out:
         shutil.copyfileobj(file.file, out)
+
+    audit_log(db, user=current_user, action="case.note_image_upload",
+              resource_type="note_image", resource_id=filename,
+              resource_name=str(file.filename or filename), case_id=case_id,
+              details={"bytes": dest.stat().st_size})
+    db.commit()
+
     # Served by StaticFiles mounted at /note-images (no auth)
     return {"url": f"/note-images/{case_id}/{filename}"}

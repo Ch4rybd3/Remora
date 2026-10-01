@@ -1,13 +1,21 @@
 # ── Backend Dockerfile ────────────────────────────────────────────────────────
 # Build context is the project ROOT (not backend/).
 # docker-compose passes context: . so all paths below are relative to remora/
+#
+# Two stages, and the reason is measurable: several packages here build C
+# extensions, which needs gcc, g++ and four -dev packages - about 180 MB of
+# toolchain that nothing at runtime ever calls. A single-stage build shipped all
+# of it to every deployment.
+#
+# The builder compiles the wheels; the runtime image copies the installed tree
+# and keeps only the shared libraries those extensions link against. Both stages
+# start from the same base on purpose: the wheels are built against that exact
+# glibc and Python, and a different base would produce extensions the runtime
+# cannot load.
 
-FROM python:3.12-slim
+# ── Stage 1: build the Python dependencies ───────────────────────────────────
+FROM python:3.12-slim AS builder
 
-# System libraries required by C-extension packages
-# (cryptography, lxml, lief, some volatility3 plugins, …)
-# DEBIAN_FRONTEND: tshark's postinst asks whether non-root users may capture
-# packets, which would hang the build waiting on debconf.
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     gcc \
     g++ \
@@ -15,6 +23,25 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     libssl-dev \
     libxml2-dev \
     libxslt1-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# --prefix rather than the default location, so the result is one directory to
+# copy forward. `--no-cache-dir` keeps the wheel cache out of the layer.
+COPY backend/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir --prefix=/install -r /tmp/requirements.txt
+
+
+# ── Stage 2: the image that ships ────────────────────────────────────────────
+FROM python:3.12-slim
+
+# System libraries the C extensions link against at *run* time. The headers that
+# were needed to compile them are not here: `libxslt1.1`, not `libxslt1-dev`.
+# (cryptography, lxml, lief, some volatility3 plugins, …)
+# DEBIAN_FRONTEND: tshark's postinst asks whether non-root users may capture
+# packets, which would hang the build waiting on debconf.
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    libxml2 \
+    libxslt1.1 \
     libmagic1 \
     file \
     # ── CTI network tools (used by /api/v1/cti/command) ──────────────────
@@ -66,10 +93,12 @@ ENV DOTNET_CLI_HOME=/tmp \
 # directory handed to it at execution time. See backend/app/services/sandbox.py.
 RUN useradd --system --no-create-home --shell /usr/sbin/nologin remora-parser
 
-# ── Dependency layer (cached unless requirements.txt changes) ─────────────────
+# ── Dependency layer, built in stage 1 ───────────────────────────────────────
+# /usr/local is where this base image's Python looks, so the tree lands exactly
+# where a normal `pip install` would have put it - console scripts included.
+COPY --from=builder /install /usr/local
+
 WORKDIR /app
-COPY backend/requirements.txt ./backend/requirements.txt
-RUN pip install --no-cache-dir -r backend/requirements.txt
 
 # ── Application source ────────────────────────────────────────────────────────
 COPY backend/  ./backend/

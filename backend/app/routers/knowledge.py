@@ -131,10 +131,25 @@ def get_file(path: str = Query(...)):
 
 
 @router.put("/file")
-def save_file(payload: FileContent):
+def save_file(
+    payload: FileContent,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Overwrite a knowledge-base note.
+
+    The knowledge base holds procedures the whole team works from, and a save
+    replaces the previous content with no version behind it. Who rewrote which
+    note is the only record that it changed.
+    """
     full = _safe(payload.path)
     full.parent.mkdir(parents=True, exist_ok=True)
     full.write_text(payload.content, encoding="utf-8")
+    audit_log(db, user=current_user, action="knowledge.save",
+              resource_type="knowledge_file", resource_name=payload.path,
+              details={"bytes": len(payload.content)})
+    db.commit()
     return {"ok": True}
 
 
@@ -262,12 +277,28 @@ async def import_vault(
 
 
 @router.post("/images")
-async def upload_image(file: UploadFile = File(...)):
+async def upload_image(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    An image pasted into a knowledge-base note.
+
+    Audited for the same reason as a case note image: the directory it lands in
+    is served without authentication, so the trail is the only record of what
+    was put there.
+    """
     ext = Path(file.filename or "image.png").suffix or ".png"
     filename = f"{uuid.uuid4().hex}{ext}"
     dest = KNOWLEDGE_ASSETS_DIR / filename
     with open(dest, "wb") as out:
         shutil.copyfileobj(file.file, out)
+    audit_log(db, user=current_user, action="knowledge.image_upload",
+              resource_type="knowledge_image", resource_id=filename,
+              resource_name=str(file.filename or filename),
+              details={"bytes": dest.stat().st_size})
+    db.commit()
     return {"url": f"/knowledge-assets/{filename}"}
 
 

@@ -216,7 +216,7 @@ export default function AuditLog() {
                 onChange={e => setFilter('username', e.target.value)}
                 className="bg-panel border border-hairline rounded-control px-2 py-1.5 text-label text-fg focus:outline-none focus:border-accent/50"
               >
-                <option value="">Tous</option>
+                <option value="">All</option>
                 {meta?.usernames.map(u => <option key={u} value={u}>{u}</option>)}
               </select>
             </div>
@@ -245,7 +245,7 @@ export default function AuditLog() {
                 onChange={e => setFilter('resource_type', e.target.value)}
                 className="bg-panel border border-hairline rounded-control px-2 py-1.5 text-label text-fg focus:outline-none focus:border-accent/50"
               >
-                <option value="">Tous</option>
+                <option value="">All</option>
                 {meta?.resource_types.map(rt => <option key={rt} value={rt}>{rt}</option>)}
               </select>
             </div>

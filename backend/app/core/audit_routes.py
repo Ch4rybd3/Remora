@@ -214,41 +214,17 @@ EXEMPT: dict[tuple[str, str], str] = {
 }
 
 
-#: Declared, not yet implemented. A ratchet, exactly like the mypy one: a route
-#: may be **removed** from this list once its handler records an entry. Nothing
-#: may ever be **added** - a new route implements its audit or it does not merge.
+#: Empty, and it stays that way.
 #:
-#: Everything here predates the registry. The list is what "56 of 124 mutating
-#: routes wrote nothing" looks like once the ones that mattered most were done.
-PENDING: frozenset[tuple[str, str]] = frozenset({
-    ("PUT",    "/api/v1/cases/{case_id}/attack-graph"),
-    ("PUT",    "/api/v1/cases/{case_id}/attack-graph/snapshot"),
-    ("POST",   "/api/v1/cases/{case_id}/notes/images"),
-    ("POST",   "/api/v1/cases/{case_id}/report/save"),
-    ("POST",   "/api/v1/cases/{case_id}/ttp"),
-    ("PUT",    "/api/v1/cases/{case_id}/ttp/{ttp_id}"),
-    ("DELETE", "/api/v1/cases/{case_id}/ttp/{ttp_id}"),
-    ("DELETE", "/api/v1/cases/{case_id}/ttp/by-tech/{technique_id}"),
-    ("POST",   "/api/v1/cases/{case_id}/ttp/import-layer"),
-    ("POST",   "/api/v1/mitre/download"),
-    ("DELETE", "/api/v1/mitre/cache"),
-    ("POST",   "/api/v1/cases/{case_id}/emails/upload"),
-    ("DELETE", "/api/v1/cases/{case_id}/emails/{email_id}"),
-    ("POST",   "/api/v1/binary/{case_id}/files/{file_id}/reanalyse"),
-    ("POST",   "/api/v1/memory/{case_id}/dumps/{dump_id}/plugins/{plugin_id}/rerun"),
-    ("PUT",    "/api/v1/chainsaw/{case_id}/selection"),
-    ("POST",   "/api/v1/chainsaw/rules/custom/upload"),
-    ("DELETE", "/api/v1/chainsaw/rules/custom/{filename}"),
-    ("POST",   "/api/v1/chainsaw/rules/sigma/download"),
-    ("POST",   "/api/v1/clients/doc-templates"),
-    ("PATCH",  "/api/v1/clients/doc-templates/{template_id}"),
-    ("DELETE", "/api/v1/clients/doc-templates/{template_id}"),
-    ("PATCH",  "/api/v1/clients/{client_id}/documents/{doc_id}"),
-    ("PUT",    "/api/v1/connectors/{name}"),
-    ("DELETE", "/api/v1/connectors/{name}/key"),
-    ("PUT",    "/api/v1/knowledge/file"),
-    ("POST",   "/api/v1/knowledge/images"),
-})
+#: This was a ratchet, exactly like the mypy one: 56 of 124 mutating routes
+#: wrote nothing when the registry was built, and routes could only ever be
+#: **removed** from here. The last 27 were done in S25, so the list is now what
+#: it was always meant to become.
+#:
+#: Nothing may be added. A new mutating route either records an entry or is
+#: listed in EXEMPT with the reason it writes nothing - the tests in
+#: `test_audit_coverage.py` enforce both.
+PENDING: frozenset[tuple[str, str]] = frozenset()
 
 
 def action_for(method: str, template: str) -> str | None:

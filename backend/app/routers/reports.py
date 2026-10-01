@@ -11,6 +11,7 @@ from ..database import get_db
 from ..models.case import Case
 from ..models.report_version import ReportVersion
 from ..models.user import User
+from ..services.audit_service import audit_log
 from ..services.report_service import ReportService, sections_for
 from ..services.template_service import TemplateService
 
@@ -183,6 +184,16 @@ def save_report(
     for old in old_versions:
         db.delete(old)
 
+    # The report is what leaves the platform. Who wrote which version of it, and
+    # when, is the question an argument about a deliverable starts with - and
+    # the versions themselves are pruned, so the trail outlives them.
+    audit_log(db, user=current_user, action="report.save",
+              resource_type="report", resource_id=str(case_id),
+              resource_name=str(case.title), case_id=case_id,
+              case_title=str(case.title),
+              details={"version": next_version,
+                       "sections": sorted(payload.sections_data),
+                       "lines": version.line_count})
     db.commit()
     db.refresh(version)
     return version
