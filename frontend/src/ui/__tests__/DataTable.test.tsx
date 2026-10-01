@@ -202,3 +202,93 @@ describe('DataTable — per-column filters', () => {
   })
 })
 
+describe('DataTable — multi-select', () => {
+  const selectable = (
+    selected: string[] = [],
+    onChange = vi.fn(),
+  ) => {
+    const result = table({ selection: { selected: new Set(selected), onChange } })
+    return { ...result, onChange }
+  }
+
+  it('adds a checkbox per row and one in the header', () => {
+    selectable()
+    // Two rows plus the header.
+    expect(screen.getAllByRole('checkbox')).toHaveLength(3)
+  })
+
+  it('renders no checkbox column when no selection is given', () => {
+    table()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+  })
+
+  it('selects a row when its box is ticked', async () => {
+    const { onChange } = selectable()
+    await userEvent.click(screen.getByRole('checkbox', { name: /select 1/i }))
+    expect([...onChange.mock.calls[0][0]]).toEqual(['1'])
+  })
+
+  it('deselects a row that was already selected', async () => {
+    const { onChange } = selectable(['1'])
+    await userEvent.click(screen.getByRole('checkbox', { name: /select 1/i }))
+    expect([...onChange.mock.calls[0][0]]).toEqual([])
+  })
+
+  it('does not open the row when its checkbox is clicked', async () => {
+    const onRowClick = vi.fn()
+    table({ selection: { selected: new Set(), onChange: vi.fn() }, onRowClick })
+    await userEvent.click(screen.getByRole('checkbox', { name: /select 1/i }))
+    expect(onRowClick).not.toHaveBeenCalled()
+  })
+
+  it('selects every visible row from the header box', async () => {
+    const { onChange } = selectable()
+    await userEvent.click(screen.getByRole('checkbox', { name: /select all/i }))
+    expect([...onChange.mock.calls[0][0]].sort()).toEqual(['1', '2'])
+  })
+
+  it('clears every visible row when they are all already selected', async () => {
+    const { onChange } = selectable(['1', '2'])
+    await userEvent.click(screen.getByRole('checkbox', { name: /select all/i }))
+    expect([...onChange.mock.calls[0][0]]).toEqual([])
+  })
+
+  it('leaves a selection made outside this filter alone', async () => {
+    // The analyst picked a row, then filtered it out of view. Clearing the
+    // header box must not silently drop it.
+    const { onChange } = selectable(['1', '2', 'filtered-out'])
+    await userEvent.click(screen.getByRole('checkbox', { name: /select all/i }))
+    expect([...onChange.mock.calls[0][0]]).toEqual(['filtered-out'])
+  })
+
+  it('shows the third state when only some rows are selected', () => {
+    selectable(['1'])
+    const header = screen.getByRole('checkbox', { name: /select all/i }) as HTMLInputElement
+    expect(header.indeterminate).toBe(true)
+    expect(header.checked).toBe(false)
+  })
+
+  it('shows the header box checked when every row is selected', () => {
+    selectable(['1', '2'])
+    const header = screen.getByRole('checkbox', { name: /select all/i }) as HTMLInputElement
+    expect(header.checked).toBe(true)
+    expect(header.indeterminate).toBe(false)
+  })
+
+  it('extends the selection to a shift-clicked row', async () => {
+    // Selecting thirty cases one at a time is the reason bulk actions get
+    // avoided, so the range click is part of the feature, not a nicety.
+    // One `user` for the whole interaction: a held modifier only survives
+    // within a single session.
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    table({ selection: { selected: new Set(), onChange } })
+
+    await user.click(screen.getByRole('checkbox', { name: /select 1/i }))
+    await user.keyboard('{Shift>}')
+    await user.click(screen.getByRole('checkbox', { name: /select 2/i }))
+    await user.keyboard('{/Shift}')
+
+    expect([...onChange.mock.calls.at(-1)![0]].sort()).toEqual(['1', '2'])
+  })
+})

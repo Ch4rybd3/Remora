@@ -1,9 +1,13 @@
 import { useState, useMemo } from 'react'
+import type { ReactNode } from 'react'
 import { PageShell } from '../ui/PageShell'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, FolderOpen, Building2 } from '../ui/icons'
-import { casesApi } from '../api/cases'
+import {
+  Plus, Search, FolderOpen, Building2,
+  Check, ChevronDown, Loader2, Tag as TagIcon, Users, X,
+} from '../ui/icons'
+import { casesApi, type BulkCaseResult, type BulkCaseUpdate } from '../api/cases'
 import { templatesApi } from '../api/templates'
 import { usersApi } from '../api/auth'
 import { clientsApi } from '../api/clients'
@@ -47,6 +51,164 @@ const empty = (): Partial<Case> => ({
   case_type: 'ir', client_id: null,
 })
 
+// ── Bulk action bar ───────────────────────────────────────────────────────────
+
+const STATUS_CHOICES: CaseStatus[] = ['open', 'in_progress', 'closed', 'archived']
+const SEVERITY_CHOICES: CaseSeverity[] = ['informational', 'low', 'medium', 'high', 'critical']
+
+/** A dropdown that applies the moment a value is chosen. */
+function BulkMenu({ icon, label, options, onPick, busy }: {
+  icon: ReactNode
+  label: string
+  options: { value: string; label: string }[]
+  onPick: (value: string) => void
+  busy: boolean
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="relative">
+      <button
+        disabled={busy}
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 px-2.5 py-1.5 text-label rounded-control border border-hairline text-fg-secondary hover:text-fg hover:border-strong disabled:opacity-40 transition-colors"
+      >
+        {icon} {label} <ChevronDown size={10} />
+      </button>
+      {open && (
+        <>
+          {/* Clicking anywhere else closes it, including the bar behind. */}
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div className="absolute bottom-full mb-1 left-0 z-40 min-w-40 bg-panel border border-hairline rounded-control shadow-lg py-1">
+            {options.map(option => (
+              <button
+                key={option.value}
+                onClick={() => { setOpen(false); onPick(option.value) }}
+                className="w-full text-left px-3 py-1.5 text-label text-fg-secondary hover:bg-hover hover:text-fg capitalize transition-colors"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+/**
+ * What to do with the cases that are selected.
+ *
+ * Fixed to the bottom of the viewport rather than docked above the table: a
+ * selection is usually made by scrolling, and a bar at the top of a long list is
+ * off-screen by the time it is wanted.
+ *
+ * Every control applies immediately. Status and severity are reversible in the
+ * same two clicks that set them, so a confirmation step would cost more than the
+ * mistake does. There is deliberately no delete here.
+ */
+function BulkBar({ count, busy, assignees, onStatus, onSeverity, onAssign, onTags, onClear }: {
+  count: number
+  busy: boolean
+  assignees: string[]
+  onStatus:   (status: CaseStatus) => void
+  onSeverity: (severity: CaseSeverity) => void
+  onAssign:   (username: string) => void
+  onTags:     (add: string[], remove: string[]) => void
+  onClear:    () => void
+}) {
+  const [tagDraft, setTagDraft] = useState('')
+  const [tagsOpen, setTagsOpen] = useState(false)
+
+  const submitTags = (remove: boolean) => {
+    const tags = tagDraft.split(',').map(t => t.trim()).filter(Boolean)
+    if (tags.length === 0) return
+    onTags(remove ? [] : tags, remove ? tags : [])
+    setTagDraft('')
+    setTagsOpen(false)
+  }
+
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-4 py-2.5 bg-panel border border-strong rounded-control shadow-xl">
+      <span className="text-ui text-fg font-medium whitespace-nowrap">
+        {count} selected
+      </span>
+      <span className="w-px h-5 bg-hairline" />
+
+      <BulkMenu
+        busy={busy}
+        icon={<Check size={11} />}
+        label="Status"
+        options={STATUS_CHOICES.map(s => ({ value: s, label: s.replace('_', ' ') }))}
+        onPick={(value) => onStatus(value as CaseStatus)}
+      />
+      <BulkMenu
+        busy={busy}
+        icon={<ChevronDown size={11} />}
+        label="Severity"
+        options={SEVERITY_CHOICES.map(s => ({ value: s, label: s }))}
+        onPick={(value) => onSeverity(value as CaseSeverity)}
+      />
+      <BulkMenu
+        busy={busy}
+        icon={<Users size={11} />}
+        label="Assign"
+        options={assignees.map(name => ({ value: name, label: name }))}
+        onPick={onAssign}
+      />
+
+      <div className="relative">
+        <button
+          disabled={busy}
+          onClick={() => setTagsOpen(o => !o)}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-label rounded-control border border-hairline text-fg-secondary hover:text-fg hover:border-strong disabled:opacity-40 transition-colors"
+        >
+          <TagIcon size={11} /> Tags <ChevronDown size={10} />
+        </button>
+        {tagsOpen && (
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => setTagsOpen(false)} />
+            <div className="absolute bottom-full mb-1 right-0 z-40 w-64 bg-panel border border-hairline rounded-control shadow-lg p-3 space-y-2">
+              <input
+                autoFocus
+                className="input text-label"
+                placeholder="phishing, qakbot"
+                value={tagDraft}
+                onChange={e => setTagDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') submitTags(false) }}
+              />
+              <div className="flex gap-2">
+                <button onClick={() => submitTags(false)}
+                  className="flex-1 text-label py-1.5 rounded-control border border-accent/30 text-accent bg-accent/5 hover:bg-accent/10 transition-colors">
+                  Add to {count}
+                </button>
+                <button onClick={() => submitTags(true)}
+                  className="flex-1 text-label py-1.5 rounded-control border border-hairline text-fg-secondary hover:text-fg hover:border-strong transition-colors">
+                  Remove
+                </button>
+              </div>
+              <p className="text-label text-fg-muted">
+                Tags are added or removed, never replaced — each case keeps its own.
+              </p>
+            </div>
+          </>
+        )}
+      </div>
+
+      <span className="w-px h-5 bg-hairline" />
+      {busy
+        ? <Loader2 size={13} className="animate-spin text-accent" />
+        : (
+          <button onClick={onClear} title="Clear selection"
+            className="p-1 rounded-control text-fg-secondary/50 hover:text-fg transition-colors">
+            <X size={13} />
+          </button>
+        )}
+    </div>
+  )
+}
+
+
 export default function Cases() {
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -62,6 +224,8 @@ export default function Cases() {
   const [form, setForm] = useState<Partial<Case>>(empty())
   const [assigneeTags, setAssigneeTags] = useState<InputTag[]>([])
   const [selectedPlaybooks, setSelectedPlaybooks] = useState<string[]>([])
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkResult, setBulkResult] = useState<BulkCaseResult | null>(null)
 
   const { data: allPlaybooks = [] } = useQuery({
     queryKey: ['playbooks'],
@@ -92,6 +256,20 @@ export default function Cases() {
       return c
     },
     onSuccess: (c) => { qc.invalidateQueries({ queryKey: ['cases'] }); setModalOpen(false); navigate(`/cases/${c.id}`) },
+  })
+
+  const bulk = useMutation({
+    // The caller says what to change; the ids come from the selection, so no
+    // control has to remember to pass them.
+    mutationFn: (change: Omit<BulkCaseUpdate, 'case_ids'>) =>
+      casesApi.bulkUpdate({ ...change, case_ids: [...selected] }),
+    onSuccess: (result) => {
+      setBulkResult(result)
+      // The action is done, so the selection has served its purpose. Keeping it
+      // invites a second accidental apply on the same rows.
+      setSelected(new Set())
+      qc.invalidateQueries({ queryKey: ['cases'] })
+    },
   })
 
   const filtered = cases.filter(c => {
@@ -158,12 +336,31 @@ export default function Cases() {
                     : 'text-fg-secondary/50 border-transparent hover:text-fg hover:border-hairline'
                 }`}
               >
-                {t === 'all' ? 'Tous' : CASE_TYPE_META[t as CaseType]?.label ?? t}
+                {t === 'all' ? 'All' : CASE_TYPE_META[t as CaseType]?.label ?? t}
               </button>
             ))}
           </div>
         </div>
       </div>
+
+      {bulkResult && (
+        <div className="flex items-center gap-2 mb-3 px-3 py-2 border border-accent/20 bg-accent/5 rounded-control">
+          <Check size={12} className="text-accent shrink-0" />
+          <p className="text-label text-fg-secondary flex-1">
+            {bulkResult.updated.length} case{bulkResult.updated.length === 1 ? '' : 's'} updated
+            {bulkResult.fields.length > 0 && ` — ${bulkResult.fields.join(', ')}`}
+            {/* Reported rather than dropped: a case can be missing because
+                another analyst deleted it, or because this account cannot see
+                its client. Either way the analyst asked for it. */}
+            {bulkResult.skipped.length > 0 &&
+              `. ${bulkResult.skipped.length} not found or out of reach.`}
+          </p>
+          <button onClick={() => setBulkResult(null)}
+            className="p-0.5 rounded-control text-fg-secondary/40 hover:text-fg transition-colors">
+            <X size={11} />
+          </button>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="text-fg-secondary text-ui text-center py-16">Loading…</div>
@@ -178,6 +375,11 @@ export default function Cases() {
           <DataTable
             rows={filtered}
             rowKey={(c) => c.id}
+            selection={{
+              selected,
+              onChange: setSelected,
+              label: 'Select all cases shown',
+            }}
             onRowClick={(c) => navigate(`/cases/${c.id}`)}
             empty="No case matches these filters."
             columns={[
@@ -229,6 +431,19 @@ export default function Cases() {
             ]}
           />
         </Panel>
+      )}
+
+      {selected.size > 0 && (
+        <BulkBar
+          count={selected.size}
+          busy={bulk.isPending}
+          assignees={users.filter(u => u.is_active).map(u => u.username)}
+          onStatus={(status) => bulk.mutate({ status })}
+          onSeverity={(severity) => bulk.mutate({ severity })}
+          onAssign={(assigned_to) => bulk.mutate({ assigned_to })}
+          onTags={(add_tags, remove_tags) => bulk.mutate({ add_tags, remove_tags })}
+          onClear={() => setSelected(new Set())}
+        />
       )}
 
       {/* New Case modal */}

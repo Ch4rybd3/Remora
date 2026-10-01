@@ -13,13 +13,63 @@ from ..database import get_db
 from ..models.case import Case, CaseStatus
 from ..models.client import Client
 from ..models.user import User
-from ..schemas.case import CaseCreate, CaseRead, CaseSummary, CaseUpdate
+from ..schemas.case import (
+    BulkCaseResult,
+    BulkCaseUpdate,
+    CaseCreate,
+    CaseRead,
+    CaseSummary,
+    CaseUpdate,
+)
 from ..services.audit_service import audit_log
 from ..services.template_service import TemplateService
 
 NOTE_IMAGES_DIR = settings.evidence_store_path.parent / "note_images"
 
 router = APIRouter(prefix="/cases", tags=["cases"])
+
+
+# ── Shared field handling ─────────────────────────────────────────────────────
+
+def split_tags(raw: str | None) -> list[str]:
+    """A case's tag string as a list, in the order it was written."""
+    return [tag.strip() for tag in (raw or "").split(",") if tag.strip()]
+
+
+def merge_tags(current: str | None, add: list[str], remove: list[str]) -> str:
+    """
+    `current` with `add` appended and `remove` taken out, as a tag string.
+
+    Added rather than replaced, because a batch cannot know what each case
+    carried of its own. Matching is case-insensitive in both directions: an
+    analyst who types "Phishing" to remove the "phishing" they typed last week
+    means the same tag, and leaving both would be the surprise.
+    """
+    tags   = split_tags(current)
+    seen   = {tag.lower() for tag in tags}
+    for tag in add:
+        clean = tag.strip()
+        if clean and clean.lower() not in seen:
+            tags.append(clean)
+            seen.add(clean.lower())
+    dropped = {tag.strip().lower() for tag in remove if tag.strip()}
+    return ", ".join(tag for tag in tags if tag.lower() not in dropped)
+
+
+def apply_status(case: Case, new_status: CaseStatus) -> None:
+    """
+    Set the status and keep `closed_at` honest.
+
+    Closing stamped the date and reopening left it, so a reopened case reported
+    a closure date while its status said Open - and `{{case.closed_at}}` put
+    that date in a client's report. Reopening clears it now.
+    """
+    case.status = new_status
+    if new_status == CaseStatus.closed:
+        if case.closed_at is None:
+            case.closed_at = datetime.now(UTC)
+    else:
+        case.closed_at = None
 
 
 @router.get("/", response_model=list[CaseSummary])
@@ -121,6 +171,74 @@ def create_case(
     return case
 
 
+@router.patch("/bulk", response_model=BulkCaseResult)
+def bulk_update_cases(
+    payload: BulkCaseUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Apply one change to several cases.
+
+    **Declared before `/{case_id}`, and that matters.** FastAPI matches routes in
+    the order they are declared, so with this below the parameterised route
+    every call would arrive at `update_case` with `case_id="bulk"` and answer
+    404. A test pins the order rather than a comment asking nobody to move it.
+
+    **Scoping is explicit here.** Almost every case route carries the case id in
+    its path, which is what `enforce_permissions` checks. This one carries them
+    in the body, where that dependency cannot see them - so the query is filtered
+    the same way the case list is, and cases an account may not see come back as
+    skipped rather than quietly updated.
+
+    One audit entry per case, not one for the batch. The trail is read from a
+    case: "who closed this and when" has to be answerable from the case that was
+    closed, and an entry naming thirty others does not answer it.
+    """
+    if not payload.case_ids:
+        raise HTTPException(status_code=400, detail="No cases given")
+
+    visible = (
+        scoping.filter_cases(db.query(Case), current_user)
+        .filter(Case.id.in_(payload.case_ids))
+        .all()
+    )
+    by_id = {str(case.id): case for case in visible}
+
+    fields: list[str] = []
+    if payload.status      is not None: fields.append("status")
+    if payload.severity    is not None: fields.append("severity")
+    if payload.assigned_to is not None: fields.append("assigned_to")
+    if payload.add_tags or payload.remove_tags: fields.append("tags")
+    if not fields:
+        raise HTTPException(status_code=400, detail="No change requested")
+
+    now = datetime.now(UTC)
+    for case in visible:
+        if payload.status is not None:
+            apply_status(case, payload.status)
+        if payload.severity is not None:
+            case.severity = payload.severity
+        if payload.assigned_to is not None:
+            case.assigned_to = payload.assigned_to
+        if payload.add_tags or payload.remove_tags:
+            case.tags = merge_tags(
+                str(case.tags or ""), payload.add_tags, payload.remove_tags)
+        case.updated_at = now
+        audit_log(db, user=current_user, action="case.bulk_update",
+                  resource_type="case", resource_id=str(case.id),
+                  resource_name=str(case.title), case_id=str(case.id),
+                  case_title=str(case.title),
+                  details={"fields": fields, "batch_size": len(payload.case_ids)})
+    db.commit()
+
+    return BulkCaseResult(
+        updated = [str(case.id) for case in visible],
+        skipped = [cid for cid in payload.case_ids if cid not in by_id],
+        fields  = fields,
+    )
+
+
 @router.get("/{case_id}", response_model=CaseRead)
 def get_case(case_id: str, db: Session = Depends(get_db)):
     case = db.query(Case).filter(Case.id == case_id).first()
@@ -147,8 +265,8 @@ def update_case(
         updates["client_name"] = client.name
     for key, value in updates.items():
         setattr(case, key, value)
-    if "status" in updates and updates["status"] == CaseStatus.closed:
-        case.closed_at = datetime.now(UTC)
+    if "status" in updates and updates["status"] is not None:
+        apply_status(case, CaseStatus(updates["status"]))
     case.updated_at = datetime.now(UTC)
     audit_log(db, user=current_user, action="case.update",
               resource_type="case", resource_id=case_id,

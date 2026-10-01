@@ -25,6 +25,7 @@ from __future__ import annotations
 ACTIONS: dict[tuple[str, str], str] = {
     # ── Cases ────────────────────────────────────────────────────────────────
     ("POST",   "/api/v1/cases/"):                          "case.create",
+    ("PATCH",  "/api/v1/cases/bulk"):                      "case.bulk_update",
     ("PATCH",  "/api/v1/cases/{case_id}"):                 "case.update",
     ("DELETE", "/api/v1/cases/{case_id}"):                 "case.delete",
     ("POST",   "/api/v1/cases/{case_id}/notes/images"):    "case.note_image_upload",
