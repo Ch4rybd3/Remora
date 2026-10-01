@@ -858,7 +858,7 @@ export function ArtifactTableView({
           <button onClick={toggleAllGroups}
             className="flex items-center gap-1 px-2 py-1.5 rounded-control border border-hairline text-label text-fg-secondary hover:text-fg hover:border-strong transition-colors">
             {allExpanded
-              ? <><ChevronsLeft size={10} className="rotate-90" /> Replier tout</>
+              ? <><ChevronsLeft size={10} className="rotate-90" /> Collapse all</>
               : <><ChevronsRight size={10} className="rotate-90" /> Expand all</>
             }
           </button>

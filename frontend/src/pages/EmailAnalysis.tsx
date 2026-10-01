@@ -559,7 +559,7 @@ function SendEmailToTimeline({ result, caseId, filename }: {
           </p>
           {send.isError && (
             <p className="text-label text-severity-critical">
-              {(send.error as Error)?.message ?? 'Échec de l\'envoi'}
+              {(send.error as Error)?.message ?? 'Could not send the message'}
             </p>
           )}
         </div>

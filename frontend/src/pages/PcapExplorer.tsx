@@ -433,7 +433,7 @@ function PinnedPanel({ pinned, onUnpin, onClear, onEdit, onExport, exporting }: 
               <div key={item.key} className="group relative px-3 py-2.5 hover:bg-white/[0.02]">
                 <div className="flex items-start gap-2 pr-5">
                   <button onClick={() => toggle(item.key)}
-                    title={isOpen ? 'Replier' : 'Éditer titre et description'}
+                    title={isOpen ? 'Collapse' : 'Edit title and description'}
                     className="mt-0.5 shrink-0 text-fg-secondary/30 hover:text-accent transition-colors">
                     <ChevronRight size={11} className={`transition-transform ${isOpen ? 'rotate-90' : ''}`} />
                   </button>
@@ -479,8 +479,8 @@ function PinnedPanel({ pinned, onUnpin, onClear, onEdit, onExport, exporting }: 
         <button onClick={onExport} disabled={pinned.length === 0 || exporting}
           className="w-full flex items-center justify-center gap-1.5 text-label py-2 rounded-control border border-accent/30 text-accent bg-accent/5 hover:bg-accent/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
           {exporting
-            ? <><Loader2 size={11} className="animate-spin" /> Envoi…</>
-            : <><Download size={11} /> Exporter {pinned.length > 0 ? `${pinned.length} → ` : ''}Timeline</>}
+            ? <><Loader2 size={11} className="animate-spin" /> Sending…</>
+            : <><Download size={11} /> Export {pinned.length > 0 ? `${pinned.length} → ` : ''}Timeline</>}
         </button>
       </div>
     </div>
