@@ -42,6 +42,14 @@ const FRENCH = [
   // accent gate's character class was lower case only. The class is fixed, and
   // these are here so the unaccented spellings cannot come back either.
   'echec', 'editer', 'etape', 'etapes', 'envoi', 'titre', 'replier',
+  // Still on screen after two passes of this gate: "Manuel" and "Artefact" on
+  // timeline badges, "Acteur (optionnel)" on the quick-add form, "Tous" on two
+  // audit filters, "N champs" on the raw-event toggle.
+  //
+  // "artefact" is NOT here: it is a legitimate British spelling, and a gate
+  // that cries wolf gets disabled. Remora writes "artifact" everywhere, which
+  // is a consistency matter rather than a language one.
+  'acteur', 'optionnel', 'champ', 'champs', 'manuel', 'tous', 'toutes',
 ]
 
 const PATTERN = new RegExp(`(?<![\\w-])(${FRENCH.join('|')})(?![\\w-])`, 'gi')
