@@ -1,4 +1,4 @@
-import { Fragment } from 'react'
+import { Fragment, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 
 import { ArrowDown, ArrowUp } from './icons'
@@ -24,6 +24,23 @@ export interface Column<T> {
   hideBelow?: 'md' | 'lg' | 'xl'
 }
 
+/**
+ * Multi-select over the rows currently rendered.
+ *
+ * `selected` holds row keys, not rows: the set has to survive a refetch that
+ * replaces every object, and a key is the only thing that does.
+ *
+ * "Select all" means the rows the analyst can see, after their filters. Anything
+ * wider would be a promise the screen is not making - a header checkbox cannot
+ * claim three hundred cases nobody has looked at.
+ */
+export interface Selection {
+  selected: ReadonlySet<string>
+  onChange: (next: Set<string>) => void
+  /** Accessible name for the header checkbox, e.g. 'Select all cases'. */
+  label?: string
+}
+
 export interface DataTableProps<T> {
   columns: Column<T>[]
   rows: T[]
@@ -36,6 +53,12 @@ export interface DataTableProps<T> {
   leading?: { header?: ReactNode; width?: string; render: (row: T) => ReactNode }
   /** Right-aligned row actions, revealed on hover so the table stays quiet. */
   trailing?: { width?: string; render: (row: T) => ReactNode }
+  /**
+   * Checkbox column, left of everything, for acting on several rows at once.
+   * Shift-click extends from the last row clicked, because selecting thirty
+   * cases one at a time is the reason bulk actions get avoided.
+   */
+  selection?: Selection
   onRowClick?: (row: T) => void
   isRowSelected?: (row: T) => boolean
   /**
@@ -71,6 +94,38 @@ const HIDE = {
 } as const
 
 /**
+ * A header checkbox with the third state HTML has but no attribute for.
+ *
+ * "Some rows selected" is a real state and `checked` cannot express it, so it is
+ * set on the node. Without it, a half-selected table shows an empty box and the
+ * analyst cannot tell "none" from "seven of forty".
+ */
+function TriStateCheckbox({
+  checked, indeterminate, onChange, label,
+}: {
+  checked: boolean
+  indeterminate: boolean
+  onChange: () => void
+  label: string
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate
+  }, [indeterminate])
+
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      className="w-3.5 h-3.5 accent-accent align-middle"
+      checked={checked}
+      aria-label={label}
+      onChange={onChange}
+    />
+  )
+}
+
+/**
  * One table for the whole product.
  *
  * Before this existed there were twelve header styles, nine row styles and four
@@ -93,6 +148,7 @@ export function DataTable<T>({
   rowKey,
   leading,
   trailing,
+  selection,
   onRowClick,
   isRowSelected,
   renderExpanded,
@@ -106,6 +162,38 @@ export function DataTable<T>({
   className = '',
 }: DataTableProps<T>) {
   const pad = density === 'compact' ? 'px-2 py-1.5' : 'px-4 py-2.5'
+
+  // Where the last checkbox click landed, so shift-click knows what to extend.
+  const anchor = useRef<number | null>(null)
+  const keys = rows.map(rowKey)
+  const selectedHere = keys.filter((key) => selection?.selected.has(key))
+  const allSelected  = keys.length > 0 && selectedHere.length === keys.length
+
+  const toggleRow = (index: number, shift: boolean) => {
+    if (!selection) return
+    const next = new Set(selection.selected)
+    const from = shift && anchor.current !== null ? anchor.current : index
+    const turningOn = !next.has(keys[index])
+    for (let i = Math.min(from, index); i <= Math.max(from, index); i++) {
+      if (turningOn) next.add(keys[i])
+      else next.delete(keys[i])
+    }
+    anchor.current = index
+    selection.onChange(next)
+  }
+
+  const toggleAll = () => {
+    if (!selection) return
+    const next = new Set(selection.selected)
+    // Rows outside this filter keep whatever state they had: clearing them
+    // would silently drop a selection the analyst made before filtering.
+    for (const key of keys) {
+      if (allSelected) next.delete(key)
+      else next.add(key)
+    }
+    anchor.current = null
+    selection.onChange(next)
+  }
 
   const headerCell = (
     key: string,
@@ -137,13 +225,22 @@ export function DataTable<T>({
     )
   }
 
-  const colCount = columns.length + (leading ? 1 : 0) + (trailing ? 1 : 0)
+  const colCount =
+    columns.length + (leading ? 1 : 0) + (trailing ? 1 : 0) + (selection ? 1 : 0)
 
   return (
     <div className={`min-w-0 overflow-x-auto ${className}`}>
       <table className="w-full border-collapse">
         <thead className={stickyHeader ? 'sticky top-0 z-10 bg-panel' : 'bg-panel'}>
           <tr className="border-b border-hairline">
+            {selection && headerCell('__selection', (
+              <TriStateCheckbox
+                checked={allSelected}
+                indeterminate={selectedHere.length > 0 && !allSelected}
+                onChange={toggleAll}
+                label={selection.label ?? 'Select all rows'}
+              />
+            ), { width: 'w-9' })}
             {leading && headerCell('__leading', leading.header ?? '', { width: leading.width ?? 'w-8' })}
             {columns.map((c) =>
               headerCell(c.key, c.header, {
@@ -158,6 +255,7 @@ export function DataTable<T>({
 
           {renderFilter && (
             <tr className="border-b border-hairline">
+              {selection && <th className={pad} />}
               {leading && <th className={pad} />}
               {columns.map((c) => (
                 <th
@@ -185,8 +283,9 @@ export function DataTable<T>({
             ))}
 
           {!loading &&
-            rows.map((row) => {
+            rows.map((row, index) => {
               const selected = isRowSelected?.(row) ?? false
+              const checked  = selection?.selected.has(keys[index]) ?? false
               const expanded = renderExpanded?.(row) ?? null
               return (
                 <Fragment key={rowKey(row)}>
@@ -199,6 +298,19 @@ export function DataTable<T>({
                       ? 'bg-accent/5 border-l-2 border-l-accent/40'
                       : 'border-l-2 border-l-transparent hover:bg-hover'}`}
                 >
+                  {selection && (
+                    // The checkbox must not open the row it sits on.
+                    <td className={pad} onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        className="w-3.5 h-3.5 accent-accent align-middle"
+                        checked={checked}
+                        aria-label={`Select ${keys[index]}`}
+                        onChange={() => undefined}
+                        onClick={(e) => toggleRow(index, e.shiftKey)}
+                      />
+                    </td>
+                  )}
                   {leading && (
                     // The pin must not open the row it sits on.
                     <td className={pad} onClick={(e) => e.stopPropagation()}>

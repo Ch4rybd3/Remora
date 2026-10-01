@@ -39,7 +39,7 @@ from ..models.attack_graph import AttackGraph
 from ..models.case import Case
 from ..models.report_doc_template import ReportDocTemplate
 from ..models.user import User
-from ..services import docx_style, report_tags
+from ..services import docx_style, report_tags, timeline_chart
 from ..services.audit_service import audit_log
 from ..services.graph_render import render_attack_graph_png
 from ..services.template_service import TemplateService
@@ -523,6 +523,7 @@ def _render_markdown(template_text: str, case: Case, ctx: dict[str, str]) -> str
     text = text.replace("{{attack_graph}}", "_[Attach the attack graph image - Export PNG in the Attack Graph tab]_")
     text = text.replace("{{mitre_matrix}}", _md_mitre_matrix(case))
     text = text.replace("{{mitre_matrix_img}}", "_[MITRE ATT&CK matrix image - available in DOCX export only]_")
+    text = text.replace("{{timeline_portrait}}", "_[Timeline figure - available in DOCX export only. The table above lists the same events.]_")
     # The report's sections, derived from the case rather than from any list
     for slug, content in report_tags.section_tags(case).items():
         text = text.replace(f"{{{{{slug}}}}}",
@@ -1144,7 +1145,7 @@ def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
             # a list rendered now would be stale the first time anyone edits.
             docx_style.insert_toc_field(para)
 
-        elif block_tag in ("attack_graph", "mitre_matrix_img"):
+        elif block_tag in ("attack_graph", "mitre_matrix_img", "timeline_portrait"):
             # Image blocks — clear runs and embed a PNG picture
             for r_elem in list(para._p.findall(qn("w:r"))):
                 para._p.remove(r_elem)
@@ -1153,6 +1154,11 @@ def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
                 png        = attack_graph_png
                 embed_w    = 6.0
                 placeholder = "[Attack graph not available — no data recorded]"
+            elif block_tag == "timeline_portrait":
+                figure     = timeline_chart.render_timeline_portrait(list(case.timeline or []))
+                png        = figure[0] if figure else None
+                embed_w    = figure[1] if figure else 6.0
+                placeholder = "[Timeline figure — no events recorded]"
             else:  # mitre_matrix_img
                 result     = _render_mitre_matrix_png(case)
                 png        = result[0] if result else None

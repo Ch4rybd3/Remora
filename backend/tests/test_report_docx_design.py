@@ -336,3 +336,58 @@ def test_a_heading_inside_a_code_block_is_not_a_heading():
 
 def test_a_report_with_no_headings_says_so():
     assert "No headings" in docx_style.markdown_toc("Just a paragraph.")
+
+
+# ─── The timeline figure ──────────────────────────────────────────────────────
+
+def test_the_timeline_figure_is_embedded_as_a_picture(auth_client, db_session):
+    """
+    `{{timeline_table}}` answers "what happened"; the figure answers "when,
+    relative to everything else". It has to reach the document as an image -
+    the block tag scan is where a new figure tag silently becomes literal
+    `{{timeline_portrait}}` text in a client's deliverable.
+    """
+    import uuid
+    from datetime import datetime, timedelta
+
+    from app.models.case import Case
+    from app.models.timeline import TimelineEvent
+
+    case_id = str(uuid.uuid4())
+    db_session.add(Case(id=case_id, title="Figure"))
+    db_session.flush()
+    start = datetime(2026, 3, 14, 9, 0)
+    for minutes, title in [(0, "Phish delivered"), (6, "Macro run"), (4000, "Exfiltration")]:
+        db_session.add(TimelineEvent(case_id=case_id, title=title,
+                                     event_ts=start + timedelta(minutes=minutes)))
+    db_session.commit()
+
+    template = _upload(auth_client, "figure", _template_bytes(["{{timeline_portrait}}"]))
+    doc = _generate(auth_client, template, case_id)
+
+    assert doc.element.body.findall(f".//{W}drawing"), "no picture in the document"
+    assert "{{timeline_portrait}}" not in "\n".join(p.text for p in doc.paragraphs)
+
+
+def test_a_case_with_no_events_says_so_rather_than_embedding_an_empty_frame(
+        auth_client, case_with_annexes):
+    template = _upload(auth_client, "figure-empty",
+                       _template_bytes(["{{timeline_portrait}}"]))
+    doc = _generate(auth_client, template, case_with_annexes)
+
+    assert "no events recorded" in "\n".join(p.text for p in doc.paragraphs).lower()
+
+
+def test_the_markdown_export_points_at_the_table_instead(auth_client, case_with_annexes):
+    """Markdown cannot carry the figure, and a literal tag is never the answer."""
+    response = auth_client.post(
+        "/api/v1/report-doc-templates/upload",
+        data={"name": "figure md", "description": ""},
+        files={"file": ("fig.md", b"{{timeline_portrait}}", "text/markdown")},
+    )
+    text = auth_client.post(
+        f"/api/v1/report-doc-templates/{response.json()['id']}/generate/{case_with_annexes}"
+    ).content.decode()
+
+    assert "{{timeline_portrait}}" not in text
+    assert "DOCX" in text

@@ -60,6 +60,34 @@ page breaks. Those say what the table *means*, not how it looks.
 
 ---
 
+## The timeline figure
+
+`{{timeline_portrait}}` draws the case timeline as a portrait figure: a central
+spine, events alternating left and right, each carrying its date, its time and
+its title and nothing else.
+
+It exists because `{{timeline_table}}` cannot show distance. Forty rows of equal
+height hide the difference between six events in ninety seconds and a gap of
+three weeks, and that difference is usually the shape of the incident. Place
+both: the figure for the shape, the table for the detail.
+
+**Spacing is the real interval between events**, scaled so that the *median*
+interval of this case is a comfortable step. Everything else reads relative to
+that, so a twenty-minute attack and a six-month dwell both come out right with
+nothing to configure.
+
+**A gap beyond four times the median becomes a break** — two slashes across the
+spine, labelled with the duration it stands for (`21 d 9 h`). Compressed, never
+dropped.
+
+**It is sized to fit one page.** A case with more events than can be drawn
+legibly shows as many as fit and ends with *"+ 23 later events — see the
+timeline annex"*, rather than shrinking until nothing is readable.
+
+DOCX only. In Markdown the tag renders a line pointing at the table.
+
+---
+
 ## The table of contents
 
 `{{toc}}` becomes a real Word `TOC` field, built from the `Heading 1` to
@@ -123,6 +151,7 @@ list of the headings, with anchors.
 | `{{attack_graph}}` | block | Attack graph as a PNG image. DOCX only - Markdown gets a placeholder telling the analyst to export the PNG from the Attack Graph tab. |
 | `{{mitre_matrix}}` | block | MITRE ATT&CK coverage as a text table. Parent techniques are expanded only where sub-techniques are selected. |
 | `{{mitre_matrix_img}}` | block | MITRE ATT&CK matrix as a visual PNG image. DOCX only. |
+| `{{timeline_portrait}}` | block | The timeline as a portrait figure: a central spine with events alternating left and right, spaced by the real interval between them. Long gaps are compressed and labelled with the duration they stand for. Date, time and title only. DOCX only. |
 
 <!-- END GENERATED TAGS -->
 

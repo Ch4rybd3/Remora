@@ -45,6 +45,40 @@ class CaseUpdate(BaseModel):
     report_sections_data: str | None = None
 
 
+class BulkCaseUpdate(BaseModel):
+    """
+    One change applied to several cases.
+
+    Only the fields an analyst would reasonably set on a batch: a sweep of
+    triage at the end of a week closes thirty cases, reassigns a handful and
+    tags a campaign. Everything else about a case is written one case at a time,
+    where the context for it is.
+
+    Deliberately not here: delete. A bulk delete is one mis-click away from
+    removing an investigation, and there is no undo for it.
+    """
+    case_ids:    list[str]
+    status:      CaseStatus | None = None
+    severity:    CaseSeverity | None = None
+    assigned_to: str | None = None
+    #: Tags are added and removed, never replaced. A batch that overwrote the
+    #: tag list would silently discard whatever each case carried of its own.
+    add_tags:    list[str] = []
+    remove_tags: list[str] = []
+
+
+class BulkCaseResult(BaseModel):
+    """What the batch actually did, per case."""
+    #: Cases changed. A case the update would leave identical is still here -
+    #: the analyst asked for a state, and it holds.
+    updated:   list[str]
+    #: Asked for but not found, or belonging to a client this account cannot
+    #: see. Reported rather than silently dropped.
+    skipped:   list[str]
+    #: Which fields the batch set, for the message the interface shows.
+    fields:    list[str]
+
+
 class CaseRead(CaseBase):
     id: str
     created_at: datetime
