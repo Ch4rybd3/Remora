@@ -539,6 +539,11 @@ def reanalyse(
     f.status      = "pending"
     f.error_msg   = None
     f.analysed_at = None
+    # The password was accepted, so the sample was decrypted in memory. That is
+    # the half worth recording: who was able to read this binary, and when.
+    audit_log(db, user=cur_user, action="binary.reanalyse",
+              resource_type="binary", resource_id=str(file_id),
+              resource_name=str(f.filename), case_id=case_id)
     db.commit()
 
     bg.add_task(_analyse_in_background, file_id, raw)
