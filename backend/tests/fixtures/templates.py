@@ -39,6 +39,8 @@ REFERENCE_SECTIONS: dict[str, str] = {
         "- Initial access: T1566.001\n"
         "- Execution: T1059.001\n"
     ),
+    "remediation": "WKS-042 was isolated and reimaged.",
+    "conclusion":  "No lateral movement was observed.",
     "containment": "",
 }
 
@@ -86,6 +88,18 @@ def case_template() -> dict:
                 "template": "### Root cause\n\nDetail the attack path.\n",
             },
             {
+                "name":     "Remediation",
+                "category": "remediation",
+                "template": "What was done, by whom, and when.\n",
+            },
+            {
+                "name":     "Conclusion",
+                "category": "conclusion",
+                "template": "What it amounted to, and what to change.\n",
+            },
+            {
+                # Declared and left unwritten on purpose: an unwritten section
+                # must render as a marked placeholder rather than vanish.
                 "name":     "Containment",
                 "category": "remediation",
                 "template": "What was isolated, and when.\n",

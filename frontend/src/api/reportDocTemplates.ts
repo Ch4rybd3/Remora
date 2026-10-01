@@ -35,8 +35,10 @@ export const reportDocTemplatesApi = {
    * language and six in another while the exporter supported a different set
    * again.
    */
-  availableTags: async (): Promise<ReportTag[]> => {
-    const res = await api.get<ReportTag[]>('/report-doc-templates/tags')
+  availableTags: async (caseTemplateId?: string | null): Promise<ReportTag[]> => {
+    const res = await api.get<ReportTag[]>('/report-doc-templates/tags', {
+      params: caseTemplateId ? { case_template_id: caseTemplateId } : undefined,
+    })
     return res.data
   },
 

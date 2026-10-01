@@ -8,6 +8,8 @@ import {
 import {
   reportDocTemplatesApi, type ReportDocTemplate, type ReportTag,
 } from '../api/reportDocTemplates'
+import { templatesApi } from '../api/templates'
+import { CopyTagButton } from '../ui/CopyTagButton'
 import { fmtDateTimeShort } from '../utils/dateUtils'
 import { fmtBytes as fmtSize } from '../utils/formatUtils'
 
@@ -278,8 +280,15 @@ function groupTags(tags: ReportTag[]): { group: string; label: string; tags: Rep
   }))
 }
 
-function TagReference({ open, onClose, tags, loading }: {
-  open: boolean; onClose: () => void; tags: ReportTag[]; loading: boolean
+function TagReference({ open, onClose, tags, loading, caseTemplates,
+                       caseTemplateId, onCaseTemplateChange }: {
+  open: boolean
+  onClose: () => void
+  tags: ReportTag[]
+  loading: boolean
+  caseTemplates: { id: string; name: string }[]
+  caseTemplateId: string
+  onCaseTemplateChange: (id: string) => void
 }) {
   if (!open) return null
   const groups = groupTags(tags)
@@ -299,6 +308,31 @@ function TagReference({ open, onClose, tags, loading }: {
         Place these tags in your DOCX or Markdown file using double braces <code className="font-mono text-label bg-fg/5 px-1 rounded-control">{'{{tag}}'}</code>.
         Block tags (Report &amp; Annexes) must sit <em>alone on their own paragraph or line</em> in the DOCX template.
       </p>
+
+      {/* The half of the vocabulary that is not fixed. A report template is
+          written against a kind of investigation, and which section tags exist
+          depends on the case template that kind uses - which this panel could
+          not previously say at all. */}
+      <div className="border border-severity-low/25 bg-severity-low/5 px-3 py-2.5 space-y-2">
+        <p className="text-label text-fg/70 flex items-start gap-1.5">
+          <Info size={11} className="mt-0.5 shrink-0 text-severity-low" />
+          <span>
+            <strong>The report's own sections come from the case template</strong>, not
+            from this list. Pick one to see the section tags a report written for it can
+            place.
+          </span>
+        </p>
+        <select
+          value={caseTemplateId}
+          onChange={e => onCaseTemplateChange(e.target.value)}
+          className="w-full bg-fg/5 border border-hairline rounded-control px-2 py-1 text-label text-fg outline-none focus:border-strong transition-colors"
+        >
+          <option value="">Registry only - no case template selected</option>
+          {caseTemplates.map(t => (
+            <option key={t.id} value={t.id}>{t.name}</option>
+          ))}
+        </select>
+      </div>
 
       {/* Visual structure reminder */}
       <div className=" border border-hairline bg-white/[0.02] px-4 py-3 font-mono text-label leading-6 text-fg-secondary/50 space-y-0.5">
@@ -340,6 +374,7 @@ function TagReference({ open, onClose, tags, loading }: {
                   >
                     <code className={`text-label font-mono shrink-0 mt-0.5 ${st.codeColor}`}>{`{{${t.name}}}`}</code>
                     <span className="text-label text-fg-secondary/60 flex-1">{t.description}</span>
+                    <CopyTagButton name={t.name} />
                   </div>
                 ))}
               </div>
@@ -349,9 +384,9 @@ function TagReference({ open, onClose, tags, loading }: {
       </div>
 
       <p className="text-label text-fg-secondary/40 leading-relaxed">
-        The report sections you create in a case's Report tab are tags too, named after
-        their slug. They are per-case, so they are not listed here - and a section may
-        not take the name of a tag above.
+        A section may not take the name of a registered tag above - <code className="font-mono">{'{{ioc_table}}'}</code>{' '}
+        stays the IOC table whatever a section is called. Section tags are shown in the
+        case template editor too, beside the section they belong to.
       </p>
     </div>
   )
@@ -364,6 +399,15 @@ export default function ReportTemplates() {
   const [showUpload, setShowUpload] = useState(false)
   const [showRef, setShowRef] = useState(false)
 
+  /**
+   * Which case template the author is writing a report for.
+   *
+   * Not persisted: it is a lens on the reference panel, not a property of a
+   * report template - the same report template is legitimately used for
+   * several kinds of investigation.
+   */
+  const [refCaseTemplate, setRefCaseTemplate] = useState('')
+
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ['report-doc-templates'],
     queryFn: reportDocTemplatesApi.list,
@@ -371,10 +415,16 @@ export default function ReportTemplates() {
 
   // The tag vocabulary, straight from the backend registry. Cached for the
   // session: it only changes when the application does.
+  const { data: caseTemplates = [] } = useQuery({
+    queryKey: ['templates'],
+    queryFn:  templatesApi.list,
+    staleTime: 60_000,
+  })
+
   const { data: tagCatalogue = [], isLoading: loadingTags } = useQuery({
-    queryKey: ['report-doc-template-tags'],
-    queryFn:  reportDocTemplatesApi.availableTags,
-    staleTime: Infinity,
+    queryKey: ['report-doc-template-tags', refCaseTemplate || null],
+    queryFn:  () => reportDocTemplatesApi.availableTags(refCaseTemplate || null),
+    staleTime: 60_000,
   })
 
   const knownTags = useMemo(
@@ -410,8 +460,13 @@ export default function ReportTemplates() {
       <div className="max-w-4xl mx-auto space-y-6">
 
       {/* Tag reference panel */}
-      <TagReference open={showRef} onClose={() => setShowRef(false)}
-                    tags={tagCatalogue} loading={loadingTags} />
+      <TagReference
+        open={showRef} onClose={() => setShowRef(false)}
+        tags={tagCatalogue} loading={loadingTags}
+        caseTemplates={caseTemplates.map(t => ({ id: t.id, name: t.name }))}
+        caseTemplateId={refCaseTemplate}
+        onCaseTemplateChange={setRefCaseTemplate}
+      />
 
       {/* Upload form */}
       {showUpload && <UploadForm onDone={() => setShowUpload(false)} />}

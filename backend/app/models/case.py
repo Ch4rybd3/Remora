@@ -49,15 +49,18 @@ class Case(Base):
 
     executive_summary = Column(Text, default="")
     quick_notes = Column(Text, default="")
-    report = Column(Text, default="")            # legacy combined field — kept for backward compat
+    #: Every section concatenated, in template order. What `{{report_content}}`
+    #: injects and what a version snapshot stores - derived from the sections
+    #: on every save, never edited directly.
+    report = Column(Text, default="")
 
-    # ── Report sections (split editor) ─────────────────────────────────────────
-    report_analysis    = Column(Text, default="")   # Analyse Technique  → {{report_analysis}}
-    report_remediation = Column(Text, default="")   # Remediations       -> {{report_remediation}}
-    report_conclusion  = Column(Text, default="")   # Conclusion         → {{report_conclusion}}
-
-    # Dynamic per-section content — JSON dict {slug: markdown_text}
-    # Used when the case template defines report_sections with explicit tags/slugs.
+    #: The report itself: a JSON dict of {slug: markdown}, one entry per
+    #: section the case template declares.
+    #:
+    #: There used to be three fixed columns beside this one, and the Report tab
+    #: chose between them and this depending on whether the template declared
+    #: sections - so one case could hold content in two shapes and the exporter
+    #: had four tags for the same material. See services/report_service.py.
     report_sections_data = Column(Text, default="{}")
 
     created_at = Column(DateTime, default=lambda: datetime.now(UTC))

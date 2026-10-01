@@ -119,16 +119,26 @@ def _setup_playbooks() -> None:
 
 
 def _setup_report_sections() -> None:
-    """Add report_analysis / report_remediation / report_conclusion columns to cases."""
+    """
+    Add `report_sections_data` to cases if an old instance lacks it.
+
+    It used to add the three fixed section columns as well, and a migration now
+    drops them - so it was re-creating, on every boot, exactly what the upgrade
+    had just removed. A fixup that fights a migration is worse than no fixup:
+    the schema ends up depending on which ran last.
+
+    That is the failure mode this whole legacy list exists to avoid, which is
+    why it is being deleted rather than corrected in place. This is the last
+    one that touches `cases`.
+    """
     with engine.connect() as conn:
-        for col in ("report_analysis", "report_remediation", "report_conclusion", "report_sections_data"):
-            try:
-                default = "'{}'" if col == "report_sections_data" else "''"
-                conn.execute(text(f"ALTER TABLE cases ADD COLUMN {col} TEXT DEFAULT {default}"))
-                conn.commit()
-                print(f"[migration] cases.{col} added", flush=True)
-            except Exception:
-                pass  # Column already exists
+        try:
+            conn.execute(text(
+                "ALTER TABLE cases ADD COLUMN report_sections_data TEXT DEFAULT '{}'"))
+            conn.commit()
+            print("[migration] cases.report_sections_data added", flush=True)
+        except Exception:
+            pass  # Column already exists
 
 
 

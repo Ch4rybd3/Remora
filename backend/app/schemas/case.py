@@ -19,10 +19,8 @@ class CaseBase(BaseModel):
     client_id: str | None = None
     executive_summary: str = ""
     quick_notes: str = ""
+    #: Every section concatenated, derived on save. Never sent by a client.
     report: str = ""
-    report_analysis: str = ""
-    report_remediation: str = ""
-    report_conclusion: str = ""
     report_sections_data: str = "{}"
 
 
@@ -44,9 +42,6 @@ class CaseUpdate(BaseModel):
     executive_summary: str | None = None
     quick_notes: str | None = None
     report: str | None = None
-    report_analysis: str | None = None
-    report_remediation: str | None = None
-    report_conclusion: str | None = None
     report_sections_data: str | None = None
 
 

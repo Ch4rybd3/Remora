@@ -41,26 +41,19 @@ import { casesApi }                                          from '../../../api/
 import { reportVersionsApi, type ReportVersionMeta }        from '../../../api/reportVersions'
 import { reportDocTemplatesApi }                             from '../../../api/reportDocTemplates'
 import { playbooksApi, type CasePlaybook }                   from '../../../api/playbooks'
-import { templatesApi }                                      from '../../../api/templates'
 import { topoSortNodes }                                      from '../../../utils/playbookUtils'
 import { NODE_TYPES, EDGE_TYPES }                            from '../../playbook/PlaybookNodes'
 import MarkdownEditor                                        from '../../ui/MarkdownEditor'
-import type { Case, Template }                               from '../../../types'
+import type { Case }                                        from '../../../types'
 import { fmtRelative, fmtDateTime }                          from '../../../utils/dateUtils'
 
 interface Props { case_: Case }
 
-// ── Section slug (mirrors backend _section_slug) ────────────────────────────────
+// The slug helper that used to live here mirrored the backend's, which is a
+// pair that drifts. The backend now returns the resolved sections, so there is
+// one implementation and the frontend reads its answer.
 
-function sectionSlug(section: NonNullable<Template['report_sections']>[number]): string {
-  if (section.tag) return section.tag.toLowerCase().trim()
-  return section.name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_|_$/g, '') || 'section'
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// ── Playbook helpers ──────────────────────────────────────────────────────────
 
 function stepNodes(cp: CasePlaybook) {
   const sorted = topoSortNodes(cp.playbook.nodes, cp.playbook.edges)
@@ -75,41 +68,6 @@ function buildViewNodes(cp: CasePlaybook): Node[] {
 function doneCount(cp: CasePlaybook) {
   return stepNodes(cp).filter(n => cp.step_states[n.id]?.done).length
 }
-
-// ── Fixed report boxes ────────────────────────────────────────────────────────
-// Used when the case has no template, or the template defines no sections.
-// No colour: sections are told apart by their numeral and their name.
-
-interface BoxMeta {
-  label: string
-  tag: string
-  placeholder: string
-}
-
-const BOX_META: BoxMeta[] = [
-  {
-    label: 'Technical Analysis',
-    tag:   'report_analysis',
-    placeholder:
-      '## Root Cause\n\n*Describe how the incident started...*\n\n' +
-      '## Attack Chain\n\n*Describe how the attack progressed.*\n\n' +
-      '## Impact\n\n*Technical and business impact.*',
-  },
-  {
-    label: 'Remediations',
-    tag:   'report_remediation',
-    placeholder:
-      '*Remediation actions completed or in progress.*\n\n' +
-      '- [ ] Action 1\n- [ ] Action 2',
-  },
-  {
-    label: 'Conclusion & Recommendations',
-    tag:   'report_conclusion',
-    placeholder:
-      '*Summary and long-term recommendations.*\n\n' +
-      '- [ ] Recommendation 1\n- [ ] Recommendation 2',
-  },
-]
 
 // ── Version row ───────────────────────────────────────────────────────────────
 // Sized for the rail: version, age, line count, and a restore that only appears
@@ -352,16 +310,11 @@ function PlaybookReference({ caseId }: { caseId: string }) {
 export default function ReportTab({ case_ }: Props) {
   const qc = useQueryClient()
 
-  // ── Fixed 3-box state (used when no template or template has no dynamic sections) ──
-  const [analysis,    setAnalysis]    = useState(case_.report_analysis    ?? '')
-  const [remediation, setRemediation] = useState(case_.report_remediation ?? '')
-  const [conclusion,  setConclusion]  = useState(case_.report_conclusion  ?? '')
-
-  // ── Dynamic per-section state ──────────────────────────────────────────────
+  // ── What the analyst has written, keyed by section slug ───────────────────
   const initSectionsData = (): Record<string, string> => {
     try { return JSON.parse(case_.report_sections_data || '{}') } catch { return {} }
   }
-  const [sectionsData,    setSectionsData]    = useState<Record<string, string>>(initSectionsData)
+  const [sectionsData, setSectionsData] = useState<Record<string, string>>(initSectionsData)
 
   const [dirty,              setDirty]             = useState(false)
   const [selectedTemplateId, setSelectedTemplateId]= useState<number | ''>('')
@@ -381,17 +334,22 @@ export default function ReportTab({ case_ }: Props) {
     queryFn:  reportDocTemplatesApi.list,
   })
 
-  // ── Case template (for dynamic sections) ──────────────────────────────────
-  const { data: caseTemplate } = useQuery({
-    queryKey: ['template', case_.template_id],
-    queryFn:  () => templatesApi.get(case_.template_id!),
-    enabled:  !!case_.template_id,
+  /**
+   * The report's structure: which sections it has, in which order.
+   *
+   * Asked of the backend rather than derived from the case template here. The
+   * template is where they are declared, but resolving them - explicit tags,
+   * slugified names, duplicate collapsing, and the fallback for a case with no
+   * template at all - is one piece of logic, and it lives on the side that
+   * also exports the document.
+   */
+  const { data: structure } = useQuery({
+    queryKey: ['report-sections', case_.id],
+    queryFn:  () => casesApi.reportSections(case_.id),
     staleTime: 60_000,
   })
 
-  const dynamicSections = caseTemplate?.report_sections?.length
-    ? caseTemplate.report_sections
-    : null
+  const declared = structure?.sections ?? []
 
   // ── Versions ───────────────────────────────────────────────────────────────
   const { data: versions = [] } = useQuery({
@@ -401,9 +359,7 @@ export default function ReportTab({ case_ }: Props) {
 
   // ── Save ───────────────────────────────────────────────────────────────────
   const save = useMutation({
-    mutationFn: () => dynamicSections
-      ? reportVersionsApi.save(case_.id, { sections_data: sectionsData })
-      : reportVersionsApi.save(case_.id, { analysis, remediation, conclusion }),
+    mutationFn: () => reportVersionsApi.save(case_.id, { sections_data: sectionsData }),
     onSuccess:  () => {
       qc.invalidateQueries({ queryKey: ['case', case_.id] })
       qc.invalidateQueries({ queryKey: ['report-versions', case_.id] })
@@ -412,42 +368,48 @@ export default function ReportTab({ case_ }: Props) {
   })
 
   // ── Auto-generate (fills sections from case template) ─────────────────────
+  /**
+   * Fill the sections with their template guidance.
+   *
+   * Appends rather than replaces. An analyst who regenerates after the case
+   * template gained a section wants the new section, not their own writing
+   * overwritten by a placeholder.
+   */
   const generate = useMutation({
-    mutationFn: () => casesApi.generateReport(case_.id),
-    onSuccess:  (data: { analysis: string; remediation: string; conclusion: string; sections_data?: Record<string, string> }) => {
-      if (dynamicSections && data.sections_data) {
-        setSectionsData(prev => {
-          const merged = { ...prev }
-          for (const [k, v] of Object.entries(data.sections_data!)) {
-            merged[k] = merged[k]?.trim() ? merged[k] + '\n\n---\n\n' + v : v
-          }
-          return merged
-        })
-      } else {
-        if (data.analysis)    { setAnalysis(prev    => prev.trim() ? prev + '\n\n---\n\n' + data.analysis    : data.analysis)    }
-        if (data.remediation) { setRemediation(prev => prev.trim() ? prev + '\n\n---\n\n' + data.remediation : data.remediation) }
-        if (data.conclusion)  { setConclusion(prev  => prev.trim() ? prev + '\n\n---\n\n' + data.conclusion  : data.conclusion)  }
-      }
+    mutationFn: () => casesApi.reportSections(case_.id),
+    onSuccess:  (data) => {
+      setSectionsData(prev => {
+        const merged = { ...prev }
+        for (const [slug, guidance] of Object.entries(data.sections_data)) {
+          merged[slug] = merged[slug]?.trim()
+            ? merged[slug] + '\n\n---\n\n' + guidance
+            : guidance
+        }
+        return merged
+      })
       setDirty(true)
     },
   })
 
   // ── Restore from version (combined → split back by separator) ─────────────
+  /**
+   * Put a version back into the editors.
+   *
+   * A version is the combined markdown, joined on `---` in section order, so
+   * it splits back the same way. A version saved when the template had fewer
+   * sections leaves the extra ones untouched rather than blanking them - the
+   * restore is additive, and the analyst can see what came back before saving.
+   */
   const handleRestore = (combined: string) => {
-    if (dynamicSections) {
-      // For dynamic sections, put everything in the first section
-      const sections = dynamicSections
-      if (sections.length > 0) {
-        const slug = sectionSlug(sections[0])
-        setSectionsData(prev => ({ ...prev, [slug]: combined }))
-      }
-    } else {
-      // Try to split on section headers if present, else put all in analysis
-      const parts = combined.split(/\n{1,2}---\n{1,2}/)
-      setAnalysis(parts[0]?.trim()    ?? combined)
-      setRemediation(parts[1]?.trim() ?? '')
-      setConclusion(parts[2]?.trim()  ?? '')
-    }
+    const parts = combined.split(/\n{1,2}---\n{1,2}/)
+    setSectionsData(prev => {
+      const merged = { ...prev }
+      declared.forEach((section, index) => {
+        const part = parts[index]?.trim()
+        if (part) merged[section.slug] = part
+      })
+      return merged
+    })
     setDirty(true)
   }
 
@@ -470,16 +432,10 @@ export default function ReportTab({ case_ }: Props) {
 
   // ── Export MD (combined) ──────────────────────────────────────────────────
   const handleExportMd = () => {
-    const combined = dynamicSections
-      ? dynamicSections
-          .map(s => {
-            const slug = sectionSlug(s)
-            const content = sectionsData[slug]?.trim()
-            return content ? `## ${s.name}\n\n${content}` : ''
-          })
-          .filter(Boolean)
-          .join('\n\n---\n\n')
-      : [analysis, remediation, conclusion].filter(s => s.trim()).join('\n\n---\n\n')
+    const combined = declared
+      .map(section => sectionsData[section.slug]?.trim() ?? '')
+      .filter(Boolean)
+      .join('\n\n---\n\n')
     const blob = new Blob([combined], { type: 'text/markdown' })
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')
@@ -503,48 +459,33 @@ export default function ReportTab({ case_ }: Props) {
 
   const hasTemplate = !!case_.template_id
 
-  // ── One model for both shapes of report ──────────────────────────────────
-  // Dynamic template sections and the three fixed boxes collapse into the same
-  // list, so the rail, the filter, the word counts and the editors share a
-  // single code path instead of two that drift apart.
+  // ── The sections, as the editors need them ───────────────────────────────
   interface Section {
     id: string
     name: string
     tag: string
     value: string
     placeholder: string
+    required: boolean
     onChange: (v: string) => void
   }
 
-  const sections: Section[] = dynamicSections
-    ? dynamicSections.map((s) => {
-        const slug = sectionSlug(s)
-        return {
-          id:          slug,
-          name:        s.name,
-          tag:         slug,
-          value:       sectionsData[slug] ?? '',
-          placeholder: s.template || `${s.name}...`,
-          onChange:    (v: string) => {
-            setSectionsData((prev) => ({ ...prev, [slug]: v }))
-            markDirty()
-          },
-        }
-      })
-    : [
-        { meta: BOX_META[0], value: analysis,    set: setAnalysis },
-        { meta: BOX_META[1], value: remediation, set: setRemediation },
-        { meta: BOX_META[2], value: conclusion,  set: setConclusion },
-      ].map(({ meta, value, set }) => ({
-        id:          meta.tag,
-        name:        meta.label,
-        tag:         meta.tag,
-        value,
-        placeholder: meta.placeholder,
-        onChange:    (v: string) => { set(v); markDirty() },
-      }))
+  const sections: Section[] = declared.map((section) => ({
+    id:          section.slug,
+    name:        section.name,
+    tag:         section.slug,
+    value:       sectionsData[section.slug] ?? '',
+    placeholder: structure?.sections_data[section.slug] ?? `${section.name}...`,
+    required:    section.required,
+    onChange:    (v: string) => {
+      setSectionsData((prev) => ({ ...prev, [section.slug]: v }))
+      markDirty()
+    },
+  }))
 
   const wordCount = (text: string) => text.trim() ? text.trim().split(/\s+/).length : 0
+
+  const emptyRequired = sections.filter(s => s.required && !s.value.trim())
 
   const railItems: RailItem[] = sections.map((s) => {
     const words = wordCount(s.value)
@@ -607,10 +548,21 @@ export default function ReportTab({ case_ }: Props) {
           <ToolbarLabel>Report</ToolbarLabel>
           <span className="text-label font-mono text-fg-muted">
             {sections.length} section{sections.length > 1 ? 's' : ''} · {totalWords} words
-            {hasTemplate && !dynamicSections && ` · template ${case_.template_id}`}
           </span>
+          {/* A required section left empty is what an analyst discovers after
+              sending the document. Counted here, before the export button. */}
+          {emptyRequired.length > 0 && (
+            <span
+              title={`Still empty: ${emptyRequired.map(s => s.name).join(', ')}`}
+              className="flex items-center gap-1 text-label text-severity-medium">
+              <AlertCircle size={9} />
+              {emptyRequired.length} required section{emptyRequired.length > 1 ? 's' : ''} empty
+            </span>
+          )}
           {!hasTemplate && (
-            <span className="flex items-center gap-1 text-label text-fg-muted">
+            <span
+              title="The report falls back to three default sections. Attach a case template to shape it."
+              className="flex items-center gap-1 text-label text-fg-muted">
               <AlertCircle size={9} /> no case template
             </span>
           )}
