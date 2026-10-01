@@ -29,6 +29,8 @@ ACTIONS: dict[tuple[str, str], str] = {
     ("PATCH",  "/api/v1/cases/{case_id}"):                 "case.update",
     ("DELETE", "/api/v1/cases/{case_id}"):                 "case.delete",
     ("POST",   "/api/v1/cases/{case_id}/notes/images"):    "case.note_image_upload",
+    ("PUT",    "/api/v1/cases/{case_id}/pcap/map/hosts/{address}"):       "pcap_map.annotate",
+    ("POST",   "/api/v1/cases/{case_id}/pcap/map/hosts/{address}/asset"): "pcap_map.adopt_asset",
     ("POST",   "/api/v1/cases/{case_id}/report/save"):     "report.save",
 
     # ── Case content ─────────────────────────────────────────────────────────

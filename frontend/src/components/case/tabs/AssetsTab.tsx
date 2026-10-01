@@ -9,48 +9,13 @@ import Modal from '../../ui/Modal'
 import ConfirmDialog from '../../ui/ConfirmDialog'
 import EmptyState from '../../ui/EmptyState'
 import { exportCsv } from '../../../utils/formatUtils'
+import {
+  ASSET_TYPES, ASSET_TYPE_GROUPS, TYPE_COLORS, TYPE_LABELS,
+} from '../../../ui/assetTypes'
 
-const ASSET_TYPES: { value: AssetType; label: string; group: string }[] = [
-  { value: 'workstation',       label: 'Workstation',        group: 'Endpoints' },
-  { value: 'server',            label: 'Server',             group: 'Endpoints' },
-  { value: 'domain_controller', label: 'Domain Controller',  group: 'Endpoints' },
-  { value: 'mobile',            label: 'Mobile',             group: 'Endpoints' },
-  { value: 'network_device',    label: 'Network Device',     group: 'Network' },
-  { value: 'firewall',          label: 'Firewall',           group: 'Network' },
-  { value: 'vpn',               label: 'VPN',                group: 'Network' },
-  { value: 'application',       label: 'Application',        group: 'Software' },
-  { value: 'database',          label: 'Database',           group: 'Software' },
-  { value: 'container',         label: 'Container',          group: 'Software' },
-  { value: 'user_account',      label: 'User Account',       group: 'Identity' },
-  { value: 'service_account',   label: 'Service Account',    group: 'Identity' },
-  { value: 'cloud_resource',    label: 'Cloud Resource',     group: 'Cloud' },
-  { value: 'printer',           label: 'Printer',            group: 'Other' },
-  { value: 'iot',               label: 'IoT Device',         group: 'Other' },
-  { value: 'other',             label: 'Other',              group: 'Other' },
-]
-
-const TYPE_COLORS: Record<AssetType, string> = {
-  workstation:       'bg-severity-low/10 text-severity-low border-severity-low/20',
-  server:            'bg-data-2/10 text-data-2 border-data-2/20',
-  domain_controller: 'bg-data-2/10 text-data-2 border-data-2/20',
-  mobile:            'bg-data-5/10 text-data-5 border-data-5/20',
-  network_device:    'bg-severity-high/10 text-severity-high border-severity-high/20',
-  firewall:          'bg-severity-critical/10 text-severity-critical border-severity-critical/20',
-  vpn:               'bg-severity-high/10 text-severity-high border-severity-high/20',
-  application:       'bg-accent/10 text-accent border-accent/20',
-  database:          'bg-accent/10 text-accent border-accent/20',
-  container:         'bg-severity-low/10 text-severity-low border-severity-low/20',
-  user_account:      'bg-severity-medium/10 text-severity-medium border-severity-medium/20',
-  service_account:   'bg-severity-medium/10 text-severity-medium border-severity-medium/20',
-  cloud_resource:    'bg-data-1/10 text-data-1 border-data-1/20',
-  printer:           'bg-fg/5 text-fg-secondary border-hairline',
-  iot:               'bg-data-3/10 text-data-3 border-data-3/20',
-  other:             'bg-fg/5 text-fg-secondary border-hairline',
-}
-
-const TYPE_LABELS: Record<AssetType, string> = Object.fromEntries(
-  ASSET_TYPES.map(t => [t.value, t.label])
-) as Record<AssetType, string>
+// The vocabulary and the colours now live in ui/assetTypes.ts, which the PCAP
+// conversation map reads too - a host adopted from the map becomes an asset,
+// and two copies of this list would have drifted on the first addition.
 
 interface Props { caseId: string }
 
@@ -65,7 +30,7 @@ interface AssetFormProps {
 }
 
 function AssetForm({ form, setForm }: AssetFormProps) {
-  const groups = [...new Set(ASSET_TYPES.map(t => t.group))]
+  const groups = ASSET_TYPE_GROUPS
 
   return (
     <div className="space-y-4">

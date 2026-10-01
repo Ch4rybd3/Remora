@@ -37,6 +37,7 @@ from .models import ez_artifacts as _ez_artifacts_models  # ensure EZ tables are
 from .models import incident_log as _incident_log_models  # ensure table is registered
 from .models import memory as _memory_models  # ensure tables are registered
 from .models import mitre as _mitre_models  # ensure tables are registered
+from .models import pcap_host as _pcap_host_models  # ensure tables are registered
 from .models import report_doc_template as _rdt_models  # ensure tables are registered
 from .models import report_version as _rv_models  # ensure tables are registered
 from .models.user import User, UserRole
