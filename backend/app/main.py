@@ -22,7 +22,6 @@ from .config import settings
 from .core.deps import enforce_permissions, get_current_user
 from .database import Base, SessionLocal, engine
 from .db_migrate import run_migrations
-from .models import custom_role as _custom_role_models  # ensure tables are registered
 from .models import attack_graph as _ag_models  # ensure tables are registered
 from .models import audit as _audit_models  # ensure tables are registered
 from .models import binary as _binary_models  # ensure tables are registered
@@ -31,6 +30,7 @@ from .models import client as _client_models  # ensure tables are registered
 from .models import collection_output as _collection_output_models  # ensure tables are registered
 from .models import connector as _connector_models  # ensure tables are registered
 from .models import csv_artifact as _csv_artifact_models  # ensure tables are registered
+from .models import custom_role as _custom_role_models  # ensure tables are registered
 from .models import disk_image as _disk_image_models  # ensure tables are registered
 from .models import email_file as _email_file_models  # ensure tables are registered
 from .models import evtx as _evtx_models  # ensure tables are registered
@@ -58,6 +58,7 @@ from .routers import coverage as coverage_router
 from .routers import csv_artifacts as csv_artifacts_router
 from .routers import cti as cti_router
 from .routers import custody as custody_router
+from .routers import custom_roles as custom_roles_router
 from .routers import dashboard as dashboard_router
 from .routers import disk_images as disk_images_router
 from .routers import dropzone as dropzone_router
@@ -74,7 +75,6 @@ from .routers import process_tree as process_tree_router
 from .routers import rdp_cache as rdp_cache_router
 from .routers import registry as registry_router
 from .routers import report_doc_templates as report_doc_templates_router
-from .routers import custom_roles as custom_roles_router
 from .routers import users as users_router
 from .services.auth_service import hash_password
 from .services.chainsaw_setup import setup_chainsaw

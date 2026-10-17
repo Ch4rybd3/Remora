@@ -68,7 +68,7 @@ function PermChips({ role }: { role: CustomRole }) {
   return (
     <div className="flex flex-wrap gap-1">
       {perms.map(([key, label]) => (
-        <span key={key} className={`text-label px-1.5 py-0.5 rounded border flex items-center gap-1 ${
+        <span key={key} className={`text-label px-1.5 py-0.5 rounded-control border flex items-center gap-1 ${
           role[key]
             ? 'bg-accent/10 text-accent border-accent/20'
             : 'bg-fg/5 text-fg-muted border-hairline line-through opacity-50'
@@ -156,7 +156,7 @@ function CustomRoleForm({
             ['can_change_own_password', 'Change own password', 'Disable to prevent demo accounts replacing their credential.'],
           ] as const).map(([key, label, hint]) => (
             <label key={key} className="flex items-start gap-3 px-3 py-2.5 cursor-pointer hover:bg-white/[0.03]">
-              <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+              <div className={`mt-0.5 w-4 h-4 rounded-control border flex items-center justify-center shrink-0 transition-colors ${
                 form[key] ? 'bg-accent border-accent' : 'border-hairline bg-transparent'}`}>
                 {form[key] && <Check size={10} className="text-white" />}
               </div>
