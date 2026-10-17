@@ -46,6 +46,7 @@ from .routers import attack_graph as attack_graph_router
 from .routers import audit as audit_router
 from .routers import backup as backup_router
 from .routers import binary as binary_router
+from .routers import browser as browser_router
 from .routers import case_emails as case_emails_router
 from .routers import chainsaw as chainsaw_router
 from .routers import chainsaw_rules as chainsaw_rules_router
@@ -69,7 +70,6 @@ from .routers import mitre as mitre_router
 from .routers import pcap as pcap_router
 from .routers import playbooks as playbooks_router
 from .routers import process_tree as process_tree_router
-from .routers import browser as browser_router
 from .routers import rdp_cache as rdp_cache_router
 from .routers import registry as registry_router
 from .routers import report_doc_templates as report_doc_templates_router

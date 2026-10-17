@@ -12,7 +12,7 @@
  */
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import {
   AlertTriangle, ArrowRight, Clock, FolderOpen, Loader2, Search, Table2, Target, X,
 } from '../../ui/icons'
@@ -81,7 +81,6 @@ function ResultRow({
 export default function CommandPalette() {
   const { currentCase, setCurrentCase } = useCurrentCase()
   const navigate  = useNavigate()
-  const qc        = useQueryClient()
 
   const [open,    setOpen]    = useState(false)
   const [query,   setQuery]   = useState('')
