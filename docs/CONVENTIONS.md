@@ -54,12 +54,32 @@ Neither gate is a substitute for reading the diff.
 | Branch | Role |
 |---|---|
 | `main` | Production. Protected, linear history, tagged releases only. |
-| `integration` | Preprod. Every feature branch targets this. |
-| `feat/<slug>` `fix/<slug>` `chore/<slug>` `docs/<slug>` | Unit branches. One concern each. |
+| `integration` | Preprod. Every sprint branch targets this. |
+| `feat/s<NN>-<slug>` | **Sprint branch. One per sprint, and the only thing that opens a PR.** |
+| `feat/<slug>` `fix/<slug>` `chore/<slug>` `docs/<slug>` | Working branches, one concern each. Local to the sprint, never merged on their own. |
 | `spike/<slug>` | Timeboxed experiments. Never merged; findings are written up, code is discarded. |
 
-Feature branches are **squash-merged** into `integration`. `integration` is
+Sprint branches are **squash-merged** into `integration`. `integration` is
 **merge-committed** into `main` — that merge is what produces a release.
+
+### One PR per sprint, one commit per concern
+
+Work happens on unit branches — a concern each, verified on its own. At the end
+of the sprint they are collected onto `feat/s<NN>-<slug>` with
+`git cherry-pick -x`, in order, and that branch is what gets the PR.
+
+Two rules make this safe rather than merely tidy:
+
+- **Re-run the suites on the collected branch.** Each unit branch was green in
+  isolation and none of them was ever green *together*. That check is not
+  optional.
+- **Number from the repository, not from the plan.** `git log --merges` shows
+  the last `feat/s<NN>-*` that landed. A roadmap written weeks earlier will be
+  off by one or more.
+
+Unit branches are deleted, locally and on the remote, once collected. The
+commits survive on the sprint branch, so reviewers still read the work one
+concern at a time.
 
 ### Commits
 Conventional Commits. Because merges are squashed, **the PR title is the commit
@@ -80,7 +100,7 @@ major. Release notes are generated from these, so a lazy commit message becomes
 a lazy public changelog.
 
 ### Pull requests
-- One concern per PR. A PR that renames things *and* changes behaviour will be asked to split.
+- **One PR per sprint**, from the sprint branch. Inside it, one commit per concern — a commit that renames things *and* changes behaviour will be asked to split, the PR itself will not.
 - A PR touching `backend/app/models/` needs an Alembic revision whenever the *schema* changes. This is enforced by `test_models_match_the_migrated_schema`, which compares the live schema against the models — not by a rule about which files were edited, because a cosmetic edit to a model file needs no migration and an empty revision would satisfy such a rule anyway.
 - Green CI is required to merge. Never merge through a red check.
 
@@ -105,6 +125,32 @@ a lazy public changelog.
 5. `main.py` — import the model as `from .models import <feature> as _<feature>_models`, register the router with `app.include_router(..., prefix="/api/v1", **_auth)`.
 6. Business logic lives in `services/`. **A router body over ~40 lines is a service that has not been extracted yet.**
 7. Heavy work (downloads, scans, parsing) runs through `BackgroundTasks`, never inline in the request.
+
+### Auditing
+
+Every mutating route (`POST` `PUT` `PATCH` `DELETE`) declares what it records,
+in `core/audit_routes.py`. There is no third option: either an action in
+`ACTIONS`, or an entry in `EXEMPT` saying why the route writes nothing. A POST
+that is really a query — a CTI lookup whose indicator is too structured for a
+query string — is exempt; a POST that changes anything is not.
+
+`test_audit_coverage.py` enforces three things, and the third is what stops
+this becoming a wish:
+
+1. no mutating route is undeclared;
+2. a declared route's handler actually calls `audit_log` — checked against the
+   handler's source, so "declared" cannot drift from "implemented";
+3. `PENDING` is a **ratchet**, exactly like the mypy one. A route may be
+   removed from it once it audits. Nothing may ever be added.
+
+Actions are `<domain>.<verb>`, lower case and dotted. The domain is the thing
+acted on, not the router that happens to serve it — so filtering the Audit page
+for `evidence.` finds every way evidence was touched.
+
+The entry rides on the caller's transaction: `audit_log` adds to the session
+and the handler's `commit` persists it, so an operation that rolls back takes
+its audit entry with it. A denial is the exception — it commits itself, because
+the request it rides on is about to raise.
 
 ### Errors
 `HTTPException(status_code=..., detail="...")` with an English, actionable
@@ -147,6 +193,18 @@ it — so anything new is type-checked by default.
 - Pure functions in `services/` — parsers, detectors, normalisers — get real unit tests. These are where a silent bug is most expensive.
 - No coverage threshold. The gate is a green suite.
 
+### A list that exists twice will drift
+
+Where the same vocabulary is needed by the backend, the API, the UI and the
+documentation, **one registry owns it and everything else reads from it**. The
+documentation is generated between fences and a test regenerates it, so a
+missing entry fails CI instead of being noticed by a client.
+
+`services/report_tags.py` is the worked example: it replaced seven hand-kept
+copies of the `{{tag}}` list, one of which was wrong in a way that wrote
+literal `{{slug}}` into delivered Word documents. When you add a list that
+something else will have to mirror, write the registry first.
+
 ---
 
 ## 5. Frontend
@@ -157,6 +215,16 @@ it — so anything new is type-checked by default.
 3. `pages/CaseDetail.tsx` — extend the `Tab` union, the `TABS` array, the import and the render.
 4. `useQuery` / `useMutation` from TanStack Query. Invalidate the affected keys on every mutation.
 5. Query keys are arrays, most general first: `['artifacts', caseId, fileId]`.
+
+### Artifact pages
+
+A page that lists artifacts of one kind and opens them one at a time uses
+`ui/ArtifactFileList` for its left sidebar. It does not write its own — six
+pages did, and they disagreed about the selected row, the search, the count,
+and whether hovering a truncated name showed you the name.
+
+The full contract, and what the page still supplies, is in
+[UI_PATTERNS.md](UI_PATTERNS.md#artifact-file-list).
 
 ### Page contract
 Every page is a `PageShell`, enforced by `npm run check:pages` in CI. The slots
@@ -193,7 +261,7 @@ The file has two halves:
   Routing them through this file is what makes the lint rule possible.
 
 One concept, one icon, everywhere. Before the registry existed, `HardDrive`
-stood for both *Logs* and *Disk Images*, `FileText` for both *Vault* and *Case
+stood for both *Logs* and *Disk Images*, `FileText` for both *Knowledge Base* and *Case
 Templates*, and `Shield` for both *CTI Lookup* and *Audit* — drift that was
 invisible until someone looked at the sidebar.
 

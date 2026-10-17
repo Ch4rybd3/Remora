@@ -22,6 +22,7 @@ from ..core.deps import get_current_user
 from ..database import get_db
 from ..models.connector import ConnectorConfig
 from ..models.user import User
+from ..services.audit_service import audit_log
 
 router = APIRouter(prefix="/connectors", tags=["connectors"])
 
@@ -176,6 +177,14 @@ def upsert_connector(
     c.enabled    = body.enabled
     c.updated_at = datetime.now(UTC)
     c.updated_by = current_user.username
+    # Never the key itself, only whether one was set. An audit trail that
+    # recorded credentials would be a second place they leak from.
+    audit_log(db, user=current_user, action="connector.configure",
+              resource_type="connector", resource_id=name, resource_name=name,
+              details={"enabled": bool(body.enabled),
+                       "key_changed": bool(body.api_key is not None
+                                           and not body.api_key.startswith("\u2022\u2022")),
+                       "base_url": c.base_url or ""})
     db.commit()
     db.refresh(c)
 
@@ -203,6 +212,8 @@ def clear_api_key(
     c.enabled    = False
     c.updated_at = datetime.now(UTC)
     c.updated_by = current_user.username
+    audit_log(db, user=current_user, action="connector.clear_key",
+              resource_type="connector", resource_id=name, resource_name=name)
     db.commit()
     db.refresh(c)
     return ConnectorOut(

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { useDropzone } from 'react-dropzone'
 import {
@@ -6,6 +6,7 @@ import {
   BookmarkPlus,
 } from '../../ui/icons'
 import { binaryApi, type BinaryFile } from '../../api/binary'
+import { ArtifactFileList } from '../../ui/ArtifactFileList'
 import { fmtDateTimeShort } from '../../utils/dateUtils'
 
 interface Props {
@@ -48,68 +49,48 @@ function fmtSize(bytes: number | null): string {
 
 // ── File row ──────────────────────────────────────────────────────────────────
 
-function FileRow({
-  f,
-  selected,
-  onSelect,
-  onDelete,
-  onAddEvidence,
-  addingEvidence,
-}: {
-  f:              BinaryFile
-  selected:       boolean
-  onSelect:       () => void
-  onDelete:       () => void
-  onAddEvidence:  () => void
-  addingEvidence: boolean
-}) {
+/**
+ * The chips and controls a binary row carries.
+ *
+ * The row itself is `ui/ArtifactFileList`. The evidence button used to appear
+ * only under the selected row, expanding it; it sits with the other controls
+ * now, revealed on hover like every other artifact page - an action that moves
+ * when you select something is an action you have to look for twice.
+ */
+function binaryBadges(f: BinaryFile) {
   return (
-    <div
-      onClick={onSelect}
-      className={`px-3 py-2.5 cursor-pointer border-b border-hairline hover:bg-fg/5 transition-colors group ${ selected ? 'bg-accent/5 border-l-2 border-l-accent/40' : ''
-      }`}
-    >
-      <div className="flex items-start gap-2">
-        <Lock size={11} className="mt-0.5 shrink-0 text-fg-secondary/30" />
-        <div className="flex-1 min-w-0">
-          <p className={`text-label font-mono truncate ${selected ? 'text-fg' : 'text-fg/70'}`}>
-            {f.filename}
-          </p>
-          <div className="flex items-center gap-2 mt-0.5">
-            <StatusBadge f={f} />
-            {f.file_size !== null && (
-              <span className="text-label text-fg-secondary/30">{fmtSize(f.file_size)}</span>
-            )}
-          </div>
-          <p className="text-label text-fg-secondary/25 mt-0.5">
-            {fmtDateTimeShort(f.uploaded_at)}
-          </p>
-        </div>
-        <button
-          onClick={e => { e.stopPropagation(); onDelete() }}
-          className="opacity-0 group-hover:opacity-100 p-1 rounded-control text-fg-secondary/40 hover:text-severity-critical hover:bg-severity-critical/10 transition-all"
-          title="Delete"
-        >
-          <Trash2 size={11} />
-        </button>
-      </div>
-
-      {/* Evidence button — visible only when this file is selected */}
-      {selected && (
-        <div className="mt-2 pt-2 border-t border-hairline">
-          <button
-            onClick={e => { e.stopPropagation(); onAddEvidence() }}
-            disabled={f.added_to_evidence || addingEvidence}
-            className={`w-full flex items-center justify-center gap-1.5 py-1 rounded-control text-label transition-colors ${ f.added_to_evidence
-                ? 'border border-accent/20 text-accent/60 bg-accent/5 cursor-default'
-                : 'border border-hairline text-fg-secondary/50 hover:border-accent/30 hover:text-accent hover:bg-accent/5'
-            } disabled:opacity-50`}
-          >
-            <BookmarkPlus size={10} />
-            {f.added_to_evidence ? 'In evidence' : 'Add to evidence'}
-          </button>
-        </div>
+    <>
+      <StatusBadge f={f} />
+      {f.file_size !== null && (
+        <span className="text-label text-fg-secondary/30">{fmtSize(f.file_size)}</span>
       )}
+    </>
+  )
+}
+
+function binaryActions(
+  f: BinaryFile, onDelete: () => void, onAddEvidence: () => void, adding: boolean,
+) {
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        onClick={onAddEvidence}
+        disabled={f.added_to_evidence || adding}
+        title={f.added_to_evidence ? 'Already in evidence' : 'Add to evidence'}
+        className={`transition-all ${ f.added_to_evidence
+            ? 'text-accent/60'
+            : 'opacity-0 group-hover:opacity-100 text-fg-secondary/40 hover:text-accent'
+        } disabled:cursor-default`}
+      >
+        <BookmarkPlus size={11} />
+      </button>
+      <button
+        onClick={onDelete}
+        title="Delete this binary"
+        className="opacity-0 group-hover:opacity-100 text-fg-secondary/40 hover:text-severity-critical transition-all"
+      >
+        <Trash2 size={11} />
+      </button>
     </div>
   )
 }
@@ -232,11 +213,11 @@ export default function BinaryFileList({ caseId, selectedFileId, onSelectFile }:
     },
   })
 
-  const handleDelete = async (f: BinaryFile) => {
+  const handleDelete = useCallback(async (f: BinaryFile) => {
     if (!confirm(`Delete "${f.filename}"? The encrypted binary will be permanently removed.`)) return
     await binaryApi.deleteFile(caseId, f.id)
     qc.invalidateQueries({ queryKey: ['binary-files', caseId] })
-  }
+  }, [caseId, qc])
 
   const addEvidence = useMutation({
     mutationFn: (fileId: string) => binaryApi.addEvidence(caseId, fileId),
@@ -246,30 +227,36 @@ export default function BinaryFileList({ caseId, selectedFileId, onSelectFile }:
     },
   })
 
+  const items = useMemo(() => files.map(f => ({
+    id:       f.id,
+    name:     f.filename,
+    badges:   binaryBadges(f),
+    footnote: fmtDateTimeShort(f.uploaded_at),
+    actions:  binaryActions(
+      f,
+      () => handleDelete(f),
+      () => addEvidence.mutate(f.id),
+      addEvidence.isPending && addEvidence.variables === f.id,
+    ),
+  })), [files, handleDelete, addEvidence])
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <UploadForm caseId={caseId} onDone={() => qc.invalidateQueries({ queryKey: ['binary-files', caseId] })} />
 
-      <div className="flex-1 overflow-y-auto">
-        {isLoading && (
-          <div className="flex items-center justify-center py-6">
-            <Loader2 size={16} className="animate-spin text-fg-secondary/40" />
-          </div>
-        )}
-        {!isLoading && files.length === 0 && (
-          <p className="text-center text-label text-fg-secondary/30 py-6">No binaries uploaded yet</p>
-        )}
-        {files.map(f => (
-          <FileRow
-            key={f.id}
-            f={f}
-            selected={f.id === selectedFileId}
-            onSelect={() => onSelectFile(f)}
-            onDelete={() => handleDelete(f)}
-            onAddEvidence={() => addEvidence.mutate(f.id)}
-            addingEvidence={addEvidence.isPending && addEvidence.variables === f.id}
-          />
-        ))}
+      <div className="flex-1 min-h-0">
+        <ArtifactFileList
+          items={items}
+          selectedId={selectedFileId}
+          onSelect={id => {
+            const file = files.find(f => f.id === id)
+            if (file) onSelectFile(file)
+          }}
+          title="Binaries"
+          icon={Lock}
+          loading={isLoading}
+          emptyMessage="No binary uploaded yet"
+        />
       </div>
     </div>
   )

@@ -30,9 +30,42 @@ class TemplateTTPsPayload(BaseModel):
     ttps: list[TTPDefinition]
 
 
+def _with_section_slugs(template: dict) -> dict:
+    """
+    The template, with each report section carrying the tag it produces.
+
+    Resolved here rather than in the browser. A frontend that slugified names
+    itself would be a second implementation of a rule the exporter also
+    applies - explicit `tag:` wins, names are slugified - and the two would
+    drift on the first edge case. The editor shows what the exporter will
+    actually look for.
+
+    A section whose slug another section already claimed is marked `shadowed`.
+    It is unaddressable: the exporter keeps the first and a report template
+    placing that tag gets the first section's content. Saying so in the editor
+    is the only place an author can see it before a client does.
+    """
+    from ..services.report_service import section_slug
+
+    sections = template.get("report_sections")
+    if not isinstance(sections, list):
+        return template
+
+    seen: set[str] = set()
+    resolved: list[dict] = []
+    for raw in sections:
+        if not isinstance(raw, dict):
+            continue
+        slug = section_slug(raw)
+        resolved.append({**raw, "slug": slug, "shadowed": slug in seen})
+        seen.add(slug)
+
+    return {**template, "report_sections": resolved}
+
+
 @router.get("/")
 def list_templates() -> list[dict]:
-    return _svc.list_templates()
+    return [_with_section_slugs(t) for t in _svc.list_templates()]
 
 
 @router.get("/{template_id}/raw")
@@ -48,7 +81,7 @@ def get_template(template_id: str) -> dict:
     tpl = _svc.get_template(template_id)
     if not tpl:
         raise HTTPException(status_code=404, detail="Template not found")
-    return tpl
+    return _with_section_slugs(tpl)
 
 
 @router.put("/{template_id}")

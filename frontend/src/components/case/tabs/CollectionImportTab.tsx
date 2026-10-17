@@ -127,12 +127,12 @@ const CATEGORY_ICON: Record<string, string> = {
 
 /**
  * Resolve destination page for a collection group.
- * - EVTX files → /artifacts/filesystem (EVTX viewer, uses CurrentCase context)
+ * - EVTX files → /artifacts/detections (Sigma rules, uses CurrentCase context)
  * - EML files  → /artifacts/email      (Email Analysis, uses CurrentCase context)
  * - Everything else → /artifacts/explorer?open=<filename>
  */
 function resolveDestination(page: string | null, firstFilename?: string): string {
-  if (page?.includes('/evtx'))   return '/artifacts/filesystem'
+  if (page?.includes('/evtx'))   return '/artifacts/detections'
   if (page?.includes('/emails')) return '/artifacts/email'
   const base = '/artifacts/explorer'
   if (!firstFilename) return base

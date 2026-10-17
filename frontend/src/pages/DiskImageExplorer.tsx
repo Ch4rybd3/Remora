@@ -7,18 +7,28 @@
 import { useState, useMemo, useCallback } from 'react'
 import { PageShell } from '../ui/PageShell'
 import { DataTable } from '../ui/DataTable'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   HardDrive, ChevronRight, Folder, FolderOpen, File as FileIcon, Loader2,
   AlertCircle, Download, Hash, FileOutput, Check, Copy, Layers, HelpCircle,
+  Plus, Trash2, X,
 } from '../ui/icons'
 import {
   diskImagesApi, type DirEntry, type DiskImageFile, type Partition,
+  type RegisteredImage,
 } from '../api/diskImages'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import { fmtBytes } from '../utils/formatUtils'
 
 const PREVIEW_BYTES = 4096
+
+/** The backend's reason, which is always more useful than "Request failed". */
+function errorDetail(e: unknown): string {
+  const detail = (e as { response?: { data?: { detail?: unknown } } })
+    ?.response?.data?.detail
+  if (typeof detail === 'string') return detail
+  return e instanceof Error ? e.message : 'Unknown error'
+}
 
 
 function fmtDate(iso: string | null): string {
@@ -65,7 +75,7 @@ function CopyableCommand({ label, command, hint }: {
 function TransferTips({ hostPath, configured }: { hostPath: string; configured: boolean }) {
   // The host the analyst reached this UI on is, in practice, the host holding
   // the images — a far better default than a placeholder.
-  const host = typeof window !== 'undefined' ? window.location.hostname : 'serveur'
+  const host = typeof window !== 'undefined' ? window.location.hostname : 'server'
   const user = '<user>'
 
   // A relative DISK_IMAGES_HOST_PATH (the "./images" default) is meaningless as
@@ -178,8 +188,9 @@ function HexView({ hex }: { hex: string }) {
 
 // ── Directory tree ────────────────────────────────────────────────────────────
 
-function TreeDir({ image, partition, dirPath, name, depth, currentDir, onNavigate }: {
-  image:      string
+function TreeDir({ caseId, imageId, partition, dirPath, name, depth, currentDir, onNavigate }: {
+  caseId:     string
+  imageId:    string
   partition:  number
   dirPath:    string
   name:       string
@@ -190,8 +201,8 @@ function TreeDir({ image, partition, dirPath, name, depth, currentDir, onNavigat
   const [open, setOpen] = useState(depth === 0)
 
   const { data: entries, isFetching } = useQuery({
-    queryKey: ['di-tree', image, partition, dirPath],
-    queryFn:  () => diskImagesApi.listDir(image, partition, dirPath),
+    queryKey: ['di-tree', caseId, imageId, partition, dirPath],
+    queryFn:  () => diskImagesApi.listDir(caseId, imageId, partition, dirPath),
     enabled:  open,
   })
 
@@ -215,8 +226,66 @@ function TreeDir({ image, partition, dirPath, name, depth, currentDir, onNavigat
       </div>
 
       {open && subdirs.map(d => (
-        <TreeDir key={d.path} image={image} partition={partition} dirPath={d.path}
+        <TreeDir key={d.path} caseId={caseId} imageId={imageId} partition={partition} dirPath={d.path}
                  name={d.name} depth={depth + 1} currentDir={currentDir} onNavigate={onNavigate} />
+      ))}
+    </div>
+  )
+}
+
+// ── Image picker ──────────────────────────────────────────────────────────────
+// What is on the volume but not yet claimed by this case. Registering copies
+// nothing, so the action is cheap and reversible - which is why it is a list
+// with one click per row rather than a confirmation dialog.
+
+function ImagePicker({ candidates, scanning, busy, error, onPick }: {
+  candidates: DiskImageFile[]
+  scanning:   boolean
+  busy:       boolean
+  error:      string | null
+  onPick:     (path: string) => void
+}) {
+  return (
+    <div className="border-b border-hairline bg-black/20 max-h-[50vh] overflow-y-auto">
+      <p className="px-3 pt-2.5 pb-1.5 text-label text-fg-secondary/50 leading-relaxed">
+        Images on the volume, not yet on this case. Registering one records that this
+        investigation examines it - the file itself is never copied or moved.
+      </p>
+
+      {error && (
+        <p className="mx-3 mb-2 px-2 py-1.5 text-label text-severity-critical bg-severity-critical/5 border border-severity-critical/20">
+          {error}
+        </p>
+      )}
+
+      {scanning && (
+        <div className="flex items-center gap-2 px-3 py-3 text-label text-fg-secondary/40">
+          <Loader2 size={10} className="animate-spin" /> Scanning the volume…
+        </div>
+      )}
+
+      {!scanning && candidates.length === 0 && (
+        <p className="px-3 py-3 text-label text-fg-secondary/30 leading-relaxed">
+          Nothing left to add - every image on the volume is already registered on this case.
+        </p>
+      )}
+
+      {candidates.map(c => (
+        <button
+          key={c.path}
+          disabled={busy}
+          onClick={() => onPick(c.path)}
+          title={c.path}
+          className="w-full text-left px-3 py-1.5 border-t border-strong/[0.03] hover:bg-accent/5 disabled:opacity-40 transition-colors"
+        >
+          <div className="flex items-center gap-1.5">
+            <Plus size={9} className="shrink-0 text-accent/60" />
+            <span className="text-label font-mono text-fg/80 truncate">{c.name}</span>
+          </div>
+          <p className="text-label text-fg-secondary/35 mt-0.5 pl-[18px] truncate">
+            {c.format.toUpperCase()} - {fmtBytes(c.size)} - {c.rel_path}
+          </p>
+        </button>
       ))}
     </div>
   )
@@ -227,8 +296,9 @@ function TreeDir({ image, partition, dirPath, name, depth, currentDir, onNavigat
 export default function DiskImageExplorer() {
   const { currentCase } = useCurrentCase()
   const caseId = currentCase?.id
+  const qc = useQueryClient()
 
-  const [image,     setImage]     = useState<string | null>(null)
+  const [imageId,   setImageId]   = useState<string | null>(null)
   const [partition, setPartition] = useState<number | null>(null)
   const [dir,       setDir]       = useState('/')
   const [selected,  setSelected]  = useState<DirEntry | null>(null)
@@ -236,43 +306,76 @@ export default function DiskImageExplorer() {
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [tipsOpen,    setTipsOpen]    = useState(false)
+  const [pickerOpen,  setPickerOpen]  = useState(false)
+  const [registerError, setRegisterError] = useState<string | null>(null)
 
   const { data: status } = useQuery({ queryKey: ['di-status'], queryFn: diskImagesApi.status })
 
   const { data: images = [], isLoading: loadingImages } = useQuery({
-    queryKey: ['di-images'], queryFn: diskImagesApi.list,
+    queryKey: ['di-images', caseId],
+    queryFn:  () => diskImagesApi.list(caseId!),
+    enabled:  !!caseId,
+  })
+
+  // Only fetched while the picker is open: it walks the whole volume, which is
+  // cheap on a laptop and not on a NAS holding forty acquisitions.
+  const { data: candidates = [], isFetching: scanning } = useQuery({
+    queryKey: ['di-available', caseId],
+    queryFn:  () => diskImagesApi.available(caseId!),
+    enabled:  !!caseId && pickerOpen,
+  })
+
+  const register = useMutation({
+    mutationFn: (path: string) => diskImagesApi.register(caseId!, path),
+    onSuccess: (img) => {
+      qc.invalidateQueries({ queryKey: ['di-images', caseId] })
+      qc.invalidateQueries({ queryKey: ['di-available', caseId] })
+      setRegisterError(null)
+      setPickerOpen(false)
+      selectImage(img)
+    },
+    onError: (e: unknown) => setRegisterError(errorDetail(e)),
+  })
+
+  const unregister = useMutation({
+    mutationFn: (id: string) => diskImagesApi.unregister(caseId!, id),
+    onSuccess: (_r, id) => {
+      qc.invalidateQueries({ queryKey: ['di-images', caseId] })
+      qc.invalidateQueries({ queryKey: ['di-available', caseId] })
+      if (imageId === id) { setImageId(null); setPartition(null); setSelected(null) }
+    },
   })
 
   const { data: partitions = [], isFetching: loadingParts, error: partError } = useQuery({
-    queryKey: ['di-parts', image],
-    queryFn:  () => diskImagesApi.partitions(image!),
-    enabled:  !!image,
+    queryKey: ['di-parts', caseId, imageId],
+    queryFn:  () => diskImagesApi.partitions(caseId!, imageId!),
+    enabled:  !!caseId && !!imageId,
   })
 
   const { data: entries = [], isFetching: loadingDir, error: dirError } = useQuery({
-    queryKey: ['di-list', image, partition, dir],
-    queryFn:  () => diskImagesApi.listDir(image!, partition!, dir),
-    enabled:  !!image && partition !== null,
+    queryKey: ['di-list', caseId, imageId, partition, dir],
+    queryFn:  () => diskImagesApi.listDir(caseId!, imageId!, partition!, dir),
+    enabled:  !!caseId && !!imageId && partition !== null,
   })
 
   const { data: preview, isFetching: loadingPreview } = useQuery({
-    queryKey: ['di-preview', image, partition, selected?.path],
-    queryFn:  () => diskImagesApi.preview(image!, partition!, selected!.path, 0, PREVIEW_BYTES),
-    enabled:  !!image && partition !== null && !!selected && !selected.is_dir,
+    queryKey: ['di-preview', caseId, imageId, partition, selected?.path],
+    queryFn:  () => diskImagesApi.preview(caseId!, imageId!, partition!, selected!.path, 0, PREVIEW_BYTES),
+    enabled:  !!caseId && !!imageId && partition !== null && !!selected && !selected.is_dir,
   })
 
   const { data: hashes, refetch: computeHash, isFetching: hashing } = useQuery({
-    queryKey: ['di-hash', image, partition, selected?.path],
-    queryFn:  () => diskImagesApi.hash(image!, partition!, selected!.path),
+    queryKey: ['di-hash', caseId, imageId, partition, selected?.path],
+    queryFn:  () => diskImagesApi.hash(caseId!, imageId!, partition!, selected!.path),
     enabled:  false,
   })
 
   const extract = useMutation({
-    mutationFn: () => diskImagesApi.extract(caseId!, image!, partition!, selected!.path),
+    mutationFn: () => diskImagesApi.extract(caseId!, imageId!, partition!, selected!.path),
   })
 
-  const selectImage = useCallback((img: DiskImageFile) => {
-    setImage(img.path); setPartition(null); setDir('/'); setSelected(null)
+  const selectImage = useCallback((img: RegisteredImage) => {
+    setImageId(img.id); setPartition(null); setDir('/'); setSelected(null)
   }, [])
 
   const selectPartition = useCallback((p: Partition) => {
@@ -280,6 +383,9 @@ export default function DiskImageExplorer() {
   }, [])
 
   const navigate = useCallback((d: string) => { setDir(d); setSelected(null) }, [])
+
+  const activeImage = useMemo(
+    () => images.find(i => i.id === imageId) ?? null, [images, imageId])
 
   const copyPath = () => {
     if (!selected) return
@@ -293,12 +399,12 @@ export default function DiskImageExplorer() {
    * not send — the link would just 401.
    */
   const download = useCallback(async () => {
-    if (!selected || !image || partition === null) return
+    if (!selected || !caseId || !imageId || partition === null) return
     setDownloading(true)
     setDownloadError(null)
     try {
       const token = localStorage.getItem('remora_token')
-      const res = await fetch(diskImagesApi.downloadUrl(image, partition, selected.path), {
+      const res = await fetch(diskImagesApi.downloadUrl(caseId, imageId, partition, selected.path), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -313,9 +419,29 @@ export default function DiskImageExplorer() {
     } finally {
       setDownloading(false)
     }
-  }, [selected, image, partition])
+  }, [selected, caseId, imageId, partition])
 
   // ── Guards ────────────────────────────────────────────────────────────────
+
+  // Images belong to a case now, so there is nothing to show without one.
+  // Previously this page listed every image on the volume regardless, which is
+  // why the same acquisitions appeared under every case.
+  if (!caseId) {
+    return (
+      <div className="p-6">
+        <div className="flex items-start gap-2 text-ui text-fg-secondary bg-fg/[0.02] border border-hairline px-4 py-3">
+          <AlertCircle size={14} className="mt-0.5 shrink-0 text-accent/60" />
+          <div>
+            <p className="text-fg">Select a case first</p>
+            <p className="text-label text-fg-secondary/60 mt-1 leading-relaxed">
+              An image is registered against the investigation that examines it, so the
+              explorer needs to know which case you are working on.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (status && !status.available) {
     return (
@@ -336,7 +462,7 @@ export default function DiskImageExplorer() {
           <div>
             <p className="font-semibold">No image directory configured</p>
             <p className="text-label text-severity-medium/70 mt-1 leading-relaxed">
-              Renseignez <code className="font-mono">DISK_IMAGES_HOST_PATH</code> dans le{' '}
+              Set <code className="font-mono">DISK_IMAGES_HOST_PATH</code> in{' '}
               <code className="font-mono">.env</code>, then restart the stack.
             </p>
           </div>
@@ -363,9 +489,17 @@ export default function DiskImageExplorer() {
           </p>
           {images.length > 0 && <span className="text-fg-secondary/30 text-label">{images.length}</span>}
           <button
+            onClick={() => { setPickerOpen(o => !o); setRegisterError(null) }}
+            title="Register an image on this case"
+            className={`ml-auto transition-colors ${ pickerOpen ? 'text-accent' : 'text-fg-secondary/30 hover:text-accent'
+            }`}
+          >
+            {pickerOpen ? <X size={12} /> : <Plus size={12} />}
+          </button>
+          <button
             onClick={() => setTipsOpen(o => !o)}
             title="How to put an image on the server"
-            className={`ml-auto transition-colors ${ tipsOpen ? 'text-accent' : 'text-fg-secondary/30 hover:text-accent'
+            className={`transition-colors ${ tipsOpen ? 'text-accent' : 'text-fg-secondary/30 hover:text-accent'
             }`}
           >
             <HelpCircle size={12} />
@@ -378,6 +512,16 @@ export default function DiskImageExplorer() {
           </div>
         )}
 
+        {pickerOpen && (
+          <ImagePicker
+            candidates={candidates}
+            scanning={scanning}
+            busy={register.isPending}
+            error={registerError}
+            onPick={path => register.mutate(path)}
+          />
+        )}
+
         <div className="flex-1 overflow-y-auto">
           {loadingImages && (
             <div className="flex items-center gap-2 px-3 py-3 text-label text-fg-secondary/40">
@@ -387,37 +531,53 @@ export default function DiskImageExplorer() {
           {!loadingImages && images.length === 0 && (
             <div className="px-3 py-6 text-center">
               <p className="text-label text-fg-secondary/30 leading-relaxed">
-                No image found in{' '}
-                <code className="font-mono">{status?.host_path || status?.roots.join(', ') || '—'}</code>.
+                No image registered on this case yet.
               </p>
-              <button onClick={() => setTipsOpen(true)}
+              <button onClick={() => setPickerOpen(true)}
                 className="mt-2 text-label text-accent/70 hover:text-accent underline">
-                How do I add one?
+                Register one from the volume
+              </button>
+              <button onClick={() => setTipsOpen(true)}
+                className="mt-1 block w-full text-label text-fg-secondary/40 hover:text-accent underline">
+                How do I put an image on the server?
               </button>
             </div>
           )}
 
           {images.map(img => (
-            <div key={img.path}>
+            <div key={img.id}>
               <div
                 onClick={() => selectImage(img)}
-                className={`px-2 py-1.5 cursor-pointer border-b border-strong/[0.03] transition-colors ${ image === img.path ? 'bg-accent/5' : 'hover:bg-white/[0.02]'
+                className={`px-2 py-1.5 cursor-pointer border-b border-strong/[0.03] transition-colors ${ imageId === img.id ? 'bg-accent/5' : 'hover:bg-white/[0.02]'
                 }`}
               >
-                <div className="flex items-center gap-1.5">
-                  <HardDrive size={10} className="shrink-0 text-accent/60" />
-                  <span className="text-label font-mono text-fg/80 truncate">{img.name}</span>
+                <div className="flex items-center gap-1.5 group">
+                  <HardDrive size={10} className={`shrink-0 ${img.available ? 'text-accent/60' : 'text-severity-medium/60'}`} />
+                  <span className="text-label font-mono text-fg/80 truncate" title={img.path}>{img.name}</span>
+                  <button
+                    onClick={e => { e.stopPropagation(); unregister.mutate(img.id) }}
+                    title="Remove this image from the case. The file on the volume is left untouched."
+                    className="ml-auto shrink-0 opacity-0 group-hover:opacity-100 text-fg-secondary/30 hover:text-severity-critical transition-all"
+                  >
+                    <Trash2 size={10} />
+                  </button>
                 </div>
                 <p className="text-label text-fg-secondary/35 mt-0.5 pl-[18px]">
-                  {img.format.toUpperCase()} · {fmtBytes(img.size)}
+                  {img.format.toUpperCase()} - {fmtBytes(img.size)}
                 </p>
+                {!img.available && (
+                  <p className="text-label text-severity-medium/70 mt-0.5 pl-[18px]"
+                     title={img.path}>
+                    Not on the volume right now
+                  </p>
+                )}
               </div>
 
-              {image === img.path && (
+              {imageId === img.id && (
                 <div className="border-b border-strong/[0.03]">
                   {loadingParts && (
                     <div className="flex items-center gap-2 px-4 py-2 text-label text-fg-secondary/40">
-                      <Loader2 size={9} className="animate-spin" /> Ouverture…
+                      <Loader2 size={9} className="animate-spin" /> Opening…
                     </div>
                   )}
                   {partError && (
@@ -446,7 +606,7 @@ export default function DiskImageExplorer() {
 
                       {partition === p.number && p.browsable && (
                         <div className="border-t border-strong/[0.03] py-1">
-                          <TreeDir image={img.path} partition={p.number} dirPath="/"
+                          <TreeDir caseId={caseId} imageId={img.id} partition={p.number} dirPath="/"
                                    name="/" depth={0} currentDir={dir} onNavigate={navigate} />
                         </div>
                       )}
@@ -464,7 +624,9 @@ export default function DiskImageExplorer() {
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 px-3 py-2 border-b border-hairline shrink-0">
           <code className="text-label font-mono text-fg-secondary/60 truncate flex-1">
-            {image ? `${image.split('/').pop()} › partition ${partition ?? '—'} › ${dir}` : 'Select an image'}
+            {activeImage
+              ? `${activeImage.name} › partition ${partition ?? '—'} › ${dir}`
+              : 'Select an image'}
           </code>
           {loadingDir && <Loader2 size={11} className="animate-spin text-accent/50" />}
           {entries.length > 0 && (
@@ -476,7 +638,7 @@ export default function DiskImageExplorer() {
         <div className="flex-1 min-h-0 overflow-auto">
           {partition === null ? (
             <p className="p-6 text-center text-label text-fg-secondary/30">
-              Choisissez une image puis une partition pour explorer son contenu.
+              Choose an image, then a partition, to browse its contents.
             </p>
           ) : dirError ? (
             <p className="p-6 text-center text-label text-severity-critical">

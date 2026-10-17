@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { PageShell } from '../ui/PageShell'
-import { Lock } from '../ui/icons'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import BinaryFileList from '../components/binary/BinaryFileList'
 import BinaryExplorer from '../components/binary/BinaryExplorer'
@@ -32,19 +31,12 @@ export default function BinaryAnalysis() {
       fullHeight
       asideLeft={(
         <aside className="w-64 shrink-0 border-r border-hairline bg-panel flex flex-col min-h-0">
-          <div className="px-3 py-2 border-b border-hairline shrink-0 flex items-center gap-2">
-            <Lock size={11} className="text-fg-muted" />
-            <span className="text-label font-mono uppercase tracking-label text-fg-muted">
-              Binary files
-            </span>
-          </div>
-          <div className="flex-1 min-h-0 overflow-hidden">
-            <BinaryFileList
-              caseId={currentCase.id}
-              selectedFileId={selectedFile?.id ?? null}
-              onSelectFile={(f) => setSelectedFile(f)}
-            />
-          </div>
+          {/* The list draws its own title bar, like every other artifact page. */}
+          <BinaryFileList
+            caseId={currentCase.id}
+            selectedFileId={selectedFile?.id ?? null}
+            onSelectFile={(f) => setSelectedFile(f)}
+          />
         </aside>
       )}
     >

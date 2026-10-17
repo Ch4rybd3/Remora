@@ -459,7 +459,7 @@ def rerun_plugin(
     current_user:     User    = Depends(get_current_user),
 ):
     """Re-run a specific plugin (reset its result)."""
-    _get_dump_or_404(dump_id, case_id, db)
+    dump = _get_dump_or_404(dump_id, case_id, db)
     pr = _get_plugin_or_404(plugin_id, dump_id, db)
 
     pr.status       = "pending"
@@ -467,6 +467,12 @@ def rerun_plugin(
     pr.error        = None
     pr.started_at   = None
     pr.completed_at = None
+    # A rerun discards the previous output, which may be what a finding was
+    # written from. The trail is the only record that the earlier result existed.
+    audit_log(db, user=current_user, action="memory.rerun_plugin",
+              resource_type="memory_plugin", resource_id=str(plugin_id),
+              resource_name=str(pr.plugin_name), case_id=case_id,
+              details={"dump": str(dump.filename)})
     db.commit()
     db.refresh(pr)
 

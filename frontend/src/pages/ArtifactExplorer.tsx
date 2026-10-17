@@ -3,7 +3,7 @@ import { PageShell } from '../ui/PageShell'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  AlertTriangle, FileText, Globe, Info, Loader2, Search, Table2, Trash2, Upload, X,
+  AlertTriangle, FileText, Globe, Info, Loader2, Table2, Trash2, Upload, X,
 } from '../ui/icons'
 import { csvArtifactsApi, type CsvArtifactMeta } from '../api/csvArtifacts'
 import { timelineApi } from '../api/timeline'
@@ -13,7 +13,8 @@ import { PinnedPanel } from './artifact-explorer/PinnedPanel'
 import { RowDetailPanel, type SelectedRow } from './artifact-explorer/RowDetailPanel'
 import { SidePanel } from '../ui/SidePanel'
 import { ArtifactTableView } from './artifact-explorer/ArtifactTableView'
-import { CopyableName, CustodyActions } from '../components/custody/CustodyActions'
+import { ArtifactFileList } from '../ui/ArtifactFileList'
+import { CustodyActions } from '../components/custody/CustodyActions'
 import { EZBadge } from './artifact-explorer/EZBadge'
 import { OmniSearchView } from './artifact-explorer/OmniSearchView'
 import {
@@ -23,62 +24,57 @@ import { buildDefaultDescription, buildDefaultTitle } from './artifact-explorer/
 import { defaultTabState, type PinnedRow, type TabState } from './artifact-explorer/types'
 
 // ── Sidebar file row ──────────────────────────────────────────────────────────
+// The row itself is `ui/ArtifactFileList`. What stays here is what only this
+// page knows: which chips an artifact carries, and which controls it offers.
 
-function FileSidebarRow({ meta, caseId, isOpen, onOpen, onDelete, onCustodyChange }: {
-  meta:     CsvArtifactMeta
-  caseId:   string
-  isOpen:   boolean
-  onOpen:   () => void
-  onDelete: () => void
-  onCustodyChange: () => void
-}) {
+function artifactBadges(meta: CsvArtifactMeta) {
   return (
-    <div onClick={onOpen}
-      className={`group relative px-3 py-2.5 cursor-pointer border-l-2 transition-colors ${isOpen ? 'bg-accent/5 border-l-accent/40' : 'border-l-transparent hover:bg-white/[0.03]'}`}>
-      <div className="flex items-start gap-2 pr-14">
-        <FileText size={12} className="mt-0.5 shrink-0 text-fg-secondary/30" />
-        <div className="flex-1 min-w-0">
-          {/* Clicking the name copies it - it is what gets pasted into a
-              command line most often. Opening the file is the row's job. */}
-          <CopyableName value={meta.original_name}
-            className="block w-full text-label text-fg/80 leading-snug font-mono" />
-          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-            {meta.ez_label
-              ? <EZBadge label={meta.ez_label} />
-              : <span className="text-label font-semibold px-1.5 py-0.5 rounded-control border bg-fg-muted/10 text-fg-muted border-fg-muted/20">unknown</span>
-            }
-            {meta.source_timezone && (
-              <span className="flex items-center gap-0.5 text-label font-semibold px-1.5 py-0.5 rounded-control border border-severity-low/30 bg-severity-low/10 text-severity-low">
-                <Globe size={7} />
-                {meta.source_timezone.split('/').pop()?.replace('_', ' ') ?? meta.source_timezone}
-              </span>
-            )}
-            {meta.available === false
-              ? <span
-                  title="This table is registered but its file is no longer on disk. It was most likely removed with the collection it came from."
-                  className="flex items-center gap-0.5 text-label font-semibold px-1.5 py-0.5 rounded-control border border-severity-medium/30 bg-severity-medium/10 text-severity-medium">
-                  <AlertTriangle size={7} />
-                  file missing
-                </span>
-              : <span className="text-label text-fg-secondary/40">{meta.row_count.toLocaleString()} rows</span>
-            }
-          </div>
-          <p className="text-label text-fg-secondary/25 mt-0.5">{fmtRelative(meta.uploaded_at)}</p>
-        </div>
-      </div>
+    <>
+      {meta.ez_label
+        ? <EZBadge label={meta.ez_label} />
+        : <span className="text-label font-semibold px-1.5 py-0.5 rounded-control border bg-fg-muted/10 text-fg-muted border-fg-muted/20">unknown</span>
+      }
+      {meta.source_timezone && (
+        <span
+          title={meta.source_timezone === 'UTC'
+            ? 'Recorded in UTC. Timestamps are shown as written.'
+            : `Recorded in ${meta.source_timezone}. The Explorer converts this file's `
+              + `event times to UTC so they line up with the rest of the case. `
+              + `The file itself is untouched.`}
+          className="flex items-center gap-0.5 text-label font-semibold px-1.5 py-0.5 rounded-control border border-severity-low/30 bg-severity-low/10 text-severity-low">
+          <Globe size={7} />
+          {meta.source_timezone.split('/').pop()?.replace('_', ' ') ?? meta.source_timezone}
+        </span>
+      )}
+      {meta.available === false
+        ? <span
+            title="This table is registered but its file is no longer on disk. It was most likely removed with the collection it came from."
+            className="flex items-center gap-0.5 text-label font-semibold px-1.5 py-0.5 rounded-control border border-severity-medium/30 bg-severity-medium/10 text-severity-medium">
+            <AlertTriangle size={7} />
+            file missing
+          </span>
+        : <span className="text-label text-fg-secondary/40">{meta.row_count.toLocaleString()} rows</span>
+      }
+    </>
+  )
+}
 
+function artifactActions(
+  meta: CsvArtifactMeta, caseId: string,
+  onDelete: () => void, onCustodyChange: () => void,
+) {
+  return (
+    <div className="flex items-center gap-1">
       {/* The shared control, so preserving here means exactly what it means in
           the Collection tab - including the IOC option and the withdrawal the
           bespoke button that used to live here could not offer. */}
-      <div className="absolute right-7 top-2" onClick={e => e.stopPropagation()}>
-        <CustodyActions
-          caseId={caseId} kind="artifact" sourceId={meta.id}
-          name={meta.original_name} evidenceId={meta.evidence_id}
-          showCopy={false} onChange={onCustodyChange} />
-      </div>
-
-      <button onClick={e => { e.stopPropagation(); onDelete() }}
-        className="absolute right-2 top-2.5 opacity-0 group-hover:opacity-100 text-fg-secondary/40 hover:text-severity-critical transition-all">
+      <CustodyActions
+        caseId={caseId} kind="artifact" sourceId={meta.id}
+        name={meta.original_name} evidenceId={meta.evidence_id}
+        showCopy={false} onChange={onCustodyChange} />
+      <button onClick={onDelete}
+        title="Delete this table"
+        className="opacity-0 group-hover:opacity-100 text-fg-secondary/40 hover:text-severity-critical transition-all">
         <Trash2 size={11} />
       </button>
     </div>
@@ -189,16 +185,6 @@ export default function ArtifactExplorer() {
     }
   }, [])
 
-  const [fileSearch, setFileSearch] = useState('')
-  const filteredSidebarFiles = useMemo(() => {
-    if (!fileSearch.trim()) return files
-    const q = fileSearch.toLowerCase()
-    return files.filter(f =>
-      f.original_name.toLowerCase().includes(q) ||
-      (f.ez_label ?? '').toLowerCase().includes(q)
-    )
-  }, [files, fileSearch])
-
   const closeTab = (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
     setOpenTabs(prev => {
@@ -253,6 +239,28 @@ export default function ArtifactExplorer() {
       })
     },
   })
+
+  /**
+   * The sidebar rows, as the shared list wants them.
+   *
+   * Searching by the artifact label as well as the name is what an analyst
+   * actually does - "show me the prefetch" rather than a filename nobody
+   * remembers - so it goes in `searchText` and the shared filter picks it up.
+   */
+  const sidebarItems = useMemo(() => files.map(f => ({
+    id:          f.id,
+    name:        f.original_name,
+    searchText:  f.ez_label ?? '',
+    unavailable: f.available === false,
+    badges:      artifactBadges(f),
+    footnote:    fmtRelative(f.uploaded_at),
+    actions:     artifactActions(
+      f, caseId!,
+      () => deleteMutation.mutate(f.id),
+      () => qc.invalidateQueries({ queryKey: ['csv-artifacts', caseId] }),
+    ),
+  })), [files, caseId, deleteMutation, qc])
+
 
   // The row open in the detail panel. Held here rather than in the table so the
   // panel on the right can show it while the table keeps its scroll position.
@@ -455,49 +463,15 @@ export default function ArtifactExplorer() {
           {uploadErr && <p className="text-label text-severity-critical mt-1">{uploadErr}</p>}
         </div>
 
-        {files.length > 3 && (
-          <div className="px-3 py-2 border-b border-hairline shrink-0">
-            <div className="relative">
-              <Search size={10} className="absolute left-2 top-1/2 -translate-y-1/2 text-fg-secondary/30" />
-              <input
-                value={fileSearch}
-                onChange={e => setFileSearch(e.target.value)}
-                placeholder="Filter files…"
-                className="w-full bg-fg/5 border border-hairline rounded-control pl-6 pr-5 py-1 text-label text-fg placeholder:text-fg-secondary/30 outline-none focus:border-strong transition-colors"
-              />
-              {fileSearch && (
-                <button onClick={() => setFileSearch('')}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-fg-secondary/40 hover:text-fg">
-                  <X size={9} />
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        <div className="flex-1 overflow-y-auto">
-          {filesLoading && (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 size={16} className="animate-spin text-fg-secondary/30" />
-            </div>
-          )}
-          {!filesLoading && files.length === 0 && (
-            <p className="text-label text-fg-secondary/30 text-center py-8 px-3">
-              No CSV files yet.<br />Upload EZ Tools output files to start.
-            </p>
-          )}
-          {!filesLoading && files.length > 0 && filteredSidebarFiles.length === 0 && (
-            <p className="text-label text-fg-secondary/30 text-center py-6 px-3 italic">
-              No files match "{fileSearch}"
-            </p>
-          )}
-          {filteredSidebarFiles.map(f => (
-            <FileSidebarRow key={f.id} meta={f} caseId={caseId!}
-              isOpen={openTabs.includes(f.id)}
-              onOpen={() => openFile(f.id)}
-              onDelete={() => deleteMutation.mutate(f.id)}
-              onCustodyChange={() => qc.invalidateQueries({ queryKey: ['csv-artifacts', caseId] })} />
-          ))}
+        <div className="flex-1 min-h-0">
+          <ArtifactFileList
+            items={sidebarItems}
+            selectedId={activeTab}
+            onSelect={openFile}
+            title="Tables"
+            loading={filesLoading}
+            emptyMessage="No table yet. Upload EZ Tools output to start."
+          />
         </div>
 
         <div

@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { FlaskConical, Wrench, Flag, BookOpen, ClipboardCheck, Clipboard } from '../../../ui/icons'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { FlaskConical, BookOpen, ClipboardCheck, Clipboard } from '../../../ui/icons'
 import { casesApi } from '../../../api/cases'
 import MarkdownEditor from '../../ui/MarkdownEditor'
 import type { Case } from '../../../types'
@@ -29,29 +29,31 @@ function CopyBtn({ getText }: { getText: () => string }) {
   )
 }
 
-interface SectionBlock { icon: React.ReactNode; label: string; color: string; content: string }
+interface SectionBlock { label: string; content: string }
 
+/**
+ * The report, read-only, beside the executive summary being written.
+ *
+ * It used to list three fixed boxes. The report is the case template's
+ * sections now, so this reads whatever they turned out to be - a panel that
+ * named three headings would be wrong for every template that does not have
+ * exactly those three.
+ */
 function ReportRefPanel({ case_ }: { case_: Case }) {
-  const sections: SectionBlock[] = [
-    {
-      icon:    <FlaskConical size={10} />,
-      label:   'Technical Analysis',
-      color:   'text-severity-low border-severity-low/20 bg-severity-low/5',
-      content: case_.report_analysis ?? '',
-    },
-    {
-      icon:    <Wrench size={10} />,
-      label:   'Remediations',
-      color:   'text-severity-high border-severity-high/20 bg-severity-high/5',
-      content: case_.report_remediation ?? '',
-    },
-    {
-      icon:    <Flag size={10} />,
-      label:   'Conclusion & Recommandations',
-      color:   'text-data-2 border-data-2/20 bg-data-2/5',
-      content: case_.report_conclusion ?? '',
-    },
-  ]
+  const { data: structure } = useQuery({
+    queryKey: ['report-sections', case_.id],
+    queryFn:  () => casesApi.reportSections(case_.id),
+    staleTime: 60_000,
+  })
+
+  const written: Record<string, string> = useMemo(() => {
+    try { return JSON.parse(case_.report_sections_data || '{}') } catch { return {} }
+  }, [case_.report_sections_data])
+
+  const sections: SectionBlock[] = (structure?.sections ?? []).map(section => ({
+    label:   section.name,
+    content: written[section.slug] ?? '',
+  }))
 
   const hasAny = sections.some(s => s.content.trim())
 
@@ -81,8 +83,8 @@ function ReportRefPanel({ case_ }: { case_: Case }) {
         ) : (
           sections.map(s => (
             <div key={s.label} className="border-b border-strong/[0.04] last:border-b-0">
-              <div className={`flex items-center gap-2 px-3 py-1.5 border-b border-hairline ${s.color}`}>
-                <span className="shrink-0">{s.icon}</span>
+              <div className="flex items-center gap-2 px-3 py-1.5 border-b border-hairline text-fg-secondary/60">
+                <FlaskConical size={10} className="shrink-0" />
                 <span className="text-label font-semibold tracking-wide flex-1">{s.label}</span>
                 {s.content.trim() && <CopyBtn getText={() => s.content} />}
               </div>
@@ -92,7 +94,7 @@ function ReportRefPanel({ case_ }: { case_: Case }) {
                     {s.content}
                   </pre>
                 ) : (
-                  <p className="text-label italic text-fg-secondary/20">Vide</p>
+                  <p className="text-label italic text-fg-secondary/20">Empty</p>
                 )}
               </div>
             </div>

@@ -1,38 +1,18 @@
 """
-Report document templates — DOCX and Markdown with {{tag}} placeholders.
+Report document templates - DOCX and Markdown with {{tag}} placeholders.
 
-Supported tags
-──────────────
-Text tags (inline replacement):
-  {{case.title}}              Case title
-  {{case.id}}                 Case UUID
-  {{case.status}}             Case status
-  {{case.severity}}           Case severity (upper-case)
-  {{case.tlp}}                TLP classification
-  {{case.created_at}}         Creation date (YYYY-MM-DD HH:MM UTC)
-  {{case.closed_at}}          Closure date  (or "N/A")
-  {{case.description}}        Case description
-  {{case.executive_summary}}  Executive summary
-  {{case.quick_notes}}        Quick notes
-  {{case.assigned_to}}        Assigned analyst(s)
-  {{case.tags}}               Case tags (comma-separated)
-  {{report.date}}             Report generation date (YYYY-MM-DD)
-  {{report.author}}           Username of the analyst generating the report
+The tag vocabulary lives in `services/report_tags.py`, not here. It used to be
+written out in this docstring as well, and a docstring cannot be wrong loudly:
+it drifted from the code it described and no test could tell. This module knows
+how to *render* a tag; the registry knows which ones exist.
 
-Report content (analyst-authored, rendered as formatted DOCX paragraphs):
-  {{report_analysis}}         Analyse Technique (box 1 of the Report tab)
-  {{report_remediation}}      Remediations      (box 2 of the Report tab)
-  {{report_conclusion}}       Conclusion        (box 3 of the Report tab)
-  {{report_content}}          All 3 boxes combined (backward compat alias)
+Three things are resolved at export time:
 
-Block tags (replaced with a table or image):
-  {{ioc_table}}               Full IOC table
-  {{asset_table}}             Full asset table
-  {{evidence_table}}          Full evidence table
-  {{timeline_table}}          Timeline (chronological)
-  {{attack_graph}}            Attack-graph PNG image (DOCX) or placeholder (MD)
-  {{mitre_matrix}}            MITRE ATT&CK coverage table (parents + selected sub-techniques)
-  {{mitre_matrix_img}}        MITRE ATT&CK matrix as a visual PNG image (DOCX only)
+* text tags, substituted inline through the context the registry builds;
+* block tags, which replace their paragraph with a table or an image and are
+  therefore rendered here, differently per format;
+* the case's own report sections, which are per-case and come from
+  `report_tags.section_tags(case)` rather than from any list.
 """
 
 from __future__ import annotations
@@ -47,7 +27,7 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -59,7 +39,10 @@ from ..models.attack_graph import AttackGraph
 from ..models.case import Case
 from ..models.report_doc_template import ReportDocTemplate
 from ..models.user import User
+from ..services import docx_style, report_tags, timeline_chart
+from ..services.audit_service import audit_log
 from ..services.graph_render import render_attack_graph_png
+from ..services.template_service import TemplateService
 
 router = APIRouter(prefix="/report-doc-templates", tags=["report-doc-templates"])
 
@@ -72,26 +55,6 @@ TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 
 TAG_RE = re.compile(r'\{\{[\w.]+\}\}')
 
-BLOCK_TAGS: set[str] = {
-    "ioc_table", "asset_table", "evidence_table", "timeline_table",
-    "attack_graph", "mitre_matrix", "mitre_matrix_img",
-    # Report content tags (markdown → formatted DOCX paragraphs)
-    "report_analysis", "report_remediation", "report_conclusion",
-    "report_content",   # combined alias (backward compat)
-}
-
-ALL_TAGS: list[str] = [
-    "case.title", "case.id", "case.status", "case.severity", "case.tlp",
-    "case.created_at", "case.closed_at", "case.description",
-    "case.executive_summary", "case.quick_notes", "case.assigned_to", "case.tags",
-    "report.date", "report.author",
-    # Report content (split)
-    "report_analysis", "report_remediation", "report_conclusion",
-    "report_content",  # combined backward compat
-    # Annexes
-    "ioc_table", "asset_table", "evidence_table", "timeline_table",
-    "attack_graph", "mitre_matrix", "mitre_matrix_img",
-]
 
 # ── Pydantic schema ────────────────────────────────────────────────────────────
 
@@ -102,6 +65,8 @@ class ReportDocTemplateOut(BaseModel):
     format:        str
     file_size:     int
     tags_detected: list[str]
+    #: The table style the annex tables take, or null for Remora's own rendering.
+    annex_style:   str | None
     created_at:    datetime
     created_by:    str | None
 
@@ -134,29 +99,28 @@ def _detect_tags_docx(file_bytes: bytes) -> list[str]:
     return _detect_tags("\n".join(parts))
 
 
+def _detect_annex_style(file_bytes: bytes) -> str | None:
+    """
+    The table style this template's annex tables will take, if any.
+
+    Read at upload rather than only at export so the author gets told. A style
+    named `Remora Anex` is not an error anywhere - it simply never matches, and
+    every export quietly uses Remora's own rendering instead. Saying which
+    branch the document landed on is the only way that typo is ever found.
+    """
+    from docx import Document  # type: ignore
+
+    try:
+        return docx_style.annex_style(Document(io.BytesIO(file_bytes))).name
+    except Exception:
+        return None
+
+
 # ── Context builder ────────────────────────────────────────────────────────────
 
-def _fmt_dt(dt: datetime | None) -> str:
-    return dt.strftime("%Y-%m-%d %H:%M UTC") if dt else "N/A"
-
-
 def _build_context(case: Case, author: str) -> dict[str, str]:
-    return {
-        "case.title":             case.title or "",
-        "case.id":                case.id or "",
-        "case.status":            (case.status.value if case.status else "").replace("_", " ").title(),
-        "case.severity":          (case.severity.value if case.severity else "").upper(),
-        "case.tlp":               case.tlp or "",
-        "case.created_at":        _fmt_dt(case.created_at),
-        "case.closed_at":         _fmt_dt(case.closed_at),
-        "case.description":       case.description or "",
-        "case.executive_summary": case.executive_summary or "",
-        "case.quick_notes":       case.quick_notes or "",
-        "case.assigned_to":       case.assigned_to or "Unassigned",
-        "case.tags":              case.tags or "",
-        "report.date":            datetime.now(UTC).strftime("%Y-%m-%d"),
-        "report.author":          author,
-    }
+    """Every text tag, resolved. Block tags are rendered per format below."""
+    return report_tags.build_context(case, author)
 
 
 # ── Markdown helpers ───────────────────────────────────────────────────────────
@@ -556,23 +520,20 @@ def _render_markdown(template_text: str, case: Case, ctx: dict[str, str]) -> str
     text = text.replace("{{asset_table}}", _md_asset_table(case))
     text = text.replace("{{evidence_table}}", _md_evidence_table(case))
     text = text.replace("{{timeline_table}}", _md_timeline_table(case))
-    text = text.replace("{{attack_graph}}", "_[Attach the attack graph image — Export PNG in the Attack Graph tab]_")
+    text = text.replace("{{attack_graph}}", "_[Attach the attack graph image - Export PNG in the Attack Graph tab]_")
     text = text.replace("{{mitre_matrix}}", _md_mitre_matrix(case))
-    text = text.replace("{{mitre_matrix_img}}", "_[MITRE ATT&CK matrix image — available in DOCX export only]_")
-    # Split report content tags (fixed 3-section backward compat)
-    text = text.replace("{{report_analysis}}",    (case.report_analysis    or "").strip() or "_[No analysis written.]_")
-    text = text.replace("{{report_remediation}}", (case.report_remediation or "").strip() or "_[No remediation written.]_")
-    text = text.replace("{{report_conclusion}}",  (case.report_conclusion  or "").strip() or "_[No conclusion written.]_")
-    # Dynamic per-section tags from report_sections_data
-    import json as _json
-    try:
-        sections_data: dict = _json.loads(getattr(case, "report_sections_data", None) or "{}")
-    except Exception:
-        sections_data = {}
-    for slug, content in sections_data.items():
-        text = text.replace(f"{{{{{slug}}}}}", (content or "").strip() or f"_[Section '{slug}' not written.]_")
+    text = text.replace("{{mitre_matrix_img}}", "_[MITRE ATT&CK matrix image - available in DOCX export only]_")
+    text = text.replace("{{timeline_portrait}}", "_[Timeline figure - available in DOCX export only. The table above lists the same events.]_")
+    # The report's sections, derived from the case rather than from any list
+    for slug, content in report_tags.section_tags(case).items():
+        text = text.replace(f"{{{{{slug}}}}}",
+                            content.strip() or report_tags.section_placeholder(slug))
     # Combined backward compat
     text = text.replace("{{report_content}}", case.report or "_[No report content written.]_")
+    # Last, and deliberately so: the headings it lists live inside the sections
+    # substituted above.
+    if "{{toc}}" in text:
+        text = text.replace("{{toc}}", docx_style.markdown_toc(text.replace("{{toc}}", "")))
     return text
 
 
@@ -619,14 +580,23 @@ def _build_word_table(
     headers: list[str],
     rows: list[list[str]],
     header_color: str = "1E3A5F",
+    style: docx_style.AnnexStyle = docx_style.BUILT_IN,
 ) -> Table:
     """
-    Create a fully styled Word table:
-    - Extends ~0.5 cm beyond the page text-area on both sides
-    - Solid borders (outer 1pt, inner 0.5pt) in neutral grey
-    - Coloured header row with white bold text (colour per table type)
-    - Alternating light-grey row shading for readability
-    - Font size 9pt header / 8pt body
+    An annex table, laid out here and *painted by the document* where it can be.
+
+    Layout is Remora's in every case: even columns, the header row marked to
+    repeat across pages, and one row per record in the order given.
+
+    The look depends on `style`. When the report template names a table style -
+    see `docx_style` - it is applied and nothing below is: no borders, no header
+    fill, no banding, no font sizes, and the table sits inside the text area
+    rather than bleeding into the margins, because the bleed was chosen to go
+    with Remora's own palette and not with the client's.
+
+    Otherwise, the rendering Remora always had: ~0.5 cm into each margin, grey
+    1.5 pt outer and 0.75 pt inner borders, a coloured header row in white bold
+    9 pt, alternating grey banding, 8 pt body.
     """
     from docx.oxml import OxmlElement  # type: ignore
     from docx.oxml.ns import qn  # type: ignore
@@ -639,6 +609,7 @@ def _build_word_table(
     n_cols = len(headers)
     n_rows = len(rows)
     table = doc.add_table(rows=1 + n_rows, cols=n_cols)
+    docx_style.apply_annex_style(table, style)
 
     tbl  = table._tbl
     tblPr = tbl.find(qn("w:tblPr"))
@@ -647,22 +618,24 @@ def _build_word_table(
         tbl.insert(0, tblPr)
 
     # ── Width: extend beyond the text area ───────────────────────────────────
+    bleed = EXT_TWIPS if style.paints else 0
     col_w_twips: int | None = None
     try:
         section  = doc.sections[0]
         text_w   = int((section.page_width - section.left_margin - section.right_margin)
                        / EMU_PER_TWIP)
-        table_w  = text_w + 2 * EXT_TWIPS
+        table_w  = text_w + 2 * bleed
 
         tblW = OxmlElement("w:tblW")
         tblW.set(qn("w:w"), str(table_w))
         tblW.set(qn("w:type"), "dxa")
         tblPr.append(tblW)
 
-        tblInd = OxmlElement("w:tblInd")
-        tblInd.set(qn("w:w"), str(-EXT_TWIPS))
-        tblInd.set(qn("w:type"), "dxa")
-        tblPr.append(tblInd)
+        if bleed:
+            tblInd = OxmlElement("w:tblInd")
+            tblInd.set(qn("w:w"), str(-bleed))
+            tblInd.set(qn("w:type"), "dxa")
+            tblPr.append(tblInd)
 
         col_w_twips = table_w // n_cols
     except Exception:
@@ -672,19 +645,20 @@ def _build_word_table(
         tblW.set(qn("w:type"), "pct")
         tblPr.append(tblW)
 
-    # ── Borders ───────────────────────────────────────────────────────────────
-    tblBorders = OxmlElement("w:tblBorders")
-    for side, sz in [
-        ("top", "12"), ("left", "12"), ("bottom", "12"), ("right", "12"),
-        ("insideH", "6"), ("insideV", "4"),
-    ]:
-        b = OxmlElement(f"w:{side}")
-        b.set(qn("w:val"), "single")
-        b.set(qn("w:sz"), sz)       # half-points: 12 = 1.5 pt, 6 = 0.75 pt
-        b.set(qn("w:space"), "0")
-        b.set(qn("w:color"), BORDER_COLOR)
-        tblBorders.append(b)
-    tblPr.append(tblBorders)
+    # ── Borders — the style's job when there is one ───────────────────────────
+    if style.paints:
+        tblBorders = OxmlElement("w:tblBorders")
+        for side, sz in [
+            ("top", "12"), ("left", "12"), ("bottom", "12"), ("right", "12"),
+            ("insideH", "6"), ("insideV", "4"),
+        ]:
+            b = OxmlElement(f"w:{side}")
+            b.set(qn("w:val"), "single")
+            b.set(qn("w:sz"), sz)       # half-points: 12 = 1.5 pt, 6 = 0.75 pt
+            b.set(qn("w:space"), "0")
+            b.set(qn("w:color"), BORDER_COLOR)
+            tblBorders.append(b)
+        tblPr.append(tblBorders)
 
     # ── tblGrid: even column widths ───────────────────────────────────────────
     if col_w_twips:
@@ -699,7 +673,8 @@ def _build_word_table(
     hdr_cells = table.rows[0].cells
     for i, h in enumerate(headers):
         cell = hdr_cells[i]
-        _set_cell_bg(cell, header_color)
+        if style.paints:
+            _set_cell_bg(cell, header_color)
         # Set column width on header cell too
         if col_w_twips:
             tc = cell._tc
@@ -710,9 +685,11 @@ def _build_word_table(
             tcPr.append(tcW)
         para = cell.paragraphs[0]
         run = para.add_run(h)
-        run.bold = True
-        run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
-        run.font.size = Pt(9)
+        if style.paints:
+            run.bold = True
+            run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+            run.font.size = Pt(9)
+    docx_style.repeat_header_row(table)
 
     # ── Data rows ─────────────────────────────────────────────────────────────
     ALT_BG = "F3F4F6"   # tailwind gray-100 — subtle alternating shade
@@ -720,7 +697,7 @@ def _build_word_table(
         cells = table.rows[r_i + 1].cells
         for c_i, val in enumerate(row_data):
             cell = cells[c_i]
-            if r_i % 2 == 1:
+            if style.paints and r_i % 2 == 1:
                 _set_cell_bg(cell, ALT_BG)
             if col_w_twips:
                 tc = cell._tc
@@ -731,14 +708,22 @@ def _build_word_table(
                 tcPr.append(tcW)
             para = cell.paragraphs[0]
             run = para.add_run(str(val) if val is not None else "")
-            run.font.size = Pt(8)
+            if style.paints:
+                run.font.size = Pt(8)
 
     return table
 
 
-def _build_mitre_word_table(doc, case: Case) -> Table:
+def _build_mitre_word_table(
+    doc, case: Case, style: docx_style.AnnexStyle = docx_style.BUILT_IN,
+) -> Table:
     """
     Build a MITRE ATT&CK coverage Word table for the case.
+
+    Like every annex table, the look is the document's where the report template
+    names a table style - see `docx_style`. The hierarchy is not: the `↳` prefix
+    and the indent say "sub-technique" whatever paints the row, because that is
+    what the row means rather than how it looks.
 
     Layout: Tactic | Technique ID | Technique Name
     Rules:
@@ -763,7 +748,8 @@ def _build_mitre_word_table(doc, case: Case) -> Table:
     if not ttps:
         # Return an empty placeholder paragraph cast as a table-like object
         # by abusing _build_word_table with empty rows
-        return _build_word_table(doc, ["Tactic", "Technique ID", "Technique Name"], [], HEADER_COLOR)
+        return _build_word_table(doc, ["Tactic", "Technique ID", "Technique Name"], [],
+                                 HEADER_COLOR, style)
 
     selected_ids = {t.technique_id for t in ttps}
     ttp_by_id    = {t.technique_id: t for t in ttps}
@@ -806,6 +792,7 @@ def _build_mitre_word_table(doc, case: Case) -> Table:
     # ── Build the Word table ──────────────────────────────────────────────────
     n_rows = len(display)
     table  = doc.add_table(rows=1 + n_rows, cols=3)
+    docx_style.apply_annex_style(table, style)
     tbl    = table._tbl
     tblPr  = tbl.find(qn("w:tblPr"))
     if tblPr is None:
@@ -818,15 +805,16 @@ def _build_mitre_word_table(doc, case: Case) -> Table:
     tblW.set(qn("w:type"), "pct")
     tblPr.append(tblW)
 
-    # Borders
-    BORDER = "9CA3AF"
-    tblBorders = OxmlElement("w:tblBorders")
-    for side, sz in [("top","12"),("left","12"),("bottom","12"),("right","12"),("insideH","6"),("insideV","4")]:
-        b = OxmlElement(f"w:{side}")
-        b.set(qn("w:val"), "single"); b.set(qn("w:sz"), sz)
-        b.set(qn("w:space"), "0");    b.set(qn("w:color"), BORDER)
-        tblBorders.append(b)
-    tblPr.append(tblBorders)
+    # Borders — the style's job when there is one
+    if style.paints:
+        BORDER = "9CA3AF"
+        tblBorders = OxmlElement("w:tblBorders")
+        for side, sz in [("top","12"),("left","12"),("bottom","12"),("right","12"),("insideH","6"),("insideV","4")]:
+            b = OxmlElement(f"w:{side}")
+            b.set(qn("w:val"), "single"); b.set(qn("w:sz"), sz)
+            b.set(qn("w:space"), "0");    b.set(qn("w:color"), BORDER)
+            tblBorders.append(b)
+        tblPr.append(tblBorders)
 
     # Column widths (approx): Tactic 25%, ID 20%, Name 55%
     COL_PCTS = [1250, 1000, 2750]  # out of 5000 twips
@@ -842,9 +830,12 @@ def _build_mitre_word_table(doc, case: Case) -> Table:
     # Header row
     hdr = table.rows[0].cells
     for i, (label, w) in enumerate(zip(["Tactic", "Technique ID", "Technique Name"], COL_PCTS, strict=True)):
-        _set_cell_bg(hdr[i], HEADER_COLOR); _set_col_w(hdr[i], w)
+        _set_col_w(hdr[i], w)
         run = hdr[i].paragraphs[0].add_run(label)
-        run.bold = True; run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF); run.font.size = Pt(9)
+        if style.paints:
+            _set_cell_bg(hdr[i], HEADER_COLOR)
+            run.bold = True; run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF); run.font.size = Pt(9)
+    docx_style.repeat_header_row(table)
 
     # Data rows
     prev_tactic = None
@@ -854,23 +845,26 @@ def _build_mitre_word_table(doc, case: Case) -> Table:
             _set_col_w(cells[c_i], w)
 
         if is_sub:
-            # Sub-technique row: light green background, indented ID
-            for c in cells: _set_cell_bg(c, SUB_BG.lstrip("#"))
-            cells[0].paragraphs[0].add_run("").font.size = Pt(8)   # blank tactic cell
+            # Sub-technique row: indented ID, and a green tint where Remora paints
+            cells[0].paragraphs[0].add_run("")                     # blank tactic cell
             id_run  = cells[1].paragraphs[0].add_run(f"  ↳ {tid}")
             name_run = cells[2].paragraphs[0].add_run(name)
-            for r in (id_run, name_run):
-                r.font.size = Pt(8)
-                r.font.color.rgb = RGBColor(0x16, 0x6A, 0x34)  # forest green
+            if style.paints:
+                for c in cells: _set_cell_bg(c, SUB_BG.lstrip("#"))
+                cells[0].paragraphs[0].runs[0].font.size = Pt(8)
+                for r in (id_run, name_run):
+                    r.font.size = Pt(8)
+                    r.font.color.rgb = RGBColor(0x16, 0x6A, 0x34)  # forest green
         else:
-            # Parent technique row: alternate shading
-            if r_i % 2 == 1:
+            # Parent technique row: alternate shading where Remora paints
+            if style.paints and r_i % 2 == 1:
                 for c in cells: _set_cell_bg(c, ALT_BG.lstrip("#"))
             tact_text = tact if tact != prev_tactic else ""  # only show tactic on first row of group
             prev_tactic = tact
             for c_i, (text, _w) in enumerate(zip([tact_text, tid, name], COL_PCTS, strict=True)):
                 run = cells[c_i].paragraphs[0].add_run(text)
-                run.font.size = Pt(8)
+                if style.paints:
+                    run.font.size = Pt(8)
                 if c_i == 1:  # technique ID — slightly bold
                     run.bold = True
 
@@ -880,13 +874,10 @@ def _build_mitre_word_table(doc, case: Case) -> Table:
 
 def _resolve_image_url(url: str) -> Path | None:
     """
-    Map a note-image URL (or vault view URL) to an absolute local path.
+    Map a note-image URL to an absolute local path.
 
-    Handles:
-      /note-images/{case_id}/{filename}   → note_images dir on disk
-      /api/v1/vaults/{id}/view            → vault file path from DB (not resolved here —
-                                            caller should pass the path directly if needed)
-    Returns None if the file cannot be resolved or does not exist.
+    Handles `/note-images/{case_id}/{filename}`. Returns None if the file
+    cannot be resolved or does not exist.
     """
     base = settings.evidence_store_path.parent
 
@@ -1056,6 +1047,11 @@ def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
 
     doc = Document(template_path)
 
+    # Who paints the annex tables - the template, the document, or Remora.
+    # Resolved once: four tables in three different looks would be worse than
+    # any one of the three.
+    annex = docx_style.annex_style(doc)
+
     # ── Table data ─────────────────────────────────────────────────────────────
     ioc_headers = ["Type", "Value", "Confidence", "TLP", "Description"]
     ioc_rows = (
@@ -1091,10 +1087,18 @@ def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
 
     # ── First pass: body paragraphs ────────────────────────────────────────────
     # Collect block-tag paragraphs; replace text in all others.
+    #
+    # The scan covers the registry's block tags *and* this case's own report
+    # sections. Scanning only the fixed set was the bug: a section slug matched
+    # nothing, fell through to the text pass which had no value for it either,
+    # and came out of Word as a literal {{slug}} - while the Markdown exporter
+    # rendered the same template correctly.
+    sections = report_tags.section_tags(case)
+    scannable = list(report_tags.block_names()) + list(sections)
     block_paras: list[tuple] = []
     for para in list(doc.paragraphs):
         full = _para_text(para)
-        block_found = next((bt for bt in BLOCK_TAGS if f"{{{{{bt}}}}}" in full), None)
+        block_found = next((bt for bt in scannable if f"{{{{{bt}}}}}" in full), None)
         if block_found:
             block_paras.append((para, block_found))
         else:
@@ -1122,33 +1126,26 @@ def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
     # ── Second pass: replace block-tag paragraphs ──────────────────────────────
     for para, block_tag in block_paras:
 
-        if block_tag == "report_analysis":
-            _md_to_docx_paragraphs(doc, para, (case.report_analysis or "").strip() or "_[No analysis written.]_")
-
-        elif block_tag == "report_remediation":
-            _md_to_docx_paragraphs(doc, para, (case.report_remediation or "").strip() or "_[No remediation written.]_")
-
-        elif block_tag == "report_conclusion":
-            _md_to_docx_paragraphs(doc, para, (case.report_conclusion or "").strip() or "_[No conclusion written.]_")
-
-        elif block_tag.startswith("report_") is False and block_tag not in (
-            "ioc_table", "asset_table", "evidence_table", "timeline_table",
-            "attack_graph", "mitre_matrix", "mitre_matrix_img", "report_content",
-        ):
-            # Dynamic per-section tag — look up in report_sections_data
-            import json as _json
-            try:
-                sd: dict = _json.loads(getattr(case, "report_sections_data", None) or "{}")
-            except Exception:
-                sd = {}
-            content = sd.get(block_tag, "").strip()
-            _md_to_docx_paragraphs(doc, para, content or f"_[Section '{block_tag}' not written.]_")
+        if not report_tags.is_known(block_tag):
+            # One of the case's own report sections. `section_tags` refuses to
+            # shadow a registered name, so reaching here means this really is
+            # an analyst-created section and not a misspelt built-in.
+            content = sections.get(block_tag, "").strip()
+            _md_to_docx_paragraphs(
+                doc, para, content or report_tags.section_placeholder(block_tag))
 
         elif block_tag == "report_content":
             # Combined backward compat alias
             _md_to_docx_paragraphs(doc, para, case.report or "")
 
-        elif block_tag in ("attack_graph", "mitre_matrix_img"):
+        elif block_tag == "toc":
+            # A real Word field. It reads the Heading 1-3 styles of the finished
+            # document, which is why it is resolved here and not generated: the
+            # headings do not exist until the sections have been written in, and
+            # a list rendered now would be stale the first time anyone edits.
+            docx_style.insert_toc_field(para)
+
+        elif block_tag in ("attack_graph", "mitre_matrix_img", "timeline_portrait"):
             # Image blocks — clear runs and embed a PNG picture
             for r_elem in list(para._p.findall(qn("w:r"))):
                 para._p.remove(r_elem)
@@ -1157,6 +1154,11 @@ def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
                 png        = attack_graph_png
                 embed_w    = 6.0
                 placeholder = "[Attack graph not available — no data recorded]"
+            elif block_tag == "timeline_portrait":
+                figure     = timeline_chart.render_timeline_portrait(list(case.timeline or []))
+                png        = figure[0] if figure else None
+                embed_w    = figure[1] if figure else 6.0
+                placeholder = "[Timeline figure — no events recorded]"
             else:  # mitre_matrix_img
                 result     = _render_mitre_matrix_png(case)
                 png        = result[0] if result else None
@@ -1171,15 +1173,15 @@ def _render_docx(template_path: str, case: Case, ctx: dict[str, str],
         else:
             # Table blocks
             if block_tag == "ioc_table":
-                tbl = _build_word_table(doc, ioc_headers, ioc_rows, "7F1D1D")
+                tbl = _build_word_table(doc, ioc_headers, ioc_rows, "7F1D1D", annex)
             elif block_tag == "asset_table":
-                tbl = _build_word_table(doc, asset_headers, asset_rows, "1E3A5F")
+                tbl = _build_word_table(doc, asset_headers, asset_rows, "1E3A5F", annex)
             elif block_tag == "evidence_table":
-                tbl = _build_word_table(doc, evidence_headers, evidence_rows, "1E293B")
+                tbl = _build_word_table(doc, evidence_headers, evidence_rows, "1E293B", annex)
             elif block_tag == "mitre_matrix":
-                tbl = _build_mitre_word_table(doc, case)
+                tbl = _build_mitre_word_table(doc, case, annex)
             else:  # timeline_table
-                tbl = _build_word_table(doc, timeline_headers, timeline_rows, "14532D")
+                tbl = _build_word_table(doc, timeline_headers, timeline_rows, "14532D", annex)
 
             # Move the new table (currently at end of body) to replace the paragraph.
             para._p.addnext(tbl._tbl)
@@ -1202,10 +1204,42 @@ def list_templates(db: Session = Depends(get_db)):
     )
 
 
-@router.get("/tags", response_model=list[str])
-def list_available_tags():
-    """Return all supported {{tags}}."""
-    return ALL_TAGS
+class ReportTagOut(BaseModel):
+    name:        str
+    kind:        str          # "text" - substituted inline, or "block"
+    group:       str
+    group_label: str
+    description: str
+
+
+@router.get("/tags", response_model=list[ReportTagOut])
+def list_available_tags(
+    case_template_id: str | None = Query(
+        None, description="Include the report sections this case template declares"),
+):
+    """
+    Every supported {{tag}}, with what it does.
+
+    Served from the registry rather than a list kept beside it, so the
+    reference panel in the UI cannot fall behind the exporter. Descriptions
+    travel with the names for the same reason - the frontend used to carry its
+    own copy of both.
+
+    **The registry is not the whole vocabulary.** A report's sections come from
+    the *case* template, so which `{{slug}}` tags exist depends on the kind of
+    investigation - and a report-template author had no way to find out what
+    they were. Passing `case_template_id` appends that half, which is what the
+    reference panel's dropdown does.
+    """
+    catalogue = report_tags.catalogue()
+
+    if case_template_id:
+        template = TemplateService().get_template(case_template_id)
+        if template is None:
+            raise HTTPException(404, "Case template not found")
+        catalogue += report_tags.template_section_tags(template)
+
+    return catalogue
 
 
 @router.post("/upload", response_model=ReportDocTemplateOut)
@@ -1229,8 +1263,10 @@ async def upload_template(
         raise HTTPException(400, "Uploaded file is empty")
 
     # Detect tags
+    annex: str | None = None
     if fmt == "docx":
-        tags = _detect_tags_docx(file_bytes)
+        tags  = _detect_tags_docx(file_bytes)
+        annex = _detect_annex_style(file_bytes)
     else:
         tags = _detect_tags(file_bytes.decode("utf-8", errors="replace"))
 
@@ -1247,9 +1283,17 @@ async def upload_template(
         file_path=str(dest),
         file_size=len(file_bytes),
         tags_detected=tags,
+        annex_style=annex,
         created_by=current_user.username,
     )
     db.add(tpl)
+    # A report template decides what every future deliverable for every client
+    # contains. Who installed one is worth as much as who generated a report
+    # from it - it is configuration with the reach of content.
+    audit_log(db, user=current_user, action="report_template.upload",
+              resource_type="report_template", resource_name=name,
+              details={"format": fmt, "size": len(file_bytes), "tags": tags,
+                       "annex_style": annex})
     db.commit()
     db.refresh(tpl)
     return tpl
@@ -1268,6 +1312,9 @@ def delete_template(
         Path(tpl.file_path).unlink(missing_ok=True)
     except Exception:
         pass
+    audit_log(db, user=current_user, action="report_template.delete",
+              resource_type="report_template", resource_id=str(tpl.id),
+              resource_name=str(tpl.name), details={"format": tpl.format})
     db.delete(tpl)
     db.commit()
     return {"deleted": template_id}
@@ -1292,6 +1339,15 @@ def generate_report(
 
     ctx = _build_context(case, current_user.username)
     safe_title = re.sub(r"[^\w\-]", "_", case.title or "report")
+
+    # The moment case data leaves the platform in a form that goes to a client.
+    # Recorded before the document is built: an export that then failed still
+    # says somebody asked for one.
+    audit_log(db, user=current_user, action="report.generate",
+              resource_type="report", resource_id=str(tpl.id),
+              resource_name=str(tpl.name), case_id=case.id, case_title=case.title,
+              details={"format": tpl.format})
+    db.commit()
 
     if tpl.format == "markdown":
         template_text = Path(tpl.file_path).read_text(encoding="utf-8")

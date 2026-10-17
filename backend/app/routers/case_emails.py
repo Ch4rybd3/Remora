@@ -10,6 +10,7 @@ from ..database import get_db
 from ..models.case import Case
 from ..models.email_file import EmailFile
 from ..models.user import User
+from ..services.audit_service import audit_log
 from .email_analysis import parse_email_bytes
 
 router = APIRouter(tags=["case-emails"])
@@ -52,7 +53,7 @@ async def upload_case_email(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
-    _get_case(case_id, db)
+    case = _get_case(case_id, db)
     raw = await file.read()
     result = parse_email_bytes(raw)
     result_dict = result.model_dump()
@@ -64,6 +65,16 @@ async def upload_case_email(
         warning_count=len(result_dict.get("warnings", [])),
     )
     db.add(ef)
+    db.flush()
+    # A message brought into a case is evidence: it carries headers, addresses
+    # and attachments that end up quoted in a report.
+    audit_log(db, user=current_user, action="email.upload",
+              resource_type="email", resource_id=str(ef.id),
+              resource_name=str(ef.filename), case_id=case_id,
+              case_title=str(case.title),
+              details={"bytes": len(raw),
+                       "warnings": ef.warning_count,
+                       "subject": str(result_dict.get("subject", ""))[:200]})
     db.commit()
     db.refresh(ef)
 
@@ -107,6 +118,9 @@ def delete_case_email(
     ).first()
     if not ef:
         raise HTTPException(status_code=404, detail="Email not found")
+    audit_log(db, user=current_user, action="email.delete",
+              resource_type="email", resource_id=str(email_id),
+              resource_name=str(ef.filename), case_id=case_id)
     db.delete(ef)
     db.commit()
 

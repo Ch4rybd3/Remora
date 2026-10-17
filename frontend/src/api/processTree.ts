@@ -48,14 +48,48 @@ export interface ProcessTreeStats {
   truncated: boolean
 }
 
+/** Which node the caller asked about, when it asked about one. */
+export interface ProcessTreeFocus {
+  requested: boolean
+  /**
+   * False when the process is not in these logs.
+   *
+   * Different from an empty tree: one means nothing was collected, the other
+   * means this ran on a machine whose logs are not here.
+   */
+  found: boolean
+  key: string | null
+}
+
 export interface ProcessTree {
   root: string
   nodes: ProcessNode[]
+  focus: ProcessTreeFocus
   stats: ProcessTreeStats
 }
 
+/**
+ * Which process to centre the tree on.
+ *
+ * Shaped after what a table row actually carries. A Sysmon row has a GUID; a
+ * Security 4688 has a PID and a timestamp and nothing else, which is why `at`
+ * is here - Windows reuses a PID within minutes, and the time is what tells
+ * two of them apart.
+ */
+export interface ProcessFocus {
+  guid?: string | null
+  pid?: number | null
+  at?: string | null
+  image?: string | null
+}
+
 export const processTreeApi = {
-  async get(caseId: string): Promise<ProcessTree> {
-    return (await api.get(`/cases/${caseId}/process-tree`)).data
+  async get(caseId: string, focus?: ProcessFocus): Promise<ProcessTree> {
+    const params: Record<string, string> = {}
+    if (focus?.guid)  params.guid  = focus.guid
+    if (focus?.pid != null) params.pid = String(focus.pid)
+    if (focus?.at)    params.at    = focus.at
+    if (focus?.image) params.image = focus.image
+    return (await api.get(`/cases/${caseId}/process-tree`, { params })).data
   },
 }

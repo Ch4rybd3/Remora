@@ -141,7 +141,7 @@ function UploadZone({ label, onUpload, uploading }: {
       }`}
     >
       {uploading ? (
-        <p className="text-label text-fg-secondary/60">Envoi…</p>
+        <p className="text-label text-fg-secondary/60">Uploading…</p>
       ) : (
         <>
           <Upload size={16} className="mx-auto mb-1 text-fg-secondary/30" />

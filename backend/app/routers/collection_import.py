@@ -29,6 +29,7 @@ from ..services.archives import (
     is_archive,
     list_entries,
 )
+from ..services.audit_service import audit_log
 from ..services.ez_detection import detect
 from ..services.ingest.batch import PARSED_DIRNAME
 from ..services.ingest.dispatch import parse as dispatch_parse
@@ -224,6 +225,13 @@ async def upload_collection(
     db.add(col)
     for f in imported_files:
         db.add(f)
+
+    # The browser door into a case. Recorded before the background ingest runs,
+    # so the trail says what was brought in even if parsing later fails.
+    audit_log(db, user=current_user, action="collection.import",
+              resource_type="collection", resource_id=collection_id,
+              resource_name=col_filename, case_id=case_id,
+              details={"files": len(imported_files), "size": total_size})
     db.commit()
 
     # ── Background ingest ─────────────────────────────────────────────────────
@@ -479,7 +487,17 @@ def delete_collection(
     moved out of the collection directory and their records are left in place.
     """
     col = _get_collection_or_404(case_id, collection_id, db)
+    name = col.filename
     removed = collections_service.delete(db, col)
+
+    # The most destructive action in the product: it removes the bytes and
+    # every record they produced across five modules. It must never be the one
+    # thing the trail cannot account for.
+    audit_log(db, user=current_user, action="collection.delete",
+              resource_type="collection", resource_id=collection_id,
+              resource_name=name, case_id=case_id,
+              details=removed.as_dict())
+    db.commit()
     return {"ok": True, "removed": removed.as_dict()}
 
 
@@ -503,6 +521,12 @@ def mark_evidence(
     else:
         f.expires_at = datetime.utcnow() + timedelta(days=90)
 
+    audit_log(db, user=current_user,
+              action="collection.mark_evidence",
+              resource_type="imported_file", resource_id=str(f.id),
+              resource_name=str(f.filename), case_id=case_id,
+              details={"added": bool(f.added_to_evidence),
+                       "evidence_id": f.evidence_id})
     db.commit()
     return _file_dto(f)
 
@@ -527,7 +551,16 @@ def set_file_timezone(
         raise HTTPException(404, "Linked artifact not found")
 
     tz = body.get("timezone") or None
+    previous = artifact.source_timezone
     artifact.source_timezone = tz
+
+    # Changing an artifact's source timezone re-dates every event in it. A
+    # timeline that moved by an hour between two readings has to be traceable
+    # to the moment somebody said the collection came from another zone.
+    audit_log(db, user=current_user, action="collection.set_timezone",
+              resource_type="artifact", resource_id=str(artifact.id),
+              resource_name=str(f.filename), case_id=case_id,
+              details={"from": previous, "to": tz})
     db.commit()
     return _file_dto(f, source_timezone=tz)
 

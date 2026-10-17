@@ -27,6 +27,7 @@ from ..config import settings
 from ..core.deps import get_current_user, get_db
 from ..models.mitre import CaseTTP
 from ..models.user import User
+from ..services.audit_service import audit_log
 
 router = APIRouter(tags=["mitre"])
 
@@ -301,6 +302,7 @@ def mitre_status(current_user: User = Depends(get_current_user)) -> dict:
 @router.post("/mitre/download")
 def mitre_download(
     bg: BackgroundTasks,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
     """Trigger a background download / re-download of the ATT&CK Enterprise STIX bundle.
@@ -309,12 +311,21 @@ def mitre_download(
     """
     # Mark as downloading immediately (atomic) so callers see the state change right away
     _write_status({"state": "downloading"})
+    # The technique catalogue every case is mapped against. Replacing it changes
+    # what the matrix means in reports written after it, so when it was replaced
+    # and by whom is worth keeping.
+    audit_log(db, user=current_user, action="mitre.dataset_download",
+              resource_type="mitre_dataset", resource_name="ATT&CK Enterprise")
+    db.commit()
     bg.add_task(_download_and_cache)
     return {"status": "download_started"}
 
 
 @router.delete("/mitre/cache")
-def mitre_reset_cache(current_user: User = Depends(get_current_user)) -> dict:
+def mitre_reset_cache(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
     """Delete the local ATT&CK cache files so a fresh download can start.
 
     Useful when the download state is stuck (e.g. the server was killed
@@ -330,6 +341,10 @@ def mitre_reset_cache(current_user: User = Depends(get_current_user)) -> dict:
         status_p.unlink()
         removed.append("status")
     print(f"[mitre] Cache reset — removed: {removed}", flush=True)
+    audit_log(db, user=current_user, action="mitre.cache_reset",
+              resource_type="mitre_dataset", resource_name="ATT&CK Enterprise",
+              details={"removed": removed})
+    db.commit()
     return {"reset": True, "removed": removed}
 
 
@@ -417,6 +432,13 @@ def add_ttp(
         comment        = body.comment,
     )
     db.add(ttp)
+    # A TTP is an assertion about what the attacker did, and it is what the
+    # matrix in the client's report is built from.
+    audit_log(db, user=current_user, action="mitre.add",
+              resource_type="ttp", resource_id=str(ttp.id),
+              resource_name=str(body.technique_id), case_id=case_id,
+              details={"technique_id": body.technique_id,
+                       "tactic": body.tactic or ""})
     try:
         db.commit()
     except IntegrityError:
@@ -447,9 +469,14 @@ def update_ttp(
     ttp = db.query(CaseTTP).filter(CaseTTP.id == ttp_id, CaseTTP.case_id == case_id).first()
     if not ttp:
         raise HTTPException(status_code=404, detail="TTP not found")
-    if body.color   is not None: ttp.color   = body.color
-    if body.score   is not None: ttp.score   = body.score
-    if body.comment is not None: ttp.comment = body.comment
+    changed = []
+    if body.color   is not None: ttp.color   = body.color;   changed.append("color")
+    if body.score   is not None: ttp.score   = body.score;   changed.append("score")
+    if body.comment is not None: ttp.comment = body.comment; changed.append("comment")
+    audit_log(db, user=current_user, action="mitre.update",
+              resource_type="ttp", resource_id=str(ttp_id),
+              resource_name=str(ttp.technique_id), case_id=case_id,
+              details={"fields": changed})
     db.commit()
     return {"id": ttp.id, "technique_id": ttp.technique_id}
 
@@ -472,7 +499,15 @@ def delete_ttp_by_tech(
     )
     if tactic:
         q = q.filter(CaseTTP.tactic == tactic)
+    removed = q.count()
     q.delete(synchronize_session=False)
+    # Removing a technique takes it out of the client's matrix. Deletions are
+    # the half of a trail that matters most: what is gone leaves no other trace.
+    audit_log(db, user=current_user, action="mitre.delete",
+              resource_type="ttp", resource_id=technique_id,
+              resource_name=technique_id, case_id=case_id,
+              details={"technique_id": technique_id, "tactic": tactic,
+                       "removed": removed})
     db.commit()
     return Response(status_code=204)
 
@@ -487,6 +522,10 @@ def delete_ttp(
     ttp = db.query(CaseTTP).filter(CaseTTP.id == ttp_id, CaseTTP.case_id == case_id).first()
     if not ttp:
         raise HTTPException(status_code=404, detail="TTP not found")
+    audit_log(db, user=current_user, action="mitre.delete",
+              resource_type="ttp", resource_id=str(ttp_id),
+              resource_name=str(ttp.technique_id), case_id=case_id,
+              details={"technique_id": str(ttp.technique_id)})
     db.delete(ttp)
     db.commit()
     return Response(status_code=204)
@@ -584,5 +623,12 @@ def import_layer(
         db.add(ttp)
         added += 1
 
+    # One entry for the import rather than one per technique: a layer is a
+    # single act, and forty entries would say the same thing forty times.
+    audit_log(db, user=current_user, action="mitre.import_layer",
+              resource_type="ttp", resource_id=case_id,
+              resource_name=str(body.layer.get("name") or "ATT&CK layer"),
+              case_id=case_id,
+              details={"offered": len(techniques), "added": added})
     db.commit()
     return {"added": added}

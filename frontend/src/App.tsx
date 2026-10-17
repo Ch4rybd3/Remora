@@ -12,15 +12,13 @@ import Users from './pages/Users'
 import Playbooks from './pages/Playbooks'
 import PlaybookEditor from './pages/PlaybookEditor'
 import EmailAnalysis from './pages/EmailAnalysis'
-import KnowledgeBase from './pages/KnowledgeBase'
 import KnowledgeEditor from './pages/KnowledgeEditor'
-import FilesystemLogs from './pages/FilesystemLogs'
+import Detections from './pages/Detections'
 import AuditLog from './pages/AuditLog'
 import Memory from './pages/Memory'
 import BinaryAnalysis from './pages/BinaryAnalysis'
 import ReportTemplates from './pages/ReportTemplates'
 import ChainsawRules from './pages/ChainsawRules'
-import VaultManagement from './pages/VaultManagement'
 import CTILookup from './pages/CTILookup'
 import Connectors from './pages/Connectors'
 import ArtifactExplorer from './pages/ArtifactExplorer'
@@ -64,7 +62,10 @@ export default function App() {
         <Route path="/playbooks" element={<Playbooks />} />
         <Route path="/playbooks/:id/edit" element={<PlaybookEditor />} />
         <Route path="/artifacts/email" element={<EmailAnalysis />} />
-        <Route path="/artifacts/filesystem" element={<FilesystemLogs />} />
+        <Route path="/artifacts/detections" element={<Detections />} />
+        {/* The Logs page read events; the Explorer does that now. Old links
+            and bookmarks land on what replaced it. */}
+        <Route path="/artifacts/filesystem" element={<Navigate to="/artifacts/detections" replace />} />
         <Route path="/artifacts/memory" element={<Memory />} />
         <Route path="/artifacts/binary"   element={<BinaryAnalysis />} />
         <Route path="/artifacts/cti"      element={<CTILookup />} />
@@ -76,10 +77,11 @@ export default function App() {
         <Route path="/config/connectors"  element={<Connectors />} />
         <Route path="/config/clients"     element={<Clients />} />
         <Route path="/config/clients/:id" element={<ClientDetail />} />
-        <Route path="/knowledge" element={<KnowledgeBase />} />
-        <Route path="/knowledge/editor" element={<KnowledgeEditor />} />
+        <Route path="/knowledge" element={<KnowledgeEditor />} />
+        {/* The notes sat behind a browser over a file store that no longer
+            exists. Old links land on the notes themselves. */}
+        <Route path="/knowledge/editor" element={<Navigate to="/knowledge" replace />} />
         <Route path="/config/chainsaw-rules" element={<ChainsawRules />} />
-        <Route path="/config/vaults" element={<VaultManagement />} />
         <Route path="/design" element={<DesignSystem />} />
         <Route path="/account" element={<Account />} />
         <Route

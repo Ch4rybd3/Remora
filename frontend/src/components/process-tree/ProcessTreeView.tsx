@@ -1,6 +1,15 @@
 /**
  * The process tree — what ran, and what launched it.
  *
+ * No longer a case tab. It was one while the case held a Logs module that
+ * parsed EVTX a second time; the tree is built from the Artifact Explorer's
+ * own tables now, and the question it answers - *how did this get here* -
+ * belongs next to the event that prompted it rather than on a tab of its own.
+ *
+ * With a `focus` it shows one process and its line: every ancestor up to the
+ * root, and everything it started. Without one it shows the whole case, which
+ * is what the tab used to do.
+ *
  * Rendered as an indented, collapsible tree rather than on the shared graph
  * canvas the roadmap suggested. The canvas is right for the attack graph,
  * which is a hand-authored diagram of twenty nodes an analyst *arranges*; a
@@ -18,11 +27,12 @@ import { useQuery } from '@tanstack/react-query'
 
 import {
   AlertTriangle, ChevronRight, Loader2, Search, ShieldCheck, X,
-} from '../../../ui/icons'
+} from '../../ui/icons'
 import {
-  processTreeApi, type ProcessLink, type ProcessNode, type ProcessTree,
-} from '../../../api/processTree'
-import { CopyableName } from '../../custody/CustodyActions'
+  processTreeApi, type ProcessFocus, type ProcessLink, type ProcessNode,
+  type ProcessTree,
+} from '../../api/processTree'
+import { CopyableName } from '../custody/CustodyActions'
 
 const LINK_STYLE: Record<ProcessLink, string> = {
   asserted: 'text-accent border-accent/30 bg-accent/8',
@@ -198,15 +208,19 @@ function Detail({ node, onClose }: { node: ProcessNode; onClose: () => void }) {
   )
 }
 
-export default function ProcessTreeTab({ caseId }: { caseId: string }) {
+export default function ProcessTreeView({ caseId, focus }: {
+  caseId: string
+  /** Centre the tree on one process. Omitted, the whole case is shown. */
+  focus?: ProcessFocus
+}) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [query, setQuery] = useState('')
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['process-tree', caseId],
-    queryFn: () => processTreeApi.get(caseId),
+    queryKey: ['process-tree', caseId, focus ?? null],
+    queryFn: () => processTreeApi.get(caseId, focus),
   })
 
   const roots = useMemo(() => (data ? nest(data) : []), [data])
@@ -245,6 +259,25 @@ export default function ProcessTreeTab({ caseId }: { caseId: string }) {
     return <p className="px-4 py-6 text-ui text-severity-critical">
       The process tree could not be built.
     </p>
+  }
+
+  // Asked about a process that is not in these logs. Distinct from an empty
+  // tree, and the analyst has to be able to tell them apart: one means nothing
+  // was collected, the other means this ran on a machine whose logs are absent.
+  if (data.focus.requested && !data.focus.found) {
+    return (
+      <div className="px-4 py-6 max-w-2xl">
+        <p className="text-ui text-fg-secondary/70 leading-relaxed">
+          This process is not in the event logs imported into the case.
+        </p>
+        <p className="text-ui text-fg-secondary/50 leading-relaxed mt-3">
+          Either it ran on a machine whose logs are not here, or it ran before
+          the collection window, or process creation was not being recorded on
+          that host. A row in a table is evidence that something ran; the tree
+          needs the log that saw it start.
+        </p>
+      </div>
+    )
   }
 
   if (data.stats.processes === 0) {

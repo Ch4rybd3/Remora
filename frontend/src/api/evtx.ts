@@ -12,64 +12,6 @@ export interface EvtxFile {
   added_to_evidence: boolean
 }
 
-export interface EvtxEvent {
-  id:           number
-  file_id:      string
-  record_id:    number | null
-  time_created: string | null
-  event_id:     number | null
-  level:        number | null
-  level_name:   string | null
-  channel:      string | null
-  provider:     string | null
-  computer:     string | null
-  user_id:      string | null
-  event_data:   Record<string, string> | null
-}
-
-export interface EventsPage {
-  total:     number
-  page:      number
-  page_size: number
-  pages:     number
-  items:     EvtxEvent[]
-}
-
-export interface ChannelStat {
-  channel:     string
-  event_count: number
-}
-
-export interface FileSummary {
-  channels:  ChannelStat[]
-  levels:    Record<string, number>
-  event_ids: number[]
-}
-
-export interface EventFilters {
-  page?:          number
-  page_size?:     number
-  search?:        string
-  channels?:      string    // comma-separated
-  levels?:        string    // comma-separated
-  event_ids?:     string    // comma-separated
-  time_from?:     string
-  time_to?:       string
-  sort_dir?:      'asc' | 'desc'
-  col_filters?:   string    // JSON: Record<colKey, {mode, value}>
-  field_filters?: string    // JSON: Array<{key, mode, value}> — EventData field filters
-}
-
-/** EvtxEvent enriched with the source filename — stored in the case selection. */
-export interface PinnedEvtxEvent extends EvtxEvent {
-  _filename: string
-}
-
-export interface EvtxSelection {
-  events:   PinnedEvtxEvent[]
-  sent_ids: number[]
-}
-
 export const evtxApi = {
   upload: (caseId: string, file: File) => {
     const fd = new FormData()
@@ -85,23 +27,6 @@ export const evtxApi = {
   deleteFile: (caseId: string, fileId: string) =>
     api.delete(`/evtx/${caseId}/files/${fileId}`),
 
-  summary: (caseId: string, fileId: string) =>
-    api.get<FileSummary>(`/evtx/${caseId}/files/${fileId}/summary`).then(r => r.data),
-
-  events: (caseId: string, fileId: string, filters: EventFilters = {}) =>
-    api.get<EventsPage>(`/evtx/${caseId}/files/${fileId}/events`, {
-      params: filters,
-    }).then(r => r.data),
-
   addEvidence: (caseId: string, fileId: string) =>
     api.post<EvtxFile>(`/evtx/${caseId}/files/${fileId}/add-evidence`).then(r => r.data),
-
-  reparse: (caseId: string, fileId: string) =>
-    api.post<EvtxFile>(`/evtx/${caseId}/files/${fileId}/reparse`).then(r => r.data),
-
-  getSelection: (caseId: string): Promise<EvtxSelection> =>
-    api.get<EvtxSelection>(`/evtx/${caseId}/selection`).then(r => r.data),
-
-  saveSelection: (caseId: string, events: PinnedEvtxEvent[], sent_ids: number[]): Promise<EvtxSelection> =>
-    api.put<EvtxSelection>(`/evtx/${caseId}/selection`, { events, sent_ids }).then(r => r.data),
 }

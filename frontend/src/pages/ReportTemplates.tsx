@@ -1,11 +1,15 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useMemo } from 'react'
 import { PageShell } from '../ui/PageShell'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  FileOutput, Upload, Trash2, Tag, Info,
+  FileOutput, Upload, Trash2, Tag, Info, Palette,
   ChevronDown, ChevronUp, X, Check, AlertCircle,
 } from '../ui/icons'
-import { reportDocTemplatesApi, type ReportDocTemplate } from '../api/reportDocTemplates'
+import {
+  reportDocTemplatesApi, type ReportDocTemplate, type ReportTag,
+} from '../api/reportDocTemplates'
+import { templatesApi } from '../api/templates'
+import { CopyTagButton } from '../ui/CopyTagButton'
 import { fmtDateTimeShort } from '../utils/dateUtils'
 import { fmtBytes as fmtSize } from '../utils/formatUtils'
 
@@ -27,31 +31,67 @@ function FormatBadge({ format }: { format: string }) {
 
 // ── Tag pill ───────────────────────────────────────────────────────────────────
 
-const BLOCK_TAGS    = new Set(['ioc_table', 'asset_table', 'evidence_table', 'timeline_table', 'attack_graph', 'mitre_matrix', 'mitre_matrix_img'])
-const REPORT_TAGS   = new Set(['report_content'])
+/**
+ * A tag pill, coloured by what the backend says the tag is.
+ *
+ * `known` is the registry keyed by name. A tag absent from it is not
+ * necessarily wrong - the analyst's own report sections are valid tags that no
+ * registry can list - so an unknown tag reads as neutral rather than as an
+ * error.
+ */
+function TagPill({ tag, known }: { tag: string; known: Map<string, ReportTag> }) {
+  const meta  = known.get(tag)
+  const style = !meta
+    ? 'bg-fg/5 text-fg-secondary/60 border-hairline'
+    : meta.group === GROUP_CONTENT
+    ? 'bg-data-2/10 text-data-2 border-data-2/20'
+    : meta.group === GROUP_ANNEX
+    ? 'bg-accent/10 text-accent border-accent/20'
+    : meta.group === GROUP_DOCUMENT
+    ? 'bg-data-1/10 text-data-1 border-data-1/20'
+    : 'bg-severity-low/10 text-severity-low border-severity-low/20'
 
-function TagPill({ tag }: { tag: string }) {
-  const isBlock  = BLOCK_TAGS.has(tag)
-  const isReport = REPORT_TAGS.has(tag)
   return (
-    <span className={`text-label font-mono px-1.5 py-0.5 rounded-control border ${ isReport
-        ? 'bg-data-2/10 text-data-2 border-data-2/20'
-        : isBlock
-        ? 'bg-accent/10 text-accent border-accent/20'
-        : 'bg-fg/5 text-fg-secondary/60 border-hairline'
-    }`}>
+    <span title={meta?.description ?? 'A report section of this case'}
+      className={`text-label font-mono px-1.5 py-0.5 rounded-control border ${style}`}>
       {`{{${tag}}}`}
     </span>
+  )
+}
+
+// ── Annex design ───────────────────────────────────────────────────────────────
+
+/**
+ * Which design the annex tables of a DOCX template take.
+ *
+ * Shown because the convention has a silent fallback: a table style named
+ * `Remora Anex` matches nothing and every export uses Remora's own rendering
+ * instead, which looks exactly like the feature not working. Saying which
+ * branch the document landed on is how that typo gets found.
+ */
+function AnnexDesign({ style }: { style: string | null }) {
+  return style ? (
+    <p className="text-label text-data-1/70 mt-1 flex items-center gap-1">
+      <Palette size={10} />
+      Annex tables use the <span className="font-mono">{style}</span> style of this document
+    </p>
+  ) : (
+    <p className="text-label text-fg-secondary/30 mt-1 flex items-center gap-1">
+      <Palette size={10} />
+      Annex tables use Remora&apos;s own design — add a table style named{' '}
+      <span className="font-mono">Remora Annex</span> to take it over
+    </p>
   )
 }
 
 // ── Template card ──────────────────────────────────────────────────────────────
 
 function TemplateCard({
-  tpl, onDelete,
+  tpl, onDelete, knownTags,
 }: {
   tpl: ReportDocTemplate
   onDelete: (id: number) => void
+  knownTags: Map<string, ReportTag>
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -75,6 +115,7 @@ function TemplateCard({
           <p className="text-label text-fg-secondary/30 mt-1">
             Imported {fmtDateTimeShort(tpl.created_at)}{tpl.created_by ? ` by ${tpl.created_by}` : ''}
           </p>
+          {tpl.format === 'docx' && <AnnexDesign style={tpl.annex_style} />}
         </div>
 
         <button
@@ -100,7 +141,7 @@ function TemplateCard({
 
           {expanded && (
             <div className="flex flex-wrap gap-1.5 pt-1 border-t border-hairline">
-              {tpl.tags_detected.map(t => <TagPill key={t} tag={t} />)}
+              {tpl.tags_detected.map(t => <TagPill key={t} tag={t} known={knownTags} />)}
             </div>
           )}
         </>
@@ -237,73 +278,50 @@ function UploadForm({ onDone }: { onDone: () => void }) {
 
 // ── Tag reference ─────────────────────────────────────────────────────────────
 
-const TAG_DOCS: { group: string; color: 'meta' | 'report' | 'annex'; tags: { tag: string; desc: string }[] }[] = [
-  {
-    group: 'Part 1 - Incident metadata',
-    color: 'meta',
-    tags: [
-      { tag: 'case.title',             desc: 'Case title' },
-      { tag: 'case.id',                desc: 'UUID du cas' },
-      { tag: 'case.status',            desc: 'Status (open / in_progress / closed...)' },
-      { tag: 'case.severity',          desc: 'Severity (CRITICAL, HIGH...)' },
-      { tag: 'case.tlp',               desc: 'Classification TLP' },
-      { tag: 'case.created_at',        desc: 'Creation date' },
-      { tag: 'case.closed_at',         desc: 'Closing date (or N/A)' },
-      { tag: 'case.description',       desc: 'Description du cas' },
-      { tag: 'case.executive_summary', desc: 'Executive summary' },
-      { tag: 'case.quick_notes',       desc: 'Notes rapides' },
-      { tag: 'case.assigned_to',       desc: 'Assigned analyst(s)' },
-      { tag: 'case.tags',              desc: 'Tags du cas' },
-      { tag: 'report.date',            desc: 'Report generation date (YYYY-MM-DD)' },
-      { tag: 'report.author',          desc: 'Analyst who generated the report' },
-    ],
-  },
-  {
-    group: 'Part 2 - Analysis, Remediations & Conclusions',
-    color: 'report',
-    tags: [
-      {
-        tag: 'report_analysis',
-        desc: 'Box 1 - Technical Analysis written in the Report tab. '
-            + 'In DOCX: converted to formatted Word paragraphs. In MD: inserted as-is.',
-      },
-      {
-        tag: 'report_remediation',
-        desc: 'Box 2 - Remediations written in the Report tab.',
-      },
-      {
-        tag: 'report_conclusion',
-        desc: 'Box 3 - Conclusion & Recommendations written in the Report tab.',
-      },
-      {
-        tag: 'report_content',
-        desc: 'Combined alias (backward compatible) - injects the three boxes in sequence, separated by ---.',
-      },
-    ],
-  },
-  {
-    group: 'Partie 3 — Annexes (tableaux & images)',
-    color: 'annex',
-    tags: [
-      { tag: 'ioc_table',        desc: 'Tableau des indicateurs de compromission' },
-      { tag: 'asset_table',      desc: 'Table of the assets involved' },
-      { tag: 'evidence_table',   desc: 'Table of evidence items' },
-      { tag: 'timeline_table',   desc: 'Chronological timeline of events' },
-      { tag: 'mitre_matrix',     desc: 'MITRE ATT&CK matrix as text (parents plus selected sub-techniques)' },
-      { tag: 'mitre_matrix_img', desc: 'Matrice MITRE ATT&CK en image PNG (DOCX uniquement) — placeholder en MD' },
-      { tag: 'attack_graph',     desc: 'Graphe d\'attaque en image PNG (DOCX) ou placeholder (MD)' },
-    ],
-  },
-]
+const GROUP_METADATA = 'metadata'
+const GROUP_DOCUMENT = 'document'
+const GROUP_CONTENT  = 'content'
+const GROUP_ANNEX    = 'annex'
 
-const GROUP_STYLE: Record<string, { border: string; header: string; badge: string; badgeText: string; codeColor: string }> = {
-  meta:   { border: 'border-severity-low/15',   header: 'text-severity-low/70',   badge: 'bg-severity-low/8 border-severity-low/20 text-severity-low',     badgeText: 'Metadata', codeColor: 'text-severity-low' },
-  report: { border: 'border-data-2/20', header: 'text-data-2/80', badge: 'bg-data-2/8 border-data-2/20 text-data-2', badgeText: 'Report',     codeColor: 'text-data-2' },
-  annex:  { border: 'border-accent/15', header: 'text-accent/70', badge: 'bg-accent/8 border-accent/20 text-accent', badgeText: 'Annexe', codeColor: 'text-accent' },
+/** Presentation only. The names, descriptions and grouping come from the API. */
+const GROUP_STYLE: Record<string, {
+  border: string; header: string; badge: string; badgeText: string; codeColor: string
+}> = {
+  [GROUP_METADATA]: { border: 'border-severity-low/15', header: 'text-severity-low/70', badge: 'bg-severity-low/8 border-severity-low/20 text-severity-low', badgeText: 'Metadata', codeColor: 'text-severity-low' },
+  [GROUP_DOCUMENT]: { border: 'border-data-1/20',       header: 'text-data-1/80',       badge: 'bg-data-1/8 border-data-1/20 text-data-1',                   badgeText: 'Structure', codeColor: 'text-data-1' },
+  [GROUP_CONTENT]:  { border: 'border-data-2/20',       header: 'text-data-2/80',       badge: 'bg-data-2/8 border-data-2/20 text-data-2',                   badgeText: 'Report',   codeColor: 'text-data-2' },
+  [GROUP_ANNEX]:    { border: 'border-accent/15',       header: 'text-accent/70',       badge: 'bg-accent/8 border-accent/20 text-accent',                   badgeText: 'Annex',    codeColor: 'text-accent' },
 }
 
-function TagReference({ open, onClose }: { open: boolean; onClose: () => void }) {
+const FALLBACK_STYLE = GROUP_STYLE[GROUP_METADATA]
+
+/** Registry rows grouped for display, in the order the backend declared them. */
+function groupTags(tags: ReportTag[]): { group: string; label: string; tags: ReportTag[] }[] {
+  const order: string[] = []
+  const byGroup = new Map<string, ReportTag[]>()
+  for (const tag of tags) {
+    if (!byGroup.has(tag.group)) { byGroup.set(tag.group, []); order.push(tag.group) }
+    byGroup.get(tag.group)!.push(tag)
+  }
+  return order.map(group => ({
+    group,
+    label: byGroup.get(group)![0].group_label,
+    tags:  byGroup.get(group)!,
+  }))
+}
+
+function TagReference({ open, onClose, tags, loading, caseTemplates,
+                       caseTemplateId, onCaseTemplateChange }: {
+  open: boolean
+  onClose: () => void
+  tags: ReportTag[]
+  loading: boolean
+  caseTemplates: { id: string; name: string }[]
+  caseTemplateId: string
+  onCaseTemplateChange: (id: string) => void
+}) {
   if (!open) return null
+  const groups = groupTags(tags)
   return (
     <div className="card p-5 space-y-5">
       <div className="flex items-center justify-between">
@@ -321,6 +339,31 @@ function TagReference({ open, onClose }: { open: boolean; onClose: () => void })
         Block tags (Report &amp; Annexes) must sit <em>alone on their own paragraph or line</em> in the DOCX template.
       </p>
 
+      {/* The half of the vocabulary that is not fixed. A report template is
+          written against a kind of investigation, and which section tags exist
+          depends on the case template that kind uses - which this panel could
+          not previously say at all. */}
+      <div className="border border-severity-low/25 bg-severity-low/5 px-3 py-2.5 space-y-2">
+        <p className="text-label text-fg/70 flex items-start gap-1.5">
+          <Info size={11} className="mt-0.5 shrink-0 text-severity-low" />
+          <span>
+            <strong>The report's own sections come from the case template</strong>, not
+            from this list. Pick one to see the section tags a report written for it can
+            place.
+          </span>
+        </p>
+        <select
+          value={caseTemplateId}
+          onChange={e => onCaseTemplateChange(e.target.value)}
+          className="w-full bg-fg/5 border border-hairline rounded-control px-2 py-1 text-label text-fg outline-none focus:border-strong transition-colors"
+        >
+          <option value="">Registry only - no case template selected</option>
+          {caseTemplates.map(t => (
+            <option key={t.id} value={t.id}>{t.name}</option>
+          ))}
+        </select>
+      </div>
+
       {/* Visual structure reminder */}
       <div className=" border border-hairline bg-white/[0.02] px-4 py-3 font-mono text-label leading-6 text-fg-secondary/50 space-y-0.5">
         <p className="text-fg-secondary/30 italic mb-1">Recommended template structure:</p>
@@ -337,26 +380,31 @@ function TagReference({ open, onClose }: { open: boolean; onClose: () => void })
           <span className="text-accent">{'{{timeline_table}}'}</span>{'  '}
           <span className="text-accent">{'{{mitre_matrix_img}}'}</span>{'  …'}
         </p>
-        <p className="text-fg-secondary/30">── partie 3 : annexes ──────────────────</p>
+        <p className="text-fg-secondary/30">-- part 3: annexes ---------------------</p>
       </div>
 
+      {loading && (
+        <p className="text-label text-fg-secondary/40">Loading the tag reference…</p>
+      )}
+
       <div className="space-y-4">
-        {TAG_DOCS.map(g => {
-          const s = GROUP_STYLE[g.color]
+        {groups.map(g => {
+          const st = GROUP_STYLE[g.group] ?? FALLBACK_STYLE
           return (
             <div key={g.group}>
               <div className="flex items-center gap-2 mb-2">
-                <p className={`text-label font-semibold tracking-widest uppercase ${s.header}`}>{g.group}</p>
-                <span className={`text-label font-semibold px-1.5 py-0.5 rounded-control border ${s.badge}`}>{s.badgeText}</span>
+                <p className={`text-label font-semibold tracking-widest uppercase ${st.header}`}>{g.label}</p>
+                <span className={`text-label font-semibold px-1.5 py-0.5 rounded-control border ${st.badge}`}>{st.badgeText}</span>
               </div>
-              <div className={` border ${s.border} overflow-hidden`}>
+              <div className={` border ${st.border} overflow-hidden`}>
                 {g.tags.map((t, i) => (
                   <div
-                    key={t.tag}
+                    key={t.name}
                     className={`flex items-start gap-3 px-3 py-2 ${i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}
                   >
-                    <code className={`text-label font-mono shrink-0 mt-0.5 ${s.codeColor}`}>{`{{${t.tag}}}`}</code>
-                    <span className="text-label text-fg-secondary/60 flex-1">{t.desc}</span>
+                    <code className={`text-label font-mono shrink-0 mt-0.5 ${st.codeColor}`}>{`{{${t.name}}}`}</code>
+                    <span className="text-label text-fg-secondary/60 flex-1">{t.description}</span>
+                    <CopyTagButton name={t.name} />
                   </div>
                 ))}
               </div>
@@ -364,6 +412,12 @@ function TagReference({ open, onClose }: { open: boolean; onClose: () => void })
           )
         })}
       </div>
+
+      <p className="text-label text-fg-secondary/40 leading-relaxed">
+        A section may not take the name of a registered tag above - <code className="font-mono">{'{{ioc_table}}'}</code>{' '}
+        stays the IOC table whatever a section is called. Section tags are shown in the
+        case template editor too, beside the section they belong to.
+      </p>
     </div>
   )
 }
@@ -375,10 +429,36 @@ export default function ReportTemplates() {
   const [showUpload, setShowUpload] = useState(false)
   const [showRef, setShowRef] = useState(false)
 
+  /**
+   * Which case template the author is writing a report for.
+   *
+   * Not persisted: it is a lens on the reference panel, not a property of a
+   * report template - the same report template is legitimately used for
+   * several kinds of investigation.
+   */
+  const [refCaseTemplate, setRefCaseTemplate] = useState('')
+
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ['report-doc-templates'],
     queryFn: reportDocTemplatesApi.list,
   })
+
+  // The tag vocabulary, straight from the backend registry. Cached for the
+  // session: it only changes when the application does.
+  const { data: caseTemplates = [] } = useQuery({
+    queryKey: ['templates'],
+    queryFn:  templatesApi.list,
+    staleTime: 60_000,
+  })
+
+  const { data: tagCatalogue = [], isLoading: loadingTags } = useQuery({
+    queryKey: ['report-doc-template-tags', refCaseTemplate || null],
+    queryFn:  () => reportDocTemplatesApi.availableTags(refCaseTemplate || null),
+    staleTime: 60_000,
+  })
+
+  const knownTags = useMemo(
+    () => new Map(tagCatalogue.map(t => [t.name, t])), [tagCatalogue])
 
   const deleteMutation = useMutation({
     mutationFn: reportDocTemplatesApi.delete,
@@ -410,7 +490,13 @@ export default function ReportTemplates() {
       <div className="max-w-4xl mx-auto space-y-6">
 
       {/* Tag reference panel */}
-      <TagReference open={showRef} onClose={() => setShowRef(false)} />
+      <TagReference
+        open={showRef} onClose={() => setShowRef(false)}
+        tags={tagCatalogue} loading={loadingTags}
+        caseTemplates={caseTemplates.map(t => ({ id: t.id, name: t.name }))}
+        caseTemplateId={refCaseTemplate}
+        onCaseTemplateChange={setRefCaseTemplate}
+      />
 
       {/* Upload form */}
       {showUpload && <UploadForm onDone={() => setShowUpload(false)} />}
@@ -433,7 +519,7 @@ export default function ReportTemplates() {
       ) : (
         <div className="space-y-3">
           {templates.map(tpl => (
-            <TemplateCard key={tpl.id} tpl={tpl} onDelete={handleDelete} />
+            <TemplateCard key={tpl.id} tpl={tpl} onDelete={handleDelete} knownTags={knownTags} />
           ))}
         </div>
       )}

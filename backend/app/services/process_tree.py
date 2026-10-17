@@ -29,14 +29,13 @@ logged, which is either a gap in collection or the point of the intrusion.
 """
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy.orm import Session
-
-from ..models.evtx import EvtxEvent, EvtxFile
 
 logger = logging.getLogger("remora.process_tree")
 
@@ -148,49 +147,187 @@ def _get(data: dict, *names: str) -> str:
     return ""
 
 
-def _is_sysmon(event: EvtxEvent) -> bool:
-    return SYSMON_PROVIDER in str(event.provider or "").lower()
+def _is_sysmon(event: SourceEvent) -> bool:
+    return SYSMON_PROVIDER in event.provider.lower()
 
 
-def _when(event: EvtxEvent) -> datetime | None:
-    """
-    The row's timestamp as a datetime.
-
-    `EvtxEvent` declares bare `Column()`, so a type checker sees the descriptor
-    rather than the value the instance holds. Reading through a helper says so
-    once instead of casting at every use.
-    """
-    value = event.time_created
-    return value if isinstance(value, datetime) else None
+def _when(event: SourceEvent) -> datetime | None:
+    return event.when
 
 
-def _computer(event: EvtxEvent) -> str:
-    return str(event.computer or "")
+def _computer(event: SourceEvent) -> str:
+    return event.computer
 
 
 # ─── Reading the events ───────────────────────────────────────────────────────
+# The tree used to read `evtx_events`, a table the Logs module filled by
+# parsing EVTX a second time - the Artifact Explorer already held the same
+# records, parsed once by EvtxECmd. Reading the store instead means the tree
+# survives the Logs module being retired, and stops the product from holding
+# two parses of one file that could disagree.
 
-def _load_events(db: Session, case_id: str, limit: int) -> list[EvtxEvent]:
+
+@dataclass
+class SourceEvent:
+    """
+    One event, however it was parsed.
+
+    A deliberately small shape. Everything below it - the linking, the PID
+    reuse window, the provenance labels - works on `Process`, so the only
+    thing a new source has to produce is this.
+    """
+    event_id: int
+    provider: str
+    computer: str
+    when:     datetime | None
+    data:     dict
+
+
+#: Columns an EvtxECmd table always carries. Used to recognise one whatever
+#: the file was called - a triage names event log tables after the channel,
+#: after the host, or after nothing at all.
+EVTX_MARKERS = ("EventId", "Payload")
+
+
+def _payload_fields(payload: str) -> dict[str, str]:
+    """
+    Every named field inside an EvtxECmd `Payload`, whatever shape it took.
+
+    EvtxECmd renders the event XML as JSON, and the shape varies with the
+    event: `EventData.Data` is a list of `{"@Name": ..., "#text": ...}` for
+    most, a single such object when there is one field, and some channels use
+    `UserData` with plain keys instead.
+
+    So this walks rather than indexes. A tolerant reader is the right trade
+    here: the alternative is a tree that silently loses Sysmon lineage because
+    one provider nested its fields differently.
+    """
+    try:
+        root = json.loads(payload)
+    except (ValueError, TypeError):
+        return {}
+
+    found: dict[str, str] = {}
+
+    def walk(node: Any) -> None:
+        if isinstance(node, list):
+            for item in node:
+                walk(item)
+            return
+        if not isinstance(node, dict):
+            return
+
+        name = node.get("@Name")
+        if isinstance(name, str) and name:
+            text = node.get("#text")
+            found.setdefault(name, "" if text is None else str(text))
+
+        for key, value in node.items():
+            if key.startswith(("@", "#")):
+                continue
+            if isinstance(value, (dict, list)):
+                walk(value)
+            elif value is not None:
+                found.setdefault(key, str(value))
+
+    walk(root)
+    return found
+
+
+def _parse_time(raw: str) -> datetime | None:
+    """
+    A timestamp from a parsed table.
+
+    The store has already converted the column to UTC when the artifact
+    declares a source timezone, so what arrives here is UTC however it is
+    punctuated. A row whose time does not parse keeps its place in the tree
+    with no start time rather than being dropped - the process still ran.
+    """
+    value = (raw or "").strip().replace("Z", "").replace("T", " ")
+    if not value:
+        return None
+    for shape in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            return datetime.strptime(value, shape)
+        except ValueError:
+            continue
+    return None
+
+
+def _evtx_artifacts(db: Session, case_id: str) -> list:
+    """Parsed event log tables in this case, recognised by their columns."""
+    from ..models.csv_artifact import CsvArtifactFile
+
+    out = []
+    for row in db.query(CsvArtifactFile).filter(CsvArtifactFile.case_id == case_id).all():
+        try:
+            columns = json.loads(str(row.columns))
+        except (ValueError, TypeError):
+            continue
+        if all(marker in columns for marker in EVTX_MARKERS):
+            out.append((row, columns))
+    return out
+
+
+#: The four event ids, as RQL. Pushed down to the store rather than filtered
+#: in Python for the same reason the SQL filter existed before: a case holds
+#: hundreds of thousands of events and these are a small fraction of them.
+_EVENT_FILTER = "EventId IN (" + ", ".join(f'"{i}"' for i in EVENT_IDS) + ")"
+
+
+def _load_events(db: Session, case_id: str, limit: int) -> list[SourceEvent]:
     """
     Every process creation and exit in the case, oldest first.
 
-    Filtered in SQL on the event id. A case holds hundreds of thousands of
-    events and the four that matter here are a small fraction of them; loading
-    the rest to discard it in Python is the difference between a page that
-    opens and one that times out.
+    Read through `ArtifactStore`, so an artifact declaring a source timezone is
+    normalised on the way in and two collections from different machines line
+    up. An unreadable table is skipped rather than fatal: a tree built from
+    three of four logs is worth more than an error.
     """
-    return (
-        db.query(EvtxEvent)
-        .join(EvtxFile, EvtxEvent.file_id == EvtxFile.id)
-        .filter(EvtxFile.case_id == case_id,
-                EvtxEvent.event_id.in_(EVENT_IDS))
-        .order_by(EvtxEvent.time_created.asc().nullslast(), EvtxEvent.id.asc())
-        .limit(limit)
-        .all()
-    )
+    from .store import Query, Source, SourceMissing, get_store
+
+    store  = get_store()
+    events: list[SourceEvent] = []
+
+    for artifact, columns in _evtx_artifacts(db, case_id):
+        source = Source(
+            ref         = str(artifact.file_path),
+            date_column = str(artifact.date_column) if artifact.date_column else None,
+            timezone    = str(artifact.source_timezone) if artifact.source_timezone else None,
+        )
+        try:
+            page = store.search(source, columns, Query(rql=_EVENT_FILTER),
+                                page=1, page_size=limit)
+        except SourceMissing:
+            logger.warning("process tree: %s is registered but gone from disk",
+                           artifact.original_name)
+            continue
+        except Exception as exc:                              # pragma: no cover
+            logger.warning("process tree: could not read %s: %s",
+                           artifact.original_name, exc)
+            continue
+
+        for row in page.rows:
+            try:
+                event_id = int(str(row.get("EventId") or "").strip())
+            except ValueError:
+                continue
+            events.append(SourceEvent(
+                event_id = event_id,
+                provider = str(row.get("Provider") or ""),
+                computer = str(row.get("Computer") or ""),
+                when     = _parse_time(str(row.get("TimeCreated") or "")),
+                data     = _payload_fields(str(row.get("Payload") or "")),
+            ))
+
+    # Sorted here rather than by the store: the events come from several
+    # tables, and a tree assembled out of order attaches a child to whichever
+    # candidate parent happened to be read first.
+    events.sort(key=lambda e: (e.when is None, e.when or datetime.min))
+    return events[:limit]
 
 
-def _from_sysmon(event: EvtxEvent, data: dict) -> Process:
+def _from_sysmon(event: SourceEvent, data: dict) -> Process:
     guid = _get(data, "ProcessGuid")
     pid = parse_pid(_get(data, "ProcessId"))
     return Process(
@@ -210,7 +347,7 @@ def _from_sysmon(event: EvtxEvent, data: dict) -> Process:
     )
 
 
-def _from_security(event: EvtxEvent, data: dict) -> Process:
+def _from_security(event: SourceEvent, data: dict) -> Process:
     pid = parse_pid(_get(data, "NewProcessId"))
     return Process(
         key=_pid_key(pid, _when(event)),
@@ -244,9 +381,15 @@ def _pid_key(pid: int | None, when: datetime | None) -> str:
 
 # ─── Building the tree ────────────────────────────────────────────────────────
 
-def build(db: Session, case_id: str, *, limit: int = MAX_PROCESSES) -> dict:
+def build(db: Session, case_id: str, *, limit: int = MAX_PROCESSES,
+          focus: Focus | None = None) -> dict:
     """
     The process tree for a case, with every edge labelled by how it was found.
+
+    With a `focus`, the answer is narrowed to one process and its line: every
+    ancestor up to the root, and everything it started. That is the shape the
+    Artifact Explorer asks for - an analyst looking at one suspicious event
+    wants the chain that produced it, not twenty thousand nodes to search.
     """
     events = _load_events(db, case_id, limit)
 
@@ -256,7 +399,7 @@ def build(db: Session, case_id: str, *, limit: int = MAX_PROCESSES) -> dict:
     truncated = len(events) >= limit
 
     for event in events:
-        data: dict = event.event_data if isinstance(event.event_data, dict) else {}
+        data = event.data
         sysmon = _is_sysmon(event)
 
         if event.event_id == SYSMON_CREATE and sysmon:
@@ -283,12 +426,119 @@ def build(db: Session, case_id: str, *, limit: int = MAX_PROCESSES) -> dict:
             by_pid.setdefault(process.pid, []).append(process)
 
     _link(processes, by_guid, by_pid)
+
+    matched: Process | None = None
+    if focus is not None:
+        matched = _find(processes, focus)
+        if matched is None:
+            return _render({}, truncated, len(events), focus=focus, found=False)
+        processes = _lineage(processes, matched)
+
     _corroborate(db, case_id, processes)
 
-    return _render(processes, truncated, len(events))
+    return _render(processes, truncated, len(events),
+                   focus=focus, found=focus is None or matched is not None,
+                   focus_key=matched.key if matched else None)
 
 
-def _record_exit(event: EvtxEvent, data: dict, sysmon: bool,
+# ─── Focusing on one process ──────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class Focus:
+    """
+    Which process the analyst is asking about.
+
+    Identified the way the row they clicked identifies it, which is rarely a
+    GUID: a Security 4688 carries a PID and a time and nothing else. So any of
+    the three narrows, and together they are usually enough - `pid` alone on a
+    busy machine is not, which is exactly why `at` exists.
+    """
+    guid: str | None = None
+    pid:  int | None = None
+    #: The event's own timestamp. The nearest process with this PID that was
+    #: alive then wins, which is the same reasoning `_pid_key` encodes.
+    at:   datetime | None = None
+    #: Executable name, when the row carries one. Breaks a tie between two
+    #: processes that shared a PID within the window.
+    image: str | None = None
+
+
+def _find(processes: dict[str, Process], focus: Focus) -> Process | None:
+    """The process a focus names, or None."""
+    if focus.guid:
+        for process in processes.values():
+            if process.guid == focus.guid:
+                return process
+        # A GUID that matches nothing is a miss, not a reason to fall back to
+        # the PID: the two would answer about different processes.
+        return None
+
+    if focus.pid is None:
+        return None
+
+    candidates = [p for p in processes.values() if p.pid == focus.pid]
+    if focus.image:
+        wanted = basename(focus.image).lower()
+        narrowed = [p for p in candidates if basename(p.image).lower() == wanted]
+        candidates = narrowed or candidates
+    if not candidates:
+        return None
+    if focus.at is None or len(candidates) == 1:
+        return candidates[0]
+
+    # Alive at that moment, preferring the one that had already started. A PID
+    # is reused within minutes on a busy machine, so picking the first match
+    # would attach the analyst to a different process with the same number.
+    alive = [
+        p for p in candidates
+        if (p.started is None or p.started <= focus.at)
+        and (p.ended is None or p.ended >= focus.at)
+    ]
+    pool = alive or candidates
+    at = focus.at
+
+    def distance(process: Process) -> float:
+        started = process.started
+        return abs((started - at).total_seconds()) if started else 0.0
+
+    return min(pool, key=distance)
+
+
+def _lineage(processes: dict[str, Process], target: Process) -> dict[str, Process]:
+    """
+    The target, everything that led to it, and everything it started.
+
+    Both directions, because both answer the question. The ancestors say how
+    it got there; the descendants say what it did. Cutting either leaves the
+    analyst reading half a chain.
+    """
+    keep: dict[str, Process] = {target.key: target}
+
+    walker = target
+    while walker.parent_key and walker.parent_key != ROOT_KEY:
+        parent = processes.get(walker.parent_key)
+        if parent is None or parent.key in keep:
+            break                                  # a cycle, or a missing link
+        keep[parent.key] = parent
+        walker = parent
+
+    children: dict[str, list[Process]] = {}
+    for process in processes.values():
+        children.setdefault(process.parent_key or ROOT_KEY, []).append(process)
+
+    queue = [target]
+    while queue:
+        current = queue.pop()
+        for child in children.get(current.key, []):
+            if child.key in keep:
+                continue
+            keep[child.key] = child
+            queue.append(child)
+
+    return keep
+
+
+def _record_exit(event: SourceEvent, data: dict, sysmon: bool,
                  by_guid: dict[str, Process], by_pid: dict[int, list[Process]]) -> None:
     """
     Close a process's lifetime.
@@ -412,8 +662,6 @@ def _execution_evidence(db: Session, case_id: str) -> dict[str, set[str]]:
     where a parsed table lives. A missing or unreadable table is not an error:
     corroboration is an enrichment, and a tree without it is still a tree.
     """
-    import json
-
     from ..models.csv_artifact import CsvArtifactFile
     from .store import Query, get_store
 
@@ -451,7 +699,9 @@ def _execution_evidence(db: Session, case_id: str) -> dict[str, set[str]]:
 
 # ─── Shaping the answer ───────────────────────────────────────────────────────
 
-def _render(processes: dict[str, Process], truncated: bool, events: int) -> dict:
+def _render(processes: dict[str, Process], truncated: bool, events: int, *,
+            focus: Focus | None = None, found: bool = True,
+            focus_key: str | None = None) -> dict:
     """The tree as the API returns it, with the counts that qualify it."""
     nodes = [p.as_dict() for p in processes.values()]
     nodes.sort(key=lambda n: (n["started"] or "", n["name"]))
@@ -460,6 +710,15 @@ def _render(processes: dict[str, Process], truncated: bool, events: int) -> dict
     return {
         "root": ROOT_KEY,
         "nodes": nodes,
+        # Which node the analyst asked about, so the view can mark it. Absent
+        # for a whole-case tree, and explicitly `found: false` when a focus
+        # matched nothing - an empty tree and "that process is not in these
+        # logs" are different answers.
+        "focus": {
+            "requested": bool(focus),
+            "found":     found,
+            "key":       focus_key,
+        },
         "stats": {
             "processes":  len(nodes),
             "events":     events,

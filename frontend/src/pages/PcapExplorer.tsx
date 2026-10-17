@@ -7,11 +7,14 @@
  */
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { PageShell } from '../ui/PageShell'
+import ConversationMapView from '../components/pcap/ConversationMap'
+import { ArtifactFileList } from '../ui/ArtifactFileList'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { DataTable } from '../ui/DataTable'
 import {
   Network, Search, X, ChevronRight, BookmarkPlus, BookmarkCheck,
   Loader2, Download, AlertCircle, Filter, ArrowLeftRight, Copy, Check,
+  List, Spline,
 } from '../ui/icons'
 import { csvArtifactsApi, type CsvArtifactMeta } from '../api/csvArtifacts'
 import {
@@ -432,7 +435,7 @@ function PinnedPanel({ pinned, onUnpin, onClear, onEdit, onExport, exporting }: 
               <div key={item.key} className="group relative px-3 py-2.5 hover:bg-white/[0.02]">
                 <div className="flex items-start gap-2 pr-5">
                   <button onClick={() => toggle(item.key)}
-                    title={isOpen ? 'Replier' : 'Éditer titre et description'}
+                    title={isOpen ? 'Collapse' : 'Edit title and description'}
                     className="mt-0.5 shrink-0 text-fg-secondary/30 hover:text-accent transition-colors">
                     <ChevronRight size={11} className={`transition-transform ${isOpen ? 'rotate-90' : ''}`} />
                   </button>
@@ -478,8 +481,8 @@ function PinnedPanel({ pinned, onUnpin, onClear, onEdit, onExport, exporting }: 
         <button onClick={onExport} disabled={pinned.length === 0 || exporting}
           className="w-full flex items-center justify-center gap-1.5 text-label py-2 rounded-control border border-accent/30 text-accent bg-accent/5 hover:bg-accent/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
           {exporting
-            ? <><Loader2 size={11} className="animate-spin" /> Envoi…</>
-            : <><Download size={11} /> Exporter {pinned.length > 0 ? `${pinned.length} → ` : ''}Timeline</>}
+            ? <><Loader2 size={11} className="animate-spin" /> Sending…</>
+            : <><Download size={11} /> Export {pinned.length > 0 ? `${pinned.length} → ` : ''}Timeline</>}
         </button>
       </div>
     </div>
@@ -502,6 +505,7 @@ export default function PcapExplorer() {
   const [pinned,     setPinned]     = useState<PinnedPacket[]>([])
   const [exporting,  setExporting]  = useState(false)
   const [following,  setFollowing]  = useState<number | null>(null)
+  const [view,       setView]       = useState<'packets' | 'map'>('packets')
 
   useEffect(() => {
     const t = setTimeout(() => { setDebounced(search); setPage(1) }, 400)
@@ -520,6 +524,20 @@ export default function PcapExplorer() {
     () => artifacts.filter((a: CsvArtifactMeta) => isPcapArtifact(a.original_name)),
     [artifacts],
   )
+
+  const captureItems = useMemo(() => captures.map((c: CsvArtifactMeta) => ({
+    id:       c.id,
+    // The stored artifact is the parsed packet list; the capture it came from
+    // is what the analyst named it, and what they are looking for in this list.
+    name:     captureName(c.original_name),
+    searchText: c.original_name,
+    unavailable: c.available === false,
+    badges:   (
+      <span className="text-label text-fg-secondary/40">
+        {c.row_count.toLocaleString()} packets
+      </span>
+    ),
+  })), [captures])
 
   // Select the first capture once they load
   useEffect(() => {
@@ -638,37 +656,39 @@ export default function PcapExplorer() {
       fullHeight
       asideLeft={(
         <aside className="w-56 shrink-0 border-r border-hairline bg-panel flex flex-col min-h-0 overflow-hidden">
-        <p className="px-3 py-2 text-label font-mono uppercase tracking-label text-fg-muted flex items-center gap-1.5 border-b border-hairline">
-          <Network size={11} /> Captures
-        </p>
-        <div className="flex-1 overflow-y-auto">
-          {captures.length === 0 && (
-            <p className="px-3 py-6 text-label text-fg-secondary/30 leading-relaxed text-center">
-              No capture in this case. Drop a .pcap / .pcapng into the drop folder
-              ou depuis l'onglet Collection.
-            </p>
-          )}
-          {captures.map(c => (
-            <button key={c.id}
-              onClick={() => { setSelectedId(c.id); setPage(1); setFrameNo(null) }}
-              className={`w-full text-left px-3 py-2 border-b border-strong/[0.03] transition-colors ${ selectedId === c.id
-                  ? 'bg-accent/5 border-l-2 border-l-accent/40'
-                  : 'hover:bg-white/[0.02]'
-              }`}>
-              <p className="text-label text-fg/80 truncate font-mono">{captureName(c.original_name)}</p>
-              <p className="text-label text-fg-secondary/35 mt-0.5">
-                {c.row_count.toLocaleString()} paquets
-              </p>
-            </button>
-          ))}
-        </div>
+          <ArtifactFileList
+            items={captureItems}
+            selectedId={selectedId}
+            onSelect={id => { setSelectedId(id); setPage(1); setFrameNo(null) }}
+            title="Captures"
+            icon={Network}
+            emptyMessage="No capture in this case. Drop a .pcap or .pcapng into the drop folder, or import one from the Collection tab."
+          />
         </aside>
       )}
     >
       <div className="h-full min-w-0 flex flex-col overflow-hidden">
         {/* Toolbar */}
         <div className="flex items-center gap-2 px-3 py-2 border-b border-hairline shrink-0">
-          <div className="relative flex-1 max-w-md">
+          {/* The packet list and the map answer different questions about the
+              same capture - what was on the wire, and what shape the network
+              is - so they are two views of it rather than two pages. */}
+          <div className="flex gap-1 border border-hairline rounded-control p-0.5 shrink-0">
+            {(['packets', 'map'] as const).map(name => (
+              <button
+                key={name}
+                onClick={() => setView(name)}
+                className={`flex items-center gap-1 px-2 py-0.5 text-label rounded-control capitalize transition-colors ${
+                  view === name
+                    ? 'bg-accent text-canvas font-semibold'
+                    : 'text-fg-secondary hover:text-fg'
+                }`}
+              >
+                {name === 'map' ? <Spline size={10} /> : <List size={10} />} {name}
+              </button>
+            ))}
+          </div>
+          <div className={`relative flex-1 max-w-md ${view === 'map' ? 'hidden' : ''}`}>
             <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-fg-secondary/30" />
             <input
               value={search}
@@ -683,13 +703,13 @@ export default function PcapExplorer() {
               </button>
             )}
           </div>
-          {debounced && (
+          {debounced && view === 'packets' && (
             <span className="text-label text-accent/60 flex items-center gap-1">
-              <Filter size={9} /> {rows?.total ?? 0} paquet(s)
+              <Filter size={9} /> {rows?.total ?? 0} packet(s)
             </span>
           )}
-          {isFetching && <Loader2 size={11} className="animate-spin text-accent/50" />}
-          <div className="ml-auto flex items-center gap-1.5 text-label text-fg-secondary/50">
+          {isFetching && view === 'packets' && <Loader2 size={11} className="animate-spin text-accent/50" />}
+          <div className={`ml-auto flex items-center gap-1.5 text-label text-fg-secondary/50 ${view === 'map' ? 'hidden' : ''}`}>
             <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
               className="px-2 py-0.5 rounded-control border border-hairline disabled:opacity-25 hover:text-fg">←</button>
             <span>page {page} / {totalPages}</span>
@@ -698,8 +718,12 @@ export default function PcapExplorer() {
           </div>
         </div>
 
+        {view === 'map' && active && caseId && (
+          <ConversationMapView caseId={caseId} artifactId={active.id} />
+        )}
+
         {/* Packet list */}
-        <div className="flex-1 min-h-0 overflow-auto">
+        <div className={`flex-1 min-h-0 overflow-auto ${view === 'map' ? 'hidden' : ''}`}>
           <DataTable
             density="compact"
             rows={rows?.items ?? []}

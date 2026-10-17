@@ -66,6 +66,12 @@ def create_doc_template(
         slots=json.dumps([s.model_dump() for s in payload.slots]),
     )
     db.add(tpl)
+    db.flush()
+    # A document template decides what every client record is expected to hold.
+    audit_log(db, user=current_user, action="client.template.create",
+              resource_type="client_template", resource_id=str(tpl.id),
+              resource_name=str(tpl.name),
+              details={"slots": len(payload.slots)})
     db.commit()
     db.refresh(tpl)
     return _tpl_to_read(tpl)
@@ -87,6 +93,10 @@ def update_doc_template(
         tpl.description = payload.description
     if payload.slots is not None:
         tpl.slots = json.dumps([s.model_dump() for s in payload.slots])
+    audit_log(db, user=current_user, action="client.template.update",
+              resource_type="client_template", resource_id=str(template_id),
+              resource_name=str(tpl.name),
+              details={"fields": sorted(payload.model_dump(exclude_unset=True))})
     db.commit()
     db.refresh(tpl)
     return _tpl_to_read(tpl)
@@ -102,7 +112,11 @@ def delete_doc_template(
     if not tpl:
         raise HTTPException(404, "Template not found")
     # Detach any clients using this template rather than blocking deletion
-    db.query(Client).filter(Client.doc_template_id == template_id).update({"doc_template_id": None})
+    detached = db.query(Client).filter(
+        Client.doc_template_id == template_id).update({"doc_template_id": None})
+    audit_log(db, user=current_user, action="client.template.delete",
+              resource_type="client_template", resource_id=str(template_id),
+              resource_name=str(tpl.name), details={"clients_detached": detached})
     db.delete(tpl)
     db.commit()
 
@@ -272,6 +286,9 @@ def update_document(
     updates = payload.model_dump(exclude_unset=True)
     for key, value in updates.items():
         setattr(doc, key, value)
+    audit_log(db, user=current_user, action="client.document.update",
+              resource_type="client_document", resource_id=str(doc_id),
+              resource_name=str(doc.name), details={"fields": sorted(updates)})
     db.commit()
     db.refresh(doc)
     return doc

@@ -1,36 +1,67 @@
 """
-Report generation service.
+The sections a report is made of.
 
-generate_analysis()  — builds analyst-facing sections from the case template's
-  `report_sections`.  Returns:
-    {
-        "analysis":      str,          # merged content for {{report_analysis}} (backward compat)
-        "remediation":   str,          # for {{report_remediation}}
-        "conclusion":    str,          # for {{report_conclusion}}
-        "sections_data": dict[str,str] # {slug: text} — one entry per section, for {{slug}} tags
-    }
+A case template declares `report_sections`; each one becomes an editor in the
+Report tab, a `{{slug}}` tag a report template can place, and a heading in the
+exported document. That chain is the whole model.
 
-Section slug = section.get("tag") or slugified section["name"].
+**There used to be a second one.** A case carried three fixed columns -
+`report_analysis`, `report_remediation`, `report_conclusion` - alongside the
+per-section blob, and the Report tab chose between them at render time
+depending on whether the case's template defined sections. So one case could
+hold content in two shapes, the exporter had four tags for the same material,
+and "which of the three does this belong in" was a question the analyst had to
+answer about their own writing.
+
+Sections only now. A template that wants everything in one place still has
+`{{report_content}}`, which is every section in order.
 """
+from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 
 from ..models.case import Case
 
 
-def _section_slug(section: dict) -> str:
-    if section.get("tag"):
-        return section["tag"].lower().strip()
+@dataclass(frozen=True)
+class Section:
+    """One section of a report, as the template declares it."""
+    slug:     str
+    name:     str
+    #: What the analyst starts from. Markdown, shown as placeholder text.
+    template: str
+    #: Free-form, from the case template. No longer routes content anywhere -
+    #: it was the bucket key - but it is what a template author writes to say
+    #: what a section is, so it travels with the section.
+    category: str
+    #: An export refuses to produce a deliverable with this section empty.
+    required: bool = False
+
+
+def section_slug(section: dict) -> str:
+    """
+    The tag a section is addressed by.
+
+    An explicit `tag:` in the template wins, because a section renamed for a
+    client must not silently change the tag every report template already
+    places. Without one, the name is slugified.
+    """
+    explicit = (section.get("tag") or "").lower().strip()
+    if explicit:
+        return explicit
     name = section.get("name", "section")
-    return re.sub(r'[^a-z0-9]+', '_', name.lower().strip()).strip('_') or "section"
+    return re.sub(r"[^a-z0-9]+", "_", name.lower().strip()).strip("_") or "section"
 
 
-# ── Default sections used when the case has no template attached ───────────
-
-DEFAULT_SECTIONS = [
+#: Used when a case has no template, or its template declares no sections.
+#: Deliberately the three the product shipped with, so a case started without
+#: a template reads the way it always did - as sections now, not as boxes.
+DEFAULT_SECTIONS: list[dict] = [
     {
         "name":     "Technical Analysis",
         "category": "analysis",
+        "required": True,
         "template": (
             "### Root Cause\n\n"
             "*Describe how the incident started (initial vector, vulnerability exploited...)*\n\n"
@@ -43,6 +74,7 @@ DEFAULT_SECTIONS = [
     {
         "name":     "Remediations",
         "category": "remediation",
+        "required": True,
         "template": (
             "*List the remediation actions completed or in progress, with status and owner.*\n\n"
             "- [ ] Action 1\n"
@@ -52,6 +84,7 @@ DEFAULT_SECTIONS = [
     {
         "name":     "Conclusion & Recommendations",
         "category": "conclusion",
+        "required": False,
         "template": (
             "*Summary of the incident and long-term recommendations to reduce the attack "
             "surface and prevent a recurrence.*\n\n"
@@ -61,90 +94,60 @@ DEFAULT_SECTIONS = [
     },
 ]
 
-# Category → bucket key
-_CAT_MAP = {
-    "analyse":    "analysis",
-    "analysis":   "analysis",
-    "remediation":"remediation",
-    "conclusion": "conclusion",
-}
+
+def sections_for(template: dict | None) -> list[Section]:
+    """
+    The sections this template declares, in the order it declares them.
+
+    Order matters and is the template's: it is the order of the editors in the
+    Report tab, and of the headings in `{{report_content}}`. Sorting it here
+    would quietly overrule whoever wrote the template.
+    """
+    declared = (template.get("report_sections") if template else None) or DEFAULT_SECTIONS
+
+    sections: list[Section] = []
+    seen: set[str] = set()
+    for raw in declared:
+        slug = section_slug(raw)
+        if slug in seen:
+            # Two sections resolving to one tag would make the second
+            # unaddressable and silently overwrite the first at export.
+            continue
+        seen.add(slug)
+        sections.append(Section(
+            slug     = slug,
+            name     = raw.get("name", "Section"),
+            template = (raw.get("template") or "").strip(),
+            category = (raw.get("category") or "analysis").lower().strip(),
+            required = bool(raw.get("required", False)),
+        ))
+    return sections
 
 
 class ReportService:
-    # ── Public API ─────────────────────────────────────────────────────────────
-
     def generate_analysis(self, case: Case, template: dict | None = None) -> dict:
         """
-        Return a dict with per-section content plus backward-compat 3-bucket keys.
+        The starting draft: every section, filled with its own guidance.
 
-        Each section gets:
-          - a slug (from section["tag"] or slugified section["name"])
-          - its content added to sections_data[slug]
-          - its content also merged into the matching bucket (analysis/remediation/conclusion)
+        Returns the sections themselves as well as the slug-keyed content, so
+        the Report tab can lay out editors in template order without asking
+        for the template separately.
         """
-        sections_def: list[dict] = (
-            (template.get("report_sections") or []) if template else []
-        ) or DEFAULT_SECTIONS
-
-        buckets: dict[str, list[str]] = {"analysis": [], "remediation": [], "conclusion": []}
-        sections_data: dict[str, str] = {}
-
-        for section in sections_def:
-            name          = section.get("name", "Section")
-            template_text = (section.get("template") or "").strip()
-            raw_cat       = (section.get("category") or "analysis").lower().strip()
-            bucket        = _CAT_MAP.get(raw_cat, "analysis")
-            slug          = _section_slug(section)
-
-            content = f"## {name}\n\n{template_text}\n" if template_text else f"## {name}\n\n*...*\n"
-            buckets[bucket].append(content)
-            sections_data[slug] = content.strip()
+        sections = sections_for(template)
 
         return {
-            "analysis":      "\n".join(buckets["analysis"]).strip(),
-            "remediation":   "\n".join(buckets["remediation"]).strip(),
-            "conclusion":    "\n".join(buckets["conclusion"]).strip(),
-            "sections_data": sections_data,
+            "sections": [
+                {
+                    "slug":     s.slug,
+                    "name":     s.name,
+                    "category": s.category,
+                    "required": s.required,
+                }
+                for s in sections
+            ],
+            "sections_data": {
+                s.slug: (f"## {s.name}\n\n{s.template}" if s.template
+                         else f"## {s.name}\n\n*...*")
+                for s in sections
+            },
         }
-
-    # ── Private helpers ────────────────────────────────────────────────────────
-
-    def _context_header(self, case: Case) -> str:
-        """
-        Small reference block with the most useful case facts for the analyst:
-        compromised assets + initial-access / execution TTPs.
-        """
-        parts: list[str] = []
-
-        # Compromised assets
-        compromised = [a for a in (getattr(case, "assets", None) or []) if a.compromised]
-        if compromised:
-            asset_lines = "\n".join(
-                f"- **{a.name}** ({a.type.value})"
-                + (f" — `{a.ip_address}`" if a.ip_address else "")
-                + (f" / {a.hostname}"      if a.hostname   else "")
-                for a in compromised
-            )
-            parts.append(f"**Actifs compromis ({len(compromised)}) :**\n{asset_lines}")
-
-        # Key TTPs (initial access + execution)
-        key_tactics = {"initial-access", "execution", "impact"}
-        ttps = [
-            t for t in (getattr(case, "ttps", None) or [])
-            if t.tactic in key_tactics
-        ]
-        if ttps:
-            ttp_lines = "\n".join(
-                f"- `{t.technique_id}` {t.technique_name} *({t.tactic_name})*"
-                for t in sorted(ttps, key=lambda x: x.technique_id)
-            )
-            parts.append(f"**Key TTPs:**\n{ttp_lines}")
-
-        if not parts:
-            return ""
-
-        return (
-            "> **Quick context** *(remove before export)*\n>\n"
-            + "\n>\n".join("> " + p.replace("\n", "\n> ") for p in parts)
-            + "\n"
-        )

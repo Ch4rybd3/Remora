@@ -5,7 +5,16 @@ Artifact storage and query.
 the only one today is DuckDB - but the indirection is the point: swapping in a
 different engine is a change here, not across the product.
 """
-from .base import ArtifactStore, Group, Page, Query, Schema, SourceMissing
+from .base import (
+    ArtifactStore,
+    Group,
+    Page,
+    Query,
+    Schema,
+    Source,
+    SourceMissing,
+    as_source,
+)
 from .duckdb_store import DuckDBArtifactStore, drop_cache, materialise, normalize_column
 
 _store: ArtifactStore | None = None
@@ -26,7 +35,9 @@ __all__ = [
     "Page",
     "Query",
     "Schema",
+    "Source",
     "SourceMissing",
+    "as_source",
     "drop_cache",
     "get_store",
     "materialise",

@@ -12,7 +12,7 @@ layout, its own naming, and its own hashing — or none:
 
 ```
 assets  binary  case_emails  cases  chainsaw_rules  clients  collection_import
-csv_artifacts  email_analysis  evidences  evtx  knowledge  memory  report_doc_templates  vault
+csv_artifacts  email_analysis  evidences  evtx  knowledge  memory  report_doc_templates
 ```
 
 Seven of them ingest case artifacts and are in scope for consolidation:
@@ -95,7 +95,7 @@ cover platform content that happens to arrive as a file:
 | Report DOCX/Markdown templates | Configuration, global, not case-scoped |
 | Chainsaw / Sigma rule packs | Detection content, versioned with the tool |
 | Knowledge base attachments, client and user avatars | Not evidence |
-| Vault entries | Encrypted at rest by a different path on purpose |
+| Knowledge base notes | Reference material, not evidence. Imported as a ZIP into one directory. |
 
 Running these through hashing, magic-byte routing and a parser queue would buy
 nothing and would put a report template in the Artifact Explorer. They keep
@@ -342,7 +342,7 @@ Each says so on its row rather than showing a generic "no parser":
 |---|---|---|
 | Raw memory dump | Which OS it came from. Guessing would queue the wrong Volatility plugins and produce confident wrong output. | **The dump waits in the queue** - hashed, listed, preservable - and the Collection tab offers `windows` / `linux` on its row. One click registers it in the Memory module. `POST .../ingest/{id}/memory-os`. |
 | PE / ELF / Mach-O | The password the binary is encrypted under at rest. The drop folder cannot ask for one. | Upload from the Binary Analysis page. |
-| Disk image | Nothing - but it must not be copied. | **The drop folder is an allowed root**, so the Disk Images page opens it where it lies. Nothing has to be moved. |
+| Disk image | Which case is working on it. | **The drop folder is an allowed root**, so the image is never copied or moved. The Disk Images page lists what the volume holds and the analyst registers one against the case, which is what makes it browsable. See [section 22](#22-disk-image-registration). |
 
 ### Memory formats
 
@@ -389,17 +389,65 @@ victims is a finding, not noise — so it is shown, never used to block.
 
 ## 8. Source timezone
 
-`TimezoneContext` on the frontend is **display only**. The missing half is the
-input side.
+Real acquisitions mix local-time and UTC exports, and once the file is on disk
+the ambiguity cannot be resolved from the data. So the analyst declares it, per
+artifact, in the Collection tab.
 
-- Every collection carries a `source_timezone` (IANA), overridable per file.
-- Set in the Collection tab at import time, before parsing runs.
-- Default: `UTC`, with a visible warning when a collection is left at the default and its parser produced naive timestamps.
-- Parsers store UTC in the database, converting from the declared source zone.
-- The original naive value is retained alongside the converted one, so a wrong declaration is correctable without re-ingesting.
+`TimezoneContext` on the frontend is **display only** and always was. The input
+side is here.
 
-This exists because real acquisitions mix local-time and UTC exports, and once
-the file is on disk the ambiguity cannot be resolved from the data.
+### It is applied on the way out, not on the way in
+
+The conversion happens when the artifact is *read*, in `ArtifactStore`. The
+bytes on disk keep saying what the collecting machine wrote.
+
+That placement is the decision worth understanding:
+
+- **A wrong declaration is corrected by changing one field.** No re-import, no
+  re-parse, no cache to invalidate — the next query answers differently. The
+  Parquet conversion caches the file, not the interpretation.
+- **The stored artifact never disagrees with its source.** A forensic table
+  showing `09:00` for a file that says `10:00`, with nothing recording why,
+  is worse than showing the wrong time.
+- **It cannot be bypassed.** Every question the Explorer asks — paging,
+  filtering, grouping, cross-artifact search — goes through one `_open`, so no
+  endpoint can read an artifact raw by forgetting to convert.
+
+Until this shipped, `source_timezone` was stored, badged in the file list, and
+applied by nothing. The Collection tab offered a setting that changed no answer
+the product gave.
+
+### What is and is not converted
+
+Only the column the artifact names as its event time. A timestamp inside a
+free-text message is not ours to reinterpret.
+
+A value that does not parse as a timestamp is kept exactly as written — a
+column that is only sometimes a date must not lose the rows that are not, which
+would silently shrink the artifact.
+
+Daylight saving is handled by the zone, not by a fixed offset: a collection
+from Paris is UTC+1 in January and UTC+2 in July, and one spanning the change
+is right on both sides of it.
+
+`None` and `UTC` both mean "already UTC" and cost nothing — the untouched path
+is exactly what it was before this existed.
+
+### Two implementation notes
+
+The zone reaches SQL **inlined**, because a DuckDB view definition cannot carry
+a prepared parameter. It is validated against the system tz database
+(`zoneinfo`) first, which is both the correct check and the narrow one.
+
+The converted value is formatted back to a string rather than left as a
+`TIMESTAMPTZ`: DuckDB's Python client needs `pytz` to hand one back and neither
+image carries it. Everything the store returns is a string anyway.
+
+### Still outstanding
+
+The original naive value is not retained alongside the converted one. It does
+not need to be while the conversion is applied at read time — the file is the
+original — but an export that carries only converted times should say so.
 
 ---
 
@@ -607,6 +655,52 @@ quietly define what "the registry" means for every investigation.
 
 ## 13. Process tree
 
+### Where it reads from
+
+The Artifact Explorer's parsed event log tables, through `ArtifactStore` — not
+from a table of its own.
+
+It used to read `evtx_events`, which the Logs module filled by parsing EVTX a
+second time. The Explorer already held the same records, parsed once by
+EvtxECmd, so the product carried two parses of one file that could disagree,
+and the tree could not outlive the module that fed it. That table is gone.
+
+Two consequences of reading the store instead:
+
+- **An artifact's declared source timezone applies.** Two collections from
+  machines in different zones line up in one tree, which they did not before.
+- **The fields come out of `Payload`.** EvtxECmd renders the event XML as JSON
+  there, and its shape varies by event — a list of `{"@Name", "#text"}` for
+  most, a single such object for one-field events, plain keys under `UserData`
+  for some channels. The reader walks rather than indexes, because the
+  alternative is a tree that silently loses Sysmon lineage because one provider
+  nested its fields differently.
+
+An event log table is recognised by carrying both `EventId` and `Payload`
+columns. Not by its name: a triage names them after the channel, after the
+host, or after nothing at all.
+
+### Where it is asked from
+
+A row in the Artifact Explorer. Right-clicking a cell that names a process —
+`ProcessId`, `NewProcessId`, `ProcessGuid`, or either parent column — offers
+*Process tree around this*, and the answer is that process with every ancestor
+up to the root and everything it started.
+
+It was a case tab until then. The question it answers, *how did this get here*,
+belongs next to the event that prompted it.
+
+A focus is identified by whatever the row carries. A Sysmon row has a GUID and
+that is unambiguous; a Security 4688 row has a PID, in hex, and the row's own
+timestamp — which is what tells two processes that reused a PID apart. A GUID
+that matches nothing never falls back to the PID: the two would answer about
+different processes.
+
+`focus.found: false` is a distinct answer from an empty tree. One means nothing
+was collected; the other means this ran on a machine whose logs are not here.
+
+### The sources, strongest to weakest
+
 Reconstructed where the data allows, from strongest to weakest source:
 
 1. **Sysmon Event ID 1** — parent GUID, command line, hashes. Authoritative.
@@ -685,7 +779,7 @@ No step requires downtime, and each is independently revertible.
 ### The output registry
 
 Ingesting a collection creates records in other modules: a table in the
-Artifact Explorer, a file in the Logs module, a capture in PCAP, a dump in
+Artifact Explorer, a file in the Detections module, a capture in PCAP, a dump in
 Memory. Until `collection_outputs` existed nothing recorded that it had, so
 deleting a collection removed its directory and its ingest rows and left every
 one of those records behind - still listed, still counted, pointing at bytes
@@ -770,7 +864,7 @@ Artifacts that are genuinely one-per-machine stay per-file: `$MFT`, `$J`,
 ### An event log still has two homes
 
 Batching the Explorer table must not cost the EVTX its other destination. The
-Logs module registration stays per file - Sigma detections run against a file -
+Detections registration stays per file - Sigma runs against a file -
 and the Explorer table is built once for the collection. The row in the ingest
 queue says so, rather than reporting a failure.
 
@@ -1035,3 +1129,74 @@ that yields prefetch, browsers and tasks pays it three times.
 The environment is replaced wholesale by the sandbox, so `PYTHONPATH` is handed
 in explicitly, derived from the module's own location. An installed layout that
 moved would fail loudly rather than quietly running the parser unconfined.
+
+---
+
+## 22. Disk image registration
+
+An image is the one artifact the pipeline never ingests. It is read in place
+because an acquisition routinely runs to several hundred GB, and copying it
+into the evidence store would double the storage bill to gain nothing.
+
+That in-place rule had a consequence nobody had written down: images were not
+scoped to anything. `GET /disk-images` returned every file under the configured
+roots, so **every case listed every image on the volume**, and no row anywhere
+said which investigation was working on which acquisition. The chain of custody
+had a hole exactly where the largest piece of evidence sat.
+
+### The registration
+
+`disk_images` holds a claim, not the bytes:
+
+| Column | Meaning |
+|---|---|
+| `case_id` | The investigation that examines this image. Cascades on case delete. |
+| `path` | Absolute, always inside a configured root. Re-validated on every use. |
+| `name`, `size_bytes`, `image_format` | Taken at registration, for the list. |
+| `registered_at`, `registered_by` | Who claimed it, and when. Audited as `disk_image.register`. |
+
+Unique on `(case_id, path)`. Not unique on `path` alone: two investigations for
+one client can legitimately examine one acquisition, and a global "one case per
+image" rule would force a 500 GB copy to express it.
+
+### What registration does and does not do
+
+- **Copies nothing, moves nothing, deletes nothing.** The file stays on the
+  mounted volume, owned by whoever put it there.
+- **Unregistering removes the claim only.** Which is why it asks for no
+  confirmation of the kind deleting evidence does - there is no evidence to
+  lose. Deleting the case does the same thing through the cascade.
+- **`available` is computed per request, never stored.** A volume can be
+  unmounted between two calls. The registration deliberately outlives that:
+  remounting makes the image usable again without re-registering it, and until
+  then the row says it is unreachable rather than vanishing.
+
+### Browsing goes through the claim
+
+Every browse endpoint takes a registration id, not a filesystem path:
+
+```
+GET  /cases/{case_id}/disk-images                       registered on this case
+GET  /cases/{case_id}/disk-images/available             on the volume, not yet claimed
+POST /cases/{case_id}/disk-images                       register {path}
+DEL  /cases/{case_id}/disk-images/{image_id}            drop the claim
+GET  /cases/{case_id}/disk-images/{image_id}/partitions
+GET  /cases/{case_id}/disk-images/{image_id}/list
+GET  /cases/{case_id}/disk-images/{image_id}/preview
+GET  /cases/{case_id}/disk-images/{image_id}/hash
+GET  /cases/{case_id}/disk-images/{image_id}/download
+POST /cases/{case_id}/disk-images/{image_id}/extract
+```
+
+`/disk-images/status` is the only case-free route left, and it reports whether
+image exploration is usable at all.
+
+Two things follow from keying on the claim rather than the path. An analyst
+supplied path no longer reaches the filesystem on any browse call - the path
+comes from the row. And the stored path is still re-validated against the roots
+on every request, so narrowing `DISK_IMAGE_PATHS` takes effect immediately
+instead of leaving rows written under the old configuration granting access.
+
+Extraction is unchanged in substance: a carved file lands in the case drop
+folder and re-enters the pipeline as an ordinary artifact, with no separate
+code path.

@@ -723,7 +723,7 @@ def save_selection(
     case_id: str,
     body:    ChainsawSelectionSave,
     db:      Session = Depends(get_db),
-    _:       User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     sel = db.query(ChainsawCaseSelection).filter(
         ChainsawCaseSelection.case_id == case_id,
@@ -739,6 +739,12 @@ def save_selection(
             sent_ids=body.sent_ids,
         )
         db.add(sel)
+    # Which detections an analyst kept is a judgement about what mattered, and
+    # the ones they dropped leave no other trace.
+    audit_log(db, user=current_user, action="chainsaw.selection",
+              resource_type="chainsaw_selection", resource_id=case_id,
+              case_id=case_id,
+              details={"alerts": len(body.alert_ids), "sent": len(body.sent_ids)})
     db.commit()
     db.refresh(sel)
     return sel

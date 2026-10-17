@@ -8,14 +8,14 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
-import { csvArtifactsApi, type OmniSearchFile } from '../../api/csvArtifacts'
-import { FileText, Loader2 } from '../../ui/icons'
+import { csvArtifactsApi, type OmniSearchFile, type OmniSearchSkipped } from '../../api/csvArtifacts'
+import { AlertTriangle, FileText, Loader2, XCircle } from '../../ui/icons'
 import { EZBadge } from './EZBadge'
 
 export function OmniSearchView({ caseId, query, regex, onOpenFile }: {
   caseId: string; query: string; regex: boolean; onOpenFile: (id: string) => void
 }) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['csv-omni', caseId, query, regex],
     queryFn:  () => csvArtifactsApi.search(caseId, query, 15, regex),
     enabled:  query.length >= 2,
@@ -38,10 +38,47 @@ export function OmniSearchView({ caseId, query, regex, onOpenFile }: {
     )
   }
 
-  if (!data || data.total_hits === 0) {
+  // The search failing and the search finding nothing are different answers.
+  // Collapsing them is what made a 500 read as "no results" - the query was
+  // never run, and the analyst had no way to tell.
+  if (isError || !data) {
     return (
-      <div className="flex items-center justify-center h-full text-fg-secondary/30 text-ui">
-        No results for "<span className="font-mono text-fg/40">{query}</span>"
+      <div className="flex flex-col items-center justify-center h-full gap-2 px-6 text-center">
+        <XCircle size={18} className="text-severity-critical/70" />
+        <p className="text-ui text-fg/70">The search could not run.</p>
+        <p className="text-label text-fg-secondary/50 max-w-md">
+          {error instanceof Error ? error.message : 'The server did not answer.'} Retry,
+          or narrow the query to a single file from the list.
+        </p>
+      </div>
+    )
+  }
+
+  // Everything failed: reporting that as "no results" would be a lie about a
+  // query that never reached a single file.
+  if (data.total_hits === 0 && data.searched === 0 && data.skipped.length > 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-2 px-6 text-center">
+        <AlertTriangle size={18} className="text-severity-medium/70" />
+        <p className="text-ui text-fg/70">
+          None of the {data.skipped.length} artifact{data.skipped.length !== 1 ? 's' : ''} in this case could be searched.
+        </p>
+        <p className="text-label text-fg-secondary/50 max-w-md">
+          {data.skipped[0].reason}. {regex && 'Check the pattern, or turn regex off. '}
+          Files removed with their collection keep their entry until it is deleted.
+        </p>
+      </div>
+    )
+  }
+
+  if (data.total_hits === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-2 px-6 text-center">
+        <p className="text-fg-secondary/30 text-ui">
+          No results for "<span className="font-mono text-fg/40">{query}</span>"
+          {' '}in {data.searched} file{data.searched !== 1 ? 's' : ''}
+        </p>
+        {data.skipped.length > 0 && <SkippedNotice skipped={data.skipped} />}
       </div>
     )
   }
@@ -50,10 +87,48 @@ export function OmniSearchView({ caseId, query, regex, onOpenFile }: {
     <div className="p-4 space-y-4 overflow-y-auto h-full">
       <p className="text-label text-fg-secondary/50">
         <span className="text-fg/70 font-semibold">{data.total_hits.toLocaleString()}</span> match{data.total_hits !== 1 ? 'es' : ''} in {data.files.length} file{data.files.length !== 1 ? 's' : ''} for "<span className="font-mono text-accent">{data.query}</span>"
+        {' '}<span className="text-fg-secondary/30">· {data.searched} file{data.searched !== 1 ? 's' : ''} searched</span>
       </p>
+      {data.skipped.length > 0 && <SkippedNotice skipped={data.skipped} />}
       {data.files.map((file: OmniSearchFile) => (
         <OmniFileGroup key={file.id} file={file} query={query} onOpen={() => onOpenFile(file.id)} />
       ))}
+    </div>
+  )
+}
+
+/**
+ * What the search could not read.
+ *
+ * Shown next to the results rather than instead of them: partial results are
+ * still useful, but an analyst concluding "this indicator is not in the case"
+ * needs to know the search did not cover every file.
+ */
+function SkippedNotice({ skipped }: { skipped: OmniSearchSkipped[] }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="border border-severity-medium/25 bg-severity-medium/5 px-3 py-2">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2 text-label text-severity-medium/90 hover:text-severity-medium w-full text-left"
+      >
+        <AlertTriangle size={11} className="shrink-0" />
+        <span>
+          {skipped.length} file{skipped.length !== 1 ? 's were' : ' was'} not searched
+        </span>
+        <span className="ml-auto text-severity-medium/50">{open ? 'Hide' : 'Show'}</span>
+      </button>
+      {open && (
+        <ul className="mt-2 space-y-1 border-t border-severity-medium/20 pt-2">
+          {skipped.map(s => (
+            <li key={s.id} className="text-label text-fg-secondary/60 flex gap-2">
+              <span className="font-mono text-fg/50 truncate" title={s.original_name}>{s.original_name}</span>
+              <span className="text-fg-secondary/40 shrink-0">— {s.reason}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

@@ -134,6 +134,36 @@ def test_writing_to_another_clients_case_is_refused(client, scoped_session, two_
     assert response.status_code == 404
 
 
+def test_a_bulk_update_cannot_reach_another_clients_case(client, scoped_session,
+                                                        two_clients):
+    """
+    The one case route that carries its ids in the *body*, where the dependency
+    above cannot see them. It filters its own query instead, and says which
+    cases it skipped rather than reporting success for them.
+    """
+    bank_case = two_clients["bank"]["case"].id
+
+    response = client.patch("/api/v1/cases/bulk",
+                            json={"case_ids": [bank_case], "status": "closed"},
+                            headers=scoped_session["headers"])
+
+    assert response.status_code == 200
+    assert response.json()["updated"] == []
+    assert response.json()["skipped"] == [bank_case]
+
+
+def test_a_bulk_update_still_reaches_its_own_clients_case(client, scoped_session,
+                                                         two_clients):
+    """Scoping must narrow the batch, not break it."""
+    retail_case = two_clients["retail"]["case"].id
+
+    response = client.patch("/api/v1/cases/bulk",
+                            json={"case_ids": [retail_case], "severity": "high"},
+                            headers=scoped_session["headers"])
+
+    assert response.json()["updated"] == [retail_case]
+
+
 def test_a_missing_case_is_still_a_plain_not_found(client, scoped_session):
     """
     Scoping must not turn every typo into a permission problem, or a 404 stops

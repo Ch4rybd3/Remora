@@ -15,10 +15,13 @@ from urllib.request import Request, urlopen
 
 import yaml
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
+from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..core.deps import get_current_user
+from ..database import get_db
 from ..models.user import User
+from ..services.audit_service import audit_log
 
 router = APIRouter(prefix="/chainsaw/rules", tags=["chainsaw-rules"])
 
@@ -169,9 +172,15 @@ def list_custom_rules(
 @router.post("/custom/upload")
 async def upload_custom_rules(
     files: list[UploadFile] = File(...),
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    """Upload one or more custom rule files (.yml / .yaml)."""
+    """
+    Upload one or more custom rule files (.yml / .yaml).
+
+    Audited because a detection rule decides what every future scan in every
+    case reports. Who installed one has the same reach as who wrote a finding.
+    """
     custom_dir = _custom_rules_dir()
     saved: list[str] = []
 
@@ -187,12 +196,18 @@ async def upload_custom_rules(
         dest.write_bytes(content)
         saved.append(filename)
 
+    audit_log(db, user=current_user, action="chainsaw.rules_upload",
+              resource_type="chainsaw_rule",
+              resource_name=", ".join(saved)[:512],
+              details={"files": saved})
+    db.commit()
     return {"saved": saved}
 
 
 @router.delete("/custom/{filename}")
 def delete_custom_rule(
     filename: str,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
     """Delete a custom rule file by filename."""
@@ -209,6 +224,11 @@ def delete_custom_rule(
         raise HTTPException(status_code=404, detail=f"Rule file '{filename}' not found.")
 
     target.unlink()
+    # A rule removed stops matching in every future scan, silently. Nothing but
+    # the trail says it was ever there.
+    audit_log(db, user=current_user, action="chainsaw.rules_delete",
+              resource_type="chainsaw_rule", resource_name=filename)
+    db.commit()
     return {"deleted": filename}
 
 
@@ -230,10 +250,14 @@ def sigma_status(
 @router.post("/sigma/download")
 def sigma_download(
     bg: BackgroundTasks,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
     """Trigger a background download of SigmaHQ Windows rules from GitHub."""
     sigma_dir = _sigma_rules_dir()
+    audit_log(db, user=current_user, action="chainsaw.rules_download",
+              resource_type="chainsaw_rule", resource_name="SigmaHQ Windows")
+    db.commit()
     bg.add_task(_download_sigma_rules, sigma_dir)
     return {
         "status":  "download_started",

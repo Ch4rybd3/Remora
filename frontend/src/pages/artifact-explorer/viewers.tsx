@@ -30,7 +30,7 @@ export function ArtifactRedirectView({ meta, caseId, type }: { meta: CsvArtifact
   const navigate = useNavigate()
   const { setCurrentCase } = useCurrentCase()
   const isEvtx = type === 'evtx'
-  const dest   = isEvtx ? '/artifacts/filesystem' : '/artifacts/email'
+  const dest   = isEvtx ? '/artifacts/detections' : '/artifacts/email'
   const label  = isEvtx ? 'Module Logs / EVTX' : 'Email Analysis'
   const icon   = isEvtx ? '🗂️' : '📧'
   const color  = isEvtx ? 'text-severity-high bg-severity-high/8 border-severity-high/20' : 'text-severity-low bg-severity-low/8 border-severity-low/20'

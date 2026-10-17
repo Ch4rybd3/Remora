@@ -11,10 +11,13 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
+from ..core.deps import get_current_user
 from ..database import get_db
 from ..models.attack_graph import AttackGraph
 from ..models.case import Case
+from ..models.user import User
 from ..schemas.attack_graph import AttackGraphRead, AttackGraphSave
+from ..services.audit_service import audit_log
 from ..services.graph_render import render_attack_graph_png
 
 router = APIRouter(tags=["attack_graph"])
@@ -47,6 +50,7 @@ async def save_attack_graph_snapshot(
     case_id: str,
     request: Request,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Store a PNG of the canvas, rasterised by the browser that drew it.
@@ -56,7 +60,7 @@ async def save_attack_graph_snapshot(
     Keeping what the analyst actually saw is what lets the report embed the
     picture they arranged rather than an approximation of it.
     """
-    _get_case(case_id, db)
+    case = _get_case(case_id, db)
     png = await request.body()
     if not png.startswith(b"\x89PNG"):
         raise HTTPException(status_code=400, detail="Body must be a PNG image")
@@ -72,6 +76,13 @@ async def save_attack_graph_snapshot(
 
     graph.snapshot_png = png
     graph.snapshot_at = datetime.now(UTC)
+    # Recorded separately from the save above, because this is the picture that
+    # `{{attack_graph}}` puts in a client's report. "Who produced the figure the
+    # client saw" is a different question from "who drew the graph".
+    audit_log(db, user=current_user, action="attack_graph.snapshot",
+              resource_type="attack_graph", resource_id=case_id,
+              case_id=case_id, case_title=str(case.title),
+              details={"bytes": len(png)})
     db.commit()
     return Response(status_code=204)
 
@@ -110,8 +121,9 @@ def save_attack_graph(
     case_id: str,
     payload: AttackGraphSave,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    _get_case(case_id, db)
+    case = _get_case(case_id, db)
     graph = db.query(AttackGraph).filter(AttackGraph.case_id == case_id).first()
     if graph:
         graph.nodes      = payload.nodes
@@ -124,6 +136,14 @@ def save_attack_graph(
             edges=payload.edges,
         )
         db.add(graph)
+    # The graph is the analyst's reconstruction of the attack, not a view of
+    # data recorded elsewhere. Who asserted which machine reached which, and
+    # when they asserted it, is the kind of thing an investigation into the
+    # investigation asks about.
+    audit_log(db, user=current_user, action="attack_graph.save",
+              resource_type="attack_graph", resource_id=case_id,
+              case_id=case_id, case_title=str(case.title),
+              details={"nodes": len(payload.nodes), "edges": len(payload.edges)})
     db.commit()
     db.refresh(graph)
     return graph

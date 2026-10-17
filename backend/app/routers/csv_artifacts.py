@@ -20,11 +20,12 @@ from ..database import get_db
 from ..models.case import Case
 from ..models.csv_artifact import CsvArtifactFile
 from ..models.user import User
+from ..services.audit_service import audit_log
 
 # Aliased: `Query` at module scope is FastAPI's, used in every endpoint
 # signature below.
 from ..services.store import Query as StoreQuery
-from ..services.store import SourceMissing, drop_cache, get_store
+from ..services.store import Source, SourceMissing, drop_cache, get_store
 
 router = APIRouter(tags=["csv-artifacts"])
 
@@ -42,6 +43,22 @@ def _get_case_or_404(case_id: str, db: Session) -> Case:
     if not c:
         raise HTTPException(status_code=404, detail="Case not found")
     return c
+
+
+def _source(a: CsvArtifactFile) -> Source:
+    """
+    The artifact, plus what it knows about its own timestamps.
+
+    Built here rather than at each call site so no query can accidentally read
+    an artifact raw. That was the previous state: the source timezone was
+    stored, shown as a badge, and applied by nothing - the Collection tab
+    offered a setting that changed no answer the Explorer gave.
+    """
+    return Source(
+        ref         = str(a.file_path),
+        date_column = str(a.date_column) if a.date_column else None,
+        timezone    = str(a.source_timezone) if a.source_timezone else None,
+    )
 
 
 def _get_artifact_or_404(artifact_id: str, case_id: str, db: Session) -> CsvArtifactFile:
@@ -198,20 +215,53 @@ def omni_search(
     regex:   bool = Query(False, description="Use regex matching instead of ILIKE"),
     db:      Session = Depends(get_db),
 ) -> dict:
-    """Full-text search across ALL CSV artifacts in a case (omnisearch via DuckDB)."""
+    """
+    Full-text search across ALL CSV artifacts in a case (omnisearch via DuckDB).
+
+    A fan-out over every artifact in the case, so one artifact failing must not
+    take the search with it. A collection deleted from disk leaves its rows
+    behind - the file list already badges them as unavailable - and searching a
+    case that holds one of those used to raise `SourceMissing` out of the loop
+    and return a 500 for the whole query. Every failure is therefore contained
+    to its own artifact and reported in `skipped`, so the analyst sees the hits
+    that do exist *and* learns which files could not be read.
+    """
     _get_case_or_404(case_id, db)
     artifacts = (
         db.query(CsvArtifactFile)
         .filter(CsvArtifactFile.case_id == case_id)
         .all()
     )
-    results   = []
+    results    = []
+    skipped    = []
     total_hits = 0
 
     for a in artifacts:
         cols = json.loads(a.columns)
-        hit_count, hits = get_store().find(
-            a.file_path, cols, q, limit=limit, regex=regex)
+        try:
+            hit_count, hits = get_store().find(
+                _source(a), cols, q, limit=limit, regex=regex)
+        except SourceMissing:
+            skipped.append({
+                "id":            a.id,
+                "original_name": a.original_name,
+                "reason":        "file is no longer on disk",
+            })
+            continue
+        except Exception as exc:
+            # Anything else - an unreadable file, a column the artifact's
+            # recorded schema no longer matches, a regex DuckDB rejects. The
+            # artifact is named so a recurring offender can be found, and the
+            # exception type is enough to tell a bad pattern from a bad file.
+            print(f"[explorer] omnisearch skipped {a.original_name}: "
+                  f"{type(exc).__name__}: {exc}", flush=True)
+            skipped.append({
+                "id":            a.id,
+                "original_name": a.original_name,
+                "reason":        f"could not be searched ({type(exc).__name__})",
+            })
+            continue
+
         if hit_count > 0:
             total_hits += hit_count
             results.append({
@@ -225,7 +275,13 @@ def omni_search(
                 "rows":          hits,
             })
 
-    return {"query": q, "total_hits": total_hits, "files": results}
+    return {
+        "query":      q,
+        "total_hits": total_hits,
+        "files":      results,
+        "skipped":    skipped,
+        "searched":   len(artifacts) - len(skipped),
+    }
 
 
 @router.post("/cases/{case_id}/artifacts/upload", status_code=status.HTTP_201_CREATED)
@@ -287,6 +343,10 @@ async def upload_artifact(
         ez_category=ez_category,
     )
     db.add(rec)
+    audit_log(db, user=current_user, action="artifact.upload",
+              resource_type="artifact", resource_id=artifact_id,
+              resource_name=safe_name, case_id=case_id,
+              details={"rows": row_count, "columns": len(cols)})
     db.commit()
     db.refresh(rec)
 
@@ -320,7 +380,7 @@ def get_rows(
 
     try:
         result = get_store().search(
-            a.file_path, cols,
+            _source(a), cols,
             StoreQuery(text=q, column_filters=parsed_cf, rql=rql),
             sort_col=sort_col or a.date_column, sort_dir=sort_dir,
             page=page, page_size=page_size,
@@ -381,7 +441,7 @@ def get_groups(
         groups = [
             {"values": g.values, "count": g.count}
             for g in get_store().aggregate(
-                a.file_path, cols, StoreQuery(text=q, column_filters=parsed_cf, rql=rql),
+                _source(a), cols, StoreQuery(text=q, column_filters=parsed_cf, rql=rql),
                 group_cols)
         ]
     except RQLSyntaxError as exc:
@@ -440,6 +500,12 @@ def add_evidence_for_artifact(
     except PromotionError as e:
         raise HTTPException(status_code=409, detail=str(e)) from None
 
+    audit_log(db, user=current_user, action="artifact.promote_to_evidence",
+              resource_type="evidence", resource_id=str(ev.id),
+              resource_name=str(a.original_name), case_id=case_id,
+              details={"artifact_id": artifact_id, "sha256": ev.sha256_hash})
+    db.commit()
+
     return _evidence_dto(ev)
 
 
@@ -467,6 +533,10 @@ def append_coc_note(
     entry   = f"[{now_str}] {current_user.username}: {note}\n"
 
     ev.chain_of_custody = (ev.chain_of_custody or "") + entry
+    audit_log(db, user=current_user, action="artifact.custody_note",
+              resource_type="evidence", resource_id=str(ev.id),
+              resource_name=str(a.original_name), case_id=case_id,
+              details={"note": note[:500]})
     db.commit()
 
 
@@ -492,7 +562,15 @@ def patch_artifact(
     """Update mutable fields on a CsvArtifactFile (currently: source_timezone)."""
     a = _get_artifact_or_404(artifact_id, case_id, db)
     if "source_timezone" in body:
+        previous = a.source_timezone
         a.source_timezone = body["source_timezone"] or None
+        # Re-dates every event in the artifact. A timeline that moved by an
+        # hour between two readings has to be traceable to this moment.
+        audit_log(db, user=current_user, action="artifact.update",
+                  resource_type="artifact", resource_id=artifact_id,
+                  resource_name=str(a.original_name), case_id=case_id,
+                  details={"source_timezone": {"from": previous,
+                                               "to": a.source_timezone}})
     db.commit()
     db.refresh(a)
     return _artifact_dto(a)
@@ -514,6 +592,10 @@ def delete_artifact(
         os.unlink(a.file_path)
     except OSError:
         pass
+    audit_log(db, user=current_user, action="artifact.delete",
+              resource_type="artifact", resource_id=artifact_id,
+              resource_name=str(a.original_name), case_id=case_id,
+              details={"rows": a.row_count, "ez_label": a.ez_label})
     db.delete(a)
     db.commit()
 

@@ -1,5 +1,15 @@
 import api from './client'
 
+/** One supported {{tag}}, as the backend registry describes it. */
+export interface ReportTag {
+  name:        string
+  /** "text" is substituted inline; "block" replaces its whole paragraph. */
+  kind:        'text' | 'block'
+  group:       string
+  group_label: string
+  description: string
+}
+
 export interface ReportDocTemplate {
   id:            number
   name:          string
@@ -7,6 +17,11 @@ export interface ReportDocTemplate {
   format:        'docx' | 'markdown'
   file_size:     number
   tags_detected: string[]
+  /**
+   * The Word table style this template's annex tables take, or null for
+   * Remora's own rendering. Resolved by the backend when the file is uploaded.
+   */
+  annex_style: string | null
   created_at:    string
   created_by:    string | null
 }
@@ -17,8 +32,18 @@ export const reportDocTemplatesApi = {
     return res.data
   },
 
-  availableTags: async (): Promise<string[]> => {
-    const res = await api.get('/report-doc-templates/tags')
+  /**
+   * The tag vocabulary, served from the backend registry.
+   *
+   * Names *and* descriptions come over the wire. The page used to hold its own
+   * copy of both, which is how it ended up documenting seven tags in one
+   * language and six in another while the exporter supported a different set
+   * again.
+   */
+  availableTags: async (caseTemplateId?: string | null): Promise<ReportTag[]> => {
+    const res = await api.get<ReportTag[]>('/report-doc-templates/tags', {
+      params: caseTemplateId ? { case_template_id: caseTemplateId } : undefined,
+    })
     return res.data
   },
 

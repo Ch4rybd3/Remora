@@ -280,3 +280,69 @@ def test_a_raw_dump_has_no_signature_and_falls_back_to_its_name():
     found = identify_bytes(b"\x00\x11\x22\x33" * 64, "memdump.raw")
     assert found.kind in {"memory_dump", "disk_raw"}
     assert found.source == DETECTED_BY_EXTENSION
+
+
+# ─── Text that is not prose ───────────────────────────────────────────────────
+# Content detection runs before the extension is consulted, so a textual format
+# the content rules do not recognise is filed as a text file and its extension
+# never gets a say. Three formats were reaching the wrong destination that way.
+
+_MESSAGE = (
+    "From: attacker@example.invalid\r\n"
+    "To: analyst@example.invalid\r\n"
+    "Subject: Invoice 4471\r\n"
+    "\r\n"
+    "Please review the attached invoice.\r\n"
+)
+
+
+def test_a_message_beginning_with_a_from_header_is_mail():
+    """
+    A client saves a message with `From:` first, and the mail rule only listed
+    `Received:`, `Return-Path:`, `Message-ID:` and `Delivered-To:`. So the most
+    ordinary .eml there is was identified as a text file, went to the Artifact
+    Explorer as prose, and never reached Email Analysis.
+    """
+    assert identify_bytes(_MESSAGE.encode(), "phish.eml").kind == "eml"
+
+
+def test_a_from_header_alone_is_not_enough_to_claim_mail():
+    """`From:` opens plenty of notes. A second header is what makes it a message."""
+    note = b"From: the responder\r\n\r\nHanded over at 18:00.\r\n"
+
+    assert identify_bytes(note, "handover.txt").kind != "eml"
+
+
+def test_a_mailbox_is_not_a_single_message():
+    """
+    An mbox opens with the `From ` separator, which is not a legal RFC822
+    header. It matched the mail rule anyway and was claimed as one message -
+    so the mail parser would have read the first message and silently dropped
+    every one after it.
+    """
+    mailbox = ("From fixture@example.invalid Thu Jan  1 00:00:00 2026\r\n"
+               + _MESSAGE).encode()
+
+    assert identify_bytes(mailbox, "inbox.mbox").kind == "mbox"
+
+
+def test_an_xml_document_is_labelled_xml_not_text():
+    """
+    Same destination either way - both reach the Explorer - but the Collection
+    tab called every XML document a "Text file", because content detection
+    answered first and `.xml` was never read.
+    """
+    found = identify_bytes(b"<?xml version='1.0'?><report><host/></report>", "report.xml")
+
+    assert found.kind == "xml"
+
+
+def test_a_utf16_scheduled_task_is_unaffected_by_the_xml_rule():
+    """The task definition is UTF-16, so it never reaches the text rules at
+    all - it is claimed by its signature and its schema validator."""
+    task = b"\xff\xfe" + (
+        '<?xml version="1.0" encoding="UTF-16"?>'
+        '<Task xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"/>'
+    ).encode("utf-16-le")
+
+    assert identify_bytes(task, "UpdateTask").kind == "scheduled_task"

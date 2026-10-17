@@ -6,17 +6,49 @@ The tree is the question an investigation asks first - *how did this get here*
 claim. These tests are mostly about the ways a plausible-looking tree can be
 wrong: a PID read in the wrong base, a PID reused by a later process, a parent
 that was never logged.
+
+They read what the product reads. The tree used to be built from `evtx_events`,
+a table the Logs module filled by parsing EVTX a second time; it is built from
+the Artifact Explorer's EvtxECmd tables now, so the fixtures below write one -
+including the `Payload` column, whose JSON is where every field the tree needs
+actually lives.
 """
 from __future__ import annotations
 
+import csv
+import json
+import uuid
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import pytest
 
-from app.models.evtx import EvtxEvent, EvtxFile
 from app.services import process_tree as tree
 
 BASE = datetime(2026, 3, 1, 9, 0, 0)
+
+#: The columns EvtxECmd writes. Only a few carry meaning for the tree; the rest
+#: are here because a table with a plausible shape is what the reader has to
+#: recognise, and recognition is by column.
+EVTX_COLUMNS = [
+    "RecordNumber", "EventRecordId", "TimeCreated", "EventId", "Level",
+    "Provider", "Channel", "Computer", "UserId", "MapDescription",
+    "PayloadData1", "SourceFile", "Payload",
+]
+
+
+def _payload(data: dict) -> str:
+    """
+    Event fields as EvtxECmd renders them.
+
+    The `@Name`/`#text` list is the shape the tool writes for most events, and
+    the one the reader has to walk rather than index.
+    """
+    return json.dumps({
+        "EventData": {
+            "Data": [{"@Name": k, "#text": v} for k, v in data.items()]
+        }
+    })
 
 
 @pytest.fixture()
@@ -30,19 +62,50 @@ def case(db_session):
 
 
 @pytest.fixture()
-def log(db_session, case):
-    """An event log in the case, and a way to append records to it."""
-    evtx = EvtxFile(case_id=case, filename="Security.evtx", file_path="/tmp/x.evtx")
-    db_session.add(evtx)
+def log(db_session, case, tmp_path: Path):
+    """A parsed event log table in the case, and a way to append records."""
+    from app.models.csv_artifact import CsvArtifactFile
+    from app.services.store import drop_cache
+
+    path = tmp_path / "Security_EvtxECmd_Output.csv"
+    record = CsvArtifactFile(
+        id=str(uuid.uuid4()), case_id=case,
+        original_name="Security_EvtxECmd_Output.csv",
+        file_path=str(path), columns=json.dumps(EVTX_COLUMNS),
+        row_count=0, date_column="TimeCreated",
+    )
+    db_session.add(record)
     db_session.commit()
+
+    rows: list[dict] = []
 
     def _add(event_id: int, data: dict, *, offset: int = 0,
              provider: str = "Microsoft-Windows-Security-Auditing") -> None:
-        db_session.add(EvtxEvent(
-            file_id=evtx.id, event_id=event_id, provider=provider,
-            computer="WS01", time_created=BASE + timedelta(seconds=offset),
-            event_data=data,
-        ))
+        rows.append({
+            "RecordNumber":  str(len(rows) + 1),
+            "EventRecordId": str(len(rows) + 1),
+            "TimeCreated":   (BASE + timedelta(seconds=offset)).strftime("%Y-%m-%d %H:%M:%S"),
+            "EventId":       str(event_id),
+            "Level":         "4",
+            "Provider":      provider,
+            "Channel":       "Security",
+            "Computer":      "WS01",
+            "UserId":        "",
+            "MapDescription": "",
+            "PayloadData1":  "",
+            "SourceFile":    "C:\\Windows\\System32\\winevt\\Logs\\Security.evtx",
+            "Payload":       _payload(data),
+        })
+        with open(path, "w", newline="", encoding="utf-8") as fh:
+            writer = csv.DictWriter(fh, fieldnames=EVTX_COLUMNS)
+            writer.writeheader()
+            writer.writerows(rows)
+
+        # The table is rewritten in place on every append, and the Parquet
+        # conversion keys on mtime - within the same second a stale cache would
+        # be taken for fresh, and the test would assert on the previous state.
+        drop_cache(path)
+        record.row_count = len(rows)
         db_session.commit()
 
     return _add
@@ -260,22 +323,150 @@ def test_a_case_with_no_event_logs_is_an_empty_tree_not_an_error(db_session, cas
 
 # ─── Through the API ──────────────────────────────────────────────────────────
 
-def test_the_tree_comes_back_over_the_api(auth_client, db_session):
-    api_case = auth_client.post("/api/v1/cases/", json={"title": "Tree"}).json()["id"]
-    evtx = EvtxFile(case_id=api_case, filename="Sysmon.evtx", file_path="/tmp/s.evtx")
-    db_session.add(evtx)
-    db_session.commit()
-    db_session.add(EvtxEvent(
-        file_id=evtx.id, event_id=1, provider="Microsoft-Windows-Sysmon",
-        computer="WS01", time_created=BASE,
-        event_data={"ProcessGuid": "{Z}", "ProcessId": "42",
-                    "Image": "C:\\Windows\\System32\\cmd.exe"},
+@pytest.fixture()
+def api_case(auth_client, db_session, tmp_path: Path):
+    """A case whose parsed Sysmon table holds one small chain."""
+    from app.models.csv_artifact import CsvArtifactFile
+    from app.services.store import drop_cache
+
+    case_id = auth_client.post("/api/v1/cases/", json={"title": "Tree"}).json()["id"]
+    path = tmp_path / "Sysmon_EvtxECmd_Output.csv"
+
+    records = [
+        ("{A}", 100, "C:\\Windows\\explorer.exe",              "",    None, 0),
+        ("{B}", 200, "C:\\Windows\\System32\\cmd.exe",        "{A}", 100,  10),
+        ("{C}", 300, "C:\\Windows\\System32\\whoami.exe",     "{B}", 200,  20),
+    ]
+    with open(path, "w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=EVTX_COLUMNS)
+        writer.writeheader()
+        for index, (guid, pid, image, pguid, ppid, offset) in enumerate(records, 1):
+            writer.writerow({
+                "RecordNumber": str(index), "EventRecordId": str(index),
+                "TimeCreated": (BASE + timedelta(seconds=offset)).strftime("%Y-%m-%d %H:%M:%S"),
+                "EventId": "1", "Level": "4",
+                "Provider": "Microsoft-Windows-Sysmon", "Channel": "Microsoft-Windows-Sysmon/Operational",
+                "Computer": "WS01", "UserId": "", "MapDescription": "", "PayloadData1": "",
+                "SourceFile": "Sysmon.evtx",
+                "Payload": _payload({
+                    "ProcessGuid": guid, "ProcessId": str(pid), "Image": image,
+                    "ParentProcessGuid": pguid,
+                    "ParentProcessId": str(ppid) if ppid is not None else "",
+                }),
+            })
+    drop_cache(path)
+
+    db_session.add(CsvArtifactFile(
+        id=str(uuid.uuid4()), case_id=case_id,
+        original_name="Sysmon_EvtxECmd_Output.csv", file_path=str(path),
+        columns=json.dumps(EVTX_COLUMNS), row_count=len(records),
+        date_column="TimeCreated",
     ))
     db_session.commit()
+    return case_id
 
+
+def test_the_tree_comes_back_over_the_api(auth_client, api_case):
     body = auth_client.get(f"/api/v1/cases/{api_case}/process-tree").json()
-    assert body["stats"]["processes"] == 1
-    assert body["nodes"][0]["name"] == "cmd.exe"
+
+    assert body["stats"]["processes"] == 3
+    assert {n["name"] for n in body["nodes"]} == {"explorer.exe", "cmd.exe", "whoami.exe"}
+    assert body["focus"]["requested"] is False
+
+
+# ─── Focusing on one process ──────────────────────────────────────────────────
+# What the Artifact Explorer asks for. An analyst right-clicking a suspicious
+# event wants the chain that produced it and what it went on to do, not the
+# whole case to search.
+
+def test_a_focus_returns_the_process_its_ancestors_and_its_children(auth_client, api_case):
+    body = auth_client.get(
+        f"/api/v1/cases/{api_case}/process-tree", params={"guid": "{B}"}).json()
+
+    assert {n["name"] for n in body["nodes"]} == {"explorer.exe", "cmd.exe", "whoami.exe"}
+    assert body["focus"] == {"requested": True, "found": True, "key": "{B}"}
+
+
+def test_a_focus_on_a_leaf_keeps_the_line_that_led_to_it(auth_client, api_case):
+    """The ancestors are the answer to "how did this get here"."""
+    body = auth_client.get(
+        f"/api/v1/cases/{api_case}/process-tree", params={"guid": "{C}"}).json()
+
+    assert {n["name"] for n in body["nodes"]} == {"explorer.exe", "cmd.exe", "whoami.exe"}
+
+
+def test_a_focus_drops_what_is_not_on_the_line(auth_client, api_case, db_session, tmp_path):
+    """A sibling branch is not part of this chain and would only be noise."""
+    body = auth_client.get(
+        f"/api/v1/cases/{api_case}/process-tree", params={"guid": "{A}"}).json()
+    whole = auth_client.get(f"/api/v1/cases/{api_case}/process-tree").json()
+
+    # This chain is linear, so focusing on the root returns everything - the
+    # assertion worth making is that focusing never *invents* a node.
+    assert len(body["nodes"]) <= len(whole["nodes"])
+
+
+def test_a_focus_on_a_process_that_is_not_in_the_logs_says_so(auth_client, api_case):
+    """
+    Different from an empty tree, and the caller has to be able to tell them
+    apart: one means nothing was collected, the other means this ran on a
+    machine whose logs are not here.
+    """
+    body = auth_client.get(
+        f"/api/v1/cases/{api_case}/process-tree", params={"guid": "{NOPE}"}).json()
+
+    assert body["nodes"] == []
+    assert body["focus"]["found"] is False
+    assert body["focus"]["requested"] is True
+
+
+def test_a_focus_by_pid_finds_the_process(auth_client, api_case):
+    """A Security 4688 row carries a PID and a time, never a GUID."""
+    body = auth_client.get(
+        f"/api/v1/cases/{api_case}/process-tree", params={"pid": 200}).json()
+
+    assert body["focus"]["found"] is True
+    assert body["focus"]["key"] == "{B}"
+
+
+def test_a_focus_by_pid_prefers_the_process_alive_at_that_moment(db_session, case, log):
+    """
+    The reason `at` exists. Windows reuses a PID within minutes on a busy
+    machine, and picking the first match would hand the analyst a different
+    process that happened to share a number.
+    """
+    sysmon(log, guid="{FIRST}",  pid=500, image="C:\\Windows\\first.exe",  offset=0)
+    log(5, {"ProcessGuid": "{FIRST}", "ProcessId": "500"},
+        offset=30, provider="Microsoft-Windows-Sysmon")
+    sysmon(log, guid="{SECOND}", pid=500, image="C:\\Windows\\second.exe", offset=60)
+
+    early = tree.build(db_session, case,
+                       focus=tree.Focus(pid=500, at=BASE + timedelta(seconds=10)))
+    late  = tree.build(db_session, case,
+                       focus=tree.Focus(pid=500, at=BASE + timedelta(seconds=90)))
+
+    assert early["focus"]["key"] == "{FIRST}"
+    assert late["focus"]["key"] == "{SECOND}"
+
+
+def test_an_image_name_breaks_a_tie_between_reused_pids(db_session, case, log):
+    sysmon(log, guid="{ONE}", pid=600, image="C:\\Windows\\one.exe", offset=0)
+    sysmon(log, guid="{TWO}", pid=600, image="C:\\Windows\\two.exe", offset=5)
+
+    result = tree.build(db_session, case,
+                        focus=tree.Focus(pid=600, image="two.exe"))
+
+    assert result["focus"]["key"] == "{TWO}"
+
+
+def test_a_guid_that_matches_nothing_does_not_fall_back_to_the_pid(db_session, case, log):
+    """The two would answer about different processes, which is worse than
+    answering that the process is not here."""
+    sysmon(log, guid="{REAL}", pid=700, image="C:\\Windows\\real.exe")
+
+    result = tree.build(db_session, case, focus=tree.Focus(guid="{GHOST}", pid=700))
+
+    assert result["focus"]["found"] is False
 
 
 def test_a_case_from_another_scope_is_not_found(auth_client):

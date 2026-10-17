@@ -32,6 +32,9 @@ import {
 import { color } from '../../styles/tokens'
 import { RQLBar } from './RQLBar'
 import type { ColFilter, ColFilters, FilterMode, FlatItem, TabState } from './types'
+import Modal from '../../components/ui/Modal'
+import ProcessTreeView from '../../components/process-tree/ProcessTreeView'
+import { CellContextMenu, processFocus, type CellTarget } from './CellContextMenu'
 
 export function makeRowKey(artifactId: string, row: Record<string, string>): string {
   return `${artifactId}\x1f${Object.values(row).join('\x1e')}`
@@ -432,6 +435,18 @@ export function ArtifactTableView({
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [localRql,       setLocalRql]       = useState(state.rql ?? '')
   const [rqlError,       setRqlError]       = useState<string | null>(null)
+  const [cellMenu,       setCellMenu]       = useState<CellTarget | null>(null)
+  const [treeFocus,      setTreeFocus]      = useState<
+    NonNullable<ReturnType<typeof processFocus>> | null>(null)
+
+  /**
+   * Whether this artifact's event times are being converted on the way out.
+   *
+   * `UTC` and an unset zone both mean "already UTC", and neither is worth
+   * announcing - a badge on every file would stop being read.
+   */
+  const normalised = Boolean(
+    meta.date_column && meta.source_timezone && meta.source_timezone !== 'UTC')
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const colDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -720,6 +735,25 @@ export function ArtifactTableView({
     }, 350)
   }, [onStateChange, updateFilters])
 
+  /**
+   * A filter chosen from the right-click menu.
+   *
+   * Goes through the same handler the filter row uses, so the box above the
+   * column fills in and the analyst can see - and adjust - what was applied.
+   * A filter that narrowed the table invisibly would be the worse feature.
+   */
+  const applyCellFilter = useCallback((col: string, mode: FilterMode, value: string) => {
+    setShowFilters(true)
+    handleColFilterChange(col, { mode, value })
+  }, [handleColFilterChange])
+
+  /** A time pivot. Replaces the RQL rather than appending: two ranges over one
+   *  column ANDed together is an intersection nobody asked for. */
+  const applyPivot = useCallback((rql: string) => {
+    handleRqlRun(rql)
+  }, [handleRqlRun])
+
+
   const handleSort = (col: string) => {
     if (state.filters.sort_col === col) {
       updateFilters({ sort_dir: state.filters.sort_dir === 'asc' ? 'desc' : 'asc', page: 1 })
@@ -824,7 +858,7 @@ export function ArtifactTableView({
           <button onClick={toggleAllGroups}
             className="flex items-center gap-1 px-2 py-1.5 rounded-control border border-hairline text-label text-fg-secondary hover:text-fg hover:border-strong transition-colors">
             {allExpanded
-              ? <><ChevronsLeft size={10} className="rotate-90" /> Replier tout</>
+              ? <><ChevronsLeft size={10} className="rotate-90" /> Collapse all</>
               : <><ChevronsRight size={10} className="rotate-90" /> Expand all</>
             }
           </button>
@@ -892,6 +926,16 @@ export function ArtifactTableView({
                     <span className="flex items-center gap-1 pr-2">
                       <GripVertical size={8} className="text-fg-secondary/20 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
                       {col}
+                      {/* The conversion is invisible in the values themselves -
+                          09:00 looks like a recorded 09:00 - so the column says
+                          it. An analyst comparing this file with another has to
+                          know which one moved. */}
+                      {col === meta.date_column && normalised && (
+                        <span title={`Recorded in ${meta.source_timezone}, shown in UTC`}
+                          className="text-severity-low/70 normal-case tracking-normal font-mono">
+                          UTC
+                        </span>
+                      )}
                       {isSort && (state.filters.sort_dir === 'asc' ? <ArrowUp size={9} className="text-accent" /> : <ArrowDown size={9} className="text-accent" />)}
                     </span>
                     <ColResizeHandle col={col} onStart={startColResize} onReset={resetColWidth} />
@@ -1012,6 +1056,15 @@ export function ArtifactTableView({
                     </td>
                     {orderedCols.map(col => (
                       <td key={col}
+                        onContextMenu={e => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setCellMenu({
+                            x: e.clientX, y: e.clientY, column: col,
+                            value: row[col] ?? '', isDate: col === meta.date_column,
+                            row, dateColumn: meta.date_column,
+                          })
+                        }}
                         className={`px-3 py-1.5 truncate ${col === meta.date_column ? 'font-mono text-label text-fg/45 whitespace-nowrap' : 'text-fg/65'}`}
                         style={{ width: colW(col), minWidth: 60, maxWidth: colW(col) }}
                         title={row[col] ?? ''}>
@@ -1042,6 +1095,30 @@ export function ArtifactTableView({
           onPage={p => updateFilters({ page: p })}
           onPageSize={s => updateFilters({ page_size: s, page: 1 })} />
       )}
+
+      {cellMenu && (
+        <CellContextMenu
+          target={cellMenu}
+          onFilter={applyCellFilter}
+          onPivot={applyPivot}
+          onProcessTree={setTreeFocus}
+          onClose={() => setCellMenu(null)}
+        />
+      )}
+
+      {/* The tree opens over the table rather than beside it. It is read, not
+          arranged, and it needs the width - a lineage is deep and its command
+          lines are long. */}
+      <Modal
+        open={treeFocus !== null}
+        onClose={() => setTreeFocus(null)}
+        title="Process tree"
+        size="xl"
+      >
+        <div className="h-[70vh] min-h-0">
+          {treeFocus && <ProcessTreeView caseId={caseId} focus={treeFocus} />}
+        </div>
+      </Modal>
     </div>
   )
 }

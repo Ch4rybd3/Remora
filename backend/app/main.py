@@ -30,15 +30,16 @@ from .models import client as _client_models  # ensure tables are registered
 from .models import collection_output as _collection_output_models  # ensure tables are registered
 from .models import connector as _connector_models  # ensure tables are registered
 from .models import csv_artifact as _csv_artifact_models  # ensure tables are registered
+from .models import disk_image as _disk_image_models  # ensure tables are registered
 from .models import email_file as _email_file_models  # ensure tables are registered
 from .models import evtx as _evtx_models  # ensure tables are registered
 from .models import ez_artifacts as _ez_artifacts_models  # ensure EZ tables are registered
 from .models import incident_log as _incident_log_models  # ensure table is registered
 from .models import memory as _memory_models  # ensure tables are registered
 from .models import mitre as _mitre_models  # ensure tables are registered
+from .models import pcap_host as _pcap_host_models  # ensure tables are registered
 from .models import report_doc_template as _rdt_models  # ensure tables are registered
 from .models import report_version as _rv_models  # ensure tables are registered
-from .models import vault as _vault_models  # ensure table is registered
 from .models.user import User, UserRole
 from .routers import assets, auth, cases, evidences, iocs, reports, templates, timeline
 from .routers import attack_graph as attack_graph_router
@@ -51,6 +52,7 @@ from .routers import chainsaw_rules as chainsaw_rules_router
 from .routers import clients as clients_router
 from .routers import collection_import as collection_import_router
 from .routers import connectors as connectors_router
+from .routers import coverage as coverage_router
 from .routers import csv_artifacts as csv_artifacts_router
 from .routers import cti as cti_router
 from .routers import custody as custody_router
@@ -71,7 +73,6 @@ from .routers import rdp_cache as rdp_cache_router
 from .routers import registry as registry_router
 from .routers import report_doc_templates as report_doc_templates_router
 from .routers import users as users_router
-from .routers import vault as vault_router
 from .services.auth_service import hash_password
 from .services.chainsaw_setup import setup_chainsaw
 from .services.cti_tools_setup import setup_cti_tools
@@ -119,16 +120,26 @@ def _setup_playbooks() -> None:
 
 
 def _setup_report_sections() -> None:
-    """Add report_analysis / report_remediation / report_conclusion columns to cases."""
+    """
+    Add `report_sections_data` to cases if an old instance lacks it.
+
+    It used to add the three fixed section columns as well, and a migration now
+    drops them - so it was re-creating, on every boot, exactly what the upgrade
+    had just removed. A fixup that fights a migration is worse than no fixup:
+    the schema ends up depending on which ran last.
+
+    That is the failure mode this whole legacy list exists to avoid, which is
+    why it is being deleted rather than corrected in place. This is the last
+    one that touches `cases`.
+    """
     with engine.connect() as conn:
-        for col in ("report_analysis", "report_remediation", "report_conclusion", "report_sections_data"):
-            try:
-                default = "'{}'" if col == "report_sections_data" else "''"
-                conn.execute(text(f"ALTER TABLE cases ADD COLUMN {col} TEXT DEFAULT {default}"))
-                conn.commit()
-                print(f"[migration] cases.{col} added", flush=True)
-            except Exception:
-                pass  # Column already exists
+        try:
+            conn.execute(text(
+                "ALTER TABLE cases ADD COLUMN report_sections_data TEXT DEFAULT '{}'"))
+            conn.commit()
+            print("[migration] cases.report_sections_data added", flush=True)
+        except Exception:
+            pass  # Column already exists
 
 
 
@@ -526,7 +537,6 @@ app.include_router(chainsaw_router.router,             prefix="/api/v1", **_auth
 app.include_router(chainsaw_rules_router.router,       prefix="/api/v1", **_auth)
 app.include_router(mitre_router.router,                prefix="/api/v1", **_auth)
 app.include_router(dashboard_router.router,            prefix="/api/v1", **_auth)
-app.include_router(vault_router.router,                prefix="/api/v1", **_auth)
 app.include_router(connectors_router.router,           prefix="/api/v1", **_auth)
 app.include_router(cti_router.router,                  prefix="/api/v1", **_auth)
 app.include_router(collection_import_router.router,    prefix="/api/v1", **_auth)
@@ -535,6 +545,7 @@ app.include_router(ingest_router.router,               prefix="/api/v1", **_auth
 app.include_router(custody_router.router,              prefix="/api/v1", **_auth)
 app.include_router(pcap_router.router,                 prefix="/api/v1", **_auth)
 app.include_router(disk_images_router.router,          prefix="/api/v1", **_auth)
+app.include_router(coverage_router.router,             prefix="/api/v1", **_auth)
 app.include_router(registry_router.router,             prefix="/api/v1", **_auth)
 app.include_router(rdp_cache_router.router,            prefix="/api/v1", **_auth)
 app.include_router(process_tree_router.router,         prefix="/api/v1", **_auth)

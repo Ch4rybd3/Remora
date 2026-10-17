@@ -6,6 +6,7 @@ import {
   ChevronDown, ChevronUp, Shield,
 } from '../ui/icons'
 import { templatesApi } from '../api/templates'
+import { CopyTagButton } from '../ui/CopyTagButton'
 import type { Template } from '../types'
 import { SeverityBadge, TLPBadge, Tag } from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
@@ -169,12 +170,32 @@ function TemplateCard({ tpl, onEdit, onDelete, onEditTTPs }: TemplateCardProps) 
 
               {tpl.report_sections != null && (
                 <div className="border-t border-hairline pt-3">
-                  <p className="text-label text-fg-secondary uppercase tracking-wide mb-2">Report Sections</p>
-                  <div className="flex flex-wrap gap-2">
+                  <p className="text-label text-fg-secondary uppercase tracking-wide mb-1">Report Sections</p>
+                  {/* The tag beside the name, because this is where the name is
+                      decided. A report template places `{{slug}}`, and until
+                      now nothing told the person choosing the name what slug
+                      their choice produced. */}
+                  <p className="text-label text-fg-secondary/40 mb-2 leading-relaxed">
+                    Each section is a <code className="font-mono">{'{{tag}}'}</code> a report
+                    template can place. Copy one to paste it into a DOCX or Markdown template.
+                  </p>
+                  <div className="space-y-1">
                     {tpl.report_sections.map(s => (
-                      <span key={s.name} className="text-label bg-fg/5 text-fg-secondary px-2 py-1 rounded-control font-mono">
-                        {s.name}
-                      </span>
+                      <div key={s.name}
+                        className="flex items-center gap-2 bg-fg/[0.03] border border-hairline px-2 py-1">
+                        <span className="text-label text-fg/75 flex-1 min-w-0 truncate">{s.name}</span>
+                        {s.shadowed && (
+                          <span
+                            title="Another section above already claims this tag. A report template placing it gets that one, not this."
+                            className="text-label font-semibold text-severity-medium shrink-0">
+                            shadowed
+                          </span>
+                        )}
+                        <code className={`text-label font-mono shrink-0 ${s.shadowed ? 'text-severity-medium/70 line-through' : 'text-accent/80'}`}>
+                          {`{{${s.slug}}}`}
+                        </code>
+                        <CopyTagButton name={s.slug ?? ''} />
+                      </div>
                     ))}
                   </div>
                 </div>

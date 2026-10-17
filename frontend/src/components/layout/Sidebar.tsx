@@ -145,7 +145,7 @@ export default function Sidebar() {
       items: [
         { to: '/artifacts/explorer', label: 'Artifact Explorer' },
         { to: '/artifacts/email', label: 'Email Analysis' },
-        { to: '/artifacts/filesystem', label: 'Logs' },
+        { to: '/artifacts/detections', label: 'Detections' },
         { to: '/artifacts/pcap', label: 'Network (PCAP)' },
         { to: '/artifacts/images', label: 'Disk Images' },
         { to: '/artifacts/registry', label: 'Registry Explorer' },
@@ -158,7 +158,7 @@ export default function Sidebar() {
     {
       heading: 'Knowledge Base',
       items: [
-        { to: '/knowledge', label: 'Vault' },
+        { to: '/knowledge', label: 'Knowledge Base' },
       ],
     },
     {
@@ -170,7 +170,6 @@ export default function Sidebar() {
         { to: '/playbooks', label: 'Playbooks' },
         { to: '/config/chainsaw-rules', label: 'Detection Rules' },
         { to: '/config/connectors', label: 'Connectors' },
-        { to: '/config/vaults', label: 'Vault Management' },
         ...(isAdmin ? [{ to: '/users', label: 'Users' }] : []),
         ...(isAdmin ? [{ to: '/audit', label: 'Audit' }] : []),
         ...(isAdmin ? [{ to: '/design', label: 'Design System' }] : []),

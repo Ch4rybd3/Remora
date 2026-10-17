@@ -19,6 +19,7 @@ from ..core.deps import get_current_user
 from ..database import SessionLocal, get_db
 from ..models.case import Case
 from ..services import dropzone as dz
+from ..services.audit_service import audit_log
 
 router = APIRouter(tags=["dropzone"])
 
@@ -145,6 +146,17 @@ def scan_case_dropzone(
         return {"ingested": 0, "skipped": skipped, "collection_id": None}
 
     collection_id, rows = dz.ingest_files(case, [f.path for f in candidates], db)
+
+    # The host-side door. A file copied in over SSH has no request behind it,
+    # so this scan is the only moment a person can be attached to it - which
+    # makes it the entry that says who brought the collection into the case.
+    audit_log(db, user=current_user, action="ingest.scan",
+              resource_type="collection", resource_id=collection_id,
+              resource_name=f"{len(rows)} file(s) from the drop folder",
+              case_id=case.id, case_title=case.title,
+              details={"ingested": len(rows), "skipped": skipped})
+    db.commit()
+
     _schedule_ingest(background_tasks, case.id, collection_id, rows)
 
     return {"ingested": len(rows), "skipped": skipped, "collection_id": collection_id}
@@ -201,19 +213,42 @@ def assign_inbox_files(
         moved.append(target)
 
     collection_id, rows = dz.ingest_files(case, moved, db, source_label="inbox")
+
+    # An orphan file arrived with no case attached to it. Which case it was
+    # assigned to, and by whom, is the provenance the file itself lacks.
+    audit_log(db, user=current_user, action="ingest.inbox_assign",
+              resource_type="collection", resource_id=collection_id,
+              resource_name=f"{len(rows)} file(s) from the inbox",
+              case_id=case.id, case_title=case.title,
+              details={"files": [p.name for p in moved]})
+    db.commit()
+
     _schedule_ingest(background_tasks, case.id, collection_id, rows)
 
     return {"ingested": len(rows), "collection_id": collection_id}
 
 
 @router.delete("/dropzone/inbox/{filename}")
-def delete_inbox_file(filename: str, current_user=Depends(get_current_user)):
+def delete_inbox_file(
+    filename: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
     """Discard an orphan file without ingesting it."""
     target = (dz.inbox_dir() / filename).resolve()
     # Reject traversal: the resolved path must stay inside the inbox
     if not str(target).startswith(str(dz.inbox_dir().resolve())) or not target.is_file():
         raise HTTPException(404, "File not found")
+    size = target.stat().st_size
     target.unlink()
+
+    # A file that reached the host and was then destroyed without entering any
+    # case leaves no other trace at all. This entry is the only record that it
+    # ever existed.
+    audit_log(db, user=current_user, action="ingest.inbox_delete",
+              resource_type="ingest", resource_name=filename,
+              details={"size": size})
+    db.commit()
     return {"ok": True}
 
 
