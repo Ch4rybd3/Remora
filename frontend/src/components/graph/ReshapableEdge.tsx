@@ -52,7 +52,7 @@ export interface GraphEdgeData {
 export const EDGE_SHAPES: { value: EdgeShape; label: string; hint: string }[] = [
   { value: 'curve',    label: 'Curve',        hint: 'Rounded link (default)' },
   { value: 'step',     label: 'Angles',       hint: 'Orthogonal routing - cleanly routes around nodes' },
-  { value: 'straight', label: 'Droite',       hint: 'Segments rectilignes entre les points' },
+  { value: 'straight', label: 'Straight',     hint: 'Straight segments between points' },
 ]
 
 /** Corner radius used when rounding a waypoint polyline. */
