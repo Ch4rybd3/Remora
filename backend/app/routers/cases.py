@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..core import scoping
 from ..core.deps import get_current_user
-from ..core.permissions import PERM_ARTIFACTS, has as perm_has
+from ..core.permissions import PERM_ARTIFACTS
+from ..core.permissions import has as perm_has
 from ..database import get_db
 from ..models.asset import Asset
 from ..models.case import Case, CaseStatus
