@@ -75,6 +75,26 @@ export interface OmniSearchResponse {
   searched: number
 }
 
+export interface TemporalPivotFile {
+  id:            string
+  original_name: string
+  ez_label:      string | null
+  date_column:   string | null
+  columns:       string[]
+  hit_count:     number
+  rows:          Record<string, string>[]
+}
+
+export interface TemporalPivotResponse {
+  pivot_ts:   string
+  window_sec: number
+  lo:         string
+  hi:         string
+  files:      TemporalPivotFile[]
+  skipped:    { id: string; original_name: string; reason: string }[]
+  searched:   number
+}
+
 export interface GroupResult {
   values: Record<string, string>
   count:  number
@@ -166,5 +186,17 @@ export const csvArtifactsApi = {
 
   setTimezone: (caseId: string, artifactId: string, timezone: string | null): Promise<CsvArtifactMeta> =>
     api.patch<CsvArtifactMeta>(`/cases/${caseId}/artifacts/${artifactId}`, { source_timezone: timezone })
+      .then(r => r.data),
+
+  temporalPivot: (
+    caseId:    string,
+    ts:        string,
+    windowSec: number = 300,
+    limitPerFile: number = 20,
+  ) =>
+    api
+      .get<TemporalPivotResponse>(`/cases/${caseId}/artifacts/temporal`, {
+        params: { ts, window_sec: windowSec, limit_per_file: limitPerFile },
+      })
       .then(r => r.data),
 }

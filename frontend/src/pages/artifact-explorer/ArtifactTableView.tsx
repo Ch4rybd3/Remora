@@ -35,6 +35,7 @@ import type { ColFilter, ColFilters, FilterMode, FlatItem, TabState } from './ty
 import Modal from '../../components/ui/Modal'
 import ProcessTreeView from '../../components/process-tree/ProcessTreeView'
 import { CellContextMenu, processFocus, type CellTarget } from './CellContextMenu'
+import { TemporalPivotPanel } from './TemporalPivotPanel'
 
 export function makeRowKey(artifactId: string, row: Record<string, string>): string {
   return `${artifactId}\x1f${Object.values(row).join('\x1e')}`
@@ -440,6 +441,7 @@ export function ArtifactTableView({
   const [cellMenu,       setCellMenu]       = useState<CellTarget | null>(null)
   const [treeFocus,      setTreeFocus]      = useState<
     NonNullable<ReturnType<typeof processFocus>> | null>(null)
+  const [pivotTs,        setPivotTs]        = useState<string | null>(null)
 
   /**
    * Whether this artifact's event times are being converted on the way out.
@@ -1120,8 +1122,21 @@ export function ArtifactTableView({
           target={cellMenu}
           onFilter={applyCellFilter}
           onPivot={applyPivot}
+          onCrossArtifact={ts => { setPivotTs(ts); setCellMenu(null) }}
           onProcessTree={setTreeFocus}
           onClose={() => setCellMenu(null)}
+        />
+      )}
+
+      {pivotTs && (
+        <TemporalPivotPanel
+          caseId={caseId}
+          timestamp={pivotTs}
+          onClose={() => setPivotTs(null)}
+          onOpenFile={id => {
+            // Navigate to the explorer with the target artifact pre-selected.
+            window.location.href = `/artifacts/explorer?open=${id}`
+          }}
         />
       )}
 

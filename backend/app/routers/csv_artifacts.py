@@ -7,6 +7,7 @@ Benchmarks on a 500 k-row CSV: ~300 ms with filters vs ~8 s for the Python fallb
 """
 import json
 import os
+import re
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -281,6 +282,93 @@ def omni_search(
         "files":      results,
         "skipped":    skipped,
         "searched":   len(artifacts) - len(skipped),
+    }
+
+
+@router.get("/cases/{case_id}/artifacts/temporal")
+def temporal_pivot(
+    case_id:       str,
+    ts:            str  = Query(..., description="ISO-8601 pivot timestamp (UTC)"),
+    window_sec:    int  = Query(300, ge=1, le=86400, description="Window half-width in seconds"),
+    limit_per_file: int = Query(20, ge=1, le=200),
+    db:            Session = Depends(get_db),
+) -> dict:
+    """
+    All rows from every artifact in this case whose date column falls within
+    ±window_sec of `ts`. Fan-out mirrors omni_search: one failure never takes
+    the rest with it.
+    """
+    from datetime import UTC, datetime, timedelta
+    from ..services.rql_parser import RQLSyntaxError
+
+    _get_case_or_404(case_id, db)
+
+    # Parse and validate the pivot timestamp.
+    try:
+        normalised = ts.strip().replace(' ', 'T')
+        if not re.search(r'[Zz]|[+-]\d{2}:?\d{2}$', normalised):
+            normalised += 'Z'
+        pivot = datetime.fromisoformat(normalised.replace('Z', '+00:00'))
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"Cannot parse timestamp: {ts!r}")
+
+    lo = (pivot - timedelta(seconds=window_sec)).strftime('%Y-%m-%d %H:%M:%S')
+    hi = (pivot + timedelta(seconds=window_sec)).strftime('%Y-%m-%d %H:%M:%S')
+
+    artifacts = (
+        db.query(CsvArtifactFile)
+        .filter(
+            CsvArtifactFile.case_id == case_id,
+            CsvArtifactFile.date_column.isnot(None),
+        )
+        .all()
+    )
+
+    results = []
+    skipped = []
+
+    for a in artifacts:
+        cols = json.loads(a.columns)
+        rql  = f'{a.date_column} BETWEEN "{lo}" AND "{hi}"'
+        try:
+            result = get_store().search(
+                _source(a), cols,
+                StoreQuery(rql=rql),
+                sort_col=a.date_column, sort_dir='asc',
+                page=1, page_size=limit_per_file,
+            )
+        except RQLSyntaxError:
+            skipped.append({"id": a.id, "original_name": a.original_name,
+                            "reason": "RQL error (unexpected schema)"})
+            continue
+        except SourceMissing:
+            skipped.append({"id": a.id, "original_name": a.original_name,
+                            "reason": "file is no longer on disk"})
+            continue
+        except Exception as exc:
+            skipped.append({"id": a.id, "original_name": a.original_name,
+                            "reason": f"could not be searched ({type(exc).__name__})"})
+            continue
+
+        if result.total > 0:
+            results.append({
+                "id":            a.id,
+                "original_name": a.original_name,
+                "ez_label":      a.ez_label,
+                "date_column":   a.date_column,
+                "columns":       cols,
+                "hit_count":     result.total,
+                "rows":          result.rows,
+            })
+
+    return {
+        "pivot_ts":    pivot.isoformat(),
+        "window_sec":  window_sec,
+        "lo":          lo,
+        "hi":          hi,
+        "files":       sorted(results, key=lambda r: r["hit_count"], reverse=True),
+        "skipped":     skipped,
+        "searched":    len(artifacts) - len(skipped),
     }
 
 
