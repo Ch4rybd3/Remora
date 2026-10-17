@@ -54,10 +54,23 @@ class UserCreate(BaseModel):
         return v.strip() or None if isinstance(v, str) else v
 
 
+class CustomRoleRead(BaseModel):
+    id: str
+    name: str
+    description: str | None
+    color: str | None
+    can_write: bool
+    can_read_artifacts: bool
+    can_change_own_password: bool
+
+    model_config = {"from_attributes": True}
+
+
 class UserUpdate(BaseModel):
     email: str | None = None
     role: UserRole | None = None
     is_active: bool | None = None
+    custom_role_id: str | None = None
 
     @field_validator("email", mode="before")
     @classmethod
@@ -95,6 +108,8 @@ class UserRead(BaseModel):
     #: see `core/scoping.py`. Sent so the interface can say which, rather than
     #: leaving an administrator to guess why a colleague sees fewer cases.
     clients: list[ScopedClient] = []
+    custom_role_id: str | None = None
+    custom_role: CustomRoleRead | None = None
 
     model_config = {"from_attributes": True}
 

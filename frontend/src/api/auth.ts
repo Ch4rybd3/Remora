@@ -1,5 +1,6 @@
 import api from './client'
 import type { Role } from '../auth/roles'
+import type { CustomRole } from './customRoles'
 
 export interface ScopedClient {
   id: string
@@ -17,6 +18,8 @@ export interface AuthUser {
   mfa_enabled: boolean
   /** Clients this account is restricted to. **Empty means unrestricted.** */
   clients: ScopedClient[]
+  custom_role_id: string | null
+  custom_role: CustomRole | null
 }
 
 /**
@@ -71,7 +74,7 @@ export const usersApi = {
   list: () => api.get<AuthUser[]>('/users/').then(r => r.data),
   create: (data: { username: string; email?: string; password: string; role: string }) =>
     api.post<AuthUser>('/users/', data).then(r => r.data),
-  update: (id: string, data: { role?: string; is_active?: boolean }) =>
+  update: (id: string, data: { role?: string; is_active?: boolean; custom_role_id?: string | null }) =>
     api.patch<AuthUser>(`/users/${id}`, data).then(r => r.data),
   changePassword: (id: string, new_password: string) =>
     api.post<AuthUser>(`/users/${id}/password`, { new_password }).then(r => r.data),
