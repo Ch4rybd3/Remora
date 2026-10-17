@@ -6,6 +6,7 @@ import {
   AlertTriangle, FileText, Globe, Info, Loader2, Table2, Trash2, Upload, X,
 } from '../ui/icons'
 import { csvArtifactsApi, type CsvArtifactMeta } from '../api/csvArtifacts'
+import { iocsApi } from '../api/iocs'
 import { timelineApi } from '../api/timeline'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import { fmtRelative, parseArtifactTimestamp } from '../utils/dateUtils'
@@ -94,6 +95,17 @@ export default function ArtifactExplorer() {
     queryFn:  () => csvArtifactsApi.list(caseId!),
     enabled:  !!caseId,
   })
+
+  const { data: iocs = [] } = useQuery({
+    queryKey: ['iocs', caseId],
+    queryFn:  () => iocsApi.list(caseId!),
+    enabled:  !!caseId,
+  })
+
+  const iocValueSet = useMemo(
+    () => new Set(iocs.map(i => i.value.toLowerCase())),
+    [iocs],
+  )
 
   const [openTabs,  setOpenTabs]  = useState<string[]>([])
   const [activeTab, setActiveTab] = useState<string | null>(null)
@@ -404,6 +416,7 @@ export default function ArtifactExplorer() {
         exportedKeys={exportedKeys}
         onPinToggle={(key, row) => handlePinToggle(key, row, activeMeta)}
         selectedKey={selectedRow?.pinKey ?? null}
+        iocValues={iocValueSet}
         onSelectRow={(row, columns, key) => {
           setSelectedRow(row ? { row, columns, pinKey: key } : null)
           if (row) setRightTab('detail')
