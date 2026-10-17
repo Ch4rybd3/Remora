@@ -76,8 +76,8 @@ def create_custom_role(
     db.add(role)
     db.flush()
     audit_log(db, user=current, action="custom_role.create",
-              resource_type="custom_role", resource_id=role.id,
-              resource_name=role.name, request=request)
+              resource_type="custom_role", resource_id=str(role.id),
+              resource_name=str(role.name), request=request)
     db.commit()
     db.refresh(role)
     return role
@@ -118,11 +118,11 @@ def update_custom_role(
 
     for key, value in updates.items():
         setattr(role, key, value)
-    role.updated_at = datetime.now(UTC)
+    setattr(role, "updated_at", datetime.now(UTC))
 
     audit_log(db, user=current, action="custom_role.update",
               resource_type="custom_role", resource_id=role_id,
-              resource_name=role.name, details={"fields": list(updates.keys())},
+              resource_name=str(role.name), details={"fields": list(updates.keys())},
               request=request)
     db.commit()
     db.refresh(role)
@@ -143,6 +143,6 @@ def delete_custom_role(
     # The FK has ondelete="SET NULL", so users keep their base role.
     audit_log(db, user=current, action="custom_role.delete",
               resource_type="custom_role", resource_id=role_id,
-              resource_name=role.name, request=request)
+              resource_name=str(role.name), request=request)
     db.delete(role)
     db.commit()
