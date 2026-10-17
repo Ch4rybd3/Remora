@@ -118,7 +118,7 @@ def update_custom_role(
 
     for key, value in updates.items():
         setattr(role, key, value)
-    setattr(role, "updated_at", datetime.now(UTC))
+    role.updated_at = datetime.now(UTC)  # type: ignore[assignment]
 
     audit_log(db, user=current, action="custom_role.update",
               resource_type="custom_role", resource_id=role_id,
