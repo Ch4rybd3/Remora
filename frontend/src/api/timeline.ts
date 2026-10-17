@@ -9,4 +9,6 @@ export const timelineApi = {
   update: (caseId: string, id: string, data: Partial<TimelineEvent>) =>
     api.patch<TimelineEvent>(`/cases/${caseId}/timeline/${id}`, data).then(r => r.data),
   delete: (caseId: string, id: string) => api.delete(`/cases/${caseId}/timeline/${id}`),
+  exportUrl: (caseId: string, format: 'csv' | 'json') =>
+    `/api/v1/cases/${caseId}/timeline/export?format=${format}`,
 }

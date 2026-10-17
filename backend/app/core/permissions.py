@@ -96,7 +96,7 @@ READING_POST_PATTERNS = (
 #: Segment matching rather than prefix matching because these hang off cases as
 #: often as off the root.
 ARTIFACT_SEGMENTS = frozenset({
-    "artifacts", "evtx", "memory", "binary", "pcap", "disk-images", "emails",
+    "artifacts", "browser", "evtx", "memory", "binary", "pcap", "disk-images", "emails",
     "chainsaw", "ingest", "collection-imports", "dropzone", "evidences",
     "custody", "cti", "knowledge", "backup", "connectors", "audit",
     "iocs", "assets", "timeline", "incident-log", "attack-graph", "playbooks",

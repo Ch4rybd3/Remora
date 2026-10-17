@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FolderOpen, X, ChevronRight, Plus, Clock, Building2 } from '../../ui/icons'
+import { FolderOpen, X, ChevronRight, Plus, Clock, Building2, StickyNote } from '../../ui/icons'
 import { useCurrentCase } from '../../context/CurrentCaseContext'
+import QuickNotesPanel from './QuickNotesPanel'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { incidentLogApi } from '../../api/incidentLog'
 import type { IncidentLogCategory } from '../../types'
@@ -187,6 +188,7 @@ export default function TopBar() {
   const { currentCase, clearCurrentCase } = useCurrentCase()
   const navigate = useNavigate()
   const [showModal, setShowModal] = useState(false)
+  const [showNotes, setShowNotes] = useState(false)
 
   if (!currentCase) return null
 
@@ -222,6 +224,18 @@ export default function TopBar() {
             </button>
           )}
           <button
+            onClick={() => setShowNotes(v => !v)}
+            title="Quick notes for this case"
+            className={`flex items-center gap-1 text-label transition-colors px-1.5 py-1 rounded-control ${
+              showNotes
+                ? 'text-accent bg-accent/10'
+                : 'text-fg-secondary/50 hover:text-accent hover:bg-accent/5'
+            }`}
+          >
+            <StickyNote size={12} />
+            <span className="hidden sm:inline">Notes</span>
+          </button>
+          <button
             onClick={() => setShowModal(true)}
             title="Add an event to the incident log (dual-written to the timeline)"
             className="flex items-center gap-1 text-label text-fg-secondary/50 hover:text-accent transition-colors px-1.5 py-1 rounded-control hover:bg-accent/5"
@@ -231,7 +245,7 @@ export default function TopBar() {
           </button>
           <button
             onClick={clearCurrentCase}
-            title="Quitter ce case"
+            title="Leave this case"
             className="text-fg-secondary/40 hover:text-fg-secondary transition-colors p-1 rounded-control"
           >
             <X size={12} />
@@ -241,6 +255,13 @@ export default function TopBar() {
 
       {showModal && (
         <QuickTimelineModal caseId={currentCase.id} onClose={() => setShowModal(false)} />
+      )}
+      {showNotes && (
+        <QuickNotesPanel
+          caseId={currentCase.id}
+          caseTitle={currentCase.title}
+          onClose={() => setShowNotes(false)}
+        />
       )}
     </>
   )

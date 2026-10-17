@@ -35,6 +35,7 @@ import type { ColFilter, ColFilters, FilterMode, FlatItem, TabState } from './ty
 import Modal from '../../components/ui/Modal'
 import ProcessTreeView from '../../components/process-tree/ProcessTreeView'
 import { CellContextMenu, processFocus, type CellTarget } from './CellContextMenu'
+import { TemporalPivotPanel } from './TemporalPivotPanel'
 
 export function makeRowKey(artifactId: string, row: Record<string, string>): string {
   return `${artifactId}\x1f${Object.values(row).join('\x1e')}`
@@ -414,7 +415,7 @@ export function GroupRowsFetcher({ caseId, meta, baseFilters, groupFilters, orde
 
 export function ArtifactTableView({
   caseId, meta, state, onStateChange, pinnedKeys, exportedKeys, onPinToggle,
-  selectedKey, onSelectRow,
+  selectedKey, onSelectRow, iocValues,
 }: {
   caseId:        string
   meta:          CsvArtifactMeta
@@ -427,6 +428,8 @@ export function ArtifactTableView({
   selectedKey:   string | null
   /** Clicking a row hands it to the page, which shows it on the right. */
   onSelectRow:   (row: Record<string, string> | null, columns: string[], key: string) => void
+  /** IOC values (lowercased) for the current case — matched cells are highlighted. */
+  iocValues?:    Set<string>
 }) {
   const [showFilters,    setShowFilters]    = useState(false)
   const [localSearch,    setLocalSearch]    = useState(state.filters.q ?? '')
@@ -438,6 +441,7 @@ export function ArtifactTableView({
   const [cellMenu,       setCellMenu]       = useState<CellTarget | null>(null)
   const [treeFocus,      setTreeFocus]      = useState<
     NonNullable<ReturnType<typeof processFocus>> | null>(null)
+  const [pivotTs,        setPivotTs]        = useState<string | null>(null)
 
   /**
    * Whether this artifact's event times are being converted on the way out.
@@ -589,6 +593,23 @@ export function ArtifactTableView({
       </>
     )
   }, [highlightQuery])
+
+  // ── IOC watchlist highlight (red/critical) ────────────────────────────────
+  // Wraps the search highlight so both can appear simultaneously.
+  const highlightCellWithIoc = useMemo(() => (text: string): React.ReactNode => {
+    const base = highlightCell(text)
+    if (!iocValues?.size || !text) return base
+    if (!iocValues.has(text.toLowerCase())) return base
+    return (
+      <span
+        title="IOC match"
+        className="rounded-control px-px font-medium"
+        style={{ background: color('--severity-critical', 0.22), color: color('--severity-critical') }}
+      >
+        {base}
+      </span>
+    )
+  }, [highlightCell, iocValues])
 
   // ── Grouped flat list ─────────────────────────────────────────────────────
 
@@ -1068,7 +1089,7 @@ export function ArtifactTableView({
                         className={`px-3 py-1.5 truncate ${col === meta.date_column ? 'font-mono text-label text-fg/45 whitespace-nowrap' : 'text-fg/65'}`}
                         style={{ width: colW(col), minWidth: 60, maxWidth: colW(col) }}
                         title={row[col] ?? ''}>
-                        {highlightCell(row[col] ?? '')}
+                        {highlightCellWithIoc(row[col] ?? '')}
                       </td>
                     ))}
                   </tr>
@@ -1101,8 +1122,21 @@ export function ArtifactTableView({
           target={cellMenu}
           onFilter={applyCellFilter}
           onPivot={applyPivot}
+          onCrossArtifact={ts => { setPivotTs(ts); setCellMenu(null) }}
           onProcessTree={setTreeFocus}
           onClose={() => setCellMenu(null)}
+        />
+      )}
+
+      {pivotTs && (
+        <TemporalPivotPanel
+          caseId={caseId}
+          timestamp={pivotTs}
+          onClose={() => setPivotTs(null)}
+          onOpenFile={id => {
+            // Navigate to the explorer with the target artifact pre-selected.
+            window.location.href = `/artifacts/explorer?open=${id}`
+          }}
         />
       )}
 

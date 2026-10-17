@@ -15,7 +15,7 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-import { Clock, Copy, Filter, GitBranch } from '../../ui/icons'
+import { Clock, Copy, Filter, GitBranch, Layers } from '../../ui/icons'
 import type { FilterMode } from './types'
 
 /** Where the menu was opened, and on what. */
@@ -136,10 +136,12 @@ export function pivotRql(column: string, range: [string, string]): string {
   return `${column} BETWEEN "${range[0]}" AND "${range[1]}"`
 }
 
-export function CellContextMenu({ target, onFilter, onPivot, onProcessTree, onClose }: {
+export function CellContextMenu({ target, onFilter, onPivot, onCrossArtifact, onProcessTree, onClose }: {
   target:   CellTarget
   onFilter: (column: string, mode: FilterMode, value: string) => void
   onPivot:  (rql: string) => void
+  /** Open the cross-artifact temporal pivot panel at this timestamp. */
+  onCrossArtifact?: (ts: string) => void
   /** Open the process tree around the process this cell names. */
   onProcessTree?: (focus: NonNullable<ReturnType<typeof processFocus>>) => void
   onClose:  () => void
@@ -219,7 +221,7 @@ export function CellContextMenu({ target, onFilter, onPivot, onProcessTree, onCl
           {pivots.length > 0 && (
             <>
               <div className="mt-1 pt-2 border-t border-hairline px-3 pb-1 flex items-center gap-1.5 text-label uppercase tracking-widest text-fg-secondary/30">
-                <Clock size={9} /> Around this moment
+                <Clock size={9} /> Around this moment — this file
               </div>
               {pivots.map(p => (
                 <button
@@ -233,6 +235,23 @@ export function CellContextMenu({ target, onFilter, onPivot, onProcessTree, onCl
                   {p.label}
                 </button>
               ))}
+
+              {onCrossArtifact && (
+                <>
+                  <div className="mt-1 pt-2 border-t border-hairline px-3 pb-1 flex items-center gap-1.5 text-label uppercase tracking-widest text-fg-secondary/30">
+                    <Layers size={9} /> Around this moment — all files
+                  </div>
+                  <button
+                    role="menuitem"
+                    title="Show every event within ±5 min across all artifacts"
+                    onClick={() => { onCrossArtifact(target.value); onClose() }}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-ui text-fg/75 hover:bg-accent/10 hover:text-accent transition-colors"
+                  >
+                    <span className="w-4 shrink-0" />
+                    Cross-artifact pivot
+                  </button>
+                </>
+              )}
             </>
           )}
 

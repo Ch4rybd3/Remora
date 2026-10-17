@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { PageShell } from '../ui/PageShell'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -7,7 +7,7 @@ import {
   Plus, Search, FolderOpen, Building2,
   Check, ChevronDown, Loader2, Tag as TagIcon, Users, X,
 } from '../ui/icons'
-import { casesApi, type BulkCaseResult, type BulkCaseUpdate } from '../api/cases'
+import { casesApi, type BulkCaseResult, type BulkCaseUpdate, type CaseSearchHit } from '../api/cases'
 import { templatesApi } from '../api/templates'
 import { usersApi } from '../api/auth'
 import { clientsApi } from '../api/clients'
@@ -217,9 +217,11 @@ export default function Cases() {
   const { data: templates = [] } = useQuery({ queryKey: ['templates'], queryFn: templatesApi.list })
   const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: usersApi.list })
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: clientsApi.list })
-  const [search, setSearch] = useState('')
+  const [search, setSearch]       = useState('')
+  const [debouncedQ, setDebouncedQ] = useState('')
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [statusFilter, setStatusFilter] = useState<CaseStatus | 'all'>('all')
-  const [typeFilter, setTypeFilter] = useState<CaseType | 'all'>('all')
+  const [typeFilter, setTypeFilter]   = useState<CaseType | 'all'>('all')
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState<Partial<Case>>(empty())
   const [assigneeTags, setAssigneeTags] = useState<InputTag[]>([])
@@ -240,6 +242,31 @@ export default function Cases() {
     badge: u.role,
     badgeColor: USER_BADGE,
   })), [users])
+
+  const { data: searchHits, isFetching: searchLoading } = useQuery({
+    queryKey: ['cases-search', debouncedQ],
+    queryFn:  () => casesApi.search(debouncedQ),
+    enabled:  debouncedQ.length >= 2,
+    staleTime: 15_000,
+  })
+
+  // Group hits by case_id for quick lookup in the row renderer.
+  const matchesMap = useMemo<Map<string, CaseSearchHit[]>>(() => {
+    if (!searchHits) return new Map()
+    const m = new Map<string, CaseSearchHit[]>()
+    for (const h of searchHits) {
+      const arr = m.get(h.case_id) ?? []
+      arr.push(h)
+      m.set(h.case_id, arr)
+    }
+    return m
+  }, [searchHits])
+
+  const handleSearchChange = (v: string) => {
+    setSearch(v)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => setDebouncedQ(v), 300)
+  }
 
   const openModal = () => {
     const defaultClient = clients.find(c => c.is_default)
@@ -272,13 +299,26 @@ export default function Cases() {
     },
   })
 
-  const filtered = cases.filter(c => {
-    const matchSearch = c.title.toLowerCase().includes(search.toLowerCase()) ||
-                        c.client_name?.toLowerCase().includes(search.toLowerCase())
-    const matchStatus = statusFilter === 'all' || c.status === statusFilter
-    const matchType   = typeFilter   === 'all' || c.case_type === typeFilter
-    return matchSearch && matchStatus && matchType
-  })
+  const isDeepSearch = debouncedQ.length >= 2
+
+  const filtered = useMemo(() => {
+    const statusOk  = (c: { status?: string })  => statusFilter === 'all' || c.status === statusFilter
+    const typeOk    = (c: { case_type?: string }) => typeFilter   === 'all' || c.case_type === typeFilter
+
+    if (!isDeepSearch) {
+      // Client-side filter on the fast case list (title + client only).
+      const term = search.toLowerCase()
+      return cases.filter(c => {
+        const matchTitle  = c.title.toLowerCase().includes(term)
+        const matchClient = c.client_name?.toLowerCase().includes(term) ?? false
+        return (term === '' || matchTitle || matchClient) && statusOk(c) && typeOk(c)
+      })
+    }
+
+    // Backend search returned hit case ids — look them up in the full case list.
+    const hitIds = new Set(matchesMap.keys())
+    return cases.filter(c => hitIds.has(c.id) && statusOk(c) && typeOk(c))
+  }, [cases, search, debouncedQ, isDeepSearch, matchesMap, statusFilter, typeFilter])
 
   const statusTabs: (CaseStatus | 'all')[] = ['all', 'open', 'in_progress', 'closed', 'archived']
   const typeTabs: (CaseType | 'all')[] = ['all', 'ir', 'ctf', 'pentest', 'sample']
@@ -303,10 +343,13 @@ export default function Cases() {
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-secondary" />
             <input
               className="input pl-9"
-              placeholder="Search cases or client…"
+              placeholder="Search cases, IOCs, assets, timeline…"
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => handleSearchChange(e.target.value)}
             />
+            {searchLoading && (
+              <Loader2 size={11} className="absolute right-3 top-1/2 -translate-y-1/2 text-accent animate-spin" />
+            )}
           </div>
           {/* Status filter */}
           <div className="flex gap-1 border border-hairline p-1">
@@ -386,24 +429,36 @@ export default function Cases() {
               {
                 key: 'title',
                 header: 'Title',
-                render: (c) => (
-                  <>
-                    <p className="font-medium text-fg">{c.title}</p>
-                    {c.client_name && (
-                      <p className="flex items-center gap-1 text-label text-fg-muted mt-0.5">
-                        <Building2 size={9} />
-                        {c.client_name}
-                      </p>
-                    )}
-                    {c.tags && (
-                      <div className="flex gap-1 mt-1 flex-wrap">
-                        {c.tags.split(',').filter(Boolean).slice(0, 3).map((tag) => (
-                          <Tag key={tag} label={tag.trim()} />
-                        ))}
-                      </div>
-                    )}
-                  </>
-                ),
+                render: (c) => {
+                  const hits = isDeepSearch ? (matchesMap.get(c.id) ?? []) : []
+                  // Surface the most informative non-title hit.
+                  const contentHit = hits.find(h => h.match_type !== 'title')
+                  return (
+                    <>
+                      <p className="font-medium text-fg">{c.title}</p>
+                      {c.client_name && (
+                        <p className="flex items-center gap-1 text-label text-fg-muted mt-0.5">
+                          <Building2 size={9} />
+                          {c.client_name}
+                        </p>
+                      )}
+                      {c.tags && (
+                        <div className="flex gap-1 mt-1 flex-wrap">
+                          {c.tags.split(',').filter(Boolean).slice(0, 3).map((tag) => (
+                            <Tag key={tag} label={tag.trim()} />
+                          ))}
+                        </div>
+                      )}
+                      {contentHit && (
+                        <p className="mt-1 text-label text-fg-secondary/50 truncate max-w-xs" title={contentHit.match_snippet}>
+                          <span className="font-medium capitalize">{contentHit.match_type}</span>
+                          {' · '}
+                          {contentHit.match_snippet}
+                        </p>
+                      )}
+                    </>
+                  )
+                },
               },
               { key: 'type',     header: 'Type',     width: 'w-24', hideBelow: 'lg', render: (c) => <CaseTypeBadge type={c.case_type ?? 'ir'} /> },
               { key: 'severity', header: 'Severity', width: 'w-28', render: (c) => <SeverityBadge severity={c.severity} /> },

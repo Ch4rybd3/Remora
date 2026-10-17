@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import TopBar from './TopBar'
+import CommandPalette from './CommandPalette'
 import { ROLE_DESCRIPTIONS, ROLE_LABELS } from '../../auth/roles'
 import { useAuth } from '../../context/AuthContext'
 import { Eye } from '../../ui/icons'
@@ -37,6 +38,7 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+      <CommandPalette />
     </div>
   )
 }

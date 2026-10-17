@@ -175,6 +175,7 @@ ACTIONS: dict[tuple[str, str], str] = {
     ("DELETE", "/api/v1/users/{user_id}"):                            "user.delete",
     ("PUT",    "/api/v1/users/{user_id}/clients"):                    "user.set_clients",
     ("POST",   "/api/v1/users/{user_id}/password"):                   "user.password_change",
+    ("DELETE", "/api/v1/users/{user_id}/mfa"):                        "user.mfa_reset",
     ("POST",   "/api/v1/auth/login"):                                 "auth.login",
     ("POST",   "/api/v1/auth/mfa/setup"):                             "auth.mfa.setup_started",
     ("POST",   "/api/v1/auth/mfa/confirm"):                           "auth.mfa.enabled",

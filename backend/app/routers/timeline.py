@@ -1,5 +1,10 @@
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import csv
+import io
+import json
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from ..core.deps import get_current_user
@@ -27,6 +32,45 @@ def list_events(case_id: str, db: Session = Depends(get_db)):
             .filter(TimelineEvent.case_id == case_id)
             .order_by(TimelineEvent.event_ts)
             .all())
+
+
+@router.get("/export")
+def export_timeline(
+    case_id: str,
+    format: str = Query("csv", pattern="^(csv|json)$"),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Export all timeline events as CSV or JSON."""
+    _get_case(case_id, db)
+    events = (db.query(TimelineEvent)
+              .filter(TimelineEvent.case_id == case_id)
+              .order_by(TimelineEvent.event_ts)
+              .all())
+
+    _FIELDS = ["event_ts", "title", "description", "actor", "source", "tags", "origin", "origin_detail"]
+
+    if format == "json":
+        rows = [
+            {f: (str(getattr(e, f)) if getattr(e, f) is not None else "") for f in _FIELDS}
+            for e in events
+        ]
+        return Response(
+            content=json.dumps(rows, ensure_ascii=False, indent=2),
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="timeline_{case_id[:8]}.json"'},
+        )
+
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    for e in events:
+        writer.writerow({f: (str(getattr(e, f)) if getattr(e, f) is not None else "") for f in _FIELDS})
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="timeline_{case_id[:8]}.csv"'},
+    )
 
 
 @router.post("/", response_model=TimelineEventRead, status_code=status.HTTP_201_CREATED)

@@ -2,6 +2,17 @@ import api from './client'
 
 import type { Case, CaseSeverity, CaseStatus, CaseSummary } from '../types'
 
+export interface CaseSearchHit {
+  case_id:       string
+  case_title:    string
+  client_name:   string | null
+  /** "title" | "ioc" | "asset" | "timeline" */
+  match_type:    string
+  /** Which field matched: "title", "client", "tags", "value", hostname", etc. */
+  match_field:   string
+  match_snippet: string
+}
+
 /** One section of a report, as the case template declares it. */
 export interface ReportSectionMeta {
   slug:     string
@@ -62,4 +73,11 @@ export const casesApi = {
    */
   reportSections: (id: string) =>
     api.get<ReportSectionsResponse>(`/cases/${id}/report/generate`).then(r => r.data),
+
+  /**
+   * Full-content search across cases, IOCs, assets, and timeline.
+   * Returns one hit per matching field; the frontend groups by case_id.
+   */
+  search: (q: string) =>
+    api.get<CaseSearchHit[]>('/cases/search', { params: { q } }).then(r => r.data),
 }

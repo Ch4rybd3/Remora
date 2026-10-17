@@ -209,6 +209,8 @@ function Progress({ val, total }: { val: number; total: number }) {
 
 function TzPicker({ f, caseId }: { f: ImportedFile; caseId: string }) {
   const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
   const qc = useQueryClient()
 
   const setTz = useMutation({
@@ -224,10 +226,20 @@ function TzPicker({ f, caseId }: { f: ImportedFile; caseId: string }) {
     : 'UTC'
   const isCustom = !!f.source_timezone
 
+  const toggle = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + 4, left: r.left })
+    }
+    setOpen(v => !v)
+  }
+
   return (
-    <div className="relative inline-block">
+    <div className="inline-block">
       <button
-        onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
+        ref={btnRef}
+        onClick={toggle}
         title="Source timezone for this artifact's timestamps"
         className={`flex items-center gap-1 text-label px-1.5 py-0.5 rounded-control border transition-colors ${ isCustom
             ? 'border-severity-low/40 bg-severity-low/10 text-severity-low hover:bg-severity-low/20'
@@ -237,31 +249,37 @@ function TzPicker({ f, caseId }: { f: ImportedFile; caseId: string }) {
         <Globe size={9} />
         <span>{label}</span>
       </button>
-      {open && (
-        <div className="absolute z-50 top-full left-0 mt-1 w-48 bg-[#0d1927] border border-hairline shadow-xl text-label overflow-hidden">
-          <div className="px-2 py-1.5 border-b border-hairline text-label text-fg-muted uppercase tracking-wide">
-            Timezone source
-          </div>
-          <div className="max-h-52 overflow-y-auto">
-            {/* Reset to default */}
-            <button
-              onClick={() => setTz.mutate(null)}
-              className={`w-full text-left px-3 py-1.5 hover:bg-fg/5 ${!isCustom ? 'text-accent' : 'text-fg-muted'}`}
-            >
-              UTC (default)
-            </button>
-            {TIMEZONE_OPTIONS.filter(o => o.value !== 'UTC').map(o => (
+      {open && pos && (
+        <>
+          {/* Backdrop to close */}
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div
+            className="fixed z-50 w-56 bg-panel border border-hairline shadow-xl text-label overflow-hidden"
+            style={{ top: pos.top, left: pos.left }}
+          >
+            <div className="px-2 py-1.5 border-b border-hairline text-label text-fg-muted uppercase tracking-wide">
+              Timezone source
+            </div>
+            <div className="max-h-64 overflow-y-auto">
               <button
-                key={o.value}
-                onClick={() => setTz.mutate(o.value)}
-                className={`w-full text-left px-3 py-1.5 hover:bg-fg/5 ${f.source_timezone === o.value ? 'text-accent' : 'text-fg-muted'}`}
+                onClick={() => setTz.mutate(null)}
+                className={`w-full text-left px-3 py-1.5 hover:bg-fg/5 ${!isCustom ? 'text-accent' : 'text-fg-muted'}`}
               >
-                {o.label}
-                <span className="text-fg-muted ml-1 text-label">{o.region}</span>
+                UTC (default)
               </button>
-            ))}
+              {TIMEZONE_OPTIONS.filter(o => o.value !== 'UTC').map(o => (
+                <button
+                  key={o.value}
+                  onClick={() => setTz.mutate(o.value)}
+                  className={`w-full text-left px-3 py-1.5 hover:bg-fg/5 ${f.source_timezone === o.value ? 'text-accent' : 'text-fg-muted'}`}
+                >
+                  {o.label}
+                  <span className="text-fg-muted ml-1 text-label">{o.region}</span>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   )
