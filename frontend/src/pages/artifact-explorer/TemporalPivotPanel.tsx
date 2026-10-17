@@ -6,7 +6,7 @@
  * by source artifact and sorted by timestamp, giving a single unified view of
  * what happened across all data sources around a moment in time.
  */
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, ChevronDown, ChevronRight, Clock, Layers, Loader2, X } from '../../ui/icons'
 import { csvArtifactsApi, type TemporalPivotFile } from '../../api/csvArtifacts'
@@ -107,8 +107,53 @@ function FileSection({
   )
 }
 
+const MIN_WIDTH = 380
+const MAX_WIDTH = 1200
+const DEFAULT_WIDTH = 640
+
+function usePanelWidth() {
+  const stored = typeof localStorage !== 'undefined'
+    ? parseInt(localStorage.getItem('temporal-pivot-width') ?? '', 10)
+    : NaN
+  const [width, setWidth] = useState(Number.isFinite(stored) ? stored : DEFAULT_WIDTH)
+
+  const save = useCallback((w: number) => {
+    setWidth(w)
+    try { localStorage.setItem('temporal-pivot-width', String(w)) } catch {}
+  }, [])
+
+  return [width, save] as const
+}
+
 export function TemporalPivotPanel({ caseId, timestamp, onClose, onOpenFile }: Props) {
   const [windowSec, setWindowSec] = useState(300)
+  const [width, setWidth] = usePanelWidth()
+  const dragging = useRef(false)
+  const startX   = useRef(0)
+  const startW   = useRef(0)
+
+  const onDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    dragging.current = true
+    startX.current   = e.clientX
+    startW.current   = width
+  }, [width])
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!dragging.current) return
+      // dragging left edge: moving left increases width
+      const delta = startX.current - e.clientX
+      setWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startW.current + delta)))
+    }
+    const onUp = () => { dragging.current = false }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [setWidth])
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['temporal-pivot', caseId, timestamp, windowSec],
@@ -121,9 +166,15 @@ export function TemporalPivotPanel({ caseId, timestamp, onClose, onOpenFile }: P
   return (
     <div className="fixed inset-0 z-[100] flex items-end justify-end pointer-events-none">
       <div
-        className="pointer-events-auto flex flex-col bg-panel border-l border-hairline shadow-2xl"
-        style={{ width: 640, height: '100%' }}
+        className="pointer-events-auto flex flex-col bg-panel border-l border-hairline shadow-2xl relative"
+        style={{ width, height: '100%' }}
       >
+        {/* Drag handle — left edge */}
+        <div
+          onMouseDown={onDragStart}
+          className="absolute left-0 top-0 h-full w-1 cursor-col-resize hover:bg-accent/30 transition-colors z-10"
+          title="Drag to resize"
+        />
         {/* Header */}
         <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-hairline">
           <Layers size={13} className="text-accent shrink-0" />
