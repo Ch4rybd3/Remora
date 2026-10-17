@@ -36,16 +36,19 @@ def upgrade() -> None:
     op.create_index("ix_custom_roles_name", "custom_roles", ["name"], unique=True)
 
     with op.batch_alter_table("users") as batch:
-        batch.add_column(sa.Column(
-            "custom_role_id",
-            sa.String(),
-            sa.ForeignKey("custom_roles.id", ondelete="SET NULL"),
-            nullable=True,
-        ))
+        batch.add_column(sa.Column("custom_role_id", sa.String(), nullable=True))
+        batch.create_foreign_key(
+            "fk_users_custom_role_id",
+            "custom_roles",
+            ["custom_role_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
 
 
 def downgrade() -> None:
     with op.batch_alter_table("users") as batch:
+        batch.drop_constraint("fk_users_custom_role_id", type_="foreignkey")
         batch.drop_column("custom_role_id")
 
     op.drop_index("ix_custom_roles_name", table_name="custom_roles")
