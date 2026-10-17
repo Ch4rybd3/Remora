@@ -23,7 +23,7 @@ from ..models.case import Case
 from ..models.csv_artifact import CsvArtifactFile
 from ..models.user import User
 from ..services.store import Query as StoreQuery
-from ..services.store import SourceMissing, get_store
+from ..services.store import Source, SourceMissing, get_store
 
 router = APIRouter(tags=["browser"])
 
@@ -43,9 +43,12 @@ def _get_case_or_404(case_id: str, db: Session) -> Case:
     return case
 
 
-def _source(artifact: CsvArtifactFile):
-    from ..services.store import as_source
-    return as_source(artifact.file_path, artifact.source_timezone)
+def _source(artifact: CsvArtifactFile) -> Source:
+    return Source(
+        ref         = str(artifact.file_path),
+        date_column = str(artifact.date_column) if artifact.date_column else None,
+        timezone    = str(artifact.source_timezone) if artifact.source_timezone else None,
+    )
 
 
 @router.get("/cases/{case_id}/browser/")
@@ -110,10 +113,10 @@ def get_browser_rows(
         return {"total": 0, "pages": 0, "page": page, "page_size": page_size,
                 "columns": [], "items": [], "artifact_id": None}
 
-    cols = json.loads(artifact.columns)
+    cols: list[str] = json.loads(str(artifact.columns))
 
     # Default sort: timestamp column desc so newest appears first.
-    effective_sort = sort_col or artifact.date_column
+    effective_sort: str | None = sort_col or (str(artifact.date_column) if artifact.date_column else None)
     # Browsers store times in VisitTime / StartTime / Created / LastUsed.
     if effective_sort is None:
         ts_candidates = ["VisitTime", "StartTime", "Created", "LastUsed", "LastAccess"]
