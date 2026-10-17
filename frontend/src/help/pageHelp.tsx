@@ -290,6 +290,29 @@ export const PAGE_HELP: Record<string, HelpEntry> = {
     ),
   },
 
+  '/artifacts/browser': {
+    title: 'Browser history',
+    content: (
+      <>
+        <P>
+          History, downloads, cookies and saved logins extracted from browser
+          profile databases. Each tab shows a different artifact type; only the
+          types present in this case appear.
+        </P>
+        <P>
+          IOC watchlist matches are highlighted in URL and host columns, so a
+          known-bad domain stands out without a separate search. The search box
+          filters across all visible columns.
+        </P>
+        <P>
+          Browser artifacts arrive through the drop folder like everything else.
+          Remora identifies the SQLite schemas automatically — no manual
+          selection of browser or version is needed.
+        </P>
+      </>
+    ),
+  },
+
   '/artifacts/explorer': {
     title: 'Querying artifacts',
     wide: true,

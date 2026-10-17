@@ -298,7 +298,8 @@ def temporal_pivot(
     ±window_sec of `ts`. Fan-out mirrors omni_search: one failure never takes
     the rest with it.
     """
-    from datetime import UTC, datetime, timedelta
+    from datetime import datetime, timedelta
+
     from ..services.rql_parser import RQLSyntaxError
 
     _get_case_or_404(case_id, db)
