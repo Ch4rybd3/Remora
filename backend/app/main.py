@@ -69,6 +69,7 @@ from .routers import mitre as mitre_router
 from .routers import pcap as pcap_router
 from .routers import playbooks as playbooks_router
 from .routers import process_tree as process_tree_router
+from .routers import browser as browser_router
 from .routers import rdp_cache as rdp_cache_router
 from .routers import registry as registry_router
 from .routers import report_doc_templates as report_doc_templates_router
@@ -547,6 +548,7 @@ app.include_router(pcap_router.router,                 prefix="/api/v1", **_auth
 app.include_router(disk_images_router.router,          prefix="/api/v1", **_auth)
 app.include_router(coverage_router.router,             prefix="/api/v1", **_auth)
 app.include_router(registry_router.router,             prefix="/api/v1", **_auth)
+app.include_router(browser_router.router,              prefix="/api/v1", **_auth)
 app.include_router(rdp_cache_router.router,            prefix="/api/v1", **_auth)
 app.include_router(process_tree_router.router,         prefix="/api/v1", **_auth)
 app.include_router(backup_router.router,               prefix="/api/v1", **_auth)
