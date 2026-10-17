@@ -3,15 +3,20 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..core import scoping
 from ..core.deps import get_current_user
+from ..core.permissions import PERM_ARTIFACTS, has as perm_has
 from ..database import get_db
+from ..models.asset import Asset
 from ..models.case import Case, CaseStatus
 from ..models.client import Client
+from ..models.ioc import IOC
+from ..models.timeline import TimelineEvent
 from ..models.user import User
 from ..schemas.case import (
     BulkCaseResult,
@@ -70,6 +75,124 @@ def apply_status(case: Case, new_status: CaseStatus) -> None:
             case.closed_at = datetime.now(UTC)
     else:
         case.closed_at = None
+
+
+class CaseSearchHit(BaseModel):
+    case_id:      str
+    case_title:   str
+    client_name:  str | None
+    match_type:   str   # "title" | "ioc" | "asset" | "timeline"
+    match_field:  str   # the column that matched
+    match_snippet: str  # short excerpt of the matching value
+
+
+@router.get("/search", response_model=list[CaseSearchHit])
+def search_cases(
+    q: str = Query(..., min_length=2),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[CaseSearchHit]:
+    """
+    Full-content case search.
+
+    Searches case title and client name for everyone; IOC values, asset names /
+    hostnames / IPs, and timeline titles for roles with artifact access.
+    Returns one hit per matching field (multiple hits for the same case are
+    possible — the frontend deduplicates by case_id for the case list).
+    """
+    term = q.strip().lower()
+    if not term:
+        return []
+
+    # Limit to cases this user may see.
+    visible_cases = (
+        scoping.filter_cases(db.query(Case), current_user)
+        .all()
+    )
+    visible_ids = {c.id for c in visible_cases}
+    case_map:   dict[str, Case] = {c.id: c for c in visible_cases}
+
+    hits: list[CaseSearchHit] = []
+
+    def _hit(case_id: str, match_type: str, match_field: str, match_value: str) -> None:
+        c = case_map[case_id]
+        hits.append(CaseSearchHit(
+            case_id      = case_id,
+            case_title   = str(c.title),
+            client_name  = str(c.client_name) if c.client_name else None,
+            match_type   = match_type,
+            match_field  = match_field,
+            match_snippet = match_value[:120],
+        ))
+
+    # ── Case metadata (all roles) ─────────────────────────────────────────────
+    for case in visible_cases:
+        if term in str(case.title or '').lower():
+            _hit(case.id, "title", "title", str(case.title))
+        elif term in str(case.client_name or '').lower():
+            _hit(case.id, "title", "client", str(case.client_name))
+        elif term in str(case.tags or '').lower():
+            _hit(case.id, "title", "tags", str(case.tags))
+
+    # ── Artifact-level content (analyst / read_only / admin / owner only) ────
+    if perm_has(current_user.role, PERM_ARTIFACTS):
+        # IOCs
+        ioc_rows = (
+            db.query(IOC)
+            .filter(
+                IOC.case_id.in_(list(visible_ids)),
+                IOC.value.ilike(f"%{q}%"),
+            )
+            .limit(200)
+            .all()
+        )
+        for row in ioc_rows:
+            _hit(str(row.case_id), "ioc", str(row.type.value), str(row.value))
+
+        # IOC descriptions
+        ioc_desc = (
+            db.query(IOC)
+            .filter(
+                IOC.case_id.in_(list(visible_ids)),
+                IOC.description.ilike(f"%{q}%"),
+            )
+            .limit(100)
+            .all()
+        )
+        for row in ioc_desc:
+            _hit(str(row.case_id), "ioc", "description", str(row.description or ''))
+
+        # Assets — name, hostname, IP
+        for field, col in [("name", Asset.name), ("hostname", Asset.hostname),
+                           ("ip_address", Asset.ip_address)]:
+            asset_rows = (
+                db.query(Asset)
+                .filter(
+                    Asset.case_id.in_(list(visible_ids)),
+                    col.ilike(f"%{q}%"),
+                )
+                .limit(100)
+                .all()
+            )
+            for row in asset_rows:
+                val = getattr(row, field, '') or ''
+                if val:
+                    _hit(str(row.case_id), "asset", field, str(val))
+
+        # Timeline events — title
+        tl_rows = (
+            db.query(TimelineEvent)
+            .filter(
+                TimelineEvent.case_id.in_(list(visible_ids)),
+                TimelineEvent.title.ilike(f"%{q}%"),
+            )
+            .limit(100)
+            .all()
+        )
+        for row in tl_rows:
+            _hit(str(row.case_id), "timeline", "title", str(row.title))
+
+    return hits
 
 
 @router.get("/", response_model=list[CaseSummary])
