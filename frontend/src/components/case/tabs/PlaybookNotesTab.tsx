@@ -389,7 +389,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
                             onClick={() => saveStepNotes(activeCp.id, node.id)}
                             disabled={updateStep.isPending}
                           >
-                            <Save size={10} /> Sauvegarder
+                            <Save size={10} /> Save
                           </button>
                         </div>
                       </div>
@@ -439,10 +439,10 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
           </div>
         )}
 
-        {/* ── Notes libres ────────────────────────────────────────────────── */}
+        {/* ── Free notes ──────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between mb-3 shrink-0">
           <h3 className="text-fg-secondary font-semibold text-label uppercase tracking-wide flex items-center gap-1.5">
-            <StickyNote size={12} /> Notes libres
+            <StickyNote size={12} /> Free notes
           </h3>
           {notesDirty && (
             <button

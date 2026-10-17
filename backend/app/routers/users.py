@@ -144,6 +144,39 @@ def delete_user(
     db.commit()
 
 
+@router.delete("/{user_id}/mfa", response_model=UserRead)
+def reset_mfa(
+    user_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current: User = Depends(require_admin),
+):
+    """
+    Wipe a user's TOTP secret and disable MFA.  Admin-only.
+    The user will need to re-enrol from their account page.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.id == current.id:
+        raise HTTPException(status_code=400, detail="Use your account page to manage your own MFA")
+    assert_can_manage(current, user)
+
+    user.mfa_enabled = False
+    user.mfa_secret = None
+    user.mfa_salt = None
+    user.mfa_recovery_codes = None
+    user.mfa_last_step = None
+    user.mfa_failed_attempts = 0
+    user.mfa_locked_until = None
+    audit_log(db, user=current, action="user.mfa_reset",
+              resource_type="user", resource_id=user_id,
+              resource_name=user.username, request=request)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
 @router.put("/{user_id}/clients", response_model=UserRead)
 def set_user_clients(
     user_id: str,

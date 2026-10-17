@@ -139,6 +139,7 @@ import {
   Shield,
   ShieldAlert,
   ShieldCheck,
+  ShieldOff,
   ShieldX,
   Skull,
   Smartphone,
@@ -182,6 +183,7 @@ export const NAV_ICON: Record<string, LucideIcon> = {
   '/':                      LayoutDashboard,
   '/cases':                 FolderOpen,
 
+  '/artifacts/browser':     History,
   '/artifacts/explorer':    Table2,
   '/artifacts/email':       Mail,
   '/artifacts/detections':  ShieldAlert,    // Detections — what the rules found, not the rules
@@ -322,6 +324,7 @@ export {
   Shield,
   ShieldAlert,
   ShieldCheck,
+  ShieldOff,
   ShieldX,
   Skull,
   Smartphone,

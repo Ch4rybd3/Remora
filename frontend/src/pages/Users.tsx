@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { PageShell } from '../ui/PageShell'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { AlertCircle, Building2, Plus, Trash2, Edit2, KeyRound } from '../ui/icons'
+import { AlertCircle, Building2, Plus, Trash2, Edit2, KeyRound, ShieldOff, ShieldCheck } from '../ui/icons'
 import { usersApi, type AuthUser } from '../api/auth'
 import { clientsApi } from '../api/clients'
 import {
@@ -58,6 +58,7 @@ export default function Users() {
   const [editTarget, setEditTarget] = useState<AuthUser | null>(null)
   const [pwTarget, setPwTarget] = useState<AuthUser | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<AuthUser | null>(null)
+  const [mfaResetTarget, setMfaResetTarget] = useState<AuthUser | null>(null)
 
   const [form, setForm] = useState({ username: '', email: '', password: '', role: 'analyst' })
   const [newPw, setNewPw] = useState('')
@@ -117,6 +118,11 @@ export default function Users() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
   })
 
+  const resetMfa = useMutation({
+    mutationFn: (id: string) => usersApi.resetMfa(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); setMfaResetTarget(null) },
+  })
+
   return (
     <PageShell
       route="/users"
@@ -141,7 +147,12 @@ export default function Users() {
               header: 'User',
               render: (u) => (
                 <>
-                  <p className="font-medium text-fg">{u.username}</p>
+                  <p className="font-medium text-fg flex items-center gap-1.5">
+                    {u.username}
+                    {u.mfa_enabled && (
+                      <span title="MFA enabled"><ShieldCheck size={11} className="text-accent" /></span>
+                    )}
+                  </p>
                   {u.email && <p className="text-label text-fg-secondary">{u.email}</p>}
                   {u.id === me?.id && <span className="text-label text-accent">(you)</span>}
                 </>
@@ -231,6 +242,15 @@ export default function Users() {
                     title="Reset the password"
                   >
                     <KeyRound size={13} />
+                  </button>
+                )}
+                {u.id !== me?.id && canManage(me, u) && u.mfa_enabled && (
+                  <button
+                    onClick={() => setMfaResetTarget(u)}
+                    className="text-fg-secondary hover:text-severity-medium transition-colors"
+                    title="Reset MFA"
+                  >
+                    <ShieldOff size={13} />
                   </button>
                 )}
                 {u.id !== me?.id && canManage(me, u) && (
@@ -375,6 +395,14 @@ export default function Users() {
         onConfirm={() => deleteTarget && remove.mutate(deleteTarget.id)}
         title="Delete the user"
         message={`The account "${deleteTarget?.username}" will be permanently deleted.`}
+      />
+
+      <ConfirmDialog
+        open={!!mfaResetTarget}
+        onClose={() => setMfaResetTarget(null)}
+        onConfirm={() => mfaResetTarget && resetMfa.mutate(mfaResetTarget.id)}
+        title="Reset MFA"
+        message={`This will disable MFA for "${mfaResetTarget?.username}". They will need to re-enrol from their account page.`}
       />
       </div>
     </PageShell>

@@ -24,6 +24,7 @@ import Connectors from './pages/Connectors'
 import ArtifactExplorer from './pages/ArtifactExplorer'
 import PcapExplorer from './pages/PcapExplorer'
 import DiskImageExplorer from './pages/DiskImageExplorer'
+import BrowserHistory from './pages/BrowserHistory'
 import RdpCacheViewer from './pages/RdpCacheViewer'
 import RegistryExplorer from './pages/RegistryExplorer'
 import Clients from './pages/Clients'
@@ -70,6 +71,7 @@ export default function App() {
         <Route path="/artifacts/binary"   element={<BinaryAnalysis />} />
         <Route path="/artifacts/cti"      element={<CTILookup />} />
         <Route path="/artifacts/explorer" element={<ArtifactExplorer />} />
+        <Route path="/artifacts/browser"   element={<BrowserHistory />} />
         <Route path="/artifacts/pcap"     element={<PcapExplorer />} />
         <Route path="/artifacts/images"   element={<DiskImageExplorer />} />
         <Route path="/artifacts/registry" element={<RegistryExplorer />} />

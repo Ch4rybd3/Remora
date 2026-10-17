@@ -65,11 +65,11 @@ export default function NotesTab({ case_ }: Props) {
             className="btn-primary text-label py-0.5 px-2"
             onClick={() => doSave(value)}
           >
-            Sauvegarder
+            Save
           </button>
         )}
         {save.isPending && (
-          <span className="text-label text-fg-secondary/40 animate-pulse">Sauvegarde…</span>
+          <span className="text-label text-fg-secondary/40 animate-pulse">Saving…</span>
         )}
       </div>
       <div className="flex-1 overflow-hidden p-3">

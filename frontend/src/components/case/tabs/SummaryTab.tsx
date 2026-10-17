@@ -163,11 +163,11 @@ export default function SummaryTab({ case_ }: Props) {
             <span className="text-label text-accent/60 animate-pulse">Saved</span>
           )}
           {save.isPending && (
-            <span className="text-label text-fg-secondary/40 animate-pulse">Sauvegarde…</span>
+            <span className="text-label text-fg-secondary/40 animate-pulse">Saving…</span>
           )}
           {dirty && !save.isPending && (
             <button className="btn-primary text-label py-0.5 px-2" onClick={() => doSave(value)}>
-              Sauvegarder
+              Save
             </button>
           )}
         </div>

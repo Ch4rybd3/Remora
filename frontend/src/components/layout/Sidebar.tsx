@@ -146,6 +146,7 @@ export default function Sidebar() {
         { to: '/artifacts/explorer', label: 'Artifact Explorer' },
         { to: '/artifacts/email', label: 'Email Analysis' },
         { to: '/artifacts/detections', label: 'Detections' },
+        { to: '/artifacts/browser', label: 'Browser History' },
         { to: '/artifacts/pcap', label: 'Network (PCAP)' },
         { to: '/artifacts/images', label: 'Disk Images' },
         { to: '/artifacts/registry', label: 'Registry Explorer' },

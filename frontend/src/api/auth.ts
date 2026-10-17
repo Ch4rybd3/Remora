@@ -14,6 +14,7 @@ export interface AuthUser {
   is_active: boolean
   created_at: string
   last_login: string | null
+  mfa_enabled: boolean
   /** Clients this account is restricted to. **Empty means unrestricted.** */
   clients: ScopedClient[]
 }
@@ -78,4 +79,6 @@ export const usersApi = {
   /** An empty list lifts the restriction rather than removing all access. */
   setClients: (id: string, client_ids: string[]) =>
     api.put<AuthUser>(`/users/${id}/clients`, { client_ids }).then(r => r.data),
+  /** Wipe a user's TOTP secret and disable MFA. Admin only. */
+  resetMfa: (id: string) => api.delete<AuthUser>(`/users/${id}/mfa`).then(r => r.data),
 }

@@ -279,7 +279,7 @@ function FollowStreamPanel({ stream, onClose }: { stream: PcapStream; onClose: (
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-hairline shrink-0">
           <ArrowLeftRight size={13} className="text-accent shrink-0" />
           <p className="text-label font-semibold text-fg shrink-0">
-            Flux {stream.protocol.toUpperCase()} n°{stream.stream}
+            Stream {stream.protocol.toUpperCase()} #{stream.stream}
           </p>
           <p className="text-label font-mono text-fg-secondary/50 truncate">
             {stream.node0} ↔ {stream.node1}
@@ -365,7 +365,7 @@ interface PinnedPacket {
 }
 
 function defaultTitle(row: Record<string, string>, capture: string): string {
-  const proto = row.Protocol || 'Paquet'
+  const proto = row.Protocol || 'Packet'
   const flow  = row.Source && row.Destination ? `${row.Source} → ${row.Destination}` : ''
   const extra = row.DnsQuery || row.HttpHost || row.TlsServerName || ''
   return [`${proto} ${flow}`.trim(), extra].filter(Boolean).join(' — ').slice(0, 120) || capture

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Clock, Pencil, ChevronRight, Copy } from '../../../ui/icons'
+import { Plus, Trash2, Clock, Pencil, ChevronRight, Copy, Download } from '../../../ui/icons'
 import { timelineApi } from '../../../api/timeline'
 import { iocsApi } from '../../../api/iocs'
 import { assetsApi } from '../../../api/assets'
@@ -248,9 +248,31 @@ export default function TimelineTab({ caseId }: Props) {
           Timeline
           <span className="ml-2 text-fg-secondary font-normal normal-case">({events.length})</span>
         </h3>
-        <button className="btn-primary text-label flex items-center gap-1.5" onClick={openCreate}>
-          <Plus size={13} /> Add Event
-        </button>
+        <div className="flex items-center gap-2">
+          {events.length > 0 && (
+            <div className="flex items-center gap-1">
+              <a
+                href={timelineApi.exportUrl(caseId, 'csv')}
+                download
+                className="btn-secondary text-label flex items-center gap-1 px-2 py-1"
+                title="Export as CSV"
+              >
+                <Download size={11} /> CSV
+              </a>
+              <a
+                href={timelineApi.exportUrl(caseId, 'json')}
+                download
+                className="btn-secondary text-label flex items-center gap-1 px-2 py-1"
+                title="Export as JSON"
+              >
+                <Download size={11} /> JSON
+              </a>
+            </div>
+          )}
+          <button className="btn-primary text-label flex items-center gap-1.5" onClick={openCreate}>
+            <Plus size={13} /> Add Event
+          </button>
+        </div>
       </div>
 
       {events.length === 0 ? (
