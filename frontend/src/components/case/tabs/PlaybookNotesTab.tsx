@@ -378,6 +378,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
                           caseId={caseId}
                           minHeight={100}
                           placeholder={`## Notes — ${(node.data as any).label}\n\n- Observation…\n- Commande : \`\``}
+                          roomId={`cp:${activeCp.id}:step:${node.id}`}
                         />
                         <div className="flex justify-end gap-2 mt-2">
                           <button
@@ -464,6 +465,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
             caseId={caseId}
             minHeight={300}
             placeholder={'# Free notes\n\n- Information given verbally...'}
+            roomId={`case:${caseId}:quicknotes`}
           />
         </div>
       </div>

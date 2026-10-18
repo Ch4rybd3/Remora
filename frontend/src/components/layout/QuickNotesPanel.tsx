@@ -4,11 +4,13 @@
  * Opened from the TopBar when a case is active. The panel is positioned
  * bottom-right so it does not cover the main content area. Auto-saves on
  * change with a 1.5 s debounce, same as NotesTab.
+ *
+ * Changes are reflected live in NotesTab (and vice-versa) through the shared
+ * useQuickNote hook, which writes to the TanStack Query cache on every
+ * keystroke so both editors stay in sync without a server round-trip.
  */
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { X, StickyNote } from '../../ui/icons'
-import { casesApi } from '../../api/cases'
+import { useQuickNote } from '../../hooks/useQuickNote'
 import MarkdownEditor from '../ui/MarkdownEditor'
 
 interface Props {
@@ -18,59 +20,8 @@ interface Props {
 }
 
 export default function QuickNotesPanel({ caseId, caseTitle, onClose }: Props) {
-  const qc = useQueryClient()
-
-  const { data: case_ } = useQuery({
-    queryKey: ['case', caseId],
-    queryFn: () => casesApi.get(caseId),
-  })
-
-  const [value, setValue] = useState('')
-  const [dirty, setDirty] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const initialised = useRef(false)
-
-  useEffect(() => {
-    if (case_ && !initialised.current) {
-      setValue(case_.quick_notes ?? '')
-      initialised.current = true
-    }
-  }, [case_])
-
-  const save = useMutation({
-    mutationFn: (v: string) => casesApi.update(caseId, { quick_notes: v }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['case', caseId] })
-      setDirty(false)
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
-    },
-  })
-
-  const doSave = useCallback((v: string) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    save.mutate(v)
-  }, [save])
-
-  const handleChange = (v: string) => {
-    setValue(v)
-    setDirty(true)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => doSave(v), 1500)
-  }
-
-  // Ctrl/Cmd+S to save immediately
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's' && dirty) {
-        e.preventDefault()
-        doSave(value)
-      }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [dirty, value, doSave])
+  const { value, dirty, saved, isPending, handleChange, doSave, onFocus, onBlur } =
+    useQuickNote(caseId)
 
   return (
     <div
@@ -86,7 +37,7 @@ export default function QuickNotesPanel({ caseId, caseTitle, onClose }: Props) {
         {saved && (
           <span className="text-label text-accent/60 animate-pulse">Saved</span>
         )}
-        {dirty && !save.isPending && (
+        {dirty && !isPending && (
           <button
             className="text-label text-fg-secondary/50 hover:text-accent transition-colors px-1"
             onClick={() => doSave(value)}
@@ -105,7 +56,7 @@ export default function QuickNotesPanel({ caseId, caseTitle, onClose }: Props) {
       </div>
 
       {/* Editor */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden" onFocus={onFocus} onBlur={onBlur}>
         <MarkdownEditor value={value} onChange={handleChange} />
       </div>
     </div>

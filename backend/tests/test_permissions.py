@@ -141,6 +141,7 @@ def test_a_new_method_is_covered_without_being_listed():
 #: direction to be wrong in, because the default is refusal.
 EXECUTIVE_REACHABLE = {
     ("GET", "/api/v1/cases/"),
+    ("GET", "/api/v1/cases/search"),
     ("GET", "/api/v1/cases/{case_id}"),
     # `generate` renders the report sections and writes nothing, despite the
     # verb in its name.

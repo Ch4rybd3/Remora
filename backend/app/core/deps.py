@@ -11,6 +11,22 @@ from ..services.auth_service import decode_access_token
 _bearer = HTTPBearer()
 
 
+def _decode_token(token: str, db: Session) -> User | None:
+    """Decode a raw JWT string and return the active user, or None.
+
+    Used by WebSocket endpoints that cannot send an Authorization header and
+    pass the token as a query parameter instead.
+    """
+    try:
+        payload = decode_access_token(token)
+        if payload.get("scope", "access") != "access":
+            return None
+        user_id: str = payload["sub"]
+    except (JWTError, KeyError):
+        return None
+    return db.query(User).filter(User.id == user_id, User.is_active.is_(True)).first()
+
+
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),
     db: Session = Depends(get_db),
@@ -40,6 +56,25 @@ def get_current_user(
     return user
 
 
+def _effective_grants(user: User) -> tuple[frozenset[str], str]:
+    """
+    Effective permission set and display label for a user.
+
+    When the user has a custom role, its flags override the built-in role.
+    Otherwise the built-in role's defaults apply.
+    """
+    cr = getattr(user, "custom_role", None)
+    if user.custom_role_id and cr is not None:
+        granted: set[str] = set()
+        if cr.can_write:          granted.add(permissions.PERM_WRITE)
+        if cr.can_read_artifacts: granted.add(permissions.PERM_ARTIFACTS)
+        return frozenset(granted), str(cr.name)
+    return (
+        permissions.permissions_for(user.role),
+        permissions.ROLE_LABELS.get(user.role, str(user.role)),
+    )
+
+
 def enforce_permissions(
     request: Request,
     user: User = Depends(get_current_user),
@@ -54,7 +89,8 @@ def enforce_permissions(
     its own second factor, and both of those are POSTs.
     """
     try:
-        permissions.enforce(request, user.role)
+        granted, label = _effective_grants(user)
+        permissions.enforce_grants(request, granted, label)
 
         # Almost every route carrying case data has the case id in its path, so
         # checking it here scopes a new artifact page the moment it exists. The
@@ -99,6 +135,11 @@ def _record_denial(
     from ..services.audit_service import audit_log
 
     try:
+        cr = getattr(user, "custom_role", None)
+        role_label = (
+            str(cr.name) if user.custom_role_id and cr is not None
+            else getattr(user.role, "value", str(user.role))
+        )
         audit_log(
             db, user=user, action="auth.denied", request=request,
             resource_type="endpoint",
@@ -107,7 +148,7 @@ def _record_denial(
             details={
                 "reason": refusal.reason,
                 "status": refusal.status_code,
-                "role":   getattr(user.role, "value", str(user.role)),
+                "role":   role_label,
             },
         )
         db.commit()
@@ -117,7 +158,8 @@ def _record_denial(
 
 def require_admin(user: User = Depends(get_current_user)) -> User:
     """Requires a role that administers users."""
-    if not permissions.has(user.role, permissions.PERM_USERS):
+    granted, _ = _effective_grants(user)
+    if permissions.PERM_USERS not in granted:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin or owner role required")
     return user
 

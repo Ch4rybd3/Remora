@@ -25,8 +25,9 @@ import { Plugin }                                     from '@tiptap/pm/state'
 import { Decoration, DecorationSet }                  from '@tiptap/pm/view'
 import ReactMarkdown                                  from 'react-markdown'
 import remarkGfm                                      from 'remark-gfm'
-import { ImageIcon, Loader2 }                         from '../../ui/icons'
+import { ImageIcon, Loader2, Users }                  from '../../ui/icons'
 import { noteImagesApi }                              from '../../api/noteImages'
+import { useCollabEditor }                            from '../../hooks/useCollabEditor'
 
 // ── Wikilink highlight extension ──────────────────────────────────────────────
 // Finds all [[Note Name]] patterns in the document text and applies an inline
@@ -90,6 +91,8 @@ interface Props {
   // controlled mode
   mode?:         ViewMode
   onModeChange?: (m: ViewMode) => void
+  /** When provided, switches to collaborative mode (Yjs Y.Doc + WebSocket). */
+  roomId?:       string
 }
 
 // ── Resizable image NodeView ───────────────────────────────────────────────────
@@ -543,6 +546,62 @@ export function LiveEditor({
   )
 }
 
+// ── Collaborative live editor ─────────────────────────────────────────────────
+// Used when `roomId` is provided. Keeps the Y.Doc as source of truth; calls
+// `onChange` whenever content changes so the parent can autosave.
+
+function CollabLiveEditor({
+  roomId, initialContent, onChange, placeholder, minHeight,
+}: {
+  roomId:         string
+  initialContent: string
+  onChange:       (v: string) => void
+  placeholder:    string
+  minHeight:      number
+}) {
+  const { editor, provider } = useCollabEditor({ roomId, initialContent, placeholder })
+  const onChangeRef = useRef(onChange)
+  useEffect(() => { onChangeRef.current = onChange }, [onChange])
+
+  // Emit markdown whenever the collaborative doc changes
+  useEffect(() => {
+    if (!editor) return
+    const handler = () => {
+      const md = (editor.storage as any).markdown.getMarkdown()
+      onChangeRef.current(md)
+    }
+    editor.on('update', handler)
+    return () => { editor.off('update', handler) }
+  }, [editor])
+
+  // Count connected peers from awareness (excludes own client)
+  const [peers, setPeers] = useState(0)
+  useEffect(() => {
+    if (!provider) return
+    const update = () => {
+      const states = provider.awareness.getStates()
+      // subtract 1 for own state
+      setPeers(Math.max(0, states.size - 1))
+    }
+    provider.awareness.on('change', update)
+    update()
+    return () => { provider.awareness.off('change', update) }
+  }, [provider])
+
+  return (
+    <div style={{ position: 'relative' }}>
+      {peers > 0 && (
+        <div className="absolute top-1.5 right-2 z-10 flex items-center gap-1 text-label text-accent/60 bg-panel border border-hairline px-1.5 py-0.5 rounded-control pointer-events-none">
+          <Users size={9} />
+          <span>{peers}</span>
+        </div>
+      )}
+      <EditorContent editor={editor} className="live-editor collab-editor" style={{ minHeight }} />
+    </div>
+  )
+}
+
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function MarkdownEditor({
@@ -556,6 +615,7 @@ export default function MarkdownEditor({
   autoResize     = false,
   mode:  modeProp,
   onModeChange,
+  roomId,
 }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null)
   const [uploading, setUploading]       = useState(false)
@@ -610,6 +670,19 @@ export default function MarkdownEditor({
   }
 
   const hasUpload = !!(uploadImage || caseId)
+
+  // Collaborative mode: bypass the standard controlled editor
+  if (roomId) {
+    return (
+      <CollabLiveEditor
+        roomId={roomId}
+        initialContent={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        minHeight={minHeight}
+      />
+    )
+  }
 
   return (
     <div className="flex flex-col gap-1.5">

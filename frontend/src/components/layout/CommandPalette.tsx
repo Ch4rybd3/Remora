@@ -17,7 +17,7 @@ import {
   AlertTriangle, ArrowRight, Clock, FolderOpen, Loader2, Search, Table2, Target, X,
 } from '../../ui/icons'
 import { useCurrentCase } from '../../context/CurrentCaseContext'
-import { casesApi } from '../../api/cases'
+import { casesApi, type CaseSearchHit } from '../../api/cases'
 import { iocsApi } from '../../api/iocs'
 import { timelineApi } from '../../api/timeline'
 import { csvArtifactsApi, type OmniSearchFile } from '../../api/csvArtifacts'
@@ -129,6 +129,14 @@ export default function CommandPalette() {
     enabled:   open,
   })
 
+  // Cross-case content search (IOCs, assets, timeline) — backend, debounced.
+  const { data: caseHits = [] } = useQuery({
+    queryKey: ['cmd-palette-cases-search', debouncedQ],
+    queryFn:  () => casesApi.search(debouncedQ),
+    staleTime: 15_000,
+    enabled:   open && debouncedQ.length >= 2,
+  })
+
   const { data: iocs = [] } = useQuery({
     queryKey: ['iocs', caseId],
     queryFn:  () => iocsApi.list(caseId),
@@ -157,17 +165,43 @@ export default function CommandPalette() {
 
     const out: PaletteResult[] = []
 
-    // Cases
+    // Cases — title match (client-side, instant) + content match (server, debounced)
+    const seenCaseIds = new Set<string>()
+
     ;(cases as CaseSummary[])
       .filter(c => matches(c.title, q))
-      .slice(0, 4)
-      .forEach(c => out.push({
-        id:        c.id,
-        kind:      'case',
-        primary:   c.title,
-        secondary: c.client_name || undefined,
-        href:      `/cases/${c.id}`,
-      }))
+      .slice(0, 3)
+      .forEach(c => {
+        seenCaseIds.add(c.id)
+        out.push({
+          id:        c.id,
+          kind:      'case',
+          primary:   c.title,
+          secondary: c.client_name || undefined,
+          href:      `/cases/${c.id}`,
+        })
+      })
+
+    // Content hits from backend search (IOCs, assets, timeline) — deduplicated
+    if (debouncedQ.length >= 2) {
+      const contentMap = new Map<string, CaseSearchHit>()
+      for (const h of (caseHits as CaseSearchHit[])) {
+        if (!seenCaseIds.has(h.case_id) && h.match_type !== 'title') {
+          contentMap.set(h.case_id, h)
+        }
+      }
+      Array.from(contentMap.values()).slice(0, 3).forEach(h => {
+        const caseInfo = (cases as CaseSummary[]).find(c => c.id === h.case_id)
+        out.push({
+          id:        h.case_id,
+          kind:      'case',
+          primary:   h.case_title,
+          secondary: `${h.match_type}: ${h.match_snippet}`,
+          href:      `/cases/${h.case_id}`,
+        })
+        if (caseInfo) seenCaseIds.add(h.case_id)
+      })
+    }
 
     // IOCs (current case only)
     if (caseId) {
@@ -214,7 +248,7 @@ export default function CommandPalette() {
     }
 
     return out
-  }, [query, debouncedQ, cases, iocs, timeline, artifactHits, caseId])
+  }, [query, debouncedQ, cases, caseHits, iocs, timeline, artifactHits, caseId])
 
   // ── Keyboard navigation in results ────────────────────────────────────────
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {

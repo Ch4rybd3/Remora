@@ -176,6 +176,11 @@ ACTIONS: dict[tuple[str, str], str] = {
     ("PUT",    "/api/v1/users/{user_id}/clients"):                    "user.set_clients",
     ("POST",   "/api/v1/users/{user_id}/password"):                   "user.password_change",
     ("DELETE", "/api/v1/users/{user_id}/mfa"):                        "user.mfa_reset",
+
+    # ── Custom roles ──────────────────────────────────────────────────────────
+    ("POST",   "/api/v1/custom-roles/"):                              "custom_role.create",
+    ("PATCH",  "/api/v1/custom-roles/{role_id}"):                     "custom_role.update",
+    ("DELETE", "/api/v1/custom-roles/{role_id}"):                     "custom_role.delete",
     ("POST",   "/api/v1/auth/login"):                                 "auth.login",
     ("POST",   "/api/v1/auth/mfa/setup"):                             "auth.mfa.setup_started",
     ("POST",   "/api/v1/auth/mfa/confirm"):                           "auth.mfa.enabled",

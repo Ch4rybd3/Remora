@@ -54,10 +54,23 @@ class UserCreate(BaseModel):
         return v.strip() or None if isinstance(v, str) else v
 
 
+class CustomRoleRead(BaseModel):
+    id: str
+    name: str
+    description: str | None
+    color: str | None
+    can_write: bool
+    can_read_artifacts: bool
+    can_change_own_password: bool
+
+    model_config = {"from_attributes": True}
+
+
 class UserUpdate(BaseModel):
     email: str | None = None
     role: UserRole | None = None
     is_active: bool | None = None
+    custom_role_id: str | None = None
 
     @field_validator("email", mode="before")
     @classmethod
@@ -91,10 +104,19 @@ class UserRead(BaseModel):
     created_at: datetime
     last_login: datetime | None
     mfa_enabled: bool = False
+
+    @field_validator("mfa_enabled", mode="before")
+    @classmethod
+    def _coerce_mfa_enabled(cls, v: object) -> bool:
+        # The MFA migration added this column as nullable=True with no server_default,
+        # leaving existing rows as NULL. Pydantic v2 refuses None→bool without coercion.
+        return bool(v) if v is not None else False
     #: Clients this account is restricted to. **Empty means unrestricted** -
     #: see `core/scoping.py`. Sent so the interface can say which, rather than
     #: leaving an administrator to guess why a colleague sees fewer cases.
     clients: list[ScopedClient] = []
+    custom_role_id: str | None = None
+    custom_role: CustomRoleRead | None = None
 
     model_config = {"from_attributes": True}
 
