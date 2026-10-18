@@ -24,7 +24,7 @@ def upgrade() -> None:
         "collab_docs",
         sa.Column("id",         sa.String(),       primary_key=True),
         sa.Column("room_id",    sa.String(255),    nullable=False),
-        sa.Column("ydoc_state", sa.LargeBinary(),  nullable=False, server_default=b""),
+        sa.Column("ydoc_state", sa.LargeBinary(),  nullable=False, server_default=sa.text("''")),
         sa.Column("updated_at", sa.DateTime(),     nullable=True),
     )
     op.create_index("ix_collab_docs_room_id", "collab_docs", ["room_id"], unique=True)
