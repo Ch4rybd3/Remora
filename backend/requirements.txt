@@ -1,3 +1,6 @@
+# ── Collaborative editing (Yjs CRDT — y-websocket protocol) ──────────────────
+pycrdt>=0.8.0
+
 fastapi==0.115.5
 uvicorn[standard]==0.32.1
 sqlalchemy==2.0.36

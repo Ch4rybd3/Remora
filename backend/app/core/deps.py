@@ -11,6 +11,22 @@ from ..services.auth_service import decode_access_token
 _bearer = HTTPBearer()
 
 
+def _decode_token(token: str, db: Session) -> User | None:
+    """Decode a raw JWT string and return the active user, or None.
+
+    Used by WebSocket endpoints that cannot send an Authorization header and
+    pass the token as a query parameter instead.
+    """
+    try:
+        payload = decode_access_token(token)
+        if payload.get("scope", "access") != "access":
+            return None
+        user_id: str = payload["sub"]
+    except (JWTError, KeyError):
+        return None
+    return db.query(User).filter(User.id == user_id, User.is_active.is_(True)).first()
+
+
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),
     db: Session = Depends(get_db),
