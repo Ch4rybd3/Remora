@@ -104,6 +104,13 @@ class UserRead(BaseModel):
     created_at: datetime
     last_login: datetime | None
     mfa_enabled: bool = False
+
+    @field_validator("mfa_enabled", mode="before")
+    @classmethod
+    def _coerce_mfa_enabled(cls, v: object) -> bool:
+        # The migration added this column as nullable=True with no server_default,
+        # so existing rows have NULL. Pydantic v2 refuses None→bool without coercion.
+        return bool(v) if v is not None else False
     #: Clients this account is restricted to. **Empty means unrestricted** -
     #: see `core/scoping.py`. Sent so the interface can say which, rather than
     #: leaving an administrator to guess why a colleague sees fewer cases.
