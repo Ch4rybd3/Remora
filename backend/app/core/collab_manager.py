@@ -187,8 +187,8 @@ class CollabRoom:
 
         row = db.query(CollabDoc).filter(CollabDoc.room_id == self.room_id).first()
         if row:
-            row.ydoc_state = state
-            row.updated_at = datetime.now(UTC)
+            row.ydoc_state = state  # type: ignore[assignment]
+            row.updated_at = datetime.now(UTC)  # type: ignore[assignment]
         else:
             db.add(CollabDoc(room_id=self.room_id, ydoc_state=state))
         db.commit()
@@ -209,7 +209,7 @@ class CollabManager:
                 from ..models.collab import CollabDoc
                 row = db.query(CollabDoc).filter(CollabDoc.room_id == room_id).first()
                 if row and row.ydoc_state:
-                    room.doc.apply_update(row.ydoc_state)
+                    room.doc.apply_update(bytes(row.ydoc_state))
                 self._rooms[room_id] = room
             return self._rooms[room_id]
 
