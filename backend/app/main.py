@@ -23,11 +23,11 @@ from .core.deps import enforce_permissions, get_current_user
 from .database import Base, SessionLocal, engine
 from .db_migrate import run_migrations
 from .models import attack_graph as _ag_models  # ensure tables are registered
-from .models import collab as _collab_models  # ensure tables are registered
 from .models import audit as _audit_models  # ensure tables are registered
 from .models import binary as _binary_models  # ensure tables are registered
 from .models import chainsaw as _chainsaw_models  # ensure tables are registered
 from .models import client as _client_models  # ensure tables are registered
+from .models import collab as _collab_models  # ensure tables are registered
 from .models import collection_output as _collection_output_models  # ensure tables are registered
 from .models import connector as _connector_models  # ensure tables are registered
 from .models import csv_artifact as _csv_artifact_models  # ensure tables are registered

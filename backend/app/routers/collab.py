@@ -21,7 +21,6 @@ from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 
 from ..core.collab_manager import collab_manager
-from ..core.deps import get_current_user
 from ..database import get_db
 
 logger = logging.getLogger(__name__)

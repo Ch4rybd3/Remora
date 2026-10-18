@@ -80,7 +80,7 @@ export function useCollabEditor({
       })
     }
     return p
-  }, [roomId, ydoc, token])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [roomId, ydoc, token])
 
   // Track whether we have already seeded the doc
   const seeded = useRef(false)
