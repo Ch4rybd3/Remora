@@ -197,6 +197,33 @@ class Denied(HTTPException):
         self.reason = reason
 
 
+def enforce_grants(request: Request, granted: frozenset[str], label: str) -> None:
+    """
+    Refuse the request given an explicit permission set and a display label.
+
+    The label is shown in the 403 message and written to the audit trail.
+    This is the enforcement primitive; `enforce()` is a convenience wrapper
+    for the standard UserRole path, used directly by the permission tests.
+    """
+    path = request.url.path
+
+    if PERM_ARTIFACTS not in granted and not executive_may_read(path):
+        raise Denied(
+            DENIED_ARTIFACTS,
+            f"The {label} role does not have access to this data",
+        )
+
+    if is_write(request) and PERM_WRITE not in granted:
+        raise Denied(
+            DENIED_WRITE,
+            f"The {label} role is read-only",
+        )
+
+    if touches_users(path) and PERM_USERS not in granted:
+        raise Denied(
+            DENIED_USERS, "User administration requires an admin account")
+
+
 def enforce(request: Request, role: UserRole) -> None:
     """
     Refuse the request if the role does not allow it. Raises 403, or returns.
@@ -205,24 +232,7 @@ def enforce(request: Request, role: UserRole) -> None:
     outside it: a read-only account still has to sign in and manage its own
     second factor, and both are POSTs.
     """
-    granted = permissions_for(role)
-    path = request.url.path
-
-    if PERM_ARTIFACTS not in granted and not executive_may_read(path):
-        raise Denied(
-            DENIED_ARTIFACTS,
-            f"The {ROLE_LABELS.get(role, role.value)} role does not have access to this data",
-        )
-
-    if is_write(request) and PERM_WRITE not in granted:
-        raise Denied(
-            DENIED_WRITE,
-            f"The {ROLE_LABELS.get(role, role.value)} role is read-only",
-        )
-
-    if touches_users(path) and PERM_USERS not in granted:
-        raise Denied(
-            DENIED_USERS, "User administration requires an admin account")
+    enforce_grants(request, permissions_for(role), ROLE_LABELS.get(role, role.value))
 
 
 def may_assign_role(actor_role: UserRole, target_role: UserRole) -> bool:

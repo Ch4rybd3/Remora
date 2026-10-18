@@ -87,5 +87,10 @@ class User(Base):
     mfa_locked_until:    Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     mfa_enrolled_at:     Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    #: When set, overrides `role` for permission checks. See `core/deps.py`.
+    custom_role_id = Column(
+        String, ForeignKey("custom_roles.id", ondelete="SET NULL"), nullable=True)
+    custom_role = relationship("CustomRole", lazy="selectin")
+
     #: Empty means unrestricted. See `user_clients` above and `core/scoping.py`.
     clients = relationship("Client", secondary=user_clients, lazy="selectin")

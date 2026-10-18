@@ -30,6 +30,7 @@ from .models import client as _client_models  # ensure tables are registered
 from .models import collection_output as _collection_output_models  # ensure tables are registered
 from .models import connector as _connector_models  # ensure tables are registered
 from .models import csv_artifact as _csv_artifact_models  # ensure tables are registered
+from .models import custom_role as _custom_role_models  # ensure tables are registered
 from .models import disk_image as _disk_image_models  # ensure tables are registered
 from .models import email_file as _email_file_models  # ensure tables are registered
 from .models import evtx as _evtx_models  # ensure tables are registered
@@ -57,6 +58,7 @@ from .routers import coverage as coverage_router
 from .routers import csv_artifacts as csv_artifacts_router
 from .routers import cti as cti_router
 from .routers import custody as custody_router
+from .routers import custom_roles as custom_roles_router
 from .routers import dashboard as dashboard_router
 from .routers import disk_images as disk_images_router
 from .routers import dropzone as dropzone_router
@@ -415,10 +417,38 @@ def _bootstrap_schema() -> None:
         legacy()
 
 
+def _seed_demo_custom_role() -> None:
+    """
+    Ensure the built-in 'Demo' custom role exists.
+
+    Read-only artifact access with no password-change capability — useful for
+    walkthroughs, client previews or conference demonstrations. Admins can
+    edit or delete it; this seed only creates it if absent.
+    """
+    from .models.custom_role import CustomRole
+
+    db = SessionLocal()
+    try:
+        if not db.query(CustomRole).filter(CustomRole.name == "Demo").first():
+            db.add(CustomRole(
+                name="Demo",
+                description="Read-only access for demonstrations. Cannot change password.",
+                color="bg-data-3/10 text-data-3 border-data-3/20",
+                can_write=False,
+                can_read_artifacts=True,
+                can_change_own_password=False,
+            ))
+            db.commit()
+            print("[remora] Demo custom role seeded", flush=True)
+    finally:
+        db.close()
+
+
 def _bootstrap_seeds() -> None:
     _seed_admin()
     _seed_default_client_and_backfill()
     _seed_playbooks()
+    _seed_demo_custom_role()
 
 
 def _bootstrap_tools() -> None:
@@ -523,6 +553,7 @@ app.include_router(clients_router.router, prefix="/api/v1", **_auth)
 app.include_router(templates.router, prefix="/api/v1", **_auth)
 app.include_router(reports.router, prefix="/api/v1", **_auth)
 app.include_router(users_router.router, prefix="/api/v1")  # users router has its own deps
+app.include_router(custom_roles_router.router, prefix="/api/v1")  # own deps (require_admin)
 app.include_router(playbooks_router.router, prefix="/api/v1", **_auth)
 app.include_router(email_analysis_router.router, prefix="/api/v1", **_auth)
 app.include_router(case_emails_router.router,    prefix="/api/v1", **_auth)

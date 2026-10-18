@@ -82,6 +82,15 @@ def update_user(
         )
 
     updates = payload.model_dump(exclude_unset=True)
+
+    # Validate custom_role_id if provided.
+    if "custom_role_id" in updates:
+        from ..models.custom_role import CustomRole
+        crid = updates["custom_role_id"]
+        if crid is not None:
+            if not db.query(CustomRole).filter(CustomRole.id == crid).first():
+                raise HTTPException(status_code=404, detail="Custom role not found")
+
     for key, value in updates.items():
         setattr(user, key, value)
     audit_log(db, user=current, action="user.update",
@@ -104,6 +113,16 @@ def change_password(
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    # A custom role may forbid self-service password changes (e.g. demo accounts).
+    # Admins changing someone else's password bypass this restriction.
+    if current.id == user_id:
+        cr = getattr(user, "custom_role", None)
+        if user.custom_role_id and cr is not None and not cr.can_change_own_password:
+            raise HTTPException(
+                status_code=403,
+                detail="This account's role does not permit changing the password",
+            )
 
     # Anyone may change their own password
     if current.id != user_id:
