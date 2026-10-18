@@ -23,6 +23,7 @@ from .core.deps import enforce_permissions, get_current_user
 from .database import Base, SessionLocal, engine
 from .db_migrate import run_migrations
 from .models import attack_graph as _ag_models  # ensure tables are registered
+from .models import collab as _collab_models  # ensure tables are registered
 from .models import audit as _audit_models  # ensure tables are registered
 from .models import binary as _binary_models  # ensure tables are registered
 from .models import chainsaw as _chainsaw_models  # ensure tables are registered
@@ -52,6 +53,7 @@ from .routers import case_emails as case_emails_router
 from .routers import chainsaw as chainsaw_router
 from .routers import chainsaw_rules as chainsaw_rules_router
 from .routers import clients as clients_router
+from .routers import collab as collab_router
 from .routers import collection_import as collection_import_router
 from .routers import connectors as connectors_router
 from .routers import coverage as coverage_router
@@ -550,6 +552,7 @@ app.include_router(evidences.router, prefix="/api/v1", **_auth)
 app.include_router(timeline.router, prefix="/api/v1", **_auth)
 app.include_router(incident_log_router.router, prefix="/api/v1", **_auth)
 app.include_router(clients_router.router, prefix="/api/v1", **_auth)
+app.include_router(collab_router.router,  prefix="/api/v1")  # auth handled per-WS via token query param
 app.include_router(templates.router, prefix="/api/v1", **_auth)
 app.include_router(reports.router, prefix="/api/v1", **_auth)
 app.include_router(users_router.router, prefix="/api/v1")  # users router has its own deps
