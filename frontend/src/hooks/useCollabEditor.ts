@@ -70,7 +70,7 @@ export function useCollabEditor({
   const wsUrl  = `${wsBase}://${window.location.host}`
 
   const provider = useMemo(() => {
-    const p = new WebsocketProvider(wsUrl, `collab/ws/${roomId}`, ydoc, {
+    const p = new WebsocketProvider(wsUrl, `api/v1/collab/ws/${roomId}`, ydoc, {
       params: { token },
     })
     if (user) {
