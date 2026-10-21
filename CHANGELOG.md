@@ -1,5 +1,92 @@
 # Changelog
 
+## [0.3.0](https://github.com/Ch4rybd3/Remora/compare/v0.2.0...v0.3.0) (2026-10-21)
+
+
+### Features
+
+* add Browser History page (History / Downloads / Cookies / Logins tabs) ([e7c1ea6](https://github.com/Ch4rybd3/Remora/commit/e7c1ea6f1b547633ad42dfea58c27713c3b53fff))
+* **audit:** declare what every mutating route records, and gate it ([9c144b5](https://github.com/Ch4rybd3/Remora/commit/9c144b5d4ae97bd7a5510e2c1bce1db50d6081a5))
+* **audit:** the last 27 routes that recorded nothing ([4197f0c](https://github.com/Ch4rybd3/Remora/commit/4197f0cb3b588b215c7120380c359a21e65a8552))
+* **cases:** act on several cases at once ([1525a68](https://github.com/Ch4rybd3/Remora/commit/1525a68913d7c08ede64d13e4e8772d314fc9c5f))
+* Cmd+K global search palette ([e5a9edf](https://github.com/Ch4rybd3/Remora/commit/e5a9edfebba14af99f4df135c00759dd39c0d069))
+* **disk-images:** register images against a case ([019bb6c](https://github.com/Ch4rybd3/Remora/commit/019bb6c1b0b74eac58d8f2035b842c5885108b8e))
+* **explorer:** apply an artifact's declared source timezone ([51a164e](https://github.com/Ch4rybd3/Remora/commit/51a164eba88227bacd44bbcaa60bb7d30bf735bf))
+* **explorer:** cross-artifact temporal correlation pivot ([498f4b2](https://github.com/Ch4rybd3/Remora/commit/498f4b204447f9e7f9fec778dfeb77f45a558f81))
+* **explorer:** highlight IOC watchlist matches in Artifact Explorer ([2ec7124](https://github.com/Ch4rybd3/Remora/commit/2ec7124313a443f3f76ae39037c70dc51bf0a95d))
+* **explorer:** pivot from a cell by right-clicking it ([c351093](https://github.com/Ch4rybd3/Remora/commit/c351093427f53a015d8b14bb9e3e92109c1005b1))
+* **ingest:** derive the parsing catalogue from the registries ([0b74b8c](https://github.com/Ch4rybd3/Remora/commit/0b74b8c83fbc2a67acf9a90f0f30f19e7c855fe3))
+* **notes:** live sync between floating panel and notes tab ([7894680](https://github.com/Ch4rybd3/Remora/commit/78946802f4c3d470f7c633d951ee20429b6ba1dd))
+* **pcap:** a map of who talked to whom ([067545c](https://github.com/Ch4rybd3/Remora/commit/067545c705af1e231dbcca3f4e53d1d8d80836b0))
+* **pivot:** resizable cross-artifact panel ([390d48b](https://github.com/Ch4rybd3/Remora/commit/390d48b6f64ee8c7baf8c834d12f5c1bd71f9cdd))
+* **process-tree:** build it from the Explorer's tables, ask it from a row ([9da748d](https://github.com/Ch4rybd3/Remora/commit/9da748d7a72d1477bdd977e3697987fccfad7645))
+* **report:** one registry for the template tag vocabulary ([e042f7c](https://github.com/Ch4rybd3/Remora/commit/e042f7c3f7186d5a976ac07e3eec56f7d170e356))
+* **report:** one shape for report content, and it is the sections ([072ee8f](https://github.com/Ch4rybd3/Remora/commit/072ee8f22c575b32f76c0e363701f4a75378c11a))
+* **report:** show the tags where they are chosen, and make them copyable ([67d18ed](https://github.com/Ch4rybd3/Remora/commit/67d18edb3c7e378645a06b467dc229962a68ef6d))
+* **report:** the exported document keeps its own design ([3d7b3ba](https://github.com/Ch4rybd3/Remora/commit/3d7b3ba00b92d7bee85f66aff966409a4e74c5e7))
+* **report:** the Report tab edits sections, not three boxes ([4adb0af](https://github.com/Ch4rybd3/Remora/commit/4adb0af0ac67ef5de658900bcab6e435851e978c))
+* **report:** the timeline as a figure, drawn against time ([d26cec3](https://github.com/Ch4rybd3/Remora/commit/d26cec3e028b4db79cace7b51b1718519cb3b163))
+* S26 — QoL features (IOC highlighting, Browser History, Cmd+K palette, temporal correlation) ([f4a65d4](https://github.com/Ch4rybd3/Remora/commit/f4a65d4192d5279386796beba7f73495509bbea9))
+* **s27:** resizable pivot sidebar, note sync, case content search ([ae2a88a](https://github.com/Ch4rybd3/Remora/commit/ae2a88a6cbbdce0fc7b26f63958bb751b5d0f1dd))
+* **s28:** custom roles with permission checkboxes ([96bc720](https://github.com/Ch4rybd3/Remora/commit/96bc720882a5be5869260aacfa396c7fa0ae27ce))
+* **s28:** custom roles with permission checkboxes ([96abe58](https://github.com/Ch4rybd3/Remora/commit/96abe580d3054b66ae0be1fa70bf10658103dae4))
+* **s29:** real-time collaborative editing for playbook and case notes ([825cf9e](https://github.com/Ch4rybd3/Remora/commit/825cf9ee5a20d0d837bc5e6654ce7499520701c3))
+* **s29:** real-time collaborative editing for playbook and case notes ([78f9a8c](https://github.com/Ch4rybd3/Remora/commit/78f9a8cbbd728b609600a7ed35da4e66eb33e4c7))
+* **s29:** real-time collaborative editing for playbook and case notes ([1a7c085](https://github.com/Ch4rybd3/Remora/commit/1a7c08580bdb3927adf7c144b39b1a39f3b4890e))
+* **search:** case content search across IOCs, assets, and timeline ([da12bb4](https://github.com/Ch4rybd3/Remora/commit/da12bb460e02ae1e63f4b1a5448b3dd203c6fb4a))
+* **store:** aggregate can total a column, not only count rows ([d3ef8dc](https://github.com/Ch4rybd3/Remora/commit/d3ef8dc58ee6999466cc0afd0c8ac5d5425b6005))
+* **timeline:** export events as CSV or JSON ([22490d4](https://github.com/Ch4rybd3/Remora/commit/22490d4dcb4cb204d5f246437ffee078ea0f24e2))
+* **topbar:** floating quick-notes panel for the current case ([edb2a91](https://github.com/Ch4rybd3/Remora/commit/edb2a91a83d147d3c5fb5476a219e8cae479418e))
+* **ui:** one artifact file list, with the name readable on hover ([ff15d89](https://github.com/Ch4rybd3/Remora/commit/ff15d89c0c2b6d730ce826d9db024d12c25681f9))
+* **users:** admin can reset another user's TOTP/MFA ([5c83de3](https://github.com/Ch4rybd3/Remora/commit/5c83de3c42735afba238753d6b5abc00ad2d0d96))
+
+
+### Bug Fixes
+
+* alembic migration — named FK constraint for batch_alter_table ([2abb03c](https://github.com/Ch4rybd3/Remora/commit/2abb03c7886fcf044423c564155e6e8de1f1e9d0))
+* **case:** complete the incident log actor field, in English ([02d6f50](https://github.com/Ch4rybd3/Remora/commit/02d6f504bcbf197816ff9758e1988e45e73eecc1))
+* CI failures — import order and design token violations ([209615f](https://github.com/Ch4rybd3/Remora/commit/209615f689cf9ef8906ef74cc8a4842617f0040a))
+* **ci:** remove unused qc var, sort browser import alphabetically ([5d36f68](https://github.com/Ch4rybd3/Remora/commit/5d36f6891d3747be15a971bdcb612c2392a5aacd))
+* coerce NULL mfa_enabled to False in UserRead schema ([ccbe635](https://github.com/Ch4rybd3/Remora/commit/ccbe635cfd437239437fad5dba3e4c7ce02c3661))
+* coerce NULL mfa_enabled to False in UserRead schema ([f590a4b](https://github.com/Ch4rybd3/Remora/commit/f590a4b85c735ee320ee08964589bf45437b4479))
+* **collab:** correct WebSocket URL and enable nginx upgrade proxying ([64926f4](https://github.com/Ch4rybd3/Remora/commit/64926f42705093bb0a19b2322edece680a22caec))
+* **collection:** timezone dropdown no longer clipped by table overflow ([a30b2e8](https://github.com/Ch4rybd3/Remora/commit/a30b2e8c2b839067e29a08431199435cc53a378b))
+* correct mypy errors in browser.py ([eade0ed](https://github.com/Ch4rybd3/Remora/commit/eade0ed61d5366f15fb16e039281a9dfc922a6a0))
+* **explorer:** keep the omnisearch alive when an artifact is unreadable ([99c6d43](https://github.com/Ch4rybd3/Remora/commit/99c6d43ac0a3f4604d2b243613cf856309ccbed1))
+* **explorer:** make the per-column filters match anything at all ([a37a665](https://github.com/Ch4rybd3/Remora/commit/a37a66517e6476c2b2f55221c68b1e5e22b65f67))
+* **i18n:** the accent gate was blind to every capital letter ([9943621](https://github.com/Ch4rybd3/Remora/commit/99436210fd0e270fc2a4727dcd349ad57222ee1c))
+* **i18n:** the last French still on screen ([0d7cff2](https://github.com/Ch4rybd3/Remora/commit/0d7cff2cf5baf4745ce44cf0231c5a5f180109a0))
+* **i18n:** translate remaining French strings to English ([5c83de3](https://github.com/Ch4rybd3/Remora/commit/5c83de3c42735afba238753d6b5abc00ad2d0d96))
+* **ingest:** identify mail, mailboxes and XML by content ([44b932b](https://github.com/Ch4rybd3/Remora/commit/44b932b343bfb1d18250cfc596912d8d38e33900))
+* **ingest:** stop promising a parser that cannot read an MSG ([f34d95b](https://github.com/Ch4rybd3/Remora/commit/f34d95b95fa9caebe26e62564cd6ef32045959c6))
+* mypy type errors in custom_roles router ([4848d13](https://github.com/Ch4rybd3/Remora/commit/4848d137ac19e8e411a0786a05be3077175e1bba))
+* **nginx:** restore API read timeout — 0 made every request 504 ([9333eb3](https://github.com/Ch4rybd3/Remora/commit/9333eb301728234ae0116efa0c37f8ae878aeb82))
+* register browser segment and mfa reset in security gates ([6070d23](https://github.com/Ch4rybd3/Remora/commit/6070d2394774b19ffa9e712378ec2127d7cd4dec))
+* resolve CI failures on ruff and vitest ([466ceaf](https://github.com/Ch4rybd3/Remora/commit/466ceafa418510c2bebfa18410c9ce34f5a26280))
+* ruff B010 — direct assignment with type ignore for Column datetime ([7b9fc00](https://github.com/Ch4rybd3/Remora/commit/7b9fc009eef6d05cdbfec4069333d0cc3d6c8d58))
+* **ruff:** split permissions imports onto separate lines (I001) ([20bec6b](https://github.com/Ch4rybd3/Remora/commit/20bec6b276cd7ee9b297a018b1f2bdf71cfbe932))
+* **s29:** migration server_default bytes -&gt; sa.text for LargeBinary column ([9854e74](https://github.com/Ch4rybd3/Remora/commit/9854e74e79196788a8bf81495185f1873bfe5a9a))
+* **s29:** mypy Column[T] assignment errors in collab_manager ([514b812](https://github.com/Ch4rybd3/Remora/commit/514b812e5d8e15400199dbe33026589c696b47d1))
+* **s29:** ruff I001/F401 and stale eslint-disable in collab files ([3c2d346](https://github.com/Ch4rybd3/Remora/commit/3c2d346c329ebcfa85bc7ee930b49b45283a06a4))
+* users list empty due to NULL mfa_enabled (Pydantic v2 coercion) ([b3df575](https://github.com/Ch4rybd3/Remora/commit/b3df575a9340b4d0ef30a39932c2ec1a121d5356))
+
+
+### Performance
+
+* **docker:** stop shipping the compiler with the product ([0a5c9b0](https://github.com/Ch4rybd3/Remora/commit/0a5c9b0598cc030b9e5e0931c743943871b57e91))
+
+
+### Refactoring
+
+* **logs:** drop the tables of the retired EVTX parse ([a587c9d](https://github.com/Ch4rybd3/Remora/commit/a587c9d9fcbf97b586f95f170379a4e9d60eb543))
+* **logs:** retire the second EVTX parse and its reader ([cc293f4](https://github.com/Ch4rybd3/Remora/commit/cc293f4d86919787046f31b76265710fa3d74379))
+* **vault:** remove the file store, and the word that named two things ([f85b42f](https://github.com/Ch4rybd3/Remora/commit/f85b42fa854b3f41152b08e016c1989f625f219d))
+
+
+### Documentation
+
+* **conventions:** one PR per sprint, one commit per concern ([9cce429](https://github.com/Ch4rybd3/Remora/commit/9cce429aeff2fc562b4f489e32fa2b97f3c10d41))
+
 ## [0.2.0](https://github.com/Ch4rybd3/Remora/compare/v0.1.0...v0.2.0) (2026-09-04)
 
 
