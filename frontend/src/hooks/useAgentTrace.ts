@@ -14,7 +14,7 @@ import type { AgentEvent } from '../types'
 
 /** Close codes the server uses for a refusal. Retrying cannot change them. */
 const FINAL_CLOSE_CODES = new Set([4401, 4403, 4404])
-const REFRESHING_KINDS = new Set(['status', 'message.agent', 'error'])
+const REFRESHING_KINDS = new Set(['status', 'message.agent', 'error', 'step', 'task', 'proposal'])
 
 export interface AgentTrace {
   events:    AgentEvent[]
@@ -61,6 +61,7 @@ export function useAgentTrace(caseId: string): AgentTrace {
         if (REFRESHING_KINDS.has(event.kind)) {
           qc.invalidateQueries({ queryKey: ['agents', caseId] })
           qc.invalidateQueries({ queryKey: ['agent-tasks', caseId] })
+          qc.invalidateQueries({ queryKey: ['agent-proposals', caseId] })
         }
       }
 

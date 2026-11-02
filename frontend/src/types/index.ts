@@ -112,7 +112,7 @@ export interface Evidence {
   created_at: string
 }
 
-export type TimelineOrigin = 'manual' | 'incident_log' | 'artifact' | 'ioc'
+export type TimelineOrigin = 'manual' | 'incident_log' | 'artifact' | 'ioc' | 'agent'
 
 export interface TimelineEvent {
   id: string
@@ -260,13 +260,47 @@ export interface AgentTask {
   tokens_in: number
   tokens_out: number
   error: string | null
+  kind: 'message' | 'assigned' | 'report' | 'help'
+  process_id: string | null
+  current_step: string | null
+  parent_task_id: string | null
+  depends_on: string[]
+  report: string | null
   created_at: string
   started_at: string | null
   finished_at: string | null
 }
 
+export interface AgentRole {
+  id: string
+  name: string
+  description: string
+  reports_to: string | null
+}
+
+export type AgentProposalKind = 'ioc' | 'timeline_event' | 'task'
+export type AgentProposalState = 'proposed' | 'accepted' | 'rejected'
+
+export interface AgentProposal {
+  id: string
+  case_id: string
+  agent_id: string
+  task_id: string | null
+  kind: AgentProposalKind
+  payload: Record<string, unknown>
+  rationale: string
+  evidence: string[]
+  state: AgentProposalState
+  decided_by: string | null
+  decided_at: string | null
+  decision_comment: string | null
+  result_id: string | null
+  created_at: string
+}
+
 export type AgentEventKind =
   | 'message.user' | 'message.agent' | 'thought' | 'tool.call' | 'tool.result' | 'status' | 'error'
+  | 'step' | 'task' | 'proposal'
 
 export interface AgentEvent {
   id: string

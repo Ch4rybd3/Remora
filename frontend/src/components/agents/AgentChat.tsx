@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Agent, AgentEvent, AgentTask } from '../../types'
 import { fmtDateTime } from '../../utils/dateUtils'
-import { AlertTriangle, Send, Square, Wrench } from '../../ui/icons'
+import { AlertTriangle, ClipboardCheck, Send, Square, Wrench } from '../../ui/icons'
 
 interface Props {
   agent:     Agent
@@ -11,6 +11,10 @@ interface Props {
   onSend:    (content: string) => void
   onCancel:  (task: AgentTask) => void
 }
+
+const CHAT_KINDS = new Set<AgentEvent['kind']>([
+  'message.user', 'message.agent', 'error', 'tool.call', 'step', 'proposal',
+])
 
 function text(event: AgentEvent, key = 'text'): string {
   const value = event.payload[key]
@@ -25,8 +29,7 @@ export default function AgentChat({ agent, events, openTask, sending, onSend, on
   const [draft, setDraft] = useState('')
   const bottom = useRef<HTMLDivElement>(null)
 
-  const lines = events.filter(e =>
-    e.kind === 'message.user' || e.kind === 'message.agent' || e.kind === 'error' || e.kind === 'tool.call')
+  const lines = events.filter(e => CHAT_KINDS.has(e.kind))
 
   useEffect(() => { bottom.current?.scrollIntoView({ block: 'end' }) }, [lines.length])
 
@@ -58,6 +61,22 @@ export default function AgentChat({ agent, events, openTask, sending, onSend, on
               <div key={event.id} className="flex items-center gap-2 text-label text-fg-muted">
                 <Wrench size={12} />
                 <span className="font-mono">{text(event, 'tool')}</span>
+              </div>
+            )
+          }
+          if (event.kind === 'step') {
+            return (
+              <div key={event.id} className="border-l-2 border-agent-thinking/40 pl-3 text-ui text-fg-secondary">
+                <span className="text-label font-mono text-agent-thinking">{text(event, 'step')} done</span>
+                <p className="whitespace-pre-wrap">{text(event, 'summary')}</p>
+              </div>
+            )
+          }
+          if (event.kind === 'proposal') {
+            return (
+              <div key={event.id} className="flex items-center gap-2 text-label text-agent-waiting">
+                <ClipboardCheck size={12} />
+                <span>{text(event, 'action')}: {text(event, 'summary')}</span>
               </div>
             )
           }

@@ -51,6 +51,7 @@ const ORIGIN_META: Record<TimelineOrigin, { label: string; cls: string }> = {
   incident_log: { label: 'Incident log', cls: 'bg-severity-low/10 text-severity-low border-severity-low/20' },
   artifact:     { label: 'Artifact',     cls: 'bg-accent/10 text-accent/80 border-accent/20' },
   ioc:          { label: 'IOC',          cls: 'bg-data-2/10 text-data-2 border-data-2/20' },
+  agent:        { label: 'Agent',        cls: 'bg-data-4/10 text-data-4 border-data-4/20' },
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import api from './client'
-import type { Agent, AgentEvent, AgentTask, LLMHealth } from '../types'
+import type { Agent, AgentEvent, AgentProposal, AgentProposalState, AgentRole, AgentTask, LLMHealth } from '../types'
 
 export const agentsApi = {
   list: (caseId: string) =>
@@ -20,6 +20,17 @@ export const agentsApi = {
     api.get<{ ok: boolean; events: number; broken_at_seq: number | null }>(
       `/cases/${caseId}/agents/events/verify`).then(r => r.data),
   health: () => api.get<LLMHealth>('/agents/llm/health').then(r => r.data),
+  roles: () => api.get<AgentRole[]>('/agents/roles').then(r => r.data),
+  staffTeam: (caseId: string) =>
+    api.post<Agent[]>(`/cases/${caseId}/agents/team`).then(r => r.data),
+  proposals: (caseId: string, state?: AgentProposalState) =>
+    api.get<AgentProposal[]>(`/cases/${caseId}/agents/proposals`, { params: { state } }).then(r => r.data),
+  accept: (caseId: string, proposalId: string, payload?: Record<string, unknown>, comment?: string) =>
+    api.post<AgentProposal>(`/cases/${caseId}/agents/proposals/${proposalId}/accept`,
+      { payload: payload ?? null, comment: comment ?? null }).then(r => r.data),
+  reject: (caseId: string, proposalId: string, comment?: string) =>
+    api.post<AgentProposal>(`/cases/${caseId}/agents/proposals/${proposalId}/reject`,
+      { comment: comment ?? null }).then(r => r.data),
 }
 
 export const featuresApi = {
