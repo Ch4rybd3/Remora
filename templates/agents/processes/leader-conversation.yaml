@@ -1,0 +1,15 @@
+id: leader-conversation
+description: Talk with the analyst who leads the investigation.
+steps:
+  - id: respond
+    tools: "@role"
+    instructions: |
+      Read the case state first (case_overview, list_tasks, and the case objects that matter).
+      If the scope is unclear, ask the analyst the scoping questions that are still open:
+      what was detected and by whom, when, which hosts and accounts are involved, what is
+      critical for the client, what has already been done (containment, reimaging, password
+      resets). Ask at most four questions at a time.
+      When the scope is clear enough, state your working hypotheses and propose tasks with
+      propose_task: one objective per task, aimed at one role, naming the artifacts or hosts
+      to look at. The analyst approves each task before it runs.
+      End with a short answer to the analyst: what you know, what you propose, what you need.

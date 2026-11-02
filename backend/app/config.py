@@ -174,8 +174,9 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://host.docker.internal:11434"
     # Needs native tool calling. The model is pulled on the host, not here.
     charybdis_default_model: str = "qwen3:8b"
-    # Model calls per task before the agent stops and says so.
-    charybdis_max_steps: int = 12
+    # Ceiling on model calls per task, over every role. Each role sets its own
+    # budget in templates/agents/roles/; this caps all of them.
+    charybdis_max_steps: int = 40
     # One model resident in 8 GB of VRAM serves every agent; more concurrent
     # requests only queue inside Ollama.
     charybdis_concurrency: int = 1

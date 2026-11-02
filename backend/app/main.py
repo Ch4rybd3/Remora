@@ -636,7 +636,17 @@ def _on_startup() -> None:
 async def _start_charybdis() -> None:
     if not settings.charybdis_enabled:
         return
+    from .services.charybdis.definitions import DefinitionError, definitions
     from .services.charybdis.runtime import supervisor
+    try:
+        loaded = definitions()
+    except DefinitionError as exc:
+        # An agent nobody can describe does not run. The routes stay up so the
+        # interface can say why nothing happens.
+        print(f"[charybdis] agent definitions are invalid, agents will not run: {exc}", flush=True)
+        return
+    print(f"[charybdis] {len(loaded.roles)} role(s), {len(loaded.processes)} process(es) loaded",
+          flush=True)
     await supervisor.start(settings.charybdis_concurrency)
 
 

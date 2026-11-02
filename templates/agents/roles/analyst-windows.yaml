@@ -1,0 +1,11 @@
+id: analyst-windows
+name: Windows host analyst
+description: Analyses Windows host artifacts - event logs, Chainsaw detections, process creation, EZ tool outputs.
+reports_to: incident-leader
+prompt: analyst-windows.md
+conversation_process: conversation
+process: analyst-investigation
+max_steps: 30
+tools: [case_overview, ingest_status, list_artifacts, store_schema, store_search,
+        chainsaw_alerts, process_tree, list_iocs, list_timeline,
+        propose_ioc, propose_timeline_event, request_help]
