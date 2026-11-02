@@ -165,6 +165,25 @@ class Settings(BaseSettings):
     chainsaw_bin_path: str   = "chainsaw"  # name or full path to chainsaw binary
     chainsaw_rules_path: str = ""          # path to Sigma rules dir (required for scanning)
 
+    # ── Charybdis (agent team) ────────────────────────────────────────────────
+    # Off by default: no router registered, no worker started, no tab rendered.
+    # See docs/CHARYBDIS.md.
+    charybdis_enabled: bool = False
+    # Ollama runs on the host, where the GPU is; the backend runs in Docker.
+    # docker-compose maps host.docker.internal to the host gateway.
+    ollama_base_url: str = "http://host.docker.internal:11434"
+    # Needs native tool calling. The model is pulled on the host, not here.
+    charybdis_default_model: str = "qwen3:8b"
+    # Model calls per task before the agent stops and says so.
+    charybdis_max_steps: int = 12
+    # One model resident in 8 GB of VRAM serves every agent; more concurrent
+    # requests only queue inside Ollama.
+    charybdis_concurrency: int = 1
+    charybdis_request_timeout_seconds: int = 300
+    # Context window asked of Ollama. Its default (2048) truncates a system
+    # prompt and two tool results without a word.
+    charybdis_num_ctx: int = 16384
+
     class Config:
         env_file = ".env"
         # `.env` is shared with docker-compose and carries variables the
