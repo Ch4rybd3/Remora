@@ -75,7 +75,7 @@ S30 FOUNDATIONS ── S31 LEADER & DELEGATION ── S32 FINDINGS & REVIEW ─�
 | C8 | **Timeline analyst**: chains events across sources, proposes key pins and attack-graph edges | Plus | S33 | C3 | Timeline, attack graph |
 | C9 | **Natural language → RQL**: the analyst asks in words, the agent shows the RQL it would run, the analyst runs or edits it | Plus | S33 | C1 | RQL parser |
 | C10 | **"Ask an agent" from anywhere**: on an Explorer row, a timeline event, an IOC → explain, pivot, assess | Plus | S33 | C1 | Explorer `SidePanel` |
-| C11 | **Ingestion triggers**: an artifact reaching `indexed` notifies the leader, which proposes the matching task | Plus | S33 | B2 | Ingest state machine |
+| C11 | **Evidence triggers**: new evidence (a table, an email, a memory dump, a binary) notifies the leader, which routes it from the case context | Plus | S33, reworked S34 | B2 | Explorer, email, memory and binary tables |
 | C12 | **Cross-case correlation**: IOCs and hashes seen in other cases, within the analyst's client scope | Plus | S35 | C3 | IOCs, client scoping |
 | C13 | **Beyond Windows** analysts (Linux, macOS, mobile) as the platform grows | Idea | — | C3 | `PLATFORMS.md` |
 
@@ -337,3 +337,57 @@ Known limits: the specialists are only as useful as what has been processed -
 a memory dump with no plugin run gives the memory analyst nothing to read.
 Drafting RQL was checked against a scripted model only; the reliability pass
 will measure it on qwen3:8b.
+
+---
+
+## 7. S34, part 1 — leader autonomy on new evidence
+
+Analyst feedback on S33: a CSV uploaded through the Explorer reached no one.
+This part fixes that and makes the leader route evidence from what the case
+says it is. The rest of S34 (providers and governance) follows.
+
+| Piece | Where |
+|---|---|
+| Evidence triggers watch what agents read - Explorer tables, emails, memory dumps, binaries - whatever button or folder they came through | `services/charybdis/triggers.py`, `agent_evidence_notices` (revision `a7e3c1d9f450`, replaces `agent_ingest_notices`) |
+| The announcement carries the case's title, type, severity, TLP, tags and description, and a suggested reader per item | `triggers.case_context`, `triggers.INSTRUCTIONS` |
+| Auto-start, per case: the leader's proposed tasks start without approval; the role is staffed if absent | `agent_instances.auto_start`, `delegation.auto_start`, Team tab |
+| Auto-start guards: a task starts on its own only if its role has something to read in the case, and at most three per leader run; the rest wait, with the reason | `delegation.auto_start_refusal` |
+| `list_evidence`: everything readable in the case with the id each tool takes, first in every analyst's process | `services/charybdis/tools.py`, processes |
+| Steps whose work is a tool call (`expects_tools`) remind a model that answered in text once | `definitions.StepDef`, `runtime.REMINDER` |
+
+Decisions taken while building it:
+
+- **The trigger watches outputs, not the ingestion log.** S33 watched
+  `ingested_files`, which only the drop folder writes. The Explorer, email,
+  memory and binary pages each have their own upload, and what matters to an
+  agent is that something readable appeared.
+- **The case decides the route; the file type only suggests it.** The
+  suggested reader comes from the file type; the leader reads it next to the
+  case description, so an email in a phishing case goes to the email analyst
+  first, and a role with nothing to read in the case gets no work.
+- **Auto-start is the analyst's choice, per case, for tasks only.** It relaxes
+  principle P1 for work that reads the case and proposes - nothing a task does
+  reaches the case without a decision. Findings, indicators, timeline events
+  and report text still wait. Each automatic start is recorded as accepted by
+  the leader "(auto-start)" and audited as `agent.proposal_auto_start` under
+  the analyst who staffed it.
+
+Checked against qwen3:8b on Docker (Ollama on the host), which is how these
+last three pieces came about:
+
+- `Parsed2.0.csv` uploaded through the Explorer reached the leader of a case
+  described as lateral movement and credential theft, which gave it to the
+  Windows analyst with those questions. `invoice.eml` in a case described as
+  phishing went to the email analyst first.
+- First run: the email analyst's first step only offered `ingest_status`,
+  which does not see page uploads, and it concluded the email was missing -
+  hence `list_evidence`. It also wrote "Proposed findings:" as text and
+  proposed nothing - hence the reminder. With auto-start on, the leader then
+  started five network tasks on a case with no network data - hence the
+  guards.
+- Second run: the network and timeline tasks waited for the analyst; the
+  email analyst read the email and proposed the two malicious domains as
+  indicators. Its findings were refused for citing tool names instead of
+  observation ids; the refusal now says how to record them. It also chose the
+  wrong technique (T1190 for a phishing link); the email prompt now names
+  T1566.002. Both belong to the reliability pass.
