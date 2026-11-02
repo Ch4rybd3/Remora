@@ -391,3 +391,36 @@ last three pieces came about:
   observation ids; the refusal now says how to record them. It also chose the
   wrong technique (T1190 for a phishing link); the email prompt now names
   T1566.002. Both belong to the reliability pass.
+
+---
+
+## 8. S34, part 2 — providers and governance
+
+Delivers G4, G5 (audited denials), G6 and G7. The evaluation bench (G9) and
+the items moved here from S33 follow.
+
+| Piece | Where |
+|---|---|
+| `agent_providers`: providers beside Ollama - Claude (official `anthropic` SDK) and any OpenAI-compatible server - with locality, default model and prices; API keys encrypted at rest like MFA secrets, never returned | `models/agent.py` (revision `b5d2e8f1a367`), `llm/anthropic_provider.py`, `llm/openai_compat.py`, `llm/gateway.py` |
+| A TLP refusal is audited as `agent.policy_denied`, from a task or from Draft query | `runtime._audit_denial`, `routers/agents.py` |
+| Cost per task (`agent_tasks.cost_usd`), per agent and per case (`GET /usage`), shown on the Team tab and the task board | `runtime._usage` |
+| Model per role (`agent_role_models`): what new agents of a role are staffed with; a provider per agent from the chat header | Agent models page, Team tab |
+| Agent models page (administrators): add, test, edit, disable, remove providers; model per role | `pages/AgentModels.tsx`, `/config/agents` |
+
+Decisions taken while building it:
+
+- **Locality is declared by the administrator.** The same OpenAI protocol
+  runs on the analyst's GPU (LM Studio, vLLM) and at a vendor; only the person
+  configuring it knows which, and the TLP policy is decided on that alone.
+- **Claude turns are replayed as received.** An assistant turn from Claude is
+  a list of content blocks, thinking included, which must come back unchanged;
+  `ChatResult.raw` carries them to the next request. Other providers ignore it.
+- **Refusals are handled, not hidden.** Claude requests use the server-side
+  refusal fallback (`fallbacks: "default"`), so a safety decline is re-run on a
+  model that serves it in the same call; a refusal that remains fails the task
+  with a message saying so.
+- **Cost is recorded per call, at the prices of that moment.** Changing a
+  provider's prices later does not rewrite what earlier work cost.
+- **A provider cannot be renamed** - agents refer to it by name. Removing one
+  is audited with the number of agents still on it, which then fail with a
+  message naming it; disabling keeps them listed.
