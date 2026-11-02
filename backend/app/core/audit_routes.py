@@ -113,6 +113,15 @@ ACTIONS: dict[tuple[str, str], str] = {
     ("POST",   "/api/v1/cases/{case_id}/emails/upload"):              "email.upload",
     ("DELETE", "/api/v1/cases/{case_id}/emails/{email_id}"):          "email.delete",
 
+    # ── Charybdis agents ─────────────────────────────────────────────────────
+    # The audit entry names the analyst. What the agent then did is in the
+    # case's agent trace, which is hash-chained (services/charybdis/events.py).
+    ("POST",   "/api/v1/cases/{case_id}/agents/"):                    "agent.create",
+    ("PATCH",  "/api/v1/cases/{case_id}/agents/{agent_id}"):          "agent.update",
+    ("POST",   "/api/v1/cases/{case_id}/agents/{agent_id}/messages"): "agent.message",
+    ("POST",   "/api/v1/cases/{case_id}/agents/{agent_id}/tasks/{task_id}/cancel"):
+        "agent.task_cancel",
+
     # ── Detection ────────────────────────────────────────────────────────────
     ("POST",   "/api/v1/chainsaw/{case_id}/files/{file_id}/scan"):    "chainsaw.scan",
     ("DELETE", "/api/v1/chainsaw/{case_id}/scans/{scan_id}"):         "chainsaw.delete_scan",
