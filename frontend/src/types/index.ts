@@ -230,3 +230,61 @@ export interface ClientDocument {
   uploaded_at: string
   uploaded_by: string | null
 }
+
+// ─── Charybdis agents ─────────────────────────────────────────────────────────
+
+export type AgentStatus = 'idle' | 'thinking' | 'tool' | 'waiting' | 'blocked' | 'error'
+
+export interface Agent {
+  id: string
+  case_id: string
+  role: string
+  name: string
+  provider: string
+  model: string
+  status: AgentStatus
+  launched_by: string
+  created_at: string
+  updated_at: string
+}
+
+export type AgentTaskStatus = 'pending' | 'running' | 'done' | 'failed' | 'cancelled'
+
+export interface AgentTask {
+  id: string
+  agent_id: string
+  objective: string
+  status: AgentTaskStatus
+  max_steps: number
+  steps_used: number
+  tokens_in: number
+  tokens_out: number
+  error: string | null
+  created_at: string
+  started_at: string | null
+  finished_at: string | null
+}
+
+export type AgentEventKind =
+  | 'message.user' | 'message.agent' | 'thought' | 'tool.call' | 'tool.result' | 'status' | 'error'
+
+export interface AgentEvent {
+  id: string
+  case_id: string
+  agent_id: string | null
+  task_id: string | null
+  seq: number
+  kind: AgentEventKind
+  payload: Record<string, unknown>
+  actor: string
+  hash: string
+  created_at: string
+}
+
+export interface LLMHealth {
+  provider: string
+  reachable: boolean
+  detail: string
+  default_model: string
+  models: { name: string; size_bytes: number }[]
+}

@@ -20,6 +20,7 @@ type TokenName =
   | '--severity-critical' | '--severity-high' | '--severity-medium' | '--severity-low' | '--severity-info'
   | '--status-open' | '--status-in-progress' | '--status-closed' | '--status-archived'
   | '--data-1' | '--data-2' | '--data-3' | '--data-4' | '--data-5' | '--data-6'
+  | '--agent-idle' | '--agent-thinking' | '--agent-tool' | '--agent-waiting' | '--agent-blocked' | '--agent-error'
 
 let cache = new Map<string, string>()
 let cachedTheme: string | null = null

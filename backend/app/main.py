@@ -22,6 +22,7 @@ from .config import settings
 from .core.deps import enforce_permissions, get_current_user
 from .database import Base, SessionLocal, engine
 from .db_migrate import run_migrations
+from .models import agent as _agent_models  # ensure tables are registered
 from .models import attack_graph as _ag_models  # ensure tables are registered
 from .models import audit as _audit_models  # ensure tables are registered
 from .models import binary as _binary_models  # ensure tables are registered
@@ -43,6 +44,7 @@ from .models import pcap_host as _pcap_host_models  # ensure tables are register
 from .models import report_doc_template as _rdt_models  # ensure tables are registered
 from .models import report_version as _rv_models  # ensure tables are registered
 from .models.user import User, UserRole
+from .routers import agents as agents_router
 from .routers import assets, auth, cases, evidences, iocs, reports, templates, timeline
 from .routers import attack_graph as attack_graph_router
 from .routers import audit as audit_router
@@ -586,6 +588,15 @@ app.include_router(browser_router.router,              prefix="/api/v1", **_auth
 app.include_router(rdp_cache_router.router,            prefix="/api/v1", **_auth)
 app.include_router(process_tree_router.router,         prefix="/api/v1", **_auth)
 app.include_router(backup_router.router,               prefix="/api/v1", **_auth)
+app.include_router(agents_router.features_router,      prefix="/api/v1", **_auth)
+
+# Charybdis is mounted only when enabled: off means the routes do not exist,
+# not that they answer 403. The socket checks its own access - see
+# `routers/agents.py: authorise_socket`.
+if settings.charybdis_enabled:
+    app.include_router(agents_router.router,           prefix="/api/v1", **_auth)
+    app.include_router(agents_router.catalog_router,   prefix="/api/v1", **_auth)
+    app.include_router(agents_router.socket_router,    prefix="/api/v1")
 
 
 def _start_provenance_backfill() -> None:
@@ -619,6 +630,22 @@ def _on_startup() -> None:
     # Watch the drop folder for artifacts dropped outside the browser.
     dropzone_router.start_poller()
     _start_provenance_backfill()
+
+
+@app.on_event("startup")
+async def _start_charybdis() -> None:
+    if not settings.charybdis_enabled:
+        return
+    from .services.charybdis.runtime import supervisor
+    await supervisor.start(settings.charybdis_concurrency)
+
+
+@app.on_event("shutdown")
+async def _stop_charybdis() -> None:
+    if not settings.charybdis_enabled:
+        return
+    from .services.charybdis.runtime import supervisor
+    await supervisor.stop()
 
 
 @app.get("/api/v1/health")

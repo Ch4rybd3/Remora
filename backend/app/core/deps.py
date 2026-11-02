@@ -56,7 +56,7 @@ def get_current_user(
     return user
 
 
-def _effective_grants(user: User) -> tuple[frozenset[str], str]:
+def effective_grants(user: User) -> tuple[frozenset[str], str]:
     """
     Effective permission set and display label for a user.
 
@@ -89,7 +89,7 @@ def enforce_permissions(
     its own second factor, and both of those are POSTs.
     """
     try:
-        granted, label = _effective_grants(user)
+        granted, label = effective_grants(user)
         permissions.enforce_grants(request, granted, label)
 
         # Almost every route carrying case data has the case id in its path, so
@@ -158,7 +158,7 @@ def _record_denial(
 
 def require_admin(user: User = Depends(get_current_user)) -> User:
     """Requires a role that administers users."""
-    granted, _ = _effective_grants(user)
+    granted, _ = effective_grants(user)
     if permissions.PERM_USERS not in granted:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin or owner role required")
     return user

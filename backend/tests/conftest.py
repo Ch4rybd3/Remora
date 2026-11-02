@@ -26,6 +26,11 @@ os.environ.update(
     PARSER_SANDBOX_USER="nobody",
     DEFAULT_ADMIN_PASSWORD="test-admin-password",
     CORS_ORIGINS="http://testserver",
+    # Mounted in tests so the route contracts (auth, scoping, audit) cover it.
+    # Nothing reaches a model: tests that run an agent install a fake
+    # provider, and the base URL points at a closed port.
+    CHARYBDIS_ENABLED="true",
+    OLLAMA_BASE_URL="http://127.0.0.1:9",
 )
 
 import pytest  # noqa: E402

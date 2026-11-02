@@ -1,0 +1,115 @@
+import { useEffect, useRef, useState } from 'react'
+import type { Agent, AgentEvent, AgentTask } from '../../types'
+import { fmtDateTime } from '../../utils/dateUtils'
+import { AlertTriangle, Send, Square, Wrench } from '../../ui/icons'
+
+interface Props {
+  agent:     Agent
+  events:    AgentEvent[]
+  openTask:  AgentTask | undefined
+  sending:   boolean
+  onSend:    (content: string) => void
+  onCancel:  (task: AgentTask) => void
+}
+
+function text(event: AgentEvent, key = 'text'): string {
+  const value = event.payload[key]
+  return typeof value === 'string' ? value : ''
+}
+
+/**
+ * The conversation with one agent. Agent text is rendered as plain text, never
+ * as HTML or Markdown: it quotes artifact content, which is attacker-controlled.
+ */
+export default function AgentChat({ agent, events, openTask, sending, onSend, onCancel }: Props) {
+  const [draft, setDraft] = useState('')
+  const bottom = useRef<HTMLDivElement>(null)
+
+  const lines = events.filter(e =>
+    e.kind === 'message.user' || e.kind === 'message.agent' || e.kind === 'error' || e.kind === 'tool.call')
+
+  useEffect(() => { bottom.current?.scrollIntoView({ block: 'end' }) }, [lines.length])
+
+  const busy = openTask !== undefined
+  const submit = () => {
+    const content = draft.trim()
+    if (!content || busy) return
+    onSend(content)
+    setDraft('')
+  }
+
+  return (
+    <div className="flex flex-col h-full min-w-0">
+      <div className="flex items-baseline gap-2 px-4 py-2 border-b border-hairline">
+        <h2 className="text-title font-semibold text-fg truncate">{agent.name}</h2>
+        <span className="text-label font-mono text-fg-muted">{agent.model}</span>
+      </div>
+
+      <div className="flex-1 overflow-auto px-4 py-3 space-y-3">
+        {lines.length === 0 && (
+          <p className="text-ui text-fg-muted">
+            Ask about the case. The agent reads its ingested artifacts with read-only tools,
+            and every step it takes appears in the trace.
+          </p>
+        )}
+        {lines.map(event => {
+          if (event.kind === 'tool.call') {
+            return (
+              <div key={event.id} className="flex items-center gap-2 text-label text-fg-muted">
+                <Wrench size={12} />
+                <span className="font-mono">{text(event, 'tool')}</span>
+              </div>
+            )
+          }
+          if (event.kind === 'error') {
+            return (
+              <div key={event.id} className="flex items-start gap-2 text-ui text-agent-error">
+                <AlertTriangle size={14} className="mt-1 shrink-0" />
+                <span className="whitespace-pre-wrap">{text(event, 'message')}</span>
+              </div>
+            )
+          }
+          const mine = event.kind === 'message.user'
+          return (
+            <div key={event.id} className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
+              <div className={`max-w-3xl px-3 py-2 border text-prose whitespace-pre-wrap break-words ${
+                mine ? 'border-accent/30 bg-accent/5 text-fg' : 'border-hairline bg-panel text-fg'}`}>
+                {text(event)}
+              </div>
+              <span className="text-label font-mono text-fg-muted mt-1">
+                {event.actor} · {fmtDateTime(event.created_at)}
+              </span>
+            </div>
+          )
+        })}
+        <div ref={bottom} />
+      </div>
+
+      <div className="border-t border-hairline p-3">
+        <div className="flex items-end gap-2">
+          <textarea
+            className="input flex-1 resize-none font-sans"
+            rows={2}
+            placeholder={busy ? 'The agent is working…' : 'Ask the agent (Enter to send, Shift+Enter for a new line)'}
+            value={draft}
+            disabled={busy}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() }
+            }}
+          />
+          {busy ? (
+            <button className="btn-secondary flex items-center gap-1" onClick={() => onCancel(openTask)}>
+              <Square size={14} /> Stop
+            </button>
+          ) : (
+            <button className="btn-primary flex items-center gap-1" onClick={submit}
+                    disabled={sending || !draft.trim()}>
+              <Send size={14} /> Send
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
