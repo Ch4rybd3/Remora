@@ -32,6 +32,14 @@ services:
       DISK_IMAGE_PATHS:         /app/data/images
       # Display-only: lets the UI show a copy-pasteable transfer command
       DISK_IMAGES_HOST_PATH:    ${DISK_IMAGES_HOST_PATH:-./images}
+      # Charybdis agent team (docs/CHARYBDIS.md). Off unless enabled in .env.
+      CHARYBDIS_ENABLED:        ${CHARYBDIS_ENABLED:-false}
+      OLLAMA_BASE_URL:          ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      CHARYBDIS_DEFAULT_MODEL:  ${CHARYBDIS_DEFAULT_MODEL:-qwen3:8b}
+    # Ollama runs on the host, where the GPU is. Docker Desktop resolves this
+    # name already; on Linux the mapping below is what makes it exist.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "python3", "-c",
              "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
