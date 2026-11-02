@@ -5,7 +5,9 @@ reports_to: incident-leader
 prompt: analyst-windows.md
 conversation_process: conversation
 process: analyst-investigation
-max_steps: 30
+assignable: true
+max_steps: 36
 tools: [case_overview, ingest_status, list_artifacts, store_schema, store_search,
-        chainsaw_alerts, process_tree, list_iocs, list_timeline,
-        propose_ioc, propose_timeline_event, request_help]
+        chainsaw_alerts, process_tree, list_iocs, list_timeline, list_findings,
+        record_observation, propose_finding, propose_ioc, propose_timeline_event,
+        propose_ttp, request_help]

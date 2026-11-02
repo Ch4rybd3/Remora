@@ -1,0 +1,22 @@
+id: report-drafting
+description: Draft report text from validated findings, each paragraph citing its findings.
+steps:
+  - id: gather
+    tools: [case_overview, report_outline, list_findings, read_finding]
+    instructions: |
+      Call report_outline, then list_findings with state "validated" and read each one.
+      Say which sections the validated findings can support. If there are no validated
+      findings, say so: nothing can be drafted yet.
+  - id: draft
+    tools: [read_finding, list_timeline, list_iocs, list_ttps, propose_report_section,
+            propose_executive_summary]
+    instructions: |
+      Propose the sections your task asks for (or those the findings support) with
+      propose_report_section, and the executive summary with propose_executive_summary when
+      asked. Write only what the validated findings state. End every paragraph with the
+      findings it rests on, e.g. [F2] or [F1][F3]. Do not add facts that are not in them.
+  - id: report
+    tools: []
+    instructions: |
+      List what you proposed, which findings each part rests on, and what the report still
+      lacks because no validated finding covers it.

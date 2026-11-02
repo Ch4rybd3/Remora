@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from datetime import UTC, datetime
 
 from fastapi import (
@@ -20,6 +21,7 @@ from fastapi import (
     HTTPException,
     Query,
     Request,
+    Response,
     WebSocket,
     WebSocketDisconnect,
     status,
@@ -31,35 +33,48 @@ from ..core import permissions, scoping
 from ..core.deps import _decode_token, effective_grants, get_current_user
 from ..database import SessionLocal, get_db
 from ..models.agent import (
+    EVENT_FINDING,
     EVENT_PROPOSAL,
     EVENT_STATUS,
     EVENT_USER_MESSAGE,
+    FINDING_OPEN,
+    FINDING_REJECTED,
+    FINDING_VALIDATED,
     PROPOSAL_ACCEPTED,
+    PROPOSAL_EXECUTIVE_SUMMARY,
     PROPOSAL_IOC,
     PROPOSAL_OPEN,
     PROPOSAL_REJECTED,
+    PROPOSAL_REPORT_SECTION,
     PROPOSAL_TASK,
     PROPOSAL_TIMELINE,
+    PROPOSAL_TTP,
     TASK_CANCELLED,
     TASK_KIND_ASSIGNED,
     TASK_KIND_MESSAGE,
     TASK_OPEN,
     AgentEvent,
+    AgentFinding,
     AgentInstance,
+    AgentObservation,
     AgentProposal,
     AgentTask,
 )
 from ..models.case import Case
+from ..models.csv_artifact import CsvArtifactFile
 from ..models.user import User
 from ..schemas.agent import (
     AgentCreate,
     AgentEventRead,
+    AgentFindingRead,
     AgentMessageCreate,
+    AgentObservationRead,
     AgentProposalRead,
     AgentRead,
     AgentTaskRead,
     AgentUpdate,
     ChainVerification,
+    FindingDecision,
     LLMHealth,
     ModelRead,
     ProposalDecision,
@@ -68,7 +83,7 @@ from ..schemas.agent import (
 )
 from ..services.audit_service import audit_log
 from ..services.charybdis import delegation, events
-from ..services.charybdis.definitions import DEFAULT_ROLE, LEADER_ROLE, definitions
+from ..services.charybdis.definitions import LEADER_ROLE, REVIEWER_ROLE, definitions
 from ..services.charybdis.llm import get_provider
 from ..services.charybdis.runtime import supervisor
 from ..services.charybdis.tools import TOOLS
@@ -219,6 +234,7 @@ def cancel_task(
               resource_type="agent_task", resource_id=task.id, resource_name=agent.name,
               case_id=case_id, case_title=str(case.title))
     db.commit()
+    delegation.close_review(db, task)
     db.refresh(task)
     events.record(db, case_id=case_id, agent_id=agent.id, task_id=task.id,
                   kind=EVENT_STATUS, payload={"status": "cancelled"},
@@ -263,10 +279,26 @@ def verify_events(case_id: str, db: Session = Depends(get_db)):
     return events.verify_chain(db, case_id)
 
 
+@router.get("/events/export")
+def export_events(case_id: str, db: Session = Depends(get_db)) -> Response:
+    """
+    The whole trace as JSON lines, with each event's hash and its predecessor's,
+    so the chain can be checked away from Remora.
+    """
+    case = _get_case(case_id, db)
+    rows = (db.query(AgentEvent).filter(AgentEvent.case_id == case_id)
+            .order_by(AgentEvent.seq).all())
+    body = "".join(json.dumps({**events.serialise(e), "prev_hash": e.prev_hash, "hash": e.hash},
+                              default=str) + "\n" for e in rows)
+    name = re.sub(r"[^A-Za-z0-9_-]+", "_", str(case.title or case_id))[:60]
+    return Response(content=body, media_type="application/x-ndjson",
+                    headers={"Content-Disposition": f'attachment; filename="agent-trace-{name}.jsonl"'})
+
+
 # ─── Team ─────────────────────────────────────────────────────────────────────
 
 #: Staffed by "default team". S33 lets a case template name its own.
-DEFAULT_TEAM = (LEADER_ROLE, "analyst-windows")
+DEFAULT_TEAM = (LEADER_ROLE, "analyst-windows", REVIEWER_ROLE, "reporter")
 
 
 @router.post("/team", response_model=list[AgentRead], status_code=status.HTTP_201_CREATED)
@@ -297,6 +329,12 @@ def _summary(kind: str, payload: dict) -> str:
         return f"IOC {payload.get('type')} {payload.get('value')}"
     if kind == PROPOSAL_TIMELINE:
         return f"{payload.get('event_ts')}Z {payload.get('title')}"
+    if kind == PROPOSAL_TTP:
+        return f"TTP {payload.get('technique_id')} {payload.get('technique_name') or ''}".strip()
+    if kind == PROPOSAL_REPORT_SECTION:
+        return f"Report section {payload.get('name') or payload.get('section')}"
+    if kind == PROPOSAL_EXECUTIVE_SUMMARY:
+        return "Executive summary"
     return f"{payload.get('role')}: {str(payload.get('objective', ''))[:120]}"
 
 
@@ -332,6 +370,21 @@ def list_proposals(
     return [_proposal_read(p) for p in query.order_by(AgentProposal.created_at.desc()).limit(500)]
 
 
+#: `[F3]` markers tie draft text to findings while it is reviewed. They are
+#: internal references, so they do not go into what the client reads.
+_CITATIONS = re.compile(r"[ \t]*(?:\[F\d+\])+")
+
+
+def _appended(existing: str | None, text: str) -> str:
+    """
+    Accepted report text goes after what is already written, never over it:
+    an agent's draft must not erase the analyst's own words.
+    """
+    clean = _CITATIONS.sub("", text).strip()
+    current = (existing or "").strip()
+    return f"{current}\n\n{clean}" if current else clean
+
+
 def _materialise(case_id: str, proposal: AgentProposal, data: dict, db: Session,
                  user: User) -> str:
     """
@@ -361,9 +414,33 @@ def _materialise(case_id: str, proposal: AgentProposal, data: dict, db: Session,
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=exc.errors()[0].get("msg", "Invalid proposal")) from exc
 
+    if proposal.kind == PROPOSAL_TTP:
+        from .mitre import TTPIn, add_ttp
+        created = add_ttp(case_id=case_id, db=db, current_user=user, body=TTPIn(
+            technique_id=str(data.get("technique_id", "")),
+            technique_name=data.get("technique_name") or None,
+            tactic=data.get("tactic") or None, comment=data.get("comment") or None))
+        return str(created.get("id", ""))
+    if proposal.kind == PROPOSAL_REPORT_SECTION:
+        from .reports import SaveReportPayload, save_report
+        sections = json.loads(str(_get_case(case_id, db).report_sections_data or "{}"))
+        slug = str(data.get("section", ""))
+        sections[slug] = _appended(sections.get(slug), str(data.get("text", "")))
+        version = save_report(case_id=case_id, payload=SaveReportPayload(sections_data=sections),
+                              db=db, current_user=user)
+        return str(version.id)
+    if proposal.kind == PROPOSAL_EXECUTIVE_SUMMARY:
+        from ..schemas.case import CaseUpdate
+        from .cases import update_case
+        current = _get_case(case_id, db)
+        update_case(case_id=case_id, db=db, current_user=user, payload=CaseUpdate(
+            executive_summary=_appended(str(current.executive_summary or ""),
+                                        str(data.get("text", "")))))
+        return case_id
+
     if proposal.kind == PROPOSAL_TASK:
         role = str(data.get("role", ""))
-        if role not in definitions().roles or role in (LEADER_ROLE, DEFAULT_ROLE):
+        if role not in definitions().roles or not definitions().roles[role].assignable:
             raise HTTPException(status_code=422, detail=f"Cannot assign a task to '{role}'")
         target = delegation.agent_for_role(db, case_id, role, str(user.username or ""))
         task = delegation.create_task(
@@ -441,6 +518,130 @@ def reject_proposal(
     _decide(case_id, proposal, db, current_user, PROPOSAL_REJECTED, decision.comment, None, summary)
     db.refresh(proposal)
     return _proposal_read(proposal)
+
+
+# ─── Findings ─────────────────────────────────────────────────────────────────
+
+def _observation_read(o: AgentObservation, available: set[str]) -> AgentObservationRead:
+    return AgentObservationRead(
+        id=o.id, case_id=o.case_id, agent_id=o.agent_id, task_id=o.task_id,
+        artifact_id=o.artifact_id, artifact_name=o.artifact_name, artifact_label=o.artifact_label,
+        locator=o.locator, row=json.loads(o.row or "{}"), note=o.note,
+        available=o.artifact_id in available, created_at=o.created_at)
+
+
+def _available_artifacts(db: Session, case_id: str) -> set[str]:
+    return {a for (a,) in db.query(CsvArtifactFile.id).filter(CsvArtifactFile.case_id == case_id)}
+
+
+def _finding_reads(db: Session, case_id: str, findings: list[AgentFinding]) -> list[AgentFindingRead]:
+    wanted = {o for f in findings for o in json.loads(f.observation_ids or "[]")}
+    available = _available_artifacts(db, case_id)
+    observations = {o.id: _observation_read(o, available) for o in
+                    db.query(AgentObservation).filter(AgentObservation.id.in_(wanted))}
+    return [AgentFindingRead(
+        id=f.id, case_id=f.case_id, agent_id=f.agent_id, task_id=f.task_id, ref=f.ref,
+        title=f.title, statement=f.statement, severity=f.severity, confidence=f.confidence,
+        confidence_reason=f.confidence_reason, attack_ids=json.loads(f.attack_ids or "[]"),
+        observations=[observations[o] for o in json.loads(f.observation_ids or "[]")
+                      if o in observations],
+        state=f.state, review_task_id=f.review_task_id, review_verdict=f.review_verdict,
+        review_comment=f.review_comment, review_alternatives=f.review_alternatives,
+        reviewed_by=f.reviewed_by, decided_by=f.decided_by, decided_at=f.decided_at,
+        decision_comment=f.decision_comment, created_at=f.created_at,
+    ) for f in findings]
+
+
+@router.get("/findings", response_model=list[AgentFindingRead])
+def list_findings(
+    case_id: str,
+    state: str | None = Query(None, description="in_review, proposed, validated or rejected"),
+    db: Session = Depends(get_db),
+):
+    _get_case(case_id, db)
+    query = db.query(AgentFinding).filter(AgentFinding.case_id == case_id)
+    if state:
+        query = query.filter(AgentFinding.state == state)
+    return _finding_reads(db, case_id, query.order_by(AgentFinding.ref).limit(500).all())
+
+
+@router.get("/observations/{observation_id}", response_model=AgentObservationRead)
+def get_observation(case_id: str, observation_id: str, db: Session = Depends(get_db)):
+    """One cited row. The Explorer opens it from a finding's citation."""
+    _get_case(case_id, db)
+    observation = db.get(AgentObservation, observation_id)
+    if observation is None or observation.case_id != case_id:
+        raise HTTPException(status_code=404, detail="Observation not found")
+    return _observation_read(observation, _available_artifacts(db, case_id))
+
+
+def _open_finding(case_id: str, finding_id: str, db: Session) -> AgentFinding:
+    finding = db.get(AgentFinding, finding_id)
+    if finding is None or finding.case_id != case_id:
+        raise HTTPException(status_code=404, detail="Finding not found")
+    # The analyst may decide before the reviewer has: the review informs the
+    # decision, it does not gate it.
+    if finding.state not in FINDING_OPEN:
+        raise HTTPException(status_code=409, detail=f"The finding is already {finding.state}")
+    return finding
+
+
+def _decide_finding(case_id: str, finding: AgentFinding, state: str,
+                    decision: FindingDecision, db: Session, user: User) -> AgentFindingRead:
+    """Apply the decision the caller has audited, and tell the author."""
+    finding.state = state
+    finding.decided_by = user.username or ""
+    finding.decided_at = datetime.now(UTC).replace(tzinfo=None)
+    finding.decision_comment = (decision.comment or "").strip() or None
+    db.commit()
+    events.record(db, case_id=case_id, agent_id=finding.agent_id, task_id=finding.task_id,
+                  kind=EVENT_FINDING,
+                  payload={"action": state, "finding_id": finding.id,
+                           "summary": f"F{finding.ref} {finding.title}",
+                           "comment": finding.decision_comment},
+                  actor=user.username or "")
+    db.refresh(finding)
+    return _finding_reads(db, case_id, [finding])[0]
+
+
+@router.post("/findings/{finding_id}/validate", response_model=AgentFindingRead)
+def validate_finding(
+    case_id: str,
+    finding_id: str,
+    decision: FindingDecision,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Validate. Only validated findings can be cited in the report."""
+    case = _get_case(case_id, db)
+    finding = _open_finding(case_id, finding_id, db)
+    audit_log(db, user=current_user, action="agent.finding_validate", request=request,
+              resource_type="agent_finding", resource_id=finding.id,
+              resource_name=f"F{finding.ref} {finding.title}", case_id=case_id,
+              case_title=str(case.title),
+              details={"severity": finding.severity, "review": finding.review_verdict})
+    return _decide_finding(case_id, finding, FINDING_VALIDATED, decision, db, current_user)
+
+
+@router.post("/findings/{finding_id}/reject", response_model=AgentFindingRead)
+def reject_finding(
+    case_id: str,
+    finding_id: str,
+    decision: FindingDecision,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Reject. The comment goes back to the agent that proposed it."""
+    case = _get_case(case_id, db)
+    finding = _open_finding(case_id, finding_id, db)
+    audit_log(db, user=current_user, action="agent.finding_reject", request=request,
+              resource_type="agent_finding", resource_id=finding.id,
+              resource_name=f"F{finding.ref} {finding.title}", case_id=case_id,
+              case_title=str(case.title),
+              details={"severity": finding.severity, "review": finding.review_verdict})
+    return _decide_finding(case_id, finding, FINDING_REJECTED, decision, db, current_user)
 
 
 # ─── Catalogue and provider health ────────────────────────────────────────────

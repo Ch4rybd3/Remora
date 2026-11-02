@@ -18,22 +18,27 @@ from sqlalchemy.orm import Session
 
 from ...config import settings
 from ...models.agent import (
+    EVENT_FINDING,
     EVENT_TASK,
+    FINDING_IN_REVIEW,
+    FINDING_PROPOSED,
     PROPOSAL_ACCEPTED,
     PROPOSAL_OPEN,
     TASK_KIND_ASSIGNED,
     TASK_KIND_HELP,
     TASK_KIND_MESSAGE,
     TASK_KIND_REPORT,
+    TASK_KIND_REVIEW,
     TASK_OPEN,
     TASK_PENDING,
     TASK_RUNNING,
+    AgentFinding,
     AgentInstance,
     AgentProposal,
     AgentTask,
 )
 from . import events
-from .definitions import LEADER_ROLE, definitions
+from .definitions import LEADER_ROLE, REVIEWER_ROLE, definitions
 
 #: A report handed to the leader is cut here. The full text stays on the
 #: analyst's task, where `read_task` reaches it.
@@ -173,3 +178,50 @@ def ask_leader_for_help(db: Session, task: AgentTask, need: str) -> AgentTask | 
                  f"{task.id}: {task.objective}\n\nWhat they need:\n{need}")
     return create_task(db, agent=leader, objective=objective, kind=TASK_KIND_HELP,
                        requested_by_id=task.requested_by_id, parent_task_id=task.id)
+
+
+def request_review(db: Session, finding: AgentFinding) -> AgentTask | None:
+    """
+    Hand a new finding to the case's reviewer. None if the case has none, in
+    which case the finding goes straight to the analyst.
+
+    Never staffed on demand: a second opinion the analyst did not ask for
+    would cost a model run per finding on hardware that has one GPU.
+    """
+    reviewer = (db.query(AgentInstance)
+                .filter(AgentInstance.case_id == finding.case_id,
+                        AgentInstance.role == REVIEWER_ROLE,
+                        AgentInstance.id != finding.agent_id)
+                .order_by(AgentInstance.created_at).first())
+    author_task = db.get(AgentTask, finding.task_id) if finding.task_id else None
+    if reviewer is None or author_task is None:
+        return None
+    objective = (f"Review finding F{finding.ref} ({finding.id}): {finding.title}\n\n"
+                 f"Claim:\n{finding.statement}")
+    task = create_task(db, agent=reviewer, objective=objective, kind=TASK_KIND_REVIEW,
+                       requested_by_id=author_task.requested_by_id, parent_task_id=author_task.id)
+    finding.state = FINDING_IN_REVIEW
+    finding.review_task_id = task.id
+    db.commit()
+    return task
+
+
+def close_review(db: Session, task: AgentTask) -> None:
+    """
+    A review task that ended without a verdict still hands the finding on.
+    A finding stuck in review would never reach the analyst.
+    """
+    if task.kind != TASK_KIND_REVIEW:
+        return
+    stuck = (db.query(AgentFinding)
+             .filter(AgentFinding.review_task_id == task.id,
+                     AgentFinding.state == FINDING_IN_REVIEW).all())
+    for finding in stuck:
+        finding.state = FINDING_PROPOSED
+        finding.review_comment = f"The reviewer ended without a verdict ({task.status})."
+    db.commit()
+    for finding in stuck:
+        events.record(db, case_id=finding.case_id, agent_id=finding.agent_id, task_id=task.id,
+                      kind=EVENT_FINDING,
+                      payload={"action": "review_missing", "finding_id": finding.id,
+                               "summary": f"F{finding.ref} {finding.title}"})

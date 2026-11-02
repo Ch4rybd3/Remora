@@ -2,7 +2,7 @@ id: analyst-investigation
 description: Work one assigned task from understanding to report.
 steps:
   - id: understand
-    tools: [case_overview, ingest_status, list_artifacts, list_iocs, list_timeline]
+    tools: [case_overview, ingest_status, list_artifacts, list_iocs, list_timeline, list_findings]
     instructions: |
       Restate the objective in one sentence. List the artifacts in this case that can answer
       it and the questions you will answer. Say plainly if the needed artifacts are missing.
@@ -14,17 +14,21 @@ steps:
   - id: execute
     tools: "@role"
     instructions: |
-      Run the plan. Prefer narrow RQL filters. After each result, note the facts it gives,
-      with the artifact and the identifying values (record id, timestamp, event id).
+      Run the plan. Prefer narrow RQL filters. Keep each row that establishes a fact you will
+      rely on with record_observation: an RQL filter that matches only that row (a record id,
+      or the exact timestamp plus the event id) and a note of what it shows.
       If you need work outside your speciality, use request_help instead of guessing.
   - id: propose
-    tools: [propose_ioc, propose_timeline_event, list_iocs, list_timeline]
+    tools: [record_observation, propose_finding, propose_ioc, propose_timeline_event, propose_ttp,
+            list_iocs, list_timeline, list_findings]
     instructions: |
-      Propose the indicators and the key timeline events your checks established. Each
-      proposal must cite the evidence it rests on. Do not propose what is already recorded.
-      Propose nothing that the data did not show.
+      Propose findings with propose_finding: one conclusion each, citing the observation ids
+      it rests on, with severity, confidence and the reason for that confidence. Then propose
+      the indicators, key timeline events and ATT&CK techniques the findings establish, citing
+      observation ids as evidence. Do not propose what is already recorded. Propose nothing
+      that the data did not show.
   - id: report
     tools: []
     instructions: |
-      Write the report for the Incident Leader: what you checked, what you found (with
-      citations), what you proposed, what remains unknown, and what you would check next.
+      Write the report for the Incident Leader: what you checked, the findings you proposed
+      (F numbers), what remains unknown, and what you would check next.
