@@ -15,8 +15,9 @@ downgrades alone (`docs/CHARYBDIS.md` section 1):
   store when recorded, so a citation never points at a row that is not there.
 * `agent_findings`     — a conclusion resting on observations, checked by a
   reviewer agent and validated or rejected by the analyst (S32).
-* `agent_ingest_notices` — which ingested files the Incident Leader has
-  already been told about, so a file triggers it once (S33).
+* `agent_evidence_notices` — which pieces of evidence (tables, emails, memory
+  dumps, binaries) the Incident Leader was told about, so each triggers it
+  once (S34; replaces S33's `agent_ingest_notices`).
 
 Written with `Mapped` annotations for the same reason as `models/ingest.py`:
 the mypy ratchet forbids adding modules to the exemption list.
@@ -26,7 +27,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..database import Base
@@ -149,6 +150,11 @@ class AgentInstance(Base):
     #: Who staffed it. Agents act on behalf of a person, never on their own
     #: authority (`docs/CHARYBDIS.md` section 3).
     launched_by: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+
+    #: Incident Leader only: the tasks it proposes start without waiting for
+    #: the analyst. Off by default, set per case by the analyst. Findings,
+    #: indicators and every other proposal still wait for a decision.
+    auto_start: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     created_at: Mapped[datetime] = mapped_column(default=_now)
     updated_at: Mapped[datetime] = mapped_column(default=_now, onupdate=_now)
@@ -368,21 +374,32 @@ class AgentFinding(Base):
     )
 
 
-class AgentIngestNotice(Base):
+#: Kinds of evidence the leader is told about: what agents can actually read.
+EVIDENCE_TABLE  = "table"
+EVIDENCE_EMAIL  = "email"
+EVIDENCE_MEMORY = "memory"
+EVIDENCE_BINARY = "binary"
+
+
+class AgentEvidenceNotice(Base):
     """
-    An ingested file the Incident Leader was told about, and the task that
-    told it. One row per file: a file announced once is not announced again,
-    whatever happens to the task.
+    A piece of evidence the Incident Leader was told about, and the task that
+    told it. One row per piece: announced once, whatever happens to the task.
     """
 
-    __tablename__ = "agent_ingest_notices"
+    __tablename__ = "agent_evidence_notices"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     case_id: Mapped[str] = mapped_column(
         String, ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True)
-    ingested_file_id: Mapped[str] = mapped_column(
-        String, ForeignKey("ingested_files.id", ondelete="CASCADE"), nullable=False, unique=True)
+    #: table, email, memory or binary; `source_id` is that row's id.
+    source_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    source_id:   Mapped[str] = mapped_column(String, nullable=False)
     task_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("agent_tasks.id", ondelete="SET NULL",
-                           name="fk_agent_ingest_notices_task_id"), nullable=True)
+                           name="fk_agent_evidence_notices_task_id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=_now)
+
+    __table_args__ = (
+        UniqueConstraint("source_kind", "source_id", name="uq_agent_evidence_notices_source"),
+    )
