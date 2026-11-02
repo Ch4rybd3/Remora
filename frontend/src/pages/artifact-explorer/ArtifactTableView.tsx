@@ -31,6 +31,7 @@ import {
 } from '../../ui/icons'
 import { color } from '../../styles/tokens'
 import { RQLBar } from './RQLBar'
+import { agentsApi, featuresApi } from '../../api/agents'
 import type { ColFilter, ColFilters, FilterMode, FlatItem, TabState } from './types'
 import Modal from '../../components/ui/Modal'
 import ProcessTreeView from '../../components/process-tree/ProcessTreeView'
@@ -437,6 +438,7 @@ export function ArtifactTableView({
   const [dragOverCol,    setDragOverCol]    = useState<string | null>(null)
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [localRql,       setLocalRql]       = useState(state.rql ?? '')
+  const { data: features } = useQuery({ queryKey: ['features'], queryFn: featuresApi.get, staleTime: Infinity })
   const [rqlError,       setRqlError]       = useState<string | null>(null)
   const [cellMenu,       setCellMenu]       = useState<CellTarget | null>(null)
   const [treeFocus,      setTreeFocus]      = useState<
@@ -827,6 +829,7 @@ export function ArtifactTableView({
         error={rqlError}
         columns={allCols}
         hasActiveFilters={activeColCount > 0 || !!state.filters.q}
+        onDraft={features?.charybdis ? question => agentsApi.rqlDraft(caseId, meta.id, question) : undefined}
       />
 
       {/* ── Group-by drop zone ──────────────────────────────────────────── */}

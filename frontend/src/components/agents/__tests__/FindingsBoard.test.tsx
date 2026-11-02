@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import FindingsBoard, { observationLink } from '../FindingsBoard'
-import type { Agent, AgentFinding } from '../../../types'
+import type { Agent, AgentFinding, AgentObservation } from '../../../types'
 
 const api = vi.hoisted(() => ({
   findings: vi.fn(),
@@ -19,8 +19,8 @@ const agent: Agent = {
   created_at: '2026-11-04T10:00:00Z', updated_at: '2026-11-04T10:00:00Z',
 }
 
-const observation = {
-  id: 'o1', case_id: 'c1', agent_id: 'a1', task_id: 't1', artifact_id: 'art1',
+const observation: AgentObservation = {
+  id: 'o1', case_id: 'c1', agent_id: 'a1', task_id: 't1', source_kind: 'artifact', artifact_id: 'art1',
   artifact_name: 'Security.csv', artifact_label: 'Event logs', locator: 'EventRecordId = 4512',
   row: { EventRecordId: '4512', LogonType: '10', IpAddress: '10.1.2.3' },
   note: 'RDP logon from 10.1.2.3', available: true, created_at: '2026-11-04T10:00:00Z',
@@ -69,5 +69,7 @@ describe('FindingsBoard', () => {
 
   it('links a citation to the Explorer by observation', () => {
     expect(observationLink(observation)).toBe('/artifacts/explorer?observation=o1')
+    // A memory line is not a table row: it opens the page that holds it.
+    expect(observationLink({ ...observation, source_kind: 'memory' })).toBe('/artifacts/memory')
   })
 })

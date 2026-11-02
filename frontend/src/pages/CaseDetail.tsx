@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { PageShell } from '../ui/PageShell'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Edit2, Save, X, Trash2 } from '../ui/icons'
 import { casesApi } from '../api/cases'
@@ -21,7 +21,7 @@ import AttackGraphTab from '../components/case/tabs/AttackGraphTab'
 import MitreTab from '../components/case/tabs/MitreTab'
 import CollectionImportTab from '../components/case/tabs/CollectionImportTab'
 import TeamTab from '../components/case/tabs/TeamTab'
-import { featuresApi } from '../api/agents'
+import { agentsApi, featuresApi } from '../api/agents'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import { fmtDateTimeShort } from '../utils/dateUtils'
 
@@ -48,7 +48,10 @@ export default function CaseDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const [activeTab, setActiveTab] = useState<Tab>('summary')
+  // `?tab=team` opens a tab directly: where "ask an agent" sends the analyst.
+  const [searchParams] = useSearchParams()
+  const [activeTab, setActiveTab] = useState<Tab>(
+    () => (searchParams.get('tab') === 'team' ? 'team' : 'summary'))
   const [editing, setEditing] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [editForm, setEditForm] = useState<Partial<Case>>({})
@@ -64,7 +67,22 @@ export default function CaseDetail() {
   const { setCurrentCase } = useCurrentCase()
 
   const { data: features } = useQuery({ queryKey: ['features'], queryFn: featuresApi.get, staleTime: Infinity })
-  const tabs = features?.charybdis ? [...TABS, TEAM_TAB] : TABS
+  // What waits on the analyst: proposals, findings, stopped agents. Polled as
+  // well as pushed, so it is right on a tab other than Team.
+  const { data: attention } = useQuery({
+    queryKey: ['agent-attention', id],
+    queryFn: () => agentsApi.attention(id!),
+    enabled: !!id && !!features?.charybdis,
+    refetchInterval: 30_000,
+  })
+  const waiting = attention ? attention.proposals + attention.findings + attention.blocked.length : 0
+  const teamTab = waiting
+    ? { ...TEAM_TAB, label: `Team (${waiting})`,
+        title: `${attention!.proposals} proposal(s), ${attention!.findings} finding(s) waiting`
+          + (attention!.blocked.length ? `; stopped: ${attention!.blocked.join(', ')}` : '') }
+    : TEAM_TAB
+  const tabs: { id: Tab; label: string; title?: string }[] =
+    features?.charybdis ? [...TABS, teamTab] : TABS
 
   const { data: case_, isLoading } = useQuery({
     queryKey: ['case', id],
@@ -180,6 +198,7 @@ export default function CaseDetail() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
+              title={tab.title}
               className={`px-3 py-2 text-ui whitespace-nowrap transition-colors ${
                 activeTab === tab.id ? 'tab-active' : 'tab-inactive'
               }`}

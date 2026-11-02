@@ -22,8 +22,19 @@ const STATE_LABEL: Record<AgentFinding['state'], string> = {
   rejected:  'Rejected',
 }
 
-/** The URL that opens a cited row in the Explorer, filtered to it, in the detail panel. */
+/** Pages holding sources that are not tables. They open on their list, not on the line. */
+const SOURCE_PAGE: Record<Exclude<AgentObservation['source_kind'], 'artifact'>, string> = {
+  memory: '/artifacts/memory',
+  email:  '/artifacts/email',
+  binary: '/artifacts/binary',
+}
+
+/**
+ * Where a citation opens: an Explorer row filtered to it, in the detail panel;
+ * for a memory line, an email part or a binary entry, the page that holds it.
+ */
 export function observationLink(o: AgentObservation): string {
+  if (o.source_kind && o.source_kind !== 'artifact') return SOURCE_PAGE[o.source_kind]
   return `/artifacts/explorer?observation=${encodeURIComponent(o.id)}`
 }
 
@@ -40,7 +51,7 @@ function Citation({ observation }: { observation: AgentObservation }) {
           <button className="btn-ghost ml-auto flex items-center gap-1 text-label"
                   title="Open this row in the Artifact Explorer"
                   onClick={() => navigate(observationLink(observation))}>
-            <ExternalLink size={12} /> Open row
+            <ExternalLink size={12} /> {observation.source_kind === 'artifact' ? 'Open row' : 'Open page'}
           </button>
         ) : (
           <span className="ml-auto text-label text-fg-muted"
