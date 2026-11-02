@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field, PlainSerializer
+from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, field_validator
 
 
 def _utc_iso(value: datetime) -> str:
@@ -57,9 +58,44 @@ class AgentTaskRead(BaseModel):
     tokens_in:   int
     tokens_out:  int
     error:       str | None
+    kind:           str
+    process_id:     str | None
+    current_step:   str | None
+    parent_task_id: str | None
+    depends_on:     list[str]
+    report:         str | None
     created_at:  UTCDateTime
     started_at:  UTCDateTime | None
     finished_at: UTCDateTime | None
+
+    @field_validator("depends_on", mode="before")
+    @classmethod
+    def _decode(cls, value: Any) -> Any:
+        # Stored as a JSON string on the row.
+        return json.loads(value or "[]") if isinstance(value, str) else value
+
+
+class AgentProposalRead(BaseModel):
+    id:               str
+    case_id:          str
+    agent_id:         str
+    task_id:          str | None
+    kind:             str
+    payload:          dict[str, Any]
+    rationale:        str
+    evidence:         list[str]
+    state:            str
+    decided_by:       str | None
+    decided_at:       UTCDateTime | None
+    decision_comment: str | None
+    result_id:        str | None
+    created_at:       UTCDateTime
+
+
+class ProposalDecision(BaseModel):
+    #: Fields replacing the proposal's own, when the analyst edits before accepting.
+    payload: dict[str, Any] | None = None
+    comment: str | None = Field(None, max_length=2000)
 
 
 class AgentEventRead(BaseModel):
@@ -85,6 +121,7 @@ class RoleRead(BaseModel):
     id:          str
     name:        str
     description: str
+    reports_to:  str | None = None
 
 
 class ToolRead(BaseModel):
