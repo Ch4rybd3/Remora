@@ -278,7 +278,52 @@ export interface AgentRole {
   reports_to: string | null
 }
 
-export type AgentProposalKind = 'ioc' | 'timeline_event' | 'task'
+export type AgentProposalKind =
+  | 'ioc' | 'timeline_event' | 'task' | 'ttp' | 'report_section' | 'executive_summary'
+
+export type AgentFindingState = 'in_review' | 'proposed' | 'validated' | 'rejected'
+
+/** One artifact row an agent cited, with the RQL that selects it. */
+export interface AgentObservation {
+  id: string
+  case_id: string
+  agent_id: string
+  task_id: string | null
+  artifact_id: string
+  artifact_name: string
+  artifact_label: string | null
+  locator: string
+  row: Record<string, string | null>
+  note: string
+  /** False once the table the row came from is no longer in the case. */
+  available: boolean
+  created_at: string
+}
+
+export interface AgentFinding {
+  id: string
+  case_id: string
+  agent_id: string
+  task_id: string | null
+  ref: number
+  title: string
+  statement: string
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'info'
+  confidence: 'low' | 'medium' | 'high'
+  confidence_reason: string
+  attack_ids: string[]
+  observations: AgentObservation[]
+  state: AgentFindingState
+  review_task_id: string | null
+  review_verdict: 'supported' | 'unsupported' | null
+  review_comment: string | null
+  review_alternatives: string | null
+  reviewed_by: string | null
+  decided_by: string | null
+  decided_at: string | null
+  decision_comment: string | null
+  created_at: string
+}
 export type AgentProposalState = 'proposed' | 'accepted' | 'rejected'
 
 export interface AgentProposal {
@@ -300,7 +345,7 @@ export interface AgentProposal {
 
 export type AgentEventKind =
   | 'message.user' | 'message.agent' | 'thought' | 'tool.call' | 'tool.result' | 'status' | 'error'
-  | 'step' | 'task' | 'proposal'
+  | 'step' | 'task' | 'proposal' | 'finding'
 
 export interface AgentEvent {
   id: string
