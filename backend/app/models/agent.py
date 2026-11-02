@@ -62,11 +62,31 @@ EVENT_TOOL_CALL     = "tool.call"
 EVENT_TOOL_RESULT   = "tool.result"
 EVENT_STATUS        = "status"
 EVENT_ERROR         = "error"
+EVENT_STEP          = "step"          # a process step entered or completed
+EVENT_TASK          = "task"          # a task created, assigned, reported
+EVENT_PROPOSAL      = "proposal"      # a proposal made or decided
 
 EVENT_KINDS = frozenset({
     EVENT_USER_MESSAGE, EVENT_AGENT_MESSAGE, EVENT_THOUGHT, EVENT_TOOL_CALL,
-    EVENT_TOOL_RESULT, EVENT_STATUS, EVENT_ERROR,
+    EVENT_TOOL_RESULT, EVENT_STATUS, EVENT_ERROR, EVENT_STEP, EVENT_TASK, EVENT_PROPOSAL,
 })
+
+#: Why a task exists. `message` is the analyst talking to an agent; `assigned`
+#: is work the analyst approved from a leader's proposal; `report` and `help`
+#: are what lands on the leader's desk when an analyst finishes or asks.
+TASK_KIND_MESSAGE  = "message"
+TASK_KIND_ASSIGNED = "assigned"
+TASK_KIND_REPORT   = "report"
+TASK_KIND_HELP     = "help"
+
+PROPOSAL_IOC      = "ioc"
+PROPOSAL_TIMELINE = "timeline_event"
+PROPOSAL_TASK     = "task"
+PROPOSAL_KINDS    = frozenset({PROPOSAL_IOC, PROPOSAL_TIMELINE, PROPOSAL_TASK})
+
+PROPOSAL_OPEN     = "proposed"
+PROPOSAL_ACCEPTED = "accepted"
+PROPOSAL_REJECTED = "rejected"
 
 
 class AgentInstance(Base):
@@ -121,6 +141,21 @@ class AgentTask(Base):
 
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, default=TASK_KIND_MESSAGE)
+    #: Process followed (`templates/agents/processes/`) and where it is in it.
+    process_id:   Mapped[str | None] = mapped_column(String(64), nullable=True)
+    current_step: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    #: The task this one was spawned from: a leader review points at the
+    #: analyst task it reviews, a delegated task at the leader task that
+    #: proposed it.
+    parent_task_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("agent_tasks.id", ondelete="SET NULL",
+                           name="fk_agent_tasks_parent_task_id"), nullable=True)
+    #: JSON list of task ids that must be done before this one starts.
+    depends_on: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    #: What the agent handed back when the task ended.
+    report: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     created_at:  Mapped[datetime]        = mapped_column(default=_now)
     started_at:  Mapped[datetime | None] = mapped_column(nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(nullable=True)
@@ -162,4 +197,45 @@ class AgentEvent(Base):
 
     __table_args__ = (
         Index("ix_agent_events_case_seq", "case_id", "seq", unique=True),
+    )
+
+
+class AgentProposal(Base):
+    """
+    Something an agent wants written into the case, waiting on the analyst.
+
+    Agents never write Remora objects (`docs/CHARYBDIS.md` principle P1).
+    Accepting a proposal calls the same handler the interface calls, so the
+    object it creates is indistinguishable from a hand-made one and is audited
+    as the analyst's action. `result_id` points at what was created.
+    """
+
+    __tablename__ = "agent_proposals"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    case_id: Mapped[str] = mapped_column(
+        String, ForeignKey("cases.id", ondelete="CASCADE"), nullable=False)
+    agent_id: Mapped[str] = mapped_column(
+        String, ForeignKey("agent_instances.id", ondelete="CASCADE"), nullable=False)
+    task_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("agent_tasks.id", ondelete="SET NULL",
+                           name="fk_agent_proposals_task_id"), nullable=True)
+
+    kind:      Mapped[str] = mapped_column(String(32), nullable=False)
+    #: JSON object shaped like the create request of the target kind.
+    payload:   Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    #: JSON list of citations: artifact, row, values the agent relied on.
+    evidence:  Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+
+    state:            Mapped[str]             = mapped_column(String(16), nullable=False, default=PROPOSAL_OPEN)
+    decided_by:       Mapped[str | None]      = mapped_column(String(255), nullable=True)
+    decided_at:       Mapped[datetime | None] = mapped_column(nullable=True)
+    decision_comment: Mapped[str | None]      = mapped_column(Text, nullable=True)
+    result_id:        Mapped[str | None]      = mapped_column(String, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+
+    __table_args__ = (
+        Index("ix_agent_proposals_case_state", "case_id", "state"),
     )
