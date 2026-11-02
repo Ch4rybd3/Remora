@@ -196,3 +196,49 @@ listen beyond loopback (`OLLAMA_HOST=0.0.0.0`) for the container to reach it.
 
 Out of S30 on purpose: YAML roles and processes, several roles, proposals,
 cloud providers, token streaming.
+
+---
+
+## 4. S31 — delivered
+
+Incident Leader and delegation. Delivers A4, A5, A6, A7 (step budget per
+role), B1, B2, B3, C2, E1, E2 and E3, plus the case-object read tools the S30
+trial showed were missing (the agent could count IOCs but not read them).
+
+| Piece | Where |
+|---|---|
+| Roles `assistant`, `incident-leader`, `analyst-windows`; processes `conversation`, `leader-conversation`, `leader-review`, `analyst-investigation`; prompts and shared rules | `templates/agents/` |
+| Loader that refuses unknown tools, missing processes or prompts, and step tools a role does not hold | `services/charybdis/definitions.py` |
+| Process engine: a step ends when the model answers without a tool call; its answer is the step summary, the last one is the task report; tools offered per step | `services/charybdis/runtime.py` |
+| Delegation through the leader: proposed tasks run once accepted, on the least busy agent of the role (staffed if absent); reports and help requests become leader tasks; dependencies on tasks and task proposals | `services/charybdis/delegation.py` |
+| Tools: `list_iocs`, `list_assets`, `list_timeline`, `list_incident_log`, `list_ttps`, `chainsaw_alerts`, `process_tree`, `list_tasks`, `read_task`, `propose_task`, `propose_ioc`, `propose_timeline_event`, `request_help`; `ingest_status` explains each state | `services/charybdis/tools.py` |
+| `agent_proposals`, and on `agent_tasks`: kind, process, step, parent, dependencies, report | `models/agent.py`, revision `d8b3f6a1c274` |
+| Inbox routes: list, accept (with edits), reject (with comment); default-team staffing | `routers/agents.py` |
+| Team tab: hierarchy, role picker, default team, Chat / Tasks / Proposals views; `Agent` origin badge on the timeline | `components/agents/`, `TeamTab.tsx` |
+
+Decisions taken while building it:
+
+- **The step boundary is a plain answer, not a `complete_step` tool.** Small
+  local models end a turn with text reliably; asking them to call a tool to
+  say they are done is one more thing to get wrong.
+- **Proposals need the analyst to be able to write.** An agent's grants are
+  `artifacts` if its analyst reads artifacts, plus `propose` if they can
+  write - a read-only account has nothing to approve with.
+- **Accepting calls the existing handlers** (`create_ioc`, `create_event`), so
+  validation and the `ioc.create` / `timeline.create` audit entries are those
+  of a hand-made object. Accepting and creating are two commits; a failure
+  between them leaves an IOC and an open proposal, never the reverse.
+- **A rejection's comment is fed back** to the proposing agent the next time
+  it works, as part of its history.
+- **Deduplication** refuses an IOC already in the case or already proposed,
+  and a timeline event with the same time and title.
+- **A message no longer waits for assigned work to be refused:** only an open
+  conversation blocks the chat; a message queues behind assigned tasks.
+- **`charybdis_max_steps` became a ceiling** (40) over the per-role budgets.
+- **The approval queue (G3) moves to the sprint that adds CTI lookups.** No
+  S31 tool has a side effect outside the module's own tables.
+
+Known limits, left for the reliability pass the analyst asked to defer:
+analyst answers depend heavily on the model (an 8B model misses things a
+human would not), and batch EZ parsing currently fails on output directory
+permissions, so some EVTX never reach the Explorer the analyst searches.

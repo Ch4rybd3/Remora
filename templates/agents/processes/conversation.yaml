@@ -1,0 +1,6 @@
+id: conversation
+description: Answer the analyst directly.
+steps:
+  - id: answer
+    tools: "@role"
+    instructions: Answer the analyst's message. Use your tools to ground every fact.

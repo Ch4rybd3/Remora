@@ -13,6 +13,9 @@ const KIND_LABEL: Record<AgentEventKind, string> = {
   'tool.result':   'tool result',
   'status':        'status',
   'error':         'error',
+  'step':          'step',
+  'task':          'task',
+  'proposal':      'proposal',
 }
 
 const KIND_TONE: Partial<Record<AgentEventKind, string>> = {
@@ -20,6 +23,8 @@ const KIND_TONE: Partial<Record<AgentEventKind, string>> = {
   'tool.result': 'text-agent-tool',
   'thought':     'text-fg-muted',
   'error':       'text-agent-error',
+  'step':        'text-agent-thinking',
+  'proposal':    'text-agent-waiting',
 }
 
 function summary(event: AgentEvent): string {
@@ -29,13 +34,16 @@ function summary(event: AgentEvent): string {
     case 'tool.result': return p.ok ? `${String(p.tool)} ok` : `${String(p.tool)}: ${String(p.error)}`
     case 'status':      return String(p.status)
     case 'error':       return String(p.message)
+    case 'step':        return `${String(p.step)} -> ${String(p.next)}`
+    case 'task':        return `${String(p.action)} ${String(p.task_kind)}: ${String(p.objective ?? '')}`
+    case 'proposal':    return `${String(p.action)} ${String(p.summary ?? '')}`
     default:            return String(p.text ?? '')
   }
 }
 
 function TraceRow({ event }: { event: AgentEvent }) {
   const [open, setOpen] = useState(false)
-  const expandable = event.kind === 'tool.result' || event.kind === 'thought' || event.kind === 'tool.call'
+  const expandable = event.kind !== 'status'
   return (
     <div className="border-b border-hairline px-3 py-2">
       <button

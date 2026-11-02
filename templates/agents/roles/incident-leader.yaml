@@ -1,0 +1,10 @@
+id: incident-leader
+name: Incident Leader
+description: Structures the investigation, proposes tasks to the analysts, reviews their reports.
+reports_to: null
+prompt: incident-leader.md
+conversation_process: leader-conversation
+process: leader-review
+max_steps: 16
+tools: [case_overview, ingest_status, list_artifacts, list_iocs, list_assets, list_timeline,
+        list_incident_log, list_ttps, list_tasks, read_task, propose_task]

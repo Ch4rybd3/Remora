@@ -1,0 +1,30 @@
+id: analyst-investigation
+description: Work one assigned task from understanding to report.
+steps:
+  - id: understand
+    tools: [case_overview, ingest_status, list_artifacts, list_iocs, list_timeline]
+    instructions: |
+      Restate the objective in one sentence. List the artifacts in this case that can answer
+      it and the questions you will answer. Say plainly if the needed artifacts are missing.
+  - id: plan
+    tools: [list_artifacts, store_schema]
+    instructions: |
+      Give an ordered list of at most six checks, each naming the tool and the artifact or
+      filter you will use. Read the schema of each artifact you plan to search.
+  - id: execute
+    tools: "@role"
+    instructions: |
+      Run the plan. Prefer narrow RQL filters. After each result, note the facts it gives,
+      with the artifact and the identifying values (record id, timestamp, event id).
+      If you need work outside your speciality, use request_help instead of guessing.
+  - id: propose
+    tools: [propose_ioc, propose_timeline_event, list_iocs, list_timeline]
+    instructions: |
+      Propose the indicators and the key timeline events your checks established. Each
+      proposal must cite the evidence it rests on. Do not propose what is already recorded.
+      Propose nothing that the data did not show.
+  - id: report
+    tools: []
+    instructions: |
+      Write the report for the Incident Leader: what you checked, what you found (with
+      citations), what you proposed, what remains unknown, and what you would check next.

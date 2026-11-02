@@ -1,0 +1,11 @@
+id: assistant
+name: Case assistant
+description: Answers questions about the case from its data. Read-only.
+reports_to: null
+prompt: assistant.md
+conversation_process: conversation
+process: conversation
+max_steps: 12
+tools: [case_overview, ingest_status, list_artifacts, store_schema, store_search,
+        list_iocs, list_assets, list_timeline, list_incident_log, list_ttps,
+        chainsaw_alerts, process_tree]

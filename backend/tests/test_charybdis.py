@@ -170,9 +170,21 @@ def test_an_unknown_event_kind_is_refused(db_session, case_id):
 
 # ─── Tools ────────────────────────────────────────────────────────────────────
 
-def test_agents_hold_artifact_read_access_and_nothing_else():
+def test_agents_read_artifacts_and_propose_and_nothing_else():
     from app.core.permissions import PERM_ARTIFACTS
-    assert AGENT_PERMISSIONS == frozenset({PERM_ARTIFACTS})
+    from app.services.charybdis.tools import PERM_PROPOSE
+    assert AGENT_PERMISSIONS == frozenset({PERM_ARTIFACTS, PERM_PROPOSE})
+
+
+@pytest.mark.parametrize(("role", "expected"), [
+    (UserRole.analyst,   {"artifacts", "propose"}),
+    (UserRole.read_only, {"artifacts"}),
+    (UserRole.executive, set()),
+])
+def test_an_agent_is_never_more_than_its_analyst(role, expected):
+    from app.core.permissions import permissions_for
+    from app.services.charybdis.tools import agent_grants
+    assert agent_grants(permissions_for(role)) == expected
 
 
 def test_an_agent_without_grants_is_offered_no_tools():
@@ -195,7 +207,7 @@ def test_case_overview_describes_the_case(db_session, case_id):
 
 
 @pytest.mark.parametrize(("name", "arguments", "message"), [
-    ("no_such_tool",  {},                       "Unknown tool"),
+    ("no_such_tool",  {},                       "not available"),
     ("ingest_status", {"limit": 0},             "Invalid arguments"),
     ("store_schema",  {},                       "Invalid arguments"),
     ("store_search",  {"artifact_id": "nope"},  "No artifact"),
