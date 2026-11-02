@@ -17,6 +17,8 @@ This file is an index. The authoritative rules live in `docs/`.
 | [docs/REPORT_TEMPLATES.md](docs/REPORT_TEMPLATES.md) | `{{ }}` tags available in DOCX and Markdown report templates. |
 | [docs/DESIGN_BRIEF.md](docs/DESIGN_BRIEF.md) | Design tokens, identity constraints, theme requirements. |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Sprint plan and locked architectural decisions. |
+| [docs/CHARYBDIS.md](docs/CHARYBDIS.md) | Agent team module (proposal): principles, agents as actors, runtime, LLM gateway, tools over Remora services. |
+| [docs/CHARYBDIS_FEATURES.md](docs/CHARYBDIS_FEATURES.md) | Charybdis feature catalogue and per-sprint arrival plan (S30+). |
 
 ## The five rules that are never relaxed
 
