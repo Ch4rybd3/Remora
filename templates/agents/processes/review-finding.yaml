@@ -10,6 +10,7 @@ steps:
       same rows (administration, a scheduled job, a security tool, a test).
       Answer with what each observation does and does not show.
   - id: verdict
+    expects_tools: true
     tools: [review_finding]
     instructions: |
       Call review_finding once. Verdict "supported" only if the observations show what the

@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 
 import pytest
 from test_charybdis import FakeProvider, _staff, fake_provider  # noqa: F401  (fixture)
-from test_charybdis_s31 import _say
+from test_charybdis_s31 import _say, _wait
 from test_charybdis_s32 import _context, artifact_id  # noqa: F401  (fixture)
 
 from app.models.case import Case
@@ -31,11 +31,23 @@ def test_the_specialists_load_and_can_be_assigned():
 
 
 # ─── Triggers ─────────────────────────────────────────────────────────────────
+# Evidence is watched where agents read it (S34), not in the ingestion log:
+# a CSV uploaded straight into the Explorer never makes an ingested_files row.
 
-def _ingested(db_session, case_id, name, state="indexed", created=None):
-    from app.models.ingest import IngestedFile
-    row = IngestedFile(case_id=case_id, original_name=name, state=state, detected_kind="evtx",
-                       created_at=created or datetime.utcnow())
+def _table(db_session, case_id, name, uploaded=None):
+    from app.models.csv_artifact import CsvArtifactFile
+    row = CsvArtifactFile(case_id=case_id, original_name=name, file_path=f"/x/{name}",
+                          columns='["EventId"]', row_count=10, ez_label="Event logs",
+                          uploaded_at=uploaded or datetime.utcnow())
+    db_session.add(row)
+    db_session.commit()
+    return row
+
+
+def _email(db_session, case_id, name):
+    from app.models.email_file import EmailFile
+    row = EmailFile(case_id=case_id, filename=name, warning_count=2,
+                    analysis=json.dumps({"subject": "Your invoice"}))
     db_session.add(row)
     db_session.commit()
     return row
@@ -50,33 +62,80 @@ def _triggers(db_session, case_id):
 def test_new_evidence_is_announced_to_the_leader_once(db_session, case_id, auth_client):
     from app.services.charybdis.triggers import announce
 
-    _ingested(db_session, case_id, "before-the-team.evtx",
-              created=datetime.utcnow() - timedelta(days=1))
+    _table(db_session, case_id, "before-the-team.csv", uploaded=datetime.utcnow() - timedelta(days=1))
     team = {a["role"]: a for a in auth_client.post(f"/api/v1/cases/{case_id}/agents/team").json()}
-    _ingested(db_session, case_id, "Security.evtx")
-    _ingested(db_session, case_id, "still-hashing.evtx", state="hashed")
+    _table(db_session, case_id, "Parsed2.0.csv")
 
     announce(db_session)
     [task] = _triggers(db_session, case_id)
     assert task.agent_id == team["incident-leader"]["id"]
-    assert "Security.evtx" in task.objective
-    assert "before-the-team" not in task.objective and "still-hashing" not in task.objective
+    assert "Parsed2.0.csv" in task.objective and "suggested reader: analyst-windows" in task.objective
+    assert "before-the-team" not in task.objective
 
     assert task.id not in announce(db_session)
-    # A second file joins the announcement still waiting, rather than a second run.
-    _ingested(db_session, case_id, "System.evtx")
+    # Later evidence joins the announcement still waiting, rather than a second run.
+    _email(db_session, case_id, "invoice.eml")
     assert task.id in announce(db_session)
     db_session.refresh(task)
-    assert "System.evtx" in task.objective
+    assert "[email] invoice.eml" in task.objective and "analyst-email" in task.objective
     assert len(_triggers(db_session, case_id)) == 1
+
+
+def test_the_announcement_carries_the_case_context(db_session, case_id, auth_client):
+    from app.services.charybdis.triggers import announce
+
+    case = db_session.get(Case, case_id)
+    case.description = "Spear-phishing campaign: a user opened a fake invoice."
+    case.tags = "phishing"
+    db_session.commit()
+    auth_client.post(f"/api/v1/cases/{case_id}/agents/team")
+    _email(db_session, case_id, "invoice.eml")
+    announce(db_session)
+    [task] = _triggers(db_session, case_id)
+    assert "Spear-phishing campaign" in task.objective and "tags: phishing" in task.objective
+    assert "an email in a phishing case goes to analyst-email first" in task.objective
 
 
 def test_a_case_without_a_leader_is_not_watched(db_session, case_id, auth_client):
     from app.services.charybdis.triggers import announce
     _staff(auth_client, case_id)
-    _ingested(db_session, case_id, "Security.evtx")
+    _table(db_session, case_id, "Security.csv")
     announce(db_session)
     assert _triggers(db_session, case_id) == []
+
+
+def test_auto_start_runs_the_leaders_tasks_without_approval(db_session, case_id, auth_client):
+    from app.models.agent import AgentTask
+    from app.services.charybdis.tools import ToolContext as Ctx
+
+    team = {a["role"]: a for a in auth_client.post(f"/api/v1/cases/{case_id}/agents/team").json()}
+    leader = team["incident-leader"]
+    _email(db_session, case_id, "invoice.eml")
+    refused = auth_client.patch(f"/api/v1/cases/{case_id}/agents/{team['reviewer']['id']}",
+                                json={"auto_start": True})
+    assert refused.status_code == 422
+    args = {"role": "analyst-email", "objective": "Analyse invoice.eml: sender, links, attachment",
+            "rationale": "Phishing case: the email is the entry point"}
+
+    ctx = _context(db_session, case_id, leader["id"])
+    off = run_tool(ctx, "propose_task", args)
+    assert off["state"] == "proposed"
+
+    turned_on = auth_client.patch(f"/api/v1/cases/{case_id}/agents/{leader['id']}",
+                                  json={"auto_start": True})
+    assert turned_on.status_code == 200 and turned_on.json()["auto_start"] is True
+    db_session.expire_all()
+    ctx = Ctx(db_session, db_session.get(Case, case_id), AGENT_PERMISSIONS,
+              agent_id=leader["id"], task_id=ctx.task_id, actor="Incident Leader")
+    on = run_tool(ctx, "propose_task", {**args, "objective": args["objective"] + " and its URLs"})
+    assert on["state"] == "accepted"
+    task = db_session.get(AgentTask, on["task_id"])
+    # The email analyst was not on the team: it is staffed for the task.
+    agents = {a["role"] for a in auth_client.get(f"/api/v1/cases/{case_id}/agents/").json()}
+    assert "analyst-email" in agents and task.kind == "assigned"
+    proposal = next(p for p in auth_client.get(f"/api/v1/cases/{case_id}/agents/proposals").json()
+                    if p["id"] == on["proposal_id"])
+    assert proposal["decided_by"] == "Incident Leader (auto-start)"
 
 
 # ─── Specialist tools ─────────────────────────────────────────────────────────
@@ -235,3 +294,71 @@ def test_a_question_becomes_rql_that_compiles(auth_client, case_id, artifact_id,
     refused = auth_client.post(f"/api/v1/cases/{case_id}/agents/rql-draft",
                                json={"artifact_id": artifact_id, "question": "RDP logons"})
     assert refused.status_code == 422
+
+
+def test_list_evidence_shows_what_page_uploads_put_in_the_case(db_session, case_id):
+    _table(db_session, case_id, "Parsed2.0.csv")
+    _email(db_session, case_id, "invoice.eml")
+    ctx = ToolContext(db_session, db_session.get(Case, case_id), AGENT_PERMISSIONS)
+    rows = run_tool(ctx, "list_evidence", {})["rows"]
+    assert {(r["kind"], r["name"], r["read_by"]) for r in rows} == {
+        ("table", "Parsed2.0.csv", "analyst-windows"), ("email", "invoice.eml", "analyst-email")}
+    assert [r["kind"] for r in run_tool(ctx, "list_evidence", {"kind": "email"})["rows"]] == ["email"]
+    # The ingestion log knows none of it: these came through their pages' own upload.
+    assert run_tool(ctx, "ingest_status", {})["total"] == 0
+
+
+def test_auto_start_holds_back_work_with_nothing_to_read(db_session, case_id, auth_client):
+    team = {a["role"]: a for a in auth_client.post(f"/api/v1/cases/{case_id}/agents/team").json()}
+    leader = team["incident-leader"]
+    auth_client.patch(f"/api/v1/cases/{case_id}/agents/{leader['id']}", json={"auto_start": True})
+    db_session.expire_all()
+    ctx = _context(db_session, case_id, leader["id"])
+    held = run_tool(ctx, "propose_task", {"role": "analyst-network",
+                                          "objective": "Resolve where the phishing link leads",
+                                          "rationale": "Scope the campaign"})
+    assert held["state"] == "proposed"
+    assert "nothing analyst-network can read" in held["note"]
+
+    _email(db_session, case_id, "invoice.eml")
+    started = [run_tool(ctx, "propose_task", {"role": "analyst-email",
+                                              "objective": f"Check email part number {i} closely",
+                                              "rationale": "r"})["state"] for i in range(4)]
+    # Three starts per leader run; the fourth waits for the analyst.
+    assert started == ["accepted", "accepted", "accepted", "proposed"]
+
+
+def test_a_step_done_through_tools_reminds_an_answer_in_text(db_session, case_id, auth_client,
+                                                             fake_provider):  # noqa: F811
+    from app.models.agent import AgentTask
+    from app.services.charybdis.delegation import create_task
+    from app.services.charybdis.runtime import REMINDER
+
+    provider = FakeProvider([
+        _say("Objective understood."), _say("Plan: one check."), _say("Found an RDP logon."),
+        _say("Proposed findings: F1 RDP logon from 10.1.2.3."),   # text only: reminded
+        _say("Nothing to propose."), _say("REPORT: done."),
+    ])
+    set_provider("ollama", provider)
+    from app.models.agent import AgentInstance
+    from app.models.user import User
+    analyst = AgentInstance(case_id=case_id, role="analyst-windows", name="Windows host analyst",
+                            provider="ollama", model="m", launched_by="admin")
+    db_session.add(analyst)
+    db_session.commit()
+    admin = db_session.query(User).filter(User.username == "admin").one()
+    task = create_task(db_session, agent=analyst, objective="Look for RDP", kind="assigned",
+                       requested_by_id=str(admin.id))
+    from app.services.charybdis.runtime import supervisor
+    supervisor.enqueue(task.id)
+
+    def finished():
+        db_session.expire_all()
+        t = db_session.get(AgentTask, task.id)
+        return t if t.status in ("done", "failed") else None
+
+    done = _wait(finished)
+    assert done.status == "done" and done.report == "REPORT: done."
+    reminders = [m for call in provider.calls for m in call
+                 if m.role == "user" and m.content.startswith(REMINDER[:40])]
+    assert reminders, "the propose step should have reminded the model to call its tools"

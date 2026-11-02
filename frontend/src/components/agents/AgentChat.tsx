@@ -10,6 +10,8 @@ interface Props {
   sending:   boolean
   onSend:    (content: string) => void
   onCancel:  (task: AgentTask) => void
+  /** Incident Leader only: start the tasks it proposes without approval. */
+  onAutoStart?: (on: boolean) => void
 }
 
 const CHAT_KINDS = new Set<AgentEvent['kind']>([
@@ -25,7 +27,7 @@ function text(event: AgentEvent, key = 'text'): string {
  * The conversation with one agent. Agent text is rendered as plain text, never
  * as HTML or Markdown: it quotes artifact content, which is attacker-controlled.
  */
-export default function AgentChat({ agent, events, openTask, sending, onSend, onCancel }: Props) {
+export default function AgentChat({ agent, events, openTask, sending, onSend, onCancel, onAutoStart }: Props) {
   const [draft, setDraft] = useState('')
   const bottom = useRef<HTMLDivElement>(null)
 
@@ -46,6 +48,14 @@ export default function AgentChat({ agent, events, openTask, sending, onSend, on
       <div className="flex items-baseline gap-2 px-4 py-2 border-b border-hairline">
         <h2 className="text-title font-semibold text-fg truncate">{agent.name}</h2>
         <span className="text-label font-mono text-fg-muted">{agent.model}</span>
+        {onAutoStart && (
+          <label className="ml-auto flex items-center gap-2 text-label text-fg-secondary"
+                 title="The tasks this leader proposes start at once, without waiting for your approval. Findings, indicators and report text still wait for you.">
+            <input type="checkbox" checked={agent.auto_start}
+                   onChange={e => onAutoStart(e.target.checked)} />
+            Auto-start its tasks
+          </label>
+        )}
       </div>
 
       <div className="flex-1 overflow-auto px-4 py-3 space-y-3">

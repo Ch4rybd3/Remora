@@ -6,7 +6,7 @@ import type { Agent, AgentEvent, AgentStatus, AgentTask } from '../../../types'
 
 const agent: Agent = {
   id: 'a1', case_id: 'c1', role: 'assistant', name: 'Case assistant', provider: 'ollama',
-  model: 'qwen3:8b', status: 'idle', launched_by: 'admin',
+  model: 'qwen3:8b', status: 'idle', launched_by: 'admin', auto_start: false,
   created_at: '2026-11-02T10:00:00Z', updated_at: '2026-11-02T10:00:00Z',
 }
 
@@ -19,6 +19,17 @@ function event(seq: number, kind: AgentEvent['kind'], payload: Record<string, un
 }
 
 describe('AgentChat', () => {
+  it('offers auto-start only where the tab passes it, and reports the change', () => {
+    const onAutoStart = vi.fn()
+    const { rerender } = render(<AgentChat agent={agent} openTask={undefined} sending={false}
+                                           onSend={vi.fn()} onCancel={vi.fn()} events={[]} />)
+    expect(screen.queryByLabelText(/auto-start/i)).toBeNull()
+    rerender(<AgentChat agent={{ ...agent, role: 'incident-leader' }} openTask={undefined} sending={false}
+                        onSend={vi.fn()} onCancel={vi.fn()} events={[]} onAutoStart={onAutoStart} />)
+    fireEvent.click(screen.getByLabelText(/auto-start/i))
+    expect(onAutoStart).toHaveBeenCalledWith(true)
+  })
+
   it('renders agent text as text, never as markup', () => {
     render(<AgentChat agent={agent} openTask={undefined} sending={false}
                       onSend={vi.fn()} onCancel={vi.fn()}

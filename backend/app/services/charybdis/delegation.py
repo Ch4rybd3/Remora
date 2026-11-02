@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from ...config import settings
 from ...models.agent import (
     EVENT_FINDING,
+    EVENT_PROPOSAL,
     EVENT_TASK,
     FINDING_IN_REVIEW,
     FINDING_PROPOSED,
@@ -225,3 +226,102 @@ def close_review(db: Session, task: AgentTask) -> None:
                       kind=EVENT_FINDING,
                       payload={"action": "review_missing", "finding_id": finding.id,
                                "summary": f"F{finding.ref} {finding.title}"})
+
+
+def task_from_proposal(db: Session, proposal: AgentProposal, objective: str, role: str,
+                       depends_on: list[str], requested_by_id: str,
+                       launched_by: str) -> AgentTask:
+    """The task an accepted task proposal becomes, on the least busy agent of its role."""
+    target = agent_for_role(db, proposal.case_id, role, launched_by)
+    return create_task(db, agent=target, objective=objective, kind=TASK_KIND_ASSIGNED,
+                       requested_by_id=requested_by_id, parent_task_id=proposal.task_id,
+                       depends_on=depends_on)
+
+
+#: Tasks one leader run may start on its own. More wait for the analyst: a
+#: leader reviewing reports can otherwise chain follow-ups without end.
+MAX_AUTO_STARTS_PER_RUN = 3
+
+
+def _has_material(db: Session, case_id: str, role: str) -> bool:
+    """Whether the case holds anything the role can read."""
+    from ...models.agent import FINDING_VALIDATED, AgentFinding
+    from ...models.timeline import TimelineEvent
+    from .triggers import collect
+
+    evidence = collect(db, case_id)
+    readers = {e.reader for e in evidence}
+    kinds = {e.kind for e in evidence}
+    if role == "analyst-timeline":
+        return "table" in kinds or db.query(TimelineEvent).filter(
+            TimelineEvent.case_id == case_id).first() is not None
+    if role == "analyst-windows":
+        return "table" in kinds
+    if role == "reporter":
+        return db.query(AgentFinding).filter(AgentFinding.case_id == case_id,
+                                             AgentFinding.state == FINDING_VALIDATED).first() is not None
+    if role == "scribe":
+        return True
+    return role in readers
+
+
+def auto_start_refusal(db: Session, proposal: AgentProposal) -> str | None:
+    """Why a proposed task should wait for the analyst despite auto-start. None: start it."""
+    data = json.loads(proposal.payload or "{}")
+    role = str(data.get("role", ""))
+    if not _has_material(db, proposal.case_id, role):
+        return f"the case holds nothing {role} can read yet"
+    started = (db.query(AgentProposal)
+               .filter(AgentProposal.case_id == proposal.case_id,
+                       AgentProposal.task_id == proposal.task_id,
+                       AgentProposal.decided_by.like("%(auto-start)")).count())
+    if started >= MAX_AUTO_STARTS_PER_RUN:
+        return f"this run already started {started} tasks on its own"
+    return None
+
+
+def auto_start(db: Session, proposal: AgentProposal) -> tuple[AgentTask | None, str | None]:
+    """
+    Start a task the leader proposed, without waiting, when the analyst turned
+    auto-start on for this case's leader. Returns the task, or why it waits:
+    no reason when auto-start is off, one when a guard held it back.
+
+    Only tasks: they read the case and propose, nothing they do reaches the
+    case without a decision. The proposal is recorded as accepted by the
+    leader on the analyst's standing instruction, and audited under the
+    analyst who staffed it.
+    """
+    from datetime import UTC, datetime
+
+    from ...models.user import User
+    from ..audit_service import audit_log
+
+    leader = db.get(AgentInstance, proposal.agent_id)
+    if leader is None or leader.role != LEADER_ROLE or not leader.auto_start:
+        return None, None
+    user = db.query(User).filter(User.username == leader.launched_by).first()
+    if user is None or not user.is_active:
+        return None, "the account that staffed the leader is no longer active"
+    refusal = auto_start_refusal(db, proposal)
+    if refusal:
+        return None, refusal
+    data = json.loads(proposal.payload or "{}")
+    task = task_from_proposal(db, proposal, str(data.get("objective", "")), str(data.get("role", "")),
+                              [str(d) for d in data.get("depends_on") or []], str(user.id),
+                              str(leader.launched_by))
+    proposal.state = PROPOSAL_ACCEPTED
+    proposal.decided_by = f"{leader.name} (auto-start)"
+    proposal.decided_at = datetime.now(UTC).replace(tzinfo=None)
+    proposal.result_id = task.id
+    audit_log(db, user=user, action="agent.proposal_auto_start", resource_type="agent_proposal",
+              resource_id=proposal.id, resource_name=f"{data.get('role')}: {str(data.get('objective', ''))[:120]}",
+              case_id=proposal.case_id, details={"task_id": task.id, "role": data.get("role")})
+    db.commit()
+    events.record(db, case_id=proposal.case_id, agent_id=proposal.agent_id, task_id=proposal.task_id,
+                  kind=EVENT_PROPOSAL,
+                  payload={"action": "accepted", "proposal_id": proposal.id, "proposal_kind": "task",
+                           "summary": f"{data.get('role')}: {str(data.get('objective', ''))[:120]}",
+                           "comment": "Started without approval: auto-start is on for this case.",
+                           "result_id": task.id},
+                  actor=leader.name)
+    return task, None

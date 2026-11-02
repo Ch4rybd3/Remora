@@ -33,6 +33,10 @@ class StepDef(BaseModel):
     id:           str = Field(..., pattern=r"^[a-z][a-z0-9_-]*$")
     instructions: str
     tools:        list[str] | Literal["@role"] = "@role"
+    #: The step's work is its tool calls (proposing, giving a verdict). An
+    #: answer in text alone gets one reminder before the step ends: small
+    #: models write "Proposed findings:" and never call the tool.
+    expects_tools: bool = False
 
 
 class ProcessDef(BaseModel):
