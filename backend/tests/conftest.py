@@ -31,6 +31,9 @@ os.environ.update(
     # provider, and the base URL points at a closed port.
     CHARYBDIS_ENABLED="true",
     OLLAMA_BASE_URL="http://127.0.0.1:9",
+    # Triggers are exercised by calling them; a poll in the background would
+    # start leader runs in the middle of unrelated tests.
+    CHARYBDIS_TRIGGER_INTERVAL_SECONDS="0",
 )
 
 import pytest  # noqa: E402

@@ -133,6 +133,9 @@ ACTIONS: dict[tuple[str, str], str] = {
         "agent.finding_validate",
     ("POST",   "/api/v1/cases/{case_id}/agents/findings/{finding_id}/reject"):
         "agent.finding_reject",
+    ("POST",   "/api/v1/cases/{case_id}/agents/ask"):                 "agent.ask",
+    # Sends the table's columns and a few rows to the model.
+    ("POST",   "/api/v1/cases/{case_id}/agents/rql-draft"):           "agent.rql_draft",
 
     # ── Detection ────────────────────────────────────────────────────────────
     ("POST",   "/api/v1/chainsaw/{case_id}/files/{file_id}/scan"):    "chainsaw.scan",

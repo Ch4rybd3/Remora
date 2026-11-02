@@ -97,6 +97,8 @@ class AgentObservationRead(BaseModel):
     case_id:        str
     agent_id:       str
     task_id:        str | None
+    #: artifact (an Explorer table), memory, email or binary.
+    source_kind:    str
     artifact_id:    str
     artifact_name:  str
     artifact_label: str | None
@@ -131,6 +133,42 @@ class AgentFindingRead(BaseModel):
     decided_at:          UTCDateTime | None
     decision_comment:    str | None
     created_at:          UTCDateTime
+
+
+class Attention(BaseModel):
+    """What waits on the analyst in a case's Team tab."""
+    proposals: int
+    findings:  int
+    #: Agents stopped on a budget, a refused provider or an error.
+    blocked:   list[str]
+
+    @property
+    def total(self) -> int:
+        return self.proposals + self.findings + len(self.blocked)
+
+
+class AskAgent(BaseModel):
+    question: str = Field(..., min_length=1, max_length=4000)
+    #: What the question is about, e.g. "Explorer row of Security.csv".
+    about:    str = Field("", max_length=255)
+    #: The object itself, quoted to the agent as data.
+    context:  dict[str, Any] = Field(default_factory=dict)
+
+
+class AskAgentResult(BaseModel):
+    agent_id:   str
+    agent_name: str
+    task_id:    str
+
+
+class RqlDraftRequest(BaseModel):
+    artifact_id: str
+    question:    str = Field(..., min_length=3, max_length=1000)
+
+
+class RqlDraftRead(BaseModel):
+    rql:         str
+    explanation: str
 
 
 class FindingDecision(BaseModel):

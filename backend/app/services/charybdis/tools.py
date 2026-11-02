@@ -32,12 +32,16 @@ from ...models.agent import (
     FINDING_PROPOSED,
     FINDING_VALIDATED,
     PROPOSAL_EXECUTIVE_SUMMARY,
+    PROPOSAL_INCIDENT_LOG,
     PROPOSAL_IOC,
     PROPOSAL_OPEN,
     PROPOSAL_REPORT_SECTION,
     PROPOSAL_TASK,
     PROPOSAL_TIMELINE,
     PROPOSAL_TTP,
+    SOURCE_BINARY,
+    SOURCE_EMAIL,
+    SOURCE_MEMORY,
     VERDICT_SUPPORTED,
     VERDICT_UNSUPPORTED,
     AgentFinding,
@@ -799,7 +803,7 @@ def _read_finding(ctx: ToolContext, args: ReadFindingArgs) -> dict[str, Any]:
     f = _find(ctx, args.finding)
     ids = json.loads(f.observation_ids or "[]")
     observations = [
-        {"observation_id": o.id, "artifact_id": o.artifact_id, "artifact": o.artifact_name,
+        {"observation_id": o.id, "source": o.source_kind, "artifact_id": o.artifact_id, "artifact": o.artifact_name,
          "locator": o.locator, "note": o.note,
          "row": {c: _cell(v) for c, v in json.loads(o.row or "{}").items()}}
         for o in ctx.db.query(AgentObservation).filter(AgentObservation.id.in_(ids))
@@ -953,6 +957,316 @@ def _propose_ttp(ctx: ToolContext, args: ProposeTtpArgs) -> dict[str, Any]:
                     f"TTP {technique} {args.technique_name}".strip())
 
 
+# ─── Aggregation ──────────────────────────────────────────────────────────────
+
+class StoreAggregateArgs(BaseModel):
+    artifact_id: str = Field(..., description="Id from list_artifacts")
+    group_by: list[str] = Field(..., min_length=1, max_length=3,
+                                description="Columns to count by, e.g. [DestinationIp, DestinationPort]")
+    rql: str | None = Field(None, description="RQL filter applied before counting")
+    limit: int = Field(30, ge=1, le=100)
+    least_first: bool = Field(False, description="Rarest combinations first: useful to spot the odd one")
+
+
+def _store_aggregate(ctx: ToolContext, args: StoreAggregateArgs) -> dict[str, Any]:
+    """Counts per value: top talkers, rare processes, beacon candidates."""
+    from ..rql_parser import RQLSyntaxError
+
+    artifact = _artifact(ctx, args.artifact_id)
+    columns: list[str] = json.loads(str(artifact.columns or "[]"))
+    unknown = [c for c in args.group_by if c not in columns]
+    if unknown:
+        raise ToolError(f"Unknown columns {unknown}. Call store_schema for the column list.")
+    try:
+        groups = get_store().aggregate(_source(artifact), columns, Query(rql=args.rql or None),
+                                       args.group_by)
+    except RQLSyntaxError as exc:
+        raise ToolError(str(exc)) from exc
+    except SourceMissing as exc:
+        raise ToolError("The artifact's file is no longer on disk.") from exc
+    ordered = sorted(groups, key=lambda g: g.count, reverse=not args.least_first)
+    rows = [{**{k: _cell(v) for k, v in g.values.items()}, "count": g.count}
+            for g in ordered[: args.limit]]
+    return fit({"artifact_id": artifact.id, "groups": len(groups), "rows": rows})
+
+
+# ─── Memory, email, binaries ──────────────────────────────────────────────────
+
+#: Lines of a Volatility plugin's text output handed back at most.
+MAX_PLUGIN_LINES = 120
+
+
+def _bounded(value: Any, depth: int = 0) -> Any:
+    """A JSON value cut down: long strings, long lists and deep nesting."""
+    if isinstance(value, str):
+        return value if len(value) <= 2000 else value[:2000] + "…"
+    if isinstance(value, list):
+        return [_bounded(v, depth + 1) for v in value[:60]] + (["…"] if len(value) > 60 else [])
+    if isinstance(value, dict):
+        if depth > 4:
+            return "…"
+        return {k: _bounded(v, depth + 1) for k, v in value.items()}
+    return value
+
+
+def _dump(ctx: ToolContext, dump_id: str) -> Any:
+    from ...models.memory import MemoryDump
+
+    dump = ctx.db.get(MemoryDump, dump_id)
+    if dump is None or dump.case_id != ctx.case.id:
+        raise ToolError(f"No memory dump '{dump_id}' in this case. Call list_memory_dumps.")
+    return dump
+
+
+def _list_memory_dumps(ctx: ToolContext, args: ListArgs) -> dict[str, Any]:
+    from ...models.memory import MemoryDump, MemoryPluginResult
+
+    dumps = (ctx.db.query(MemoryDump).filter(MemoryDump.case_id == ctx.case.id)
+             .order_by(MemoryDump.uploaded_at).limit(args.limit).all())
+    rows = []
+    for d in dumps:
+        plugins = (ctx.db.query(MemoryPluginResult.plugin_name, MemoryPluginResult.status)
+                   .filter(MemoryPluginResult.dump_id == d.id).all())
+        rows.append({"dump_id": d.id, "filename": d.filename, "os": d.os_type, "status": d.status,
+                     "plugins": [{"plugin": name, "status": status} for name, status in plugins]})
+    note = None if rows else "No memory dump in this case."
+    return fit({"total": len(rows), "note": note, "rows": rows})
+
+
+def _plugin_lines(ctx: ToolContext, dump_id: str, plugin: str) -> list[str]:
+    from ...models.memory import MemoryPluginResult
+
+    dump = _dump(ctx, dump_id)
+    result = (ctx.db.query(MemoryPluginResult)
+              .filter(MemoryPluginResult.dump_id == dump.id,
+                      MemoryPluginResult.plugin_name == plugin)
+              .order_by(MemoryPluginResult.id.desc()).first())
+    if result is None or result.status != "done" or not result.output:
+        state = result.status if result is not None else "not run"
+        raise ToolError(f"{plugin} is {state} on this dump. Plugins are run by the analyst from "
+                        "the Memory page; ask for it in your report if you need it.")
+    return str(result.output).splitlines()
+
+
+class MemoryOutputArgs(BaseModel):
+    dump_id: str = Field(..., description="Id from list_memory_dumps")
+    plugin: str = Field(..., description="Plugin name, e.g. windows.pslist, windows.netscan, windows.malfind")
+    contains: str | None = Field(None, description="Only lines containing this text (case-insensitive)")
+    limit: int = Field(60, ge=1, le=MAX_PLUGIN_LINES)
+
+
+def _memory_output(ctx: ToolContext, args: MemoryOutputArgs) -> dict[str, Any]:
+    lines = _plugin_lines(ctx, args.dump_id, args.plugin.strip())
+    header = [line for line in lines[:4] if line.strip()]
+    body = lines[len(lines[:4]):]
+    if args.contains:
+        needle = args.contains.lower()
+        body = [line for line in body if needle in line.lower()]
+    return fit({"plugin": args.plugin, "header": header, "matching": len(body),
+                "rows": [_cell(line) for line in body[: args.limit]]})
+
+
+def _email(ctx: ToolContext, email_id: str) -> Any:
+    from ...models.email_file import EmailFile
+
+    email = ctx.db.get(EmailFile, email_id)
+    if email is None or email.case_id != ctx.case.id:
+        raise ToolError(f"No email '{email_id}' in this case. Call list_emails.")
+    return email
+
+
+def _list_emails(ctx: ToolContext, args: ListArgs) -> dict[str, Any]:
+    from ...models.email_file import EmailFile
+
+    rows = []
+    for e in (ctx.db.query(EmailFile).filter(EmailFile.case_id == ctx.case.id)
+              .order_by(EmailFile.uploaded_at).limit(args.limit)):
+        analysis = json.loads(str(e.analysis or "{}"))
+        rows.append({"email_id": e.id, "filename": e.filename, "subject": analysis.get("subject"),
+                     "from": analysis.get("from_addr"), "date": analysis.get("date"),
+                     "warnings": e.warning_count})
+    return fit({"total": len(rows), "rows": rows})
+
+
+EMAIL_PARTS = ("summary", "key_headers", "all_headers", "urls", "attachments", "warnings",
+               "body_plain", "body_html")
+
+
+class ReadEmailArgs(BaseModel):
+    email_id: str = Field(..., description="Id from list_emails")
+    part: str = Field("summary", description="One of: " + ", ".join(EMAIL_PARTS))
+
+
+def _read_email(ctx: ToolContext, args: ReadEmailArgs) -> dict[str, Any]:
+    if args.part not in EMAIL_PARTS:
+        raise ToolError(f"part must be one of: {', '.join(EMAIL_PARTS)}")
+    email = _email(ctx, args.email_id)
+    analysis = json.loads(str(email.analysis or "{}"))
+    if args.part == "summary":
+        keep = ("subject", "from_addr", "to_addr", "reply_to", "return_path", "date")
+        return {"email_id": email.id, "filename": email.filename,
+                **{k: analysis.get(k) for k in keep},
+                "urls": len(analysis.get("urls") or []),
+                "attachments": [a.get("filename") for a in analysis.get("attachments") or []
+                                if isinstance(a, dict)],
+                "warnings": _bounded(analysis.get("warnings") or [])}
+    return {"email_id": email.id, "part": args.part, "content": _bounded(analysis.get(args.part))}
+
+
+def _binary(ctx: ToolContext, binary_id: str) -> Any:
+    from ...models.binary import BinaryFile
+
+    binary = ctx.db.get(BinaryFile, binary_id)
+    if binary is None or binary.case_id != ctx.case.id:
+        raise ToolError(f"No binary '{binary_id}' in this case. Call list_binaries.")
+    if binary.status != "ready" or not binary.analysis_json:
+        raise ToolError(f"The analysis of {binary.filename} is {binary.status}, not ready.")
+    return binary
+
+
+def _list_binaries(ctx: ToolContext, args: ListArgs) -> dict[str, Any]:
+    from ...models.binary import BinaryFile
+
+    rows = [{"binary_id": b.id, "filename": b.filename, "sha256": b.sha256_hash,
+             "type": b.binary_type, "size": b.file_size, "status": b.status}
+            for b in (ctx.db.query(BinaryFile).filter(BinaryFile.case_id == ctx.case.id)
+                      .order_by(BinaryFile.uploaded_at).limit(args.limit))]
+    return fit({"total": len(rows), "rows": rows})
+
+
+BINARY_PARTS = ("summary", "sections", "imports", "exports", "strings")
+
+
+class ReadBinaryArgs(BaseModel):
+    binary_id: str = Field(..., description="Id from list_binaries")
+    part: str = Field("summary", description="One of: " + ", ".join(BINARY_PARTS))
+    contains: str | None = Field(None, description="Only entries containing this text (case-insensitive)")
+    limit: int = Field(60, ge=1, le=200)
+
+
+def _binary_entries(analysis: dict[str, Any], part: str, contains: str | None) -> list[Any]:
+    entries = analysis.get(part) or []
+    if contains:
+        needle = contains.lower()
+        entries = [e for e in entries if needle in json.dumps(e, default=str).lower()]
+    return list(entries)
+
+
+def _read_binary(ctx: ToolContext, args: ReadBinaryArgs) -> dict[str, Any]:
+    if args.part not in BINARY_PARTS:
+        raise ToolError(f"part must be one of: {', '.join(BINARY_PARTS)}")
+    binary = _binary(ctx, args.binary_id)
+    analysis = json.loads(str(binary.analysis_json))
+    if args.part == "summary":
+        keep = ("binary_type", "architecture", "entrypoint", "image_base", "overall_entropy")
+        return {"binary_id": binary.id, "filename": binary.filename, "sha256": binary.sha256_hash,
+                **{k: analysis.get(k) for k in keep},
+                **{f"{k}_count": len(analysis.get(k) or []) for k in BINARY_PARTS[1:]},
+                "high_entropy_sections": [s.get("name") for s in analysis.get("sections") or []
+                                          if isinstance(s, dict) and (s.get("entropy") or 0) > 7.2]}
+    entries = _binary_entries(analysis, args.part, args.contains)
+    return fit({"binary_id": binary.id, "part": args.part, "matching": len(entries),
+                "rows": _bounded(entries[: args.limit])})
+
+
+#: A source observation quotes at most this many matching lines or entries:
+#: more means the quote does not identify what the agent relied on.
+MAX_SOURCE_MATCHES = 5
+
+
+class RecordSourceObservationArgs(BaseModel):
+    source: str = Field(..., description="memory, email or binary")
+    source_id: str = Field(..., description="dump_id, email_id or binary_id")
+    part: str = Field(..., description="memory: plugin name; email: " + ", ".join(EMAIL_PARTS[1:])
+                      + "; binary: " + ", ".join(BINARY_PARTS[1:]))
+    quote: str = Field(..., min_length=3, max_length=500,
+                       description="Exact text that identifies the line or entry, e.g. a PID and process name")
+    note: str = Field(..., min_length=1, max_length=2000, description="What it shows")
+
+
+def _record_source_observation(ctx: ToolContext, args: RecordSourceObservationArgs) -> dict[str, Any]:
+    """
+    The memory, email and binary counterpart of `record_observation`: the quote
+    is looked up in the source now, and what matches is copied.
+    """
+    agent_id, task_id = _require_caller(ctx)
+    needle = args.quote.strip().lower()
+    part = args.part.strip()
+    if args.source == SOURCE_MEMORY:
+        name = str(_dump(ctx, args.source_id).filename)
+        matches: list[Any] = [line for line in _plugin_lines(ctx, args.source_id, part)
+                              if needle in line.lower()]
+    elif args.source == SOURCE_EMAIL:
+        if part not in EMAIL_PARTS[1:]:
+            raise ToolError(f"part must be one of: {', '.join(EMAIL_PARTS[1:])}")
+        email = _email(ctx, args.source_id)
+        name = str(email.filename)
+        value = json.loads(str(email.analysis or "{}")).get(part)
+        items = value if isinstance(value, list) else [value] if value else []
+        matches = []
+        for item in items:
+            text = item if isinstance(item, str) else json.dumps(item, default=str)
+            at = text.lower().find(needle)
+            if at >= 0:
+                matches.append(text[max(0, at - 200): at + len(needle) + 200])
+    elif args.source == SOURCE_BINARY:
+        if part not in BINARY_PARTS[1:]:
+            raise ToolError(f"part must be one of: {', '.join(BINARY_PARTS[1:])}")
+        binary = _binary(ctx, args.source_id)
+        name = str(binary.filename)
+        matches = _binary_entries(json.loads(str(binary.analysis_json)), part, needle)
+    else:
+        raise ToolError("source must be memory, email or binary. Use record_observation for tables.")
+    if not matches:
+        raise ToolError(f"'{args.quote}' does not appear in {part} of {name}.")
+    if len(matches) > MAX_SOURCE_MATCHES:
+        raise ToolError(f"'{args.quote}' matches {len(matches)} entries; quote more of the one you mean.")
+
+    row = {f"match_{i + 1}": (m if isinstance(m, str) else json.dumps(m, default=str))[:MAX_OBSERVED_CELL_CHARS]
+           for i, m in enumerate(matches)}
+    observation = AgentObservation(
+        case_id=ctx.case.id, agent_id=agent_id, task_id=task_id, source_kind=args.source,
+        artifact_id=args.source_id, artifact_name=name, artifact_label=part,
+        locator=f"{part}: {args.quote.strip()}", row=json.dumps(row), note=args.note.strip())
+    ctx.db.add(observation)
+    ctx.db.commit()
+    return {"observation_id": observation.id, "row": {k: _cell(v) for k, v in row.items()},
+            "note": "Cite this id in propose_finding."}
+
+
+# ─── Incident log ─────────────────────────────────────────────────────────────
+
+LOG_CATEGORIES = ("remediation", "handover", "communication", "investigation", "other")
+
+
+class ProposeLogEntryArgs(BaseModel):
+    time: str = Field(..., description="When it happened, UTC, yyyy-MM-ddTHH:mm:ssZ")
+    category: str = Field("investigation", description="One of: " + ", ".join(LOG_CATEGORIES))
+    title: str = Field(..., min_length=3, max_length=255)
+    description: str = Field("", max_length=4000)
+    actor: str = Field("", max_length=255, description="Who did it, if a person or team did")
+    rationale: str = Field(..., min_length=1, description="Which task, finding or decision it records")
+
+
+def _propose_log_entry(ctx: ToolContext, args: ProposeLogEntryArgs) -> dict[str, Any]:
+    from datetime import UTC, datetime
+
+    if args.category not in LOG_CATEGORIES:
+        raise ToolError(f"category must be one of: {', '.join(LOG_CATEGORIES)}")
+    try:
+        when = datetime.fromisoformat(args.time.strip().replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ToolError(f"Cannot read time '{args.time}'. Use yyyy-MM-ddTHH:mm:ssZ.") from exc
+    when = (when.astimezone(UTC) if when.tzinfo else when).replace(tzinfo=None)
+    title = args.title.strip()
+    if any(p.get("title", "").lower() == title.lower() for p in _open_proposals(ctx, PROPOSAL_INCIDENT_LOG)):
+        raise ToolError("Already proposed and waiting for the analyst.")
+    payload = {"event_ts": when.isoformat(), "category": args.category, "title": title,
+               "description": args.description.strip(), "actor": args.actor.strip()}
+    return _propose(ctx, PROPOSAL_INCIDENT_LOG, payload, args.rationale, [],
+                    f"{when.isoformat()}Z {title}")
+
+
 # ─── Registry ─────────────────────────────────────────────────────────────────
 
 TOOLS: dict[str, Tool] = {tool.name: tool for tool in (
@@ -1024,6 +1338,27 @@ TOOLS: dict[str, Tool] = {tool.name: tool for tool in (
          ProposeSummaryArgs, _propose_executive_summary, PROPOSING),
     Tool("propose_ttp", "Propose an ATT&CK technique for the case matrix. Cite the evidence.",
          ProposeTtpArgs, _propose_ttp, PROPOSING),
+    Tool("store_aggregate",
+         "Count rows of one artifact per value of up to three columns, most or least frequent first.",
+         StoreAggregateArgs, _store_aggregate),
+    Tool("list_memory_dumps", "Memory dumps of the case and the Volatility plugins already run on each.",
+         ListArgs, _list_memory_dumps),
+    Tool("memory_output", "Lines of one Volatility plugin's output on a dump, optionally filtered.",
+         MemoryOutputArgs, _memory_output),
+    Tool("list_emails", "Emails analysed in the case, with subject, sender and warning count.",
+         ListArgs, _list_emails),
+    Tool("read_email", "One part of an email's analysis: headers, URLs, attachments, warnings, body.",
+         ReadEmailArgs, _read_email),
+    Tool("list_binaries", "Binaries analysed in the case, with hash, type and status.",
+         ListArgs, _list_binaries),
+    Tool("read_binary", "One part of a binary's static analysis: summary, sections, imports, exports, strings.",
+         ReadBinaryArgs, _read_binary),
+    Tool("record_source_observation",
+         "Keep a memory plugin line, an email part or a binary entry as evidence, by quoting it.",
+         RecordSourceObservationArgs, _record_source_observation, PROPOSING),
+    Tool("propose_log_entry",
+         "Propose an incident log entry: an action, decision or discovery and when it happened.",
+         ProposeLogEntryArgs, _propose_log_entry, PROPOSING),
 )}
 
 

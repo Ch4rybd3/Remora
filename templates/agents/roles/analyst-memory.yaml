@@ -1,0 +1,12 @@
+id: analyst-memory
+name: Memory analyst
+description: Reads Volatility plugin output on the case's memory dumps - processes, network, injection, persistence.
+reports_to: incident-leader
+prompt: analyst-memory.md
+conversation_process: conversation
+process: specialist-investigation
+assignable: true
+max_steps: 30
+tools: [case_overview, ingest_status, list_findings, list_iocs, list_timeline,
+        list_memory_dumps, memory_output, record_source_observation,
+        propose_finding, propose_ioc, propose_timeline_event, propose_ttp, request_help]

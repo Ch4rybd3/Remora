@@ -1,0 +1,10 @@
+id: scribe
+name: Scribe
+description: Keeps the incident log up to date from what the team did, decided and confirmed.
+reports_to: incident-leader
+prompt: scribe.md
+conversation_process: conversation
+process: scribe-recording
+assignable: true
+max_steps: 14
+tools: [list_incident_log, list_tasks, read_task, list_findings, read_finding, propose_log_entry]

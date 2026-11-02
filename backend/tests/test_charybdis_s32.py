@@ -74,7 +74,9 @@ def test_the_reviewer_and_reporter_roles_load_and_only_workers_are_assignable():
     roles = definitions().roles
     assert roles["reviewer"].process == "review-finding"
     assert roles["reporter"].process == "report-drafting"
-    assert {r.id for r in roles.values() if r.assignable} == {"analyst-windows", "reporter"}
+    assignable = {r.id for r in roles.values() if r.assignable}
+    assert {"analyst-windows", "reporter"} <= assignable
+    assert not {"incident-leader", "assistant", "reviewer"} & assignable
 
 
 # ─── Observations ─────────────────────────────────────────────────────────────

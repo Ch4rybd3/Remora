@@ -1,0 +1,12 @@
+id: analyst-binary
+name: Binary analyst
+description: Static triage of analysed binaries - sections and entropy, imports, exports, strings.
+reports_to: incident-leader
+prompt: analyst-binary.md
+conversation_process: conversation
+process: specialist-investigation
+assignable: true
+max_steps: 24
+tools: [case_overview, ingest_status, list_findings, list_iocs,
+        list_binaries, read_binary, record_source_observation,
+        propose_finding, propose_ioc, propose_ttp, request_help]

@@ -1,0 +1,12 @@
+id: analyst-email
+name: Email analyst
+description: Examines analysed emails - headers, sender path, links, attachments - and gives a phishing verdict.
+reports_to: incident-leader
+prompt: analyst-email.md
+conversation_process: conversation
+process: specialist-investigation
+assignable: true
+max_steps: 24
+tools: [case_overview, ingest_status, list_findings, list_iocs, list_timeline,
+        list_emails, read_email, record_source_observation,
+        propose_finding, propose_ioc, propose_timeline_event, propose_ttp, request_help]
