@@ -59,6 +59,15 @@ export default {
           closed:        rgb('--status-closed'),
           archived:      rgb('--status-archived'),
         },
+        // ── Charybdis agent state. Borrowed from severity; see tokens.css.
+        agent: {
+          idle:     rgb('--agent-idle'),
+          thinking: rgb('--agent-thinking'),
+          tool:     rgb('--agent-tool'),
+          waiting:  rgb('--agent-waiting'),
+          blocked:  rgb('--agent-blocked'),
+          error:    rgb('--agent-error'),
+        },
 
         // ── Categorical encoding: IOC types, MITRE tactics, protocols.
         // Kinds, not ranks — which is why these are not the accent.

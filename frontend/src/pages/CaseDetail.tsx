@@ -20,10 +20,12 @@ import IncidentLogTab from '../components/case/tabs/IncidentLogTab'
 import AttackGraphTab from '../components/case/tabs/AttackGraphTab'
 import MitreTab from '../components/case/tabs/MitreTab'
 import CollectionImportTab from '../components/case/tabs/CollectionImportTab'
+import TeamTab from '../components/case/tabs/TeamTab'
+import { featuresApi } from '../api/agents'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import { fmtDateTimeShort } from '../utils/dateUtils'
 
-type Tab = 'summary' | 'playbook' | 'report' | 'iocs' | 'assets' | 'evidences' | 'timeline' | 'incident_log' | 'attack_graph' | 'mitre' | 'collection'
+type Tab = 'summary' | 'playbook' | 'report' | 'iocs' | 'assets' | 'evidences' | 'timeline' | 'incident_log' | 'attack_graph' | 'mitre' | 'collection' | 'team'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'summary',      label: 'Executive Summary' },
@@ -38,6 +40,9 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'attack_graph', label: 'Attack Graph' },
   { id: 'report',       label: 'Report' },
 ]
+
+/** Shown only when the installation runs Charybdis (docs/CHARYBDIS.md). */
+const TEAM_TAB: { id: Tab; label: string } = { id: 'team', label: 'Team' }
 
 export default function CaseDetail() {
   const { id } = useParams<{ id: string }>()
@@ -57,6 +62,9 @@ export default function CaseDetail() {
   })), [users])
 
   const { setCurrentCase } = useCurrentCase()
+
+  const { data: features } = useQuery({ queryKey: ['features'], queryFn: featuresApi.get, staleTime: Infinity })
+  const tabs = features?.charybdis ? [...TABS, TEAM_TAB] : TABS
 
   const { data: case_, isLoading } = useQuery({
     queryKey: ['case', id],
@@ -168,7 +176,7 @@ export default function CaseDetail() {
       {/* Tabs */}
       <div className="border-b border-hairline px-4 shrink-0">
         <div className="flex gap-1 overflow-x-auto">
-          {TABS.map(tab => (
+          {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -200,8 +208,13 @@ export default function CaseDetail() {
             <ReportTab case_={case_} />
           </div>
         )}
+        {activeTab === 'team' && (
+          <div className="h-full">
+            <TeamTab caseId={case_.id} />
+          </div>
+        )}
 
-        {activeTab !== 'attack_graph' && activeTab !== 'mitre' && activeTab !== 'report' && (
+        {activeTab !== 'attack_graph' && activeTab !== 'mitre' && activeTab !== 'report' && activeTab !== 'team' && (
           <div className="h-full overflow-auto p-6">
             {activeTab === 'playbook' && (
               <PlaybookNotesTab caseId={case_.id} case_={case_} />

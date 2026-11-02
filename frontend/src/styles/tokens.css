@@ -63,6 +63,15 @@
   --status-closed:      163 179 188;
   --status-archived:    107 114 128;
 
+  /* Agent state (Charybdis). Borrowed from the semantic tokens above, so a
+     theme that re-tints severity re-tints agents with it. */
+  --agent-idle:        107 124 137;
+  --agent-thinking:    45 212 191;
+  --agent-tool:        0 191 255;
+  --agent-waiting:     255 215 0;
+  --agent-blocked:     255 140 0;
+  --agent-error:       255 62 62;
+
   --data-1: 122 162 247;   /* blue    */
   --data-2: 187 154 247;   /* purple  */
   --data-3: 247 118 142;   /* rose    */
@@ -105,6 +114,15 @@
   --status-closed:      87 100 111;
   --status-archived:    148 156 165;
 
+  /* Agent state (Charybdis). Borrowed from the semantic tokens above, so a
+     theme that re-tints severity re-tints agents with it. */
+  --agent-idle:        122 138 150;
+  --agent-thinking:    13 148 136;
+  --agent-tool:        3 105 161;
+  --agent-waiting:     161 98 7;
+  --agent-blocked:     180 83 9;
+  --agent-error:       200 30 30;
+
   --data-1: 40 86 190;
   --data-2: 116 63 189;
   --data-3: 190 45 75;
@@ -146,6 +164,15 @@
   --status-closed:      139 148 158;
   --status-archived:    110 118 129;
 
+  /* Agent state (Charybdis). Borrowed from the semantic tokens above, so a
+     theme that re-tints severity re-tints agents with it. */
+  --agent-idle:        110 118 129;
+  --agent-thinking:    47 129 247;
+  --agent-tool:        88 166 255;
+  --agent-waiting:     210 153 34;
+  --agent-blocked:     219 109 40;
+  --agent-error:       248 81 73;
+
   --data-1: 88 166 255;
   --data-2: 188 140 255;
   --data-3: 255 123 114;
@@ -186,6 +213,15 @@
   --status-in-progress: 154 103 0;
   --status-closed:      89 99 110;
   --status-archived:    110 118 129;
+
+  /* Agent state (Charybdis). Borrowed from the semantic tokens above, so a
+     theme that re-tints severity re-tints agents with it. */
+  --agent-idle:        110 118 129;
+  --agent-thinking:    9 105 218;
+  --agent-tool:        9 105 218;
+  --agent-waiting:     154 103 0;
+  --agent-blocked:     188 76 0;
+  --agent-error:       207 34 46;
 
   --data-1: 9 105 218;
   --data-2: 130 80 223;

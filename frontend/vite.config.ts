@@ -9,6 +9,8 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+        // The collaborative editor and the agent trace are WebSockets under /api.
+        ws: true,
       },
       '/note-images': {
         target: 'http://localhost:8000',
