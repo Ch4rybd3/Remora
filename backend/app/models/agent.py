@@ -27,7 +27,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..database import Base
@@ -183,6 +183,9 @@ class AgentTask(Base):
     steps_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     tokens_in:  Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     tokens_out: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    #: What the task's model calls cost, in US dollars, at the provider's
+    #: prices when each call was made. Zero for a local model.
+    cost_usd:   Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
 
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -403,3 +406,57 @@ class AgentEvidenceNotice(Base):
     __table_args__ = (
         UniqueConstraint("source_kind", "source_id", name="uq_agent_evidence_notices_source"),
     )
+
+
+#: The provider that is always there and needs no configuration.
+PROVIDER_OLLAMA = "ollama"
+
+#: Wire protocols a configured provider can speak.
+PROVIDER_KIND_OPENAI    = "openai"      # OpenAI and OpenAI-compatible (vLLM, LM Studio, Mistral...)
+PROVIDER_KIND_ANTHROPIC = "anthropic"
+PROVIDER_KINDS = frozenset({PROVIDER_KIND_OPENAI, PROVIDER_KIND_ANTHROPIC})
+
+
+class AgentProvider(Base):
+    """
+    A model provider an administrator configured, beside the built-in Ollama.
+
+    `locality` is declared, not guessed: an OpenAI-compatible server on the
+    analyst's own machine is local, the same protocol at a vendor is cloud,
+    and the TLP policy is decided on it alone. The API key is encrypted at
+    rest with a per-row salt, like MFA secrets, and never returned.
+    """
+
+    __tablename__ = "agent_providers"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    #: What agents and settings refer to it by: a slug, e.g. "anthropic".
+    name:     Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    kind:     Mapped[str] = mapped_column(String(16), nullable=False)
+    base_url: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    locality: Mapped[str] = mapped_column(String(8), nullable=False, default="cloud")
+    api_key_enc:  Mapped[str | None] = mapped_column(Text, nullable=True)
+    api_key_salt: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    #: Last characters of the key, shown so an administrator can tell keys apart.
+    api_key_hint: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    default_model: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    #: US dollars per million tokens, for the cost shown per agent and case.
+    input_price:  Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    output_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    updated_by: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+    updated_at: Mapped[datetime] = mapped_column(default=_now, onupdate=_now)
+
+
+class AgentRoleModel(Base):
+    """The provider and model an agent of a role gets when it is staffed."""
+
+    __tablename__ = "agent_role_models"
+
+    role:     Mapped[str] = mapped_column(String(64), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    model:    Mapped[str] = mapped_column(String(128), nullable=False)
+    updated_by: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    updated_at: Mapped[datetime] = mapped_column(default=_now, onupdate=_now)
