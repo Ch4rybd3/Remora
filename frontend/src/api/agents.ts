@@ -1,6 +1,6 @@
 import api from './client'
 import type {
-  Agent, AgentAttention, AgentEvent, AgentFinding, AgentFindingState, AgentObservation, AgentProposal,
+  Agent, AgentAttention, AgentEvent, AgentProvider, AgentProviderWrite, CaseUsage, RoleModel, AgentFinding, AgentFindingState, AgentObservation, AgentProposal,
   AgentProposalState, AgentRole, AgentTask, LLMHealth,
 } from '../types'
 
@@ -9,7 +9,8 @@ export const agentsApi = {
     api.get<Agent[]>(`/cases/${caseId}/agents/`).then(r => r.data),
   create: (caseId: string, data: { name?: string; role?: string; model?: string } = {}) =>
     api.post<Agent>(`/cases/${caseId}/agents/`, data).then(r => r.data),
-  update: (caseId: string, agentId: string, data: { name?: string; model?: string; auto_start?: boolean }) =>
+  update: (caseId: string, agentId: string,
+           data: { name?: string; model?: string; provider?: string; auto_start?: boolean }) =>
     api.patch<Agent>(`/cases/${caseId}/agents/${agentId}`, data).then(r => r.data),
   send: (caseId: string, agentId: string, content: string) =>
     api.post<AgentTask>(`/cases/${caseId}/agents/${agentId}/messages`, { content }).then(r => r.data),
@@ -25,7 +26,19 @@ export const agentsApi = {
   /** The whole trace as JSON lines, with each event's hash and its predecessor's. */
   exportTrace: (caseId: string) =>
     api.get<Blob>(`/cases/${caseId}/agents/events/export`, { responseType: 'blob' }).then(r => r.data),
-  health: () => api.get<LLMHealth>('/agents/llm/health').then(r => r.data),
+  health: (provider = 'ollama') =>
+    api.get<LLMHealth>('/agents/llm/health', { params: { provider } }).then(r => r.data),
+  providers: () => api.get<AgentProvider[]>('/agents/providers').then(r => r.data),
+  createProvider: (data: AgentProviderWrite) =>
+    api.post<AgentProvider>('/agents/providers', data).then(r => r.data),
+  updateProvider: (id: string, data: AgentProviderWrite) =>
+    api.patch<AgentProvider>(`/agents/providers/${id}`, data).then(r => r.data),
+  deleteProvider: (id: string) => api.delete(`/agents/providers/${id}`),
+  roleModels: () => api.get<RoleModel[]>('/agents/role-models').then(r => r.data),
+  setRoleModel: (role: string, provider: string, model: string) =>
+    api.put<RoleModel>(`/agents/role-models/${role}`, { provider, model }).then(r => r.data),
+  clearRoleModel: (role: string) => api.delete(`/agents/role-models/${role}`),
+  usage: (caseId: string) => api.get<CaseUsage>(`/cases/${caseId}/agents/usage`).then(r => r.data),
   roles: () => api.get<AgentRole[]>('/agents/roles').then(r => r.data),
   staffTeam: (caseId: string) =>
     api.post<Agent[]>(`/cases/${caseId}/agents/team`).then(r => r.data),

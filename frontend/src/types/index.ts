@@ -261,6 +261,8 @@ export interface AgentTask {
   steps_used: number
   tokens_in: number
   tokens_out: number
+  /** US dollars, at the provider's prices when each call was made. */
+  cost_usd: number
   error: string | null
   kind: 'message' | 'assigned' | 'report' | 'help'
   process_id: string | null
@@ -283,6 +285,50 @@ export interface AgentRole {
 export type AgentProposalKind =
   | 'ioc' | 'timeline_event' | 'task' | 'ttp' | 'report_section' | 'executive_summary'
   | 'incident_log'
+
+/** A model provider configured beside the built-in Ollama. The key never comes back. */
+export interface AgentProvider {
+  id: string
+  name: string
+  kind: 'openai' | 'anthropic'
+  base_url: string
+  locality: 'local' | 'cloud'
+  has_key: boolean
+  key_hint: string | null
+  default_model: string
+  input_price: number
+  output_price: number
+  enabled: boolean
+  updated_by: string
+  updated_at: string
+}
+
+export interface AgentProviderWrite {
+  name?: string
+  kind?: 'openai' | 'anthropic'
+  base_url?: string
+  locality?: 'local' | 'cloud'
+  api_key?: string
+  default_model?: string
+  input_price?: number
+  output_price?: number
+  enabled?: boolean
+}
+
+export interface RoleModel {
+  role: string
+  provider: string
+  model: string
+  custom: boolean
+}
+
+export interface CaseUsage {
+  agents: { agent_id: string; name: string; provider: string; model: string
+            tokens_in: number; tokens_out: number; cost_usd: number }[]
+  tokens_in: number
+  tokens_out: number
+  cost_usd: number
+}
 
 /** What waits on the analyst in a case's Team tab. */
 export interface AgentAttention {

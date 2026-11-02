@@ -209,6 +209,29 @@ export const PAGE_HELP: Record<string, HelpEntry> = {
     ),
   },
 
+  '/config/agents': {
+    title: 'Agent models',
+    content: (
+      <>
+        <P>
+          Where Charybdis agents run. Ollama is built in and local; the
+          providers added here are Claude, OpenAI, or any server that speaks
+          the OpenAI protocol, such as LM Studio or vLLM.
+        </P>
+        <P>
+          <strong>Mark each provider local or cloud honestly.</strong> The case
+          TLP is enforced on that alone: a TLP:RED or AMBER+STRICT case never
+          reaches a cloud provider, and every refusal is in the audit log.
+        </P>
+        <P>
+          Prices are what the cost shown per agent and per case is computed
+          from. The model per role decides what new agents are staffed with;
+          agents already on a case keep theirs.
+        </P>
+      </>
+    ),
+  },
+
   '/users': {
     title: 'Accounts and roles',
     content: (

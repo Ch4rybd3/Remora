@@ -32,6 +32,7 @@ function TaskCard({ task, agent }: { task: AgentTask; agent: Agent | undefined }
       <p className="text-ui text-fg whitespace-pre-wrap line-clamp-4">{task.objective}</p>
       <div className="flex items-center gap-2 text-label font-mono text-fg-muted">
         <span>{task.steps_used}/{task.max_steps} calls</span>
+        {task.cost_usd > 0 && <span>${task.cost_usd.toFixed(4)}</span>}
         {task.depends_on.length > 0 && <span>waits on {task.depends_on.length}</span>}
         <span className="ml-auto">{fmtDateTime(task.created_at)}</span>
       </div>
