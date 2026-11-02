@@ -44,10 +44,10 @@ S30 FOUNDATIONS ── S31 LEADER & DELEGATION ── S32 FINDINGS & REVIEW ─�
 | A5 | **Task board** (to do, in progress, in review, done, blocked) with dependencies | Core | S31 | A4 | DataTable, Panel |
 | A6 | **Hub-and-spoke messaging** and help requests routed via the leader | Core | S31 | A4 | — |
 | A7 | **Budgets** (steps, tokens, minutes) with escalation on overrun | Core | S31 | A3 | — |
-| A8 | **Team templates**: a case template names the team to staff on creation (ransomware → leader, two Windows, memory, timeline, reporter) | Plus | S33 | A4 | Case templates (`ttp_definitions` precedent) |
+| A8 | **Team templates**: a case template names the team to staff on creation (ransomware → leader, two Windows, memory, timeline, reporter) | Plus | S34 | A4 | Case templates (`ttp_definitions` precedent) |
 | A9 | **Process and role editor** in the UI, with YAML view like templates | Plus | S35 | A4 | Templates page |
-| A10 | **Pause, resume, take over**: the analyst steps into a task mid-process, then hands it back | Plus | S33 | A5 | — |
-| A11 | **Playbook steps assignable to agents**: a Remora playbook step can name an agent role as assignee | Plus | S33 | A5 | Playbooks |
+| A10 | **Pause, resume, take over**: the analyst steps into a task mid-process, then hands it back | Plus | S34 | A5 | — |
+| A11 | **Playbook steps assignable to agents**: a Remora playbook step can name an agent role as assignee | Plus | S34 | A5 | Playbooks |
 
 ### B. Incident leadership
 
@@ -56,8 +56,8 @@ S30 FOUNDATIONS ── S31 LEADER & DELEGATION ── S32 FINDINGS & REVIEW ─�
 | B1 | **Scoping interview**: what, when, who detected, critical assets, actions already taken; answers proposed into case description and assets | Core | S31 | A4 | Case, assets |
 | B2 | **Investigation plan**: hypotheses → tasks → assignment, shown as a card the analyst approves | Core | S31 | B1 | — |
 | B3 | **Situation report on demand** ("where are we?"): confirmed, open, blocked, next | Core | S31 | B2 | — |
-| B4 | **Coverage gap analysis**: which artifacts are missing to answer each hypothesis, turned into a **collection request list** per host | Plus | S33 | B2 | `COVERAGE.md`, coverage router |
-| B5 | **Phase tracking** (identification → containment → eradication → recovery → lessons) with phase-appropriate questions | Plus | S33 | B2 | Case status |
+| B4 | **Coverage gap analysis**: which artifacts are missing to answer each hypothesis, turned into a **collection request list** per host | Plus | S34 | B2 | `COVERAGE.md`, coverage router |
+| B5 | **Phase tracking** (identification → containment → eradication → recovery → lessons) with phase-appropriate questions | Plus | S34 | B2 | Case status |
 | B6 | **Shift handover brief**: what changed since a given time, for the next analyst on shift | Plus | S34 | A3 | Incident log |
 | B7 | **Containment and remediation recommendations**, drafted, never executed | Plus | S34 | C3 | — |
 
@@ -86,7 +86,7 @@ S30 FOUNDATIONS ── S31 LEADER & DELEGATION ── S32 FINDINGS & REVIEW ─�
 | D1 | **Findings with mandatory evidence**, severity, confidence + justification, ATT&CK ids | Core | S32 | C3 | MITRE |
 | D2 | **Analyst validation** (validate, reject with comment sent back to the author) | Core | S32 | D1 | — |
 | D3 | **Reviewer agent**: does the cited evidence say what the finding claims? alternative explanations | Core | S32 | D1 | — |
-| D4 | **Hypothesis board with competing-hypotheses matrix** (evidence for and against each) | Plus | S33 | D1 | — |
+| D4 | **Hypothesis board with competing-hypotheses matrix** (evidence for and against each) | Plus | S34 | D1 | — |
 | D5 | **Clickable citations**: a citation opens the exact row in the Explorer side panel | Core | S32 | C3 | Explorer |
 | D6 | **Tamper-evident trace**: `agent_events` chained by hash, verifiable and exportable | Plus | S32 | A3 | Audit |
 | D7 | **Evidence strength scoring**: one weak source vs several independent corroborating sources | Idea | — | D1 | — |
@@ -100,7 +100,7 @@ S30 FOUNDATIONS ── S31 LEADER & DELEGATION ── S32 FINDINGS & REVIEW ─�
 | E3 | Timeline pin proposals | Core | S31 | E1 | Timeline |
 | E4 | **Scribe**: incident-log entry proposals from what happened (decisions, discoveries, actions) | Plus | S33 | E1 | Incident log |
 | E5 | TTP proposals on the case matrix | Plus | S32 | E1 | MITRE |
-| E6 | Asset and attack-graph edge proposals | Plus | S33 | E1 | Assets, attack graph |
+| E6 | Asset and attack-graph edge proposals | Plus | S34 | E1 | Assets, attack graph |
 | E7 | **Bulk accept rules**: e.g. auto-accept IOC proposals from a validated finding | Idea | — | E1 | — |
 
 ### F. Reporting
@@ -109,7 +109,7 @@ S30 FOUNDATIONS ── S31 LEADER & DELEGATION ── S32 FINDINGS & REVIEW ─�
 |---|---|---|---|---|---|
 | F1 | **Reporter**: report-section proposals from validated findings only, each sentence tied to its finding | Core | S32 | D2 | `report_sections_data`, report templates |
 | F2 | **Executive summary draft** | Plus | S32 | F1 | `executive_summary` |
-| F3 | **Report in the client's language** (templates are already language-free user content) | Plus | S33 | F1 | Report templates |
+| F3 | **Report in the client's language** (templates are already language-free user content) | Plus | S34 | F1 | Report templates |
 | F4 | **Executive briefing** for the `executive` role: KPIs and plain-language status | Plus | S34 | B3 | Executive role, dashboard |
 | F5 | **Lessons-learned / post-incident review** draft at closure | Plus | S35 | F1 | Case closure |
 | F6 | **Citation check** before delivery: every claim in the report still maps to a validated finding | Plus | S34 | F1 | — |
@@ -125,7 +125,7 @@ S30 FOUNDATIONS ── S31 LEADER & DELEGATION ── S32 FINDINGS & REVIEW ─�
 | G5 | **TLP routing policy** enforced in the gateway, denials audited | Core | S34 | G4 | `Case.tlp` |
 | G6 | **Tokens and cost** per agent, task, case; dashboard tiles | Plus | S34 | G1 | `StatTile` |
 | G7 | **Model per role or per agent**, from settings | Plus | S34 | G1 | — |
-| G8 | **Prompt-injection defences**: fenced data, canary checks, quarantine of suspicious content, reviewer alert | Plus | S33 | C1 | — |
+| G8 | **Prompt-injection defences**: fenced data, canary checks, quarantine of suspicious content, reviewer alert | Plus | S34 | C1 | — |
 | G9 | **Evaluation bench**: golden cases from public datasets, expected findings, score per model and prompt; required before a prompt change merges | Plus | S34 | D1 | `samples/` |
 | G10 | **Replay**: re-run a closed case's tasks with another model and diff the findings | Idea | — | G9 | — |
 
@@ -291,3 +291,49 @@ Decisions taken while building it:
 Known limits: the reporter can only be as good as the findings it is given,
 and the reviewer runs on the same small model as the author. Both are part of
 the reliability pass.
+
+---
+
+## 6. S33 — delivered
+
+Specialists and triggers. Delivers C4, C5, C6, C7, C8, C9, C10, C11, E4 and
+I1 (in app). A8, A10, A11, B4, B5, D4, E6, F3 and G8 move to S34.
+
+| Piece | Where |
+|---|---|
+| Ingestion triggers: the supervisor polls for files that reached `indexed`, `browsable` or `parsed` since the leader was staffed, and gives the leader one `trigger` task listing them; later files join it while it waits | `services/charybdis/triggers.py`, `runtime.py`, `agent_ingest_notices` (revision `f2d6b8c4a913`) |
+| Roles `analyst-memory`, `analyst-network`, `analyst-email`, `analyst-binary`, `analyst-timeline`, `scribe`; processes `specialist-investigation`, `scribe-recording` | `templates/agents/` |
+| Tools: `store_aggregate`, `list_memory_dumps`, `memory_output`, `list_emails`, `read_email`, `list_binaries`, `read_binary`, `record_source_observation`, `propose_log_entry` | `services/charybdis/tools.py` |
+| Observations carry their source (`artifact`, `memory`, `email`, `binary`); a non-table citation opens the module page that holds it | `agent_observations.source_kind`, `FindingsBoard.tsx` |
+| Incident log proposals, accepted through the incident log handler (which also writes the timeline) | `routers/agents.py` |
+| Attention: proposals, findings and stopped agents counted on the case's Team tab, polled and pushed | `GET /attention`, `CaseDetail.tsx` |
+| Ask an agent from an Explorer row: the case assistant (staffed if absent) gets the question and the row, quoted as data | `POST /ask`, `RowDetailPanel.tsx` |
+| Draft query: a question in words becomes RQL, checked against the parser and the table's columns, put in the query box and never run | `POST /rql-draft`, `services/charybdis/assist.py`, `RQLBar.tsx` |
+
+Decisions taken while building it:
+
+- **The leader is told by polling, not by the pipeline calling in.** Files
+  reach a final state from the drop folder, collection imports, uploads and
+  retries; a poll catches all of them without the ingestion code knowing the
+  module exists. Only cases with a leader are watched, and only files that
+  arrived after it.
+- **Specialists read what Remora already produced; they do not run tools.**
+  The memory analyst reads plugin output the analyst ran; running Volatility
+  is a heavy side effect and stays the analyst's. The same holds for email and
+  binary analysis.
+- **A citation outside a table is a quote.** The agent names the plugin, the
+  email part or the binary part and quotes the text; Remora looks it up now,
+  refuses a quote that matches nothing or more than five entries, and copies
+  what matched.
+- **Drafting RQL sends a few rows to the model, so it is audited** and goes
+  through the gateway's TLP policy like everything else. A draft that does not
+  compile is sent back once with the parser's error.
+- **"Ask an agent" goes to the case assistant**, a read-only role, not to the
+  leader: a question about one row should not start delegation.
+- **Notifications stay in the app in this sprint.** A webhook needs the
+  approval queue's notion of who may be told what, which S34 brings.
+
+Known limits: the specialists are only as useful as what has been processed -
+a memory dump with no plugin run gives the memory analyst nothing to read.
+Drafting RQL was checked against a scripted model only; the reliability pass
+will measure it on qwen3:8b.
