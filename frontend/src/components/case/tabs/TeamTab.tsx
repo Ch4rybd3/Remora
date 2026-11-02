@@ -75,6 +75,12 @@ export default function TeamTab({ caseId }: { caseId: string }) {
     onSuccess: () => { setError(null); qc.invalidateQueries({ queryKey: ['agent-tasks', caseId] }) },
     onError: fail,
   })
+  const autoStart = useMutation({
+    mutationFn: ({ agentId, on }: { agentId: string; on: boolean }) =>
+      agentsApi.update(caseId, agentId, { auto_start: on }),
+    onSuccess: refreshAgents,
+    onError: fail,
+  })
   const cancel = useMutation({
     mutationFn: (task: AgentTask) => agentsApi.cancel(caseId, task.agent_id, task.id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['agent-tasks', caseId] }),
@@ -137,6 +143,8 @@ export default function TeamTab({ caseId }: { caseId: string }) {
               sending={send.isPending}
               onSend={content => send.mutate({ agentId: selected.id, content })}
               onCancel={task => cancel.mutate(task)}
+              onAutoStart={selected.role === 'incident-leader'
+                ? on => autoStart.mutate({ agentId: selected.id, on }) : undefined}
             />
           ) : (
             <EmptyState icon={Bot} message="No agent on this case yet"

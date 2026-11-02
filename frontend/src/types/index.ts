@@ -244,6 +244,8 @@ export interface Agent {
   model: string
   status: AgentStatus
   launched_by: string
+  /** Incident Leader only: its proposed tasks start without approval. */
+  auto_start: boolean
   created_at: string
   updated_at: string
 }

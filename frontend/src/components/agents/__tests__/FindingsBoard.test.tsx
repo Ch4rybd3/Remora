@@ -15,7 +15,7 @@ vi.mock('../../../api/agents', () => ({ agentsApi: api }))
 
 const agent: Agent = {
   id: 'a1', case_id: 'c1', role: 'analyst-windows', name: 'Windows host analyst', provider: 'ollama',
-  model: 'qwen3:8b', status: 'idle', launched_by: 'admin',
+  model: 'qwen3:8b', status: 'idle', launched_by: 'admin', auto_start: false,
   created_at: '2026-11-04T10:00:00Z', updated_at: '2026-11-04T10:00:00Z',
 }
 

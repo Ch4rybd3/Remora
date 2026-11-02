@@ -9,7 +9,7 @@ export const agentsApi = {
     api.get<Agent[]>(`/cases/${caseId}/agents/`).then(r => r.data),
   create: (caseId: string, data: { name?: string; role?: string; model?: string } = {}) =>
     api.post<Agent>(`/cases/${caseId}/agents/`, data).then(r => r.data),
-  update: (caseId: string, agentId: string, data: { name?: string; model?: string }) =>
+  update: (caseId: string, agentId: string, data: { name?: string; model?: string; auto_start?: boolean }) =>
     api.patch<Agent>(`/cases/${caseId}/agents/${agentId}`, data).then(r => r.data),
   send: (caseId: string, agentId: string, content: string) =>
     api.post<AgentTask>(`/cases/${caseId}/agents/${agentId}/messages`, { content }).then(r => r.data),
