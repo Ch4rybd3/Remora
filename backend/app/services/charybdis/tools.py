@@ -203,6 +203,7 @@ STATE_MEANINGS = {
     "routed":       "sent to its page but not parsed into a queryable table (not yet, or the parse failed)",
     "parsed":       "converted to a table, not yet queryable",
     "indexed":      "queryable with list_artifacts and store_search",
+    # Files uploaded on their own page never appear here: see list_evidence.
     "browsable":    "available on its own page (memory, disk image), not as a table",
     "failed":       "the parser failed; see error",
     "unsupported":  "known type with no parser yet",
@@ -232,6 +233,29 @@ def _ingest_status(ctx: ToolContext, args: IngestStatusArgs) -> dict[str, Any]:
     seen = {row["state"] for row in rows}
     return fit({"total": total,
                 "states": {k: v for k, v in STATE_MEANINGS.items() if k in seen},
+                "rows": rows})
+
+
+# ─── list_evidence ────────────────────────────────────────────────────────────
+
+class ListEvidenceArgs(BaseModel):
+    kind: str | None = Field(None, description="Only table, email, memory or binary")
+
+
+def _list_evidence(ctx: ToolContext, args: ListEvidenceArgs) -> dict[str, Any]:
+    """
+    What the case holds that agents can read, whatever it came through. The
+    ingestion log only knows the drop folder; a file uploaded on its own page
+    is here and not there.
+    """
+    from .triggers import collect
+
+    items = [e for e in collect(ctx.db, str(ctx.case.id)) if not args.kind or e.kind == args.kind]
+    rows = [{"kind": e.kind, "id": e.id, "name": e.name, "detail": e.detail, "read_by": e.reader}
+            for e in items]
+    note = None if rows else "Nothing readable in the case yet."
+    return fit({"total": len(rows), "note": note,
+                "ids": "table: artifact_id; email: email_id; memory: dump_id; binary: binary_id",
                 "rows": rows})
 
 
@@ -579,10 +603,22 @@ def _propose_task(ctx: ToolContext, args: ProposeTaskArgs) -> dict[str, Any]:
         owner: AgentTask | AgentProposal | None = task or ctx.db.get(AgentProposal, ref)
         if owner is None or owner.case_id != ctx.case.id:
             raise ToolError(f"depends_on: '{ref}' is not a task or proposal of this case.")
+    from .delegation import auto_start
+    from .runtime import supervisor
+
     payload = {"role": args.role, "objective": args.objective.strip(),
                "depends_on": args.depends_on}
-    return _propose(ctx, PROPOSAL_TASK, payload, args.rationale, [],
-                    f"{args.role}: {args.objective.strip()[:120]}")
+    result = _propose(ctx, PROPOSAL_TASK, payload, args.rationale, [],
+                      f"{args.role}: {args.objective.strip()[:120]}")
+    proposal = ctx.db.get(AgentProposal, result["proposal_id"])
+    started, held = auto_start(ctx.db, proposal) if proposal is not None else (None, None)
+    if started is None:
+        if held:
+            return {**result, "note": f"Waiting for the analyst despite auto-start: {held}."}
+        return result
+    supervisor.enqueue(started.id)
+    return {**result, "state": "accepted", "task_id": started.id,
+            "note": "Started at once: the analyst turned auto-start on for this case."}
 
 
 class ListTasksArgs(BaseModel):
@@ -735,7 +771,10 @@ def _propose_finding(ctx: ToolContext, args: ProposeFindingArgs) -> dict[str, An
                      AgentObservation.id.in_(args.observation_ids))}
     missing = [o for o in args.observation_ids if o not in known]
     if missing:
-        raise ToolError(f"Unknown observations {missing}. Record them with record_observation first.")
+        raise ToolError(
+            f"Unknown observations {missing}. An observation id is what record_observation (a "
+            "table row) or record_source_observation (a memory line, an email part, a binary "
+            "entry) returned. Call one of them for each fact first, then cite the ids it returned.")
 
     finding = AgentFinding(
         case_id=ctx.case.id, agent_id=agent_id, task_id=task_id,
@@ -1274,8 +1313,13 @@ TOOLS: dict[str, Tool] = {tool.name: tool for tool in (
          "Case metadata (title, TLP, severity, client) and counts of what it holds.",
          NoArgs, _case_overview),
     Tool("ingest_status",
-         "Files ingested into the case with their detected kind, state, hash and errors.",
+         "Files that came through the drop folder or a collection, with kind, state, hash and "
+         "errors. Files uploaded on their own page are not here: use list_evidence.",
          IngestStatusArgs, _ingest_status),
+    Tool("list_evidence",
+         "Everything readable in the case - Explorer tables, emails, memory dumps, binaries - "
+         "with the id each tool takes.",
+         ListEvidenceArgs, _list_evidence),
     Tool("list_artifacts",
          "Parsed, queryable artifacts of the case (Explorer tables) with their ids.",
          ListArtifactsArgs, _list_artifacts),

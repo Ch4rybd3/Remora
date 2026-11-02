@@ -2,7 +2,7 @@ id: analyst-investigation
 description: Work one assigned task from understanding to report.
 steps:
   - id: understand
-    tools: [case_overview, ingest_status, list_artifacts, list_iocs, list_timeline, list_findings]
+    tools: [case_overview, list_evidence, ingest_status, list_artifacts, list_iocs, list_timeline, list_findings]
     instructions: |
       Restate the objective in one sentence. List the artifacts in this case that can answer
       it and the questions you will answer. Say plainly if the needed artifacts are missing.
@@ -19,6 +19,7 @@ steps:
       or the exact timestamp plus the event id) and a note of what it shows.
       If you need work outside your speciality, use request_help instead of guessing.
   - id: propose
+    expects_tools: true
     tools: [record_observation, propose_finding, propose_ioc, propose_timeline_event, propose_ttp,
             list_iocs, list_timeline, list_findings]
     instructions: |

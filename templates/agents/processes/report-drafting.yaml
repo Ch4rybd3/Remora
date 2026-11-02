@@ -8,6 +8,7 @@ steps:
       Say which sections the validated findings can support. If there are no validated
       findings, say so: nothing can be drafted yet.
   - id: draft
+    expects_tools: true
     tools: [read_finding, list_timeline, list_iocs, list_ttps, propose_report_section,
             propose_executive_summary]
     instructions: |

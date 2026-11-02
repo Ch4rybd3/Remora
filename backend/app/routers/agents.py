@@ -53,7 +53,6 @@ from ..models.agent import (
     PROPOSAL_TIMELINE,
     PROPOSAL_TTP,
     TASK_CANCELLED,
-    TASK_KIND_ASSIGNED,
     TASK_KIND_MESSAGE,
     TASK_OPEN,
     AgentEvent,
@@ -172,8 +171,10 @@ def update_agent(
     case = _get_case(case_id, db)
     agent = _get_agent(case_id, agent_id, db)
     changes = payload.model_dump(exclude_unset=True, exclude_none=True)
+    if "auto_start" in changes and agent.role != LEADER_ROLE:
+        raise HTTPException(status_code=422, detail="Only the Incident Leader has an auto-start")
     for field, value in changes.items():
-        setattr(agent, field, value.strip())
+        setattr(agent, field, value.strip() if isinstance(value, str) else value)
     audit_log(db, user=current_user, action="agent.update", request=request,
               resource_type="agent", resource_id=agent.id, resource_name=agent.name,
               case_id=case_id, case_title=str(case.title), details=changes)
@@ -467,11 +468,9 @@ def _materialise(case_id: str, proposal: AgentProposal, data: dict, db: Session,
         role = str(data.get("role", ""))
         if role not in definitions().roles or not definitions().roles[role].assignable:
             raise HTTPException(status_code=422, detail=f"Cannot assign a task to '{role}'")
-        target = delegation.agent_for_role(db, case_id, role, str(user.username or ""))
-        task = delegation.create_task(
-            db, agent=target, objective=str(data.get("objective", "")), kind=TASK_KIND_ASSIGNED,
-            requested_by_id=str(user.id), parent_task_id=proposal.task_id,
-            depends_on=[str(d) for d in data.get("depends_on") or []])
+        task = delegation.task_from_proposal(
+            db, proposal, str(data.get("objective", "")), role,
+            [str(d) for d in data.get("depends_on") or []], str(user.id), str(user.username or ""))
         return task.id
     raise HTTPException(status_code=422, detail=f"Unknown proposal kind '{proposal.kind}'")
 

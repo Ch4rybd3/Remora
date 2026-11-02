@@ -6,6 +6,6 @@ prompt: incident-leader.md
 conversation_process: leader-conversation
 process: leader-review
 max_steps: 16
-tools: [case_overview, ingest_status, list_artifacts, list_iocs, list_assets, list_timeline,
+tools: [case_overview, list_evidence, ingest_status, list_artifacts, list_iocs, list_assets, list_timeline,
         list_incident_log, list_ttps, list_tasks, read_task, list_findings, read_finding,
         propose_task]

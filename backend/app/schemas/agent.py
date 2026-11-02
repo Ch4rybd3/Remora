@@ -25,6 +25,8 @@ class AgentCreate(BaseModel):
 class AgentUpdate(BaseModel):
     name:  str | None = Field(None, min_length=1, max_length=128)
     model: str | None = Field(None, min_length=1, max_length=128)
+    #: Incident Leader only: start the tasks it proposes without approval.
+    auto_start: bool | None = None
 
 
 class AgentRead(BaseModel):
@@ -38,6 +40,7 @@ class AgentRead(BaseModel):
     model:       str
     status:      str
     launched_by: str
+    auto_start:  bool
     created_at:  UTCDateTime
     updated_at:  UTCDateTime
 

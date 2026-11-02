@@ -8,6 +8,7 @@ steps:
       to. List the actions taken, the decisions made and the discoveries confirmed, each with
       when it happened, that are not in the log yet.
   - id: record
+    expects_tools: true
     tools: [propose_log_entry, list_incident_log]
     instructions: |
       Propose one incident log entry per action, decision or discovery, with its time in UTC,

@@ -68,6 +68,11 @@ from .tools import ToolContext, ToolError, agent_grants, run_tool, specs
 #: Earlier analyst and agent messages replayed to the model, newest last.
 HISTORY_MESSAGES = 20
 
+REMINDER = ("This step is done through its tools, and you called none: writing \"proposed "
+            "findings\" in text proposes nothing. Call the tools for what your checks "
+            "established ({tools}). If the data showed nothing to propose, answer exactly: "
+            "Nothing to propose.")
+
 
 def _now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
@@ -110,6 +115,9 @@ class _Run:
     max_steps: int
     steps_used: int
     summaries: list[str] = field(default_factory=list)
+    #: Tool calls made in the current step, and whether its one reminder was used.
+    step_calls: int = 0
+    reminded:   bool = False
 
 
 # ─── Context ──────────────────────────────────────────────────────────────────
@@ -340,7 +348,14 @@ async def run_task(task_id: str) -> list[str]:
                     await _in_thread(_record(run, EVENT_TOOL_RESULT, {"tool": call.name, **outcome}))
                     run.messages.append(ChatMessage("tool", json.dumps(outcome, default=str),
                                                     tool_name=call.name))
+                run.step_calls += len(result.tool_calls)
                 await _in_thread(_agent_status(run, AGENT_THINKING))
+                continue
+
+            if step.expects_tools and run.step_calls == 0 and not run.reminded:
+                run.reminded = True
+                run.messages.append(ChatMessage("assistant", result.content.strip()))
+                run.messages.append(ChatMessage("user", REMINDER.format(tools=", ".join(allowed))))
                 continue
 
             # An answer without tool calls ends the step.
@@ -349,6 +364,7 @@ async def run_task(task_id: str) -> list[str]:
             run.messages.append(ChatMessage("assistant", summary))
             if run.step_index + 1 < len(run.process.steps):
                 run.step_index += 1
+                run.step_calls, run.reminded = 0, False
                 await _in_thread(_advance(run, summary))
                 run.messages.append(ChatMessage("user", _step_message(run.process, run.step_index)))
                 continue
