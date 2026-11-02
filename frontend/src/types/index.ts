@@ -280,6 +280,14 @@ export interface AgentRole {
 
 export type AgentProposalKind =
   | 'ioc' | 'timeline_event' | 'task' | 'ttp' | 'report_section' | 'executive_summary'
+  | 'incident_log'
+
+/** What waits on the analyst in a case's Team tab. */
+export interface AgentAttention {
+  proposals: number
+  findings: number
+  blocked: string[]
+}
 
 export type AgentFindingState = 'in_review' | 'proposed' | 'validated' | 'rejected'
 
@@ -289,6 +297,8 @@ export interface AgentObservation {
   case_id: string
   agent_id: string
   task_id: string | null
+  /** An Explorer table, or a memory dump, an email or a binary. */
+  source_kind: 'artifact' | 'memory' | 'email' | 'binary'
   artifact_id: string
   artifact_name: string
   artifact_label: string | null

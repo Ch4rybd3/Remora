@@ -27,6 +27,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from ...config import settings
 from ...core import scoping
 from ...core.deps import effective_grants
 from ...database import SessionLocal
@@ -397,8 +398,12 @@ class Supervisor:
             self._put(task_id)
         self._workers = [asyncio.create_task(self._work(), name=f"charybdis-worker-{i}")
                          for i in range(max(1, concurrency))]
-        print(f"[charybdis] supervisor started, {len(self._workers)} worker(s), "
-              f"{len(pending)} task(s) resumed", flush=True)
+        if settings.charybdis_trigger_interval_seconds > 0:
+            self._workers.append(asyncio.create_task(
+                self._watch(settings.charybdis_trigger_interval_seconds), name="charybdis-triggers"))
+        triggers = "on" if settings.charybdis_trigger_interval_seconds > 0 else "off"
+        print(f"[charybdis] supervisor started, {max(1, concurrency)} worker(s), "
+              f"{len(pending)} task(s) resumed, ingestion triggers {triggers}", flush=True)
 
     async def stop(self) -> None:
         for worker in self._workers:
@@ -417,6 +422,18 @@ class Supervisor:
         if self._loop is None or self._queue is None:
             return
         self._loop.call_soon_threadsafe(self._put, task_id)
+
+    async def _watch(self, interval: int) -> None:
+        """Tell leaders about new evidence (`triggers.py`), every `interval` seconds."""
+        from . import triggers
+
+        while True:
+            await asyncio.sleep(interval)
+            try:
+                for task_id in await _in_thread(triggers.announce):
+                    self._put(task_id)
+            except Exception as exc:
+                print(f"[charybdis] trigger poll failed: {exc!r}", flush=True)
 
     async def _work(self) -> None:
         assert self._queue is not None

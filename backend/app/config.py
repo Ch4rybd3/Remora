@@ -184,6 +184,9 @@ class Settings(BaseSettings):
     # Context window asked of Ollama. Its default (2048) truncates a system
     # prompt and two tool results without a word.
     charybdis_num_ctx: int = 16384
+    # How often newly ingested files are looked for, to tell the case's
+    # Incident Leader. 0 turns the triggers off.
+    charybdis_trigger_interval_seconds: int = 30
 
     class Config:
         env_file = ".env"

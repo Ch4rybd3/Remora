@@ -1,6 +1,6 @@
 import api from './client'
 import type {
-  Agent, AgentEvent, AgentFinding, AgentFindingState, AgentObservation, AgentProposal,
+  Agent, AgentAttention, AgentEvent, AgentFinding, AgentFindingState, AgentObservation, AgentProposal,
   AgentProposalState, AgentRole, AgentTask, LLMHealth,
 } from '../types'
 
@@ -45,6 +45,16 @@ export const agentsApi = {
   rejectFinding: (caseId: string, findingId: string, comment?: string) =>
     api.post<AgentFinding>(`/cases/${caseId}/agents/findings/${findingId}/reject`,
       { comment: comment ?? null }).then(r => r.data),
+  attention: (caseId: string) =>
+    api.get<AgentAttention>(`/cases/${caseId}/agents/attention`).then(r => r.data),
+  /** A question about one object, to the case assistant. The answer arrives in the Team tab. */
+  ask: (caseId: string, data: { question: string; about: string; context: Record<string, unknown> }) =>
+    api.post<{ agent_id: string; agent_name: string; task_id: string }>(
+      `/cases/${caseId}/agents/ask`, data).then(r => r.data),
+  /** The RQL a question in words would run on one table. Checked, never run. */
+  rqlDraft: (caseId: string, artifactId: string, question: string) =>
+    api.post<{ rql: string; explanation: string }>(`/cases/${caseId}/agents/rql-draft`,
+      { artifact_id: artifactId, question }).then(r => r.data),
   observation: (caseId: string, observationId: string) =>
     api.get<AgentObservation>(`/cases/${caseId}/agents/observations/${observationId}`).then(r => r.data),
 }

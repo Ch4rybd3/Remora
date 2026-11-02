@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 
-import { BookmarkCheck, BookmarkPlus, Copy, Search, X } from '../../ui/icons'
+import { BookmarkCheck, BookmarkPlus, Bot, Copy, Search, Send, X } from '../../ui/icons'
 import type { PinnedRow } from './types'
 
 export interface SelectedRow {
@@ -17,6 +17,47 @@ interface RowDetailPanelProps {
   onClose: () => void
   /** The date column, highlighted because it is what orders the timeline. */
   dateColumn?: string | null
+  /**
+   * Ask an agent about this row. Resolves to a line saying where the answer
+   * will be. Absent when the installation does not run Charybdis.
+   */
+  onAsk?: (question: string) => Promise<string>
+}
+
+function AskBox({ onAsk }: { onAsk: (question: string) => Promise<string> }) {
+  const [question, setQuestion] = useState('')
+  const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const submit = async () => {
+    if (!question.trim() || busy) return
+    setBusy(true)
+    try {
+      setStatus({ ok: true, text: await onAsk(question.trim()) })
+      setQuestion('')
+    } catch (e) {
+      const detail = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
+      setStatus({ ok: false, text: typeof detail === 'string' ? detail : 'The question could not be sent' })
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="border-t border-hairline px-3 py-2 space-y-1 shrink-0">
+      <div className="flex items-center gap-2">
+        <Bot size={12} className="text-fg-muted shrink-0" />
+        <input className="input flex-1 py-1" placeholder="Ask an agent about this row..."
+               value={question} onChange={e => setQuestion(e.target.value)}
+               onKeyDown={e => { if (e.key === 'Enter') submit() }} />
+        <button className="btn-ghost shrink-0" aria-label="Send the question" disabled={busy || !question.trim()}
+                onClick={submit}>
+          <Send size={12} />
+        </button>
+      </div>
+      {status && (
+        <p className={`text-label ${status.ok ? 'text-fg-muted' : 'text-agent-error'}`}>{status.text}</p>
+      )}
+    </div>
+  )
 }
 
 function copy(text: string) {
@@ -36,7 +77,7 @@ function copy(text: string) {
  * one value in it, and forty of them are noise at that moment.
  */
 export function RowDetailPanel({
-  selected, isPinned, onPin, onClose, dateColumn,
+  selected, isPinned, onPin, onClose, dateColumn, onAsk,
 }: RowDetailPanelProps) {
   const [search, setSearch] = useState('')
 
@@ -144,6 +185,7 @@ export function RowDetailPanel({
           ))
         )}
       </div>
+      {onAsk && <AskBox key={selected.pinKey} onAsk={onAsk} />}
     </div>
   )
 }

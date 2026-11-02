@@ -1,0 +1,15 @@
+id: scribe-recording
+description: Turn what the team did and decided into incident log entries.
+steps:
+  - id: gather
+    tools: [list_incident_log, list_tasks, read_task, list_findings, read_finding]
+    instructions: |
+      Read the incident log as it stands, then the tasks, reports and findings your task points
+      to. List the actions taken, the decisions made and the discoveries confirmed, each with
+      when it happened, that are not in the log yet.
+  - id: record
+    tools: [propose_log_entry, list_incident_log]
+    instructions: |
+      Propose one incident log entry per action, decision or discovery, with its time in UTC,
+      its category and who did it when a person or team did. Keep titles short and factual.
+      Do not propose what the log already holds. Then say in one sentence what you proposed.

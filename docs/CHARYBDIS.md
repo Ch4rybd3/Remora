@@ -313,6 +313,11 @@ that already exists and is already sandboxed:
 | `propose` | `agent_proposals` |
 | `record_observation`, `propose_finding`, `review_finding` | `agent_observations`, `agent_findings` |
 | `report_outline`, `propose_report_section`, `propose_executive_summary` | case template sections, `agent_proposals` |
+| `list_memory_dumps`, `memory_output` | Volatility plugin results already run (read only) |
+| `list_emails`, `read_email`, `list_binaries`, `read_binary` | email and binary analysis results |
+| `store_aggregate` | `ArtifactStore.aggregate` |
+| `record_source_observation` | quotes a memory line, an email part or a binary entry into `agent_observations` |
+| `propose_log_entry` | `agent_proposals`, accepted through the incident log handler |
 | `ask_human`, `request_help`, `report` | messaging |
 
 ---

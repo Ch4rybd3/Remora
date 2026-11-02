@@ -1,0 +1,28 @@
+id: specialist-investigation
+description: Work one assigned task in a specialist's own sources, from understanding to report.
+steps:
+  - id: understand
+    tools: [case_overview, ingest_status, list_findings]
+    instructions: |
+      Restate the objective in one sentence. Say which of your sources in this case can answer
+      it, and the questions you will answer. Say plainly if the needed sources are missing or
+      not processed yet, and what the analyst would have to run or collect.
+  - id: execute
+    tools: "@role"
+    instructions: |
+      Run your checks, narrowest first. Keep each line, entry or row that establishes a fact you
+      will rely on as an observation: record_observation for a table row, record_source_observation
+      for a memory plugin line, an email part or a binary entry. Note what it shows.
+      If you need work outside your speciality, use request_help instead of guessing.
+  - id: propose
+    tools: "@role"
+    instructions: |
+      Propose findings with propose_finding, each citing the observation ids it rests on, with
+      severity, confidence and the reason for that confidence. Then propose the indicators,
+      timeline events and ATT&CK techniques they establish. Propose nothing the data did not show
+      and nothing already recorded.
+  - id: report
+    tools: []
+    instructions: |
+      Write the report for the Incident Leader: what you checked, the findings you proposed
+      (F numbers), what remains unknown, and what you would check next.

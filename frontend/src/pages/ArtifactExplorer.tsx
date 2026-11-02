@@ -6,7 +6,7 @@ import {
   AlertTriangle, FileText, Globe, Info, Loader2, Table2, Trash2, Upload, X,
 } from '../ui/icons'
 import { csvArtifactsApi, type CsvArtifactMeta } from '../api/csvArtifacts'
-import { agentsApi } from '../api/agents'
+import { agentsApi, featuresApi } from '../api/agents'
 import { iocsApi } from '../api/iocs'
 import { timelineApi } from '../api/timeline'
 import { useCurrentCase } from '../context/CurrentCaseContext'
@@ -283,6 +283,7 @@ export default function ArtifactExplorer() {
   // A finding's citation: open its table filtered to the cited row, and the
   // row itself in the detail panel. The row shown is the copy the agent read,
   // so it is there even if the table has changed since.
+  const { data: features } = useQuery({ queryKey: ['features'], queryFn: featuresApi.get, staleTime: Infinity })
   const observationParam = searchParams.get('observation')
   useEffect(() => {
     if (!observationParam || !caseId) return
@@ -542,6 +543,14 @@ export default function ArtifactExplorer() {
                     }
                   }}
                   onClose={() => setSelectedRow(null)}
+                  onAsk={features?.charybdis && caseId && selectedRow ? async question => {
+                    const sent = await agentsApi.ask(caseId, {
+                      question,
+                      about: `Explorer row of ${activeMeta?.original_name ?? 'a table'}`,
+                      context: selectedRow.row,
+                    })
+                    return `Sent to ${sent.agent_name}. The answer appears in the case's Team tab.`
+                  } : undefined}
                 />
               ),
             },

@@ -13,6 +13,7 @@ const KIND_LABEL: Record<AgentProposal['kind'], string> = {
   ttp:               'Technique',
   report_section:    'Report section',
   executive_summary: 'Executive summary',
+  incident_log:      'Incident log',
 }
 
 const KIND_TONE: Record<AgentProposal['kind'], string> = {
@@ -22,6 +23,7 @@ const KIND_TONE: Record<AgentProposal['kind'], string> = {
   ttp:               'bg-data-5/10 text-data-5 border-data-5/20',
   report_section:    'bg-data-1/10 text-data-1 border-data-1/20',
   executive_summary: 'bg-data-1/10 text-data-1 border-data-1/20',
+  incident_log:      'bg-data-3/10 text-data-3 border-data-3/20',
 }
 
 /** The fields an analyst may change before accepting, per kind. */
@@ -32,6 +34,7 @@ const EDITABLE: Record<AgentProposal['kind'], string[]> = {
   ttp:               ['technique_name', 'comment'],
   report_section:    ['text'],
   executive_summary: ['text'],
+  incident_log:      ['title', 'description', 'actor'],
 }
 
 /** Report text is long: shown in full rather than as a one-line headline. */
@@ -44,6 +47,7 @@ function headline(p: AgentProposal): string {
   if (p.kind === 'ttp') return `${String(d.technique_id)} · ${String(d.technique_name ?? '')}`
   if (p.kind === 'report_section') return `${String(d.name ?? d.section)} · from ${(d.findings as string[] ?? []).join(', ')}`
   if (p.kind === 'executive_summary') return `from ${(d.findings as string[] ?? []).join(', ')}`
+  if (p.kind === 'incident_log') return `${String(d.event_ts)}Z · ${String(d.category)} · ${String(d.title)}`
   return `${String(d.role)} · ${String(d.objective)}`
 }
 
@@ -164,7 +168,7 @@ export default function ProposalInbox({ caseId, agents }: { caseId: string; agen
     }) => accept ? agentsApi.accept(caseId, p.id, payload, comment) : agentsApi.reject(caseId, p.id, comment),
     onSuccess: () => {
       setError(null)
-      for (const key of ['agent-proposals', 'agent-tasks', 'agents', 'iocs', 'timeline', 'case', 'mitre-ttps']) {
+      for (const key of ['agent-proposals', 'agent-tasks', 'agents', 'iocs', 'timeline', 'case', 'mitre-ttps', 'incidentLog']) {
         qc.invalidateQueries({ queryKey: [key, caseId] })
       }
     },

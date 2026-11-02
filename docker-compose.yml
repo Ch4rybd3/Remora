@@ -36,6 +36,7 @@ services:
       CHARYBDIS_ENABLED:        ${CHARYBDIS_ENABLED:-false}
       OLLAMA_BASE_URL:          ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       CHARYBDIS_DEFAULT_MODEL:  ${CHARYBDIS_DEFAULT_MODEL:-qwen3:8b}
+      CHARYBDIS_TRIGGER_INTERVAL_SECONDS: ${CHARYBDIS_TRIGGER_INTERVAL_SECONDS:-30}
     # Ollama runs on the host, where the GPU is. Docker Desktop resolves this
     # name already; on Linux the mapping below is what makes it exist.
     extra_hosts:

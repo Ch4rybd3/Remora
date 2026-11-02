@@ -1,11 +1,12 @@
 id: leader-review
-description: Review what an analyst reported, or decide on a request for help.
+description: Review what an analyst reported, decide on a request for help, or triage new evidence.
 steps:
   - id: review
     tools: "@role"
     instructions: |
-      Read the report or request in the task, and the tasks already planned (list_tasks).
-      Decide what it changes: which hypotheses it supports or weakens, what is still unknown.
+      Read the report, request or new evidence in the task, and the tasks already planned
+      (list_tasks). Decide what it changes: which hypotheses it supports or weakens, what is
+      still unknown. For new evidence, say which files matter and to which analyst role.
       If follow-up work is needed and not already planned, propose it with propose_task.
       Do not repeat work already done or planned.
       End with a situation update for the analyst in five lines or fewer.

@@ -7,7 +7,7 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 
-import { AlertCircle, HelpCircle, Play, Terminal, X } from '../../ui/icons'
+import { AlertCircle, Bot, HelpCircle, Play, Terminal, X } from '../../ui/icons'
 
 export const RQL_KW_BOOL    = new Set(['AND','OR','NOT'])
 export const RQL_KW_OP      = new Set(['IN','BETWEEN','CONTAINS','STARTSWITH','ENDSWITH','REGEX','CIDR','LAST'])
@@ -58,7 +58,51 @@ export const RQL_MAX_HEIGHT = 120
 
 // ── RQLBar ────────────────────────────────────────────────────────────────────
 
-export function RQLBar({ value, onChange, onRun, dirty, error, columns, hasActiveFilters }: {
+/**
+ * Ask in words: an agent drafts the query, the analyst reads it before
+ * running it. The draft lands in the box, not in the results.
+ */
+function DraftBox({ onDraft, onChange }: {
+  onDraft:  (question: string) => Promise<{ rql: string; explanation: string }>
+  onChange: (v: string) => void
+}) {
+  const [question, setQuestion] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null)
+  const submit = async () => {
+    if (question.trim().length < 3 || busy) return
+    setBusy(true)
+    setNote(null)
+    try {
+      const draft = await onDraft(question.trim())
+      onChange(draft.rql)
+      setNote({ ok: true, text: `${draft.explanation} Check it, then press Enter in the query to run it.` })
+    } catch (e) {
+      const detail = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
+      setNote({ ok: false, text: typeof detail === 'string' ? detail : 'No query could be drafted' })
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="mx-3 mb-2 space-y-1">
+      <div className="flex items-center gap-2">
+        <Bot size={10} className="text-accent/60 shrink-0" />
+        <input className="input flex-1 py-1 text-label" value={question} disabled={busy}
+               placeholder="Describe what to find, e.g. RDP logons from outside 10.0.0.0/8"
+               onChange={e => setQuestion(e.target.value)}
+               onKeyDown={e => { if (e.key === 'Enter') submit() }} />
+        <button className="btn-ghost text-label shrink-0" disabled={busy || question.trim().length < 3}
+                onClick={submit}>
+          {busy ? 'Drafting...' : 'Draft query'}
+        </button>
+      </div>
+      {note && <p className={`text-label ${note.ok ? 'text-fg-muted' : 'text-agent-error'}`}>{note.text}</p>}
+    </div>
+  )
+}
+
+export function RQLBar({ value, onChange, onRun, dirty, error, columns, hasActiveFilters, onDraft }: {
   value:            string
   onChange:         (v: string) => void
   onRun:            (v: string) => void
@@ -67,7 +111,10 @@ export function RQLBar({ value, onChange, onRun, dirty, error, columns, hasActiv
   error:            string | null
   columns:          string[]
   hasActiveFilters: boolean
+  /** Drafts a query from a question. Absent when the installation does not run Charybdis. */
+  onDraft?:         (question: string) => Promise<{ rql: string; explanation: string }>
 }) {
+  const [asking, setAsking] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [autocomplete, setAutocomplete] = useState<string[]>([])
   const [acIndex, setAcIndex]   = useState(-1)
@@ -153,6 +200,13 @@ export function RQLBar({ value, onChange, onRun, dirty, error, columns, hasActiv
               <X size={10} />
             </button>
           )}
+          {onDraft && (
+            <button onClick={() => setAsking(a => !a)}
+              className={`p-1 transition-colors ${asking ? 'text-accent' : 'text-fg-secondary/40 hover:text-fg'}`}
+              title="Ask in words: an agent drafts the query">
+              <Bot size={12} />
+            </button>
+          )}
           <button onClick={() => setShowHelp(h => !h)}
             className={`p-1 transition-colors ${showHelp ? 'text-accent' : 'text-fg-secondary/40 hover:text-fg'}`}
             title="Query examples">
@@ -160,6 +214,8 @@ export function RQLBar({ value, onChange, onRun, dirty, error, columns, hasActiv
           </button>
         </div>
       </div>
+
+      {onDraft && asking && <DraftBox onDraft={onDraft} onChange={onChange} />}
 
       {/* Input area with syntax-highlight overlay.
           The mirror paints the colours and the textarea's own glyphs are
