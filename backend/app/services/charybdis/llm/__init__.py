@@ -10,8 +10,10 @@ from .base import (
     ToolSpec,
 )
 from .gateway import (
+    OLLAMA,
     PolicyDenied,
     chat,
+    forget_provider,
     get_provider,
     known_providers,
     provider_allowed,
@@ -19,6 +21,7 @@ from .gateway import (
 )
 
 __all__ = [
+    "OLLAMA",
     "ChatMessage",
     "ChatResult",
     "LLMError",
@@ -30,6 +33,7 @@ __all__ = [
     "ToolCall",
     "ToolSpec",
     "chat",
+    "forget_provider",
     "get_provider",
     "known_providers",
     "provider_allowed",

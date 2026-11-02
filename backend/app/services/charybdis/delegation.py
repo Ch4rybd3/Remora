@@ -46,15 +46,38 @@ from .definitions import LEADER_ROLE, REVIEWER_ROLE, definitions
 REPORT_EXCERPT_CHARS = 4000
 
 
+def role_model(db: Session, role_id: str) -> tuple[str, str]:
+    """
+    The provider and model a role is staffed with: the administrator's setting
+    for the role if its provider is still enabled, else the local default.
+    """
+    from ...models.agent import PROVIDER_OLLAMA, AgentProvider, AgentRoleModel
+
+    chosen = db.get(AgentRoleModel, role_id)
+    if chosen is not None:
+        if chosen.provider == PROVIDER_OLLAMA:
+            return chosen.provider, chosen.model
+        provider = db.query(AgentProvider).filter(AgentProvider.name == chosen.provider,
+                                                  AgentProvider.enabled.is_(True)).first()
+        if provider is not None:
+            return chosen.provider, chosen.model or provider.default_model
+    return PROVIDER_OLLAMA, settings.charybdis_default_model
+
+
 def new_agent(db: Session, case_id: str, role_id: str, launched_by: str,
-              name: str | None = None, model: str | None = None) -> AgentInstance:
+              name: str | None = None, model: str | None = None,
+              provider: str | None = None) -> AgentInstance:
     role = definitions().role(role_id)
     same = db.query(AgentInstance).filter(AgentInstance.case_id == case_id,
                                           AgentInstance.role == role.id).count()
+    default_provider, default_model = role_model(db, role.id)
+    chosen_provider = (provider or "").strip() or default_provider
     agent = AgentInstance(
         case_id=case_id, role=role.id,
         name=(name or "").strip() or (role.name if not same else f"{role.name} {same + 1}"),
-        provider="ollama", model=(model or "").strip() or settings.charybdis_default_model,
+        provider=chosen_provider,
+        model=(model or "").strip() or (default_model if chosen_provider == default_provider
+                                        else _provider_default_model(db, chosen_provider)),
         launched_by=launched_by,
     )
     db.add(agent)
@@ -325,3 +348,10 @@ def auto_start(db: Session, proposal: AgentProposal) -> tuple[AgentTask | None, 
                            "result_id": task.id},
                   actor=leader.name)
     return task, None
+
+
+def _provider_default_model(db: Session, name: str) -> str:
+    from ...models.agent import AgentProvider
+
+    row = db.query(AgentProvider).filter(AgentProvider.name == name).first()
+    return (row.default_model if row and row.default_model else settings.charybdis_default_model)

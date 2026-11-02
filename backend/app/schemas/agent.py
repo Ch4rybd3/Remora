@@ -17,6 +17,8 @@ UTCDateTime = Annotated[datetime, PlainSerializer(_utc_iso, return_type=str)]
 
 
 class AgentCreate(BaseModel):
+    #: `ollama`, or the name of a configured provider. Default: the role's setting.
+    provider: str | None = Field(None, min_length=1, max_length=64)
     name:  str | None = Field(None, max_length=128)
     role:  str = Field("assistant", max_length=64)
     model: str | None = Field(None, max_length=128)
@@ -25,6 +27,8 @@ class AgentCreate(BaseModel):
 class AgentUpdate(BaseModel):
     name:  str | None = Field(None, min_length=1, max_length=128)
     model: str | None = Field(None, min_length=1, max_length=128)
+    #: `ollama`, or the name of a configured provider.
+    provider: str | None = Field(None, min_length=1, max_length=64)
     #: Incident Leader only: start the tasks it proposes without approval.
     auto_start: bool | None = None
 
@@ -67,6 +71,7 @@ class AgentTaskRead(BaseModel):
     parent_task_id: str | None
     depends_on:     list[str]
     report:         str | None
+    cost_usd:    float
     created_at:  UTCDateTime
     started_at:  UTCDateTime | None
     finished_at: UTCDateTime | None
@@ -172,6 +177,65 @@ class RqlDraftRequest(BaseModel):
 class RqlDraftRead(BaseModel):
     rql:         str
     explanation: str
+
+
+class ProviderWrite(BaseModel):
+    """Create or change a model provider. `api_key` is write-only; empty keeps the current one."""
+    name:          str | None = Field(None, pattern=r"^[a-z][a-z0-9-]{1,63}$")
+    kind:          str | None = Field(None, description="openai or anthropic")
+    base_url:      str | None = Field(None, max_length=512)
+    locality:      str | None = Field(None, description="local or cloud")
+    api_key:       str | None = Field(None, max_length=4096)
+    default_model: str | None = Field(None, max_length=128)
+    input_price:   float | None = Field(None, ge=0)
+    output_price:  float | None = Field(None, ge=0)
+    enabled:       bool | None = None
+
+
+class ProviderRead(BaseModel):
+    id:            str
+    name:          str
+    kind:          str
+    base_url:      str
+    locality:      str
+    has_key:       bool
+    key_hint:      str | None
+    default_model: str
+    input_price:   float
+    output_price:  float
+    enabled:       bool
+    updated_by:    str
+    updated_at:    UTCDateTime
+
+
+class RoleModelRead(BaseModel):
+    role:     str
+    provider: str
+    model:    str
+    #: False when the default applies: no setting, or its provider is gone.
+    custom:   bool
+
+
+class RoleModelWrite(BaseModel):
+    provider: str = Field(..., min_length=1, max_length=64)
+    model:    str = Field("", max_length=128)
+
+
+class AgentUsage(BaseModel):
+    agent_id:   str
+    name:       str
+    provider:   str
+    model:      str
+    tokens_in:  int
+    tokens_out: int
+    cost_usd:   float
+
+
+class CaseUsage(BaseModel):
+    agents:     list[AgentUsage]
+    tokens_in:  int
+    tokens_out: int
+    cost_usd:   float
 
 
 class FindingDecision(BaseModel):

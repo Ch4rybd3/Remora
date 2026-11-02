@@ -50,6 +50,10 @@ class ChatMessage:
     tool_calls: list[ToolCall] = field(default_factory=list)
     #: For role "tool": which tool produced this content.
     tool_name:  str | None = None
+    #: An assistant turn as the provider sent it (`ChatResult.raw`), replayed
+    #: as is by the provider that produced it. Claude's thinking blocks must
+    #: come back unchanged; other providers ignore it.
+    raw:        Any = None
 
 
 @dataclass(frozen=True)
@@ -60,6 +64,8 @@ class ChatResult:
     thinking:   str = ""
     tokens_in:  int = 0
     tokens_out: int = 0
+    #: The provider's own form of the turn, for `ChatMessage.raw`.
+    raw:        Any = None
 
 
 @dataclass(frozen=True)

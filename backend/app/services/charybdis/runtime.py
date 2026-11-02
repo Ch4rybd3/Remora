@@ -234,13 +234,40 @@ def _is_cancelled(db: Session, task_id: str) -> bool:
 
 
 def _usage(run: _Run, tokens_in: int, tokens_out: int) -> Callable[[Session], None]:
+    """Count a model call, and what it cost at the provider's current prices."""
     def _write(db: Session) -> None:
+        from ...models.agent import AgentProvider
+
         task = db.get(AgentTask, run.task_id)
         if task is not None:
+            prices = db.query(AgentProvider).filter(AgentProvider.name == run.provider).first()
             task.steps_used += 1
             task.tokens_in += tokens_in
             task.tokens_out += tokens_out
+            if prices is not None:
+                task.cost_usd += (tokens_in * prices.input_price
+                                  + tokens_out * prices.output_price) / 1_000_000
             db.commit()
+    return _write
+
+
+def _audit_denial(run: _Run, message: str) -> Callable[[Session], None]:
+    """
+    A TLP refusal is a policy decision the audit trail must show: someone
+    staffed an agent on a cloud model for a case whose data may not leave.
+    """
+    def _write(db: Session) -> None:
+        from ..audit_service import audit_log
+
+        task = db.get(AgentTask, run.task_id)
+        user = db.get(User, task.requested_by_id) if task else None
+        if user is None:
+            return
+        audit_log(db, user=user, action="agent.policy_denied", resource_type="agent",
+                  resource_id=run.agent_id, resource_name=run.actor, case_id=run.case_id,
+                  details={"provider": run.provider, "model": run.model, "tlp": run.tlp,
+                           "task_id": run.task_id, "reason": message})
+        db.commit()
     return _write
 
 
@@ -338,7 +365,7 @@ async def run_task(task_id: str) -> list[str]:
 
             if result.tool_calls:
                 run.messages.append(ChatMessage("assistant", result.content,
-                                                tool_calls=result.tool_calls))
+                                                tool_calls=result.tool_calls, raw=result.raw))
                 await _in_thread(_agent_status(run, AGENT_TOOL))
                 for call in result.tool_calls:
                     await _in_thread(_record(run, EVENT_TOOL_CALL, {"tool": call.name,
@@ -354,14 +381,14 @@ async def run_task(task_id: str) -> list[str]:
 
             if step.expects_tools and run.step_calls == 0 and not run.reminded:
                 run.reminded = True
-                run.messages.append(ChatMessage("assistant", result.content.strip()))
+                run.messages.append(ChatMessage("assistant", result.content.strip(), raw=result.raw))
                 run.messages.append(ChatMessage("user", REMINDER.format(tools=", ".join(allowed))))
                 continue
 
             # An answer without tool calls ends the step.
             summary = result.content.strip()
             run.summaries.append(summary)
-            run.messages.append(ChatMessage("assistant", summary))
+            run.messages.append(ChatMessage("assistant", summary, raw=result.raw))
             if run.step_index + 1 < len(run.process.steps):
                 run.step_index += 1
                 run.step_calls, run.reminded = 0, False
@@ -379,6 +406,7 @@ async def run_task(task_id: str) -> list[str]:
         return await _in_thread(_finish(run, TASK_FAILED, message, AGENT_BLOCKED, report=partial))
     except PolicyDenied as exc:
         await _in_thread(_record(run, EVENT_ERROR, {"message": str(exc), "reason": "policy"}))
+        await _in_thread(_audit_denial(run, str(exc)))
         return await _in_thread(_finish(run, TASK_FAILED, str(exc), AGENT_BLOCKED))
     except LLMError as exc:
         await _in_thread(_record(run, EVENT_ERROR, {"message": str(exc), "reason": "provider"}))

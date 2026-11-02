@@ -1105,6 +1105,19 @@ def _memory_output(ctx: ToolContext, args: MemoryOutputArgs) -> dict[str, Any]:
                 "rows": [_cell(line) for line in body[: args.limit]]})
 
 
+def _email_item_text(item: Any) -> str:
+    """
+    One entry of an email part as the analyst - and the model - reads it. A
+    header is `Name: value`, which is what a model quotes back; the stored
+    `{"name", "value"}` form would never match that quote.
+    """
+    if isinstance(item, str):
+        return item
+    if isinstance(item, dict) and "name" in item and "value" in item:
+        return f"{item['name']}: {item['value']}"
+    return json.dumps(item, default=str, ensure_ascii=False)
+
+
 def _email(ctx: ToolContext, email_id: str) -> Any:
     from ...models.email_file import EmailFile
 
@@ -1149,7 +1162,9 @@ def _read_email(ctx: ToolContext, args: ReadEmailArgs) -> dict[str, Any]:
                 "attachments": [a.get("filename") for a in analysis.get("attachments") or []
                                 if isinstance(a, dict)],
                 "warnings": _bounded(analysis.get("warnings") or [])}
-    return {"email_id": email.id, "part": args.part, "content": _bounded(analysis.get(args.part))}
+    return {"email_id": email.id, "part": args.part,
+            "content": _bounded([_email_item_text(i) for i in analysis.get(args.part) or []]
+                                if isinstance(analysis.get(args.part), list) else analysis.get(args.part))}
 
 
 def _binary(ctx: ToolContext, binary_id: str) -> Any:
@@ -1244,7 +1259,7 @@ def _record_source_observation(ctx: ToolContext, args: RecordSourceObservationAr
         items = value if isinstance(value, list) else [value] if value else []
         matches = []
         for item in items:
-            text = item if isinstance(item, str) else json.dumps(item, default=str)
+            text = _email_item_text(item)
             at = text.lower().find(needle)
             if at >= 0:
                 matches.append(text[max(0, at - 200): at + len(needle) + 200])
