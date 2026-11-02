@@ -46,7 +46,7 @@ S30 FOUNDATIONS ── S31 LEADER & DELEGATION ── S32 FINDINGS & REVIEW ─�
 | A7 | **Budgets** (steps, tokens, minutes) with escalation on overrun | Core | S31 | A3 | — |
 | A8 | **Team templates**: a case template names the team to staff on creation (ransomware → leader, two Windows, memory, timeline, reporter) | Plus | S33 | A4 | Case templates (`ttp_definitions` precedent) |
 | A9 | **Process and role editor** in the UI, with YAML view like templates | Plus | S35 | A4 | Templates page |
-| A10 | **Pause, resume, take over**: the analyst steps into a task mid-process, then hands it back | Plus | S32 | A5 | — |
+| A10 | **Pause, resume, take over**: the analyst steps into a task mid-process, then hands it back | Plus | S33 | A5 | — |
 | A11 | **Playbook steps assignable to agents**: a Remora playbook step can name an agent role as assignee | Plus | S33 | A5 | Playbooks |
 
 ### B. Incident leadership
@@ -73,8 +73,8 @@ S30 FOUNDATIONS ── S31 LEADER & DELEGATION ── S32 FINDINGS & REVIEW ─�
 | C6 | **Email analyst** (headers, links, attachments, phishing verdict) | Plus | S33 | C3 | Email analysis |
 | C7 | **Binary analyst** (static triage, strings, imports, YARA) | Plus | S33 | C3 | Binary analysis |
 | C8 | **Timeline analyst**: chains events across sources, proposes key pins and attack-graph edges | Plus | S33 | C3 | Timeline, attack graph |
-| C9 | **Natural language → RQL**: the analyst asks in words, the agent shows the RQL it would run, the analyst runs or edits it | Plus | S32 | C1 | RQL parser |
-| C10 | **"Ask an agent" from anywhere**: on an Explorer row, a timeline event, an IOC → explain, pivot, assess | Plus | S32 | C1 | Explorer `SidePanel` |
+| C9 | **Natural language → RQL**: the analyst asks in words, the agent shows the RQL it would run, the analyst runs or edits it | Plus | S33 | C1 | RQL parser |
+| C10 | **"Ask an agent" from anywhere**: on an Explorer row, a timeline event, an IOC → explain, pivot, assess | Plus | S33 | C1 | Explorer `SidePanel` |
 | C11 | **Ingestion triggers**: an artifact reaching `indexed` notifies the leader, which proposes the matching task | Plus | S33 | B2 | Ingest state machine |
 | C12 | **Cross-case correlation**: IOCs and hashes seen in other cases, within the analyst's client scope | Plus | S35 | C3 | IOCs, client scoping |
 | C13 | **Beyond Windows** analysts (Linux, macOS, mobile) as the platform grows | Idea | — | C3 | `PLATFORMS.md` |
@@ -86,7 +86,7 @@ S30 FOUNDATIONS ── S31 LEADER & DELEGATION ── S32 FINDINGS & REVIEW ─�
 | D1 | **Findings with mandatory evidence**, severity, confidence + justification, ATT&CK ids | Core | S32 | C3 | MITRE |
 | D2 | **Analyst validation** (validate, reject with comment sent back to the author) | Core | S32 | D1 | — |
 | D3 | **Reviewer agent**: does the cited evidence say what the finding claims? alternative explanations | Core | S32 | D1 | — |
-| D4 | **Hypothesis board with competing-hypotheses matrix** (evidence for and against each) | Plus | S32 | D1 | — |
+| D4 | **Hypothesis board with competing-hypotheses matrix** (evidence for and against each) | Plus | S33 | D1 | — |
 | D5 | **Clickable citations**: a citation opens the exact row in the Explorer side panel | Core | S32 | C3 | Explorer |
 | D6 | **Tamper-evident trace**: `agent_events` chained by hash, verifiable and exportable | Plus | S32 | A3 | Audit |
 | D7 | **Evidence strength scoring**: one weak source vs several independent corroborating sources | Idea | — | D1 | — |
@@ -98,7 +98,7 @@ S30 FOUNDATIONS ── S31 LEADER & DELEGATION ── S32 FINDINGS & REVIEW ─�
 | E1 | **Proposals inbox**: accept, edit-then-accept, reject; accepted proposals go through the normal service and audit | Core | S31 | A3 | `audit_log` |
 | E2 | IOC proposals, deduplicated against existing IOCs | Core | S31 | E1 | IOCs |
 | E3 | Timeline pin proposals | Core | S31 | E1 | Timeline |
-| E4 | **Scribe**: incident-log entry proposals from what happened (decisions, discoveries, actions) | Plus | S32 | E1 | Incident log |
+| E4 | **Scribe**: incident-log entry proposals from what happened (decisions, discoveries, actions) | Plus | S33 | E1 | Incident log |
 | E5 | TTP proposals on the case matrix | Plus | S32 | E1 | MITRE |
 | E6 | Asset and attack-graph edge proposals | Plus | S33 | E1 | Assets, attack graph |
 | E7 | **Bulk accept rules**: e.g. auto-accept IOC proposals from a validated finding | Idea | — | E1 | — |
@@ -144,7 +144,7 @@ S30 FOUNDATIONS ── S31 LEADER & DELEGATION ── S32 FINDINGS & REVIEW ─�
 
 | Id | Feature | Level | Sprint | Depends on | Builds on |
 |---|---|---|---|---|---|
-| I1 | **Notifications** when an agent is blocked or waiting on the analyst (in app, then webhook) | Plus | S32 | G3 | — |
+| I1 | **Notifications** when an agent is blocked or waiting on the analyst (in app, then webhook) | Plus | S33 | G3 | — |
 | I2 | **Coach mode**: the leader asks the junior analyst the next question instead of answering it, and explains why | Idea | — | B2 | — |
 | I3 | **Exercise mode**: a seeded sample case, a hidden ground truth, a score at the end | Idea | — | G9 | `samples/` |
 | I4 | **Agent memory across cases** (per role, opt-in, never crossing client scopes) | Idea | — | H3 | Client scoping |
@@ -242,3 +242,52 @@ Known limits, left for the reliability pass the analyst asked to defer:
 analyst answers depend heavily on the model (an 8B model misses things a
 human would not), and batch EZ parsing currently fails on output directory
 permissions, so some EVTX never reach the Explorer the analyst searches.
+
+---
+
+## 5. S32 — delivered
+
+Findings and review. Delivers C3, D1, D2, D3, D5, D6 (export), E5, F1 and
+F2. A10, C9, C10, D4, E4 and I1 move to S33: each needs either a trigger or a
+synchronous model call outside a task, which S33 brings anyway.
+
+| Piece | Where |
+|---|---|
+| `agent_observations` (the cited row, its RQL locator, a copy of the row) and `agent_findings` (claim, severity, confidence and why, ATT&CK ids, observations, review, decision) | `models/agent.py`, revision `e4c9a2b7d815` |
+| `record_observation` re-reads the row from the store and refuses a filter that does not match exactly one row | `services/charybdis/tools.py` |
+| `propose_finding`, `list_findings`, `read_finding`, `review_finding`; findings numbered per case (F1, F2...) | `services/charybdis/tools.py` |
+| A new finding goes to the case's reviewer as a `review` task; a review that ends without a verdict (failed, cancelled, interrupted) still hands the finding to the analyst | `services/charybdis/delegation.py` |
+| Roles `reviewer` and `reporter`, processes `review-finding` and `report-drafting`; `assignable` in role files | `templates/agents/` |
+| `report_outline`, `propose_report_section`, `propose_executive_summary`: every paragraph cites `[Fn]`, every cited finding is validated | `services/charybdis/tools.py` |
+| `propose_ttp`, accepted through the case matrix handler | `services/charybdis/tools.py`, `routers/agents.py` |
+| Routes: findings list, validate, reject (audited), one observation, trace export as JSON lines with the hash chain | `routers/agents.py` |
+| Findings view with clickable citations; the Explorer opens `?observation=<id>` on its table, filtered to the row, the row in the detail panel | `components/agents/FindingsBoard.tsx`, `pages/ArtifactExplorer.tsx` |
+
+Decisions taken while building it:
+
+- **A citation is verified when it is made, not when it is read.** The
+  agent names an artifact and an RQL filter; the store must return exactly
+  one row, which is copied. A model that misremembers a record id gets an
+  error it can correct, never a citation pointing at nothing. The copy keeps
+  the citation readable if the table is later removed from the Explorer.
+- **Findings are their own objects, not proposals.** A proposal becomes a
+  Remora object when accepted; a finding stays a Charybdis object that the
+  report cites. Validating it writes nothing outside the module.
+- **The review informs, it does not gate.** The analyst can decide on a
+  finding still in review. An "unsupported" verdict is shown in the analyst's
+  inbox and fed back to the author; it does not reject the finding by itself.
+- **The reviewer is never staffed on demand.** On one GPU, a model run per
+  finding the analyst did not ask for is a cost they should choose; without a
+  reviewer on the case, findings go straight to the analyst.
+- **Report citations are per paragraph, not per sentence.** An 8B model ties
+  paragraphs to findings reliably; per sentence it mostly fails the check.
+  The `[Fn]` marks are removed when the text is accepted: they are internal
+  references, not something the client reads.
+- **Accepted report text is appended, never written over** what the section
+  or the executive summary already holds. Accepting goes through the report
+  save and case update handlers, so `report.save` and `case.update` are
+  audited as the analyst's and a report version is kept.
+
+Known limits: the reporter can only be as good as the findings it is given,
+and the reviewer runs on the same small model as the author. Both are part of
+the reliability pass.
