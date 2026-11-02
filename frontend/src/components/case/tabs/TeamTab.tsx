@@ -41,7 +41,13 @@ export default function TeamTab({ caseId }: { caseId: string }) {
     queryKey: ['agent-roles'], queryFn: agentsApi.roles, staleTime: Infinity,
   })
   const { data: health } = useQuery({
-    queryKey: ['agents-llm-health'], queryFn: agentsApi.health, staleTime: 60_000,
+    queryKey: ['agents-llm-health'], queryFn: () => agentsApi.health(), staleTime: 60_000,
+  })
+  const { data: providers = [] } = useQuery({
+    queryKey: ['agent-providers'], queryFn: agentsApi.providers, staleTime: 60_000,
+  })
+  const { data: usage } = useQuery({
+    queryKey: ['agent-usage', caseId], queryFn: () => agentsApi.usage(caseId), refetchInterval: 30_000,
   })
   const trace = useAgentTrace(caseId)
 
@@ -78,6 +84,16 @@ export default function TeamTab({ caseId }: { caseId: string }) {
   const autoStart = useMutation({
     mutationFn: ({ agentId, on }: { agentId: string; on: boolean }) =>
       agentsApi.update(caseId, agentId, { auto_start: on }),
+    onSuccess: refreshAgents,
+    onError: fail,
+  })
+  const moveProvider = useMutation({
+    mutationFn: ({ agentId, provider }: { agentId: string; provider: string }) => {
+      const chosen = providers.find(p => p.name === provider)
+      return agentsApi.update(caseId, agentId, {
+        provider, ...(chosen?.default_model ? { model: chosen.default_model } : {}),
+      })
+    },
     onSuccess: refreshAgents,
     onError: fail,
   })
@@ -127,6 +143,14 @@ export default function TeamTab({ caseId }: { caseId: string }) {
               {v.label}
             </button>
           ))}
+          {usage && (usage.tokens_in + usage.tokens_out) > 0 && (
+            <span className="ml-auto text-label font-mono text-fg-muted"
+                  title={usage.agents.filter(a => a.tokens_in + a.tokens_out > 0)
+                    .map(a => `${a.name} (${a.provider}): ${a.tokens_in + a.tokens_out} tokens, $${a.cost_usd.toFixed(4)}`)
+                    .join('\n')}>
+              {(usage.tokens_in + usage.tokens_out).toLocaleString()} tokens · ${usage.cost_usd.toFixed(4)}
+            </span>
+          )}
         </div>
         {error && (
           <div className="px-4 py-2 border-b border-hairline text-ui text-agent-error">{error}</div>
@@ -145,6 +169,8 @@ export default function TeamTab({ caseId }: { caseId: string }) {
               onCancel={task => cancel.mutate(task)}
               onAutoStart={selected.role === 'incident-leader'
                 ? on => autoStart.mutate({ agentId: selected.id, on }) : undefined}
+              providers={['ollama', ...providers.filter(p => p.enabled).map(p => p.name)]}
+              onProvider={provider => moveProvider.mutate({ agentId: selected.id, provider })}
             />
           ) : (
             <EmptyState icon={Bot} message="No agent on this case yet"

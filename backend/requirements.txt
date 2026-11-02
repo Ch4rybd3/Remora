@@ -21,6 +21,8 @@ python-docx>=1.1.0
 networkx>=3.2
 matplotlib>=3.8
 httpx>=0.27.0
+# Charybdis: Claude as a configured model provider (official SDK).
+anthropic>=2.4.0
 # Archive containers accepted by Collection Import / drop folder
 # (ZIP + TAR variants come from the stdlib; these cover 7z and RAR)
 py7zr>=0.21

@@ -12,6 +12,9 @@ interface Props {
   onCancel:  (task: AgentTask) => void
   /** Incident Leader only: start the tasks it proposes without approval. */
   onAutoStart?: (on: boolean) => void
+  /** Providers the agent may be moved to; the case's TLP still decides at each call. */
+  providers?: string[]
+  onProvider?: (provider: string) => void
 }
 
 const CHAT_KINDS = new Set<AgentEvent['kind']>([
@@ -27,7 +30,8 @@ function text(event: AgentEvent, key = 'text'): string {
  * The conversation with one agent. Agent text is rendered as plain text, never
  * as HTML or Markdown: it quotes artifact content, which is attacker-controlled.
  */
-export default function AgentChat({ agent, events, openTask, sending, onSend, onCancel, onAutoStart }: Props) {
+export default function AgentChat({ agent, events, openTask, sending, onSend, onCancel, onAutoStart,
+                                    providers, onProvider }: Props) {
   const [draft, setDraft] = useState('')
   const bottom = useRef<HTMLDivElement>(null)
 
@@ -47,6 +51,15 @@ export default function AgentChat({ agent, events, openTask, sending, onSend, on
     <div className="flex flex-col h-full min-w-0">
       <div className="flex items-baseline gap-2 px-4 py-2 border-b border-hairline">
         <h2 className="text-title font-semibold text-fg truncate">{agent.name}</h2>
+        {providers && onProvider && providers.length > 1 ? (
+          <select className="input py-0 text-label font-mono" value={agent.provider}
+                  title="Where this agent's model runs. A cloud provider is refused on TLP:RED and AMBER+STRICT cases."
+                  onChange={e => onProvider(e.target.value)}>
+            {providers.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+        ) : (
+          <span className="text-label font-mono text-fg-muted">{agent.provider}</span>
+        )}
         <span className="text-label font-mono text-fg-muted">{agent.model}</span>
         {onAutoStart && (
           <label className="ml-auto flex items-center gap-2 text-label text-fg-secondary"

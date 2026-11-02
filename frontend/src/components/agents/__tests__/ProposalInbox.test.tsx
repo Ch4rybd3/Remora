@@ -73,7 +73,7 @@ describe('TaskBoard', () => {
   it('puts each task in the column of its state', () => {
     const task = (id: string, status: AgentTask['status']): AgentTask => ({
       id, agent_id: 'a1', objective: `objective ${id}`, status, max_steps: 30, steps_used: 3,
-      tokens_in: 0, tokens_out: 0, error: null, kind: 'assigned', process_id: 'analyst-investigation',
+      tokens_in: 0, tokens_out: 0, cost_usd: 0, error: null, kind: 'assigned', process_id: 'analyst-investigation',
       current_step: 'execute', parent_task_id: null, depends_on: [], report: null,
       created_at: '2026-11-03T10:00:00Z', started_at: null, finished_at: null,
     })

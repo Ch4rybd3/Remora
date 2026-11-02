@@ -30,7 +30,7 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..core import permissions, scoping
-from ..core.deps import _decode_token, effective_grants, get_current_user
+from ..core.deps import _decode_token, effective_grants, get_current_user, require_admin
 from ..database import SessionLocal, get_db
 from ..models.agent import (
     AGENT_BLOCKED,
@@ -52,6 +52,8 @@ from ..models.agent import (
     PROPOSAL_TASK,
     PROPOSAL_TIMELINE,
     PROPOSAL_TTP,
+    PROVIDER_KINDS,
+    PROVIDER_OLLAMA,
     TASK_CANCELLED,
     TASK_KIND_MESSAGE,
     TASK_OPEN,
@@ -60,6 +62,8 @@ from ..models.agent import (
     AgentInstance,
     AgentObservation,
     AgentProposal,
+    AgentProvider,
+    AgentRoleModel,
     AgentTask,
 )
 from ..models.case import Case
@@ -75,14 +79,20 @@ from ..schemas.agent import (
     AgentRead,
     AgentTaskRead,
     AgentUpdate,
+    AgentUsage,
     AskAgent,
     AskAgentResult,
     Attention,
+    CaseUsage,
     ChainVerification,
     FindingDecision,
     LLMHealth,
     ModelRead,
     ProposalDecision,
+    ProviderRead,
+    ProviderWrite,
+    RoleModelRead,
+    RoleModelWrite,
     RoleRead,
     RqlDraftRead,
     RqlDraftRequest,
@@ -96,7 +106,7 @@ from ..services.charybdis.definitions import (
     REVIEWER_ROLE,
     definitions,
 )
-from ..services.charybdis.llm import get_provider
+from ..services.charybdis.llm import forget_provider, get_provider, known_providers
 from ..services.charybdis.runtime import supervisor
 from ..services.charybdis.tools import TOOLS
 
@@ -148,8 +158,10 @@ def create_agent(
     case = _get_case(case_id, db)
     if payload.role not in definitions().roles:
         raise HTTPException(status_code=422, detail=f"Unknown agent role '{payload.role}'")
+    if payload.provider and payload.provider not in known_providers():
+        raise HTTPException(status_code=422, detail=f"Unknown or disabled provider '{payload.provider}'")
     agent = delegation.new_agent(db, case_id, payload.role, str(current_user.username or ""),
-                                 name=payload.name, model=payload.model)
+                                 name=payload.name, model=payload.model, provider=payload.provider)
     audit_log(db, user=current_user, action="agent.create", request=request,
               resource_type="agent", resource_id=agent.id, resource_name=agent.name,
               case_id=case_id, case_title=str(case.title),
@@ -171,6 +183,8 @@ def update_agent(
     case = _get_case(case_id, db)
     agent = _get_agent(case_id, agent_id, db)
     changes = payload.model_dump(exclude_unset=True, exclude_none=True)
+    if "provider" in changes and changes["provider"] not in known_providers():
+        raise HTTPException(status_code=422, detail=f"Unknown or disabled provider '{changes['provider']}'")
     if "auto_start" in changes and agent.role != LEADER_ROLE:
         raise HTTPException(status_code=422, detail="Only the Incident Leader has an auto-start")
     for field, value in changes.items():
@@ -768,6 +782,11 @@ async def draft_rql(
         result = await draft(payload.question, columns, samples,
                              str(case.tlp) if case.tlp else None)
     except PolicyDenied as exc:
+        audit_log(db, user=current_user, action="agent.policy_denied", request=request,
+                  resource_type="artifact", resource_id=str(artifact.id),
+                  resource_name=str(artifact.original_name), case_id=case_id,
+                  case_title=str(case.title), details={"tlp": case.tlp, "reason": str(exc)})
+        db.commit()
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except LLMError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -790,15 +809,201 @@ def list_tools():
 
 
 @catalog_router.get("/llm/health", response_model=LLMHealth)
-async def llm_health():
-    health = await get_provider(DEFAULT_PROVIDER).health()
+async def llm_health(provider: str = Query(DEFAULT_PROVIDER)):
+    from ..services.charybdis.llm import LLMError
+
+    try:
+        health = await get_provider(provider).health()
+    except LLMError as exc:
+        return LLMHealth(provider=provider, reachable=False, detail=str(exc),
+                         default_model=settings.charybdis_default_model, models=[])
     return LLMHealth(
-        provider=DEFAULT_PROVIDER,
+        provider=provider,
         reachable=health.reachable,
         detail=health.detail,
         default_model=settings.charybdis_default_model,
         models=[ModelRead(name=m.name, size_bytes=m.size_bytes) for m in health.models],
     )
+
+
+# ─── Usage ────────────────────────────────────────────────────────────────────
+
+@router.get("/usage", response_model=CaseUsage)
+def case_usage(case_id: str, db: Session = Depends(get_db)):
+    """Tokens and cost per agent of the case, and in total."""
+    from sqlalchemy import func
+
+    _get_case(case_id, db)
+    totals = {agent_id: (int(t_in or 0), int(t_out or 0), float(cost or 0)) for agent_id, t_in, t_out, cost in
+              db.query(AgentTask.agent_id, func.sum(AgentTask.tokens_in), func.sum(AgentTask.tokens_out),
+                       func.sum(AgentTask.cost_usd))
+              .filter(AgentTask.case_id == case_id).group_by(AgentTask.agent_id)}
+    agents = [AgentUsage(agent_id=a.id, name=a.name, provider=a.provider, model=a.model,
+                         tokens_in=totals.get(a.id, (0, 0, 0.0))[0],
+                         tokens_out=totals.get(a.id, (0, 0, 0.0))[1],
+                         cost_usd=round(totals.get(a.id, (0, 0, 0.0))[2], 6))
+              for a in db.query(AgentInstance).filter(AgentInstance.case_id == case_id)
+              .order_by(AgentInstance.created_at)]
+    return CaseUsage(agents=agents, tokens_in=sum(a.tokens_in for a in agents),
+                     tokens_out=sum(a.tokens_out for a in agents),
+                     cost_usd=round(sum(a.cost_usd for a in agents), 6))
+
+
+# ─── Model providers and models per role ──────────────────────────────────────
+
+def _provider_read(p: AgentProvider) -> ProviderRead:
+    return ProviderRead(id=p.id, name=p.name, kind=p.kind, base_url=p.base_url, locality=p.locality,
+                        has_key=bool(p.api_key_enc), key_hint=p.api_key_hint,
+                        default_model=p.default_model, input_price=p.input_price,
+                        output_price=p.output_price, enabled=p.enabled, updated_by=p.updated_by,
+                        updated_at=p.updated_at)
+
+
+def _apply_provider(p: AgentProvider, payload: ProviderWrite) -> dict:
+    """Write the given fields; return what changed, without the key itself."""
+    from ..services.mfa import encrypt_secret
+
+    changes = payload.model_dump(exclude_unset=True, exclude_none=True)
+    if "kind" in changes and changes["kind"] not in PROVIDER_KINDS:
+        raise HTTPException(status_code=422, detail="kind must be openai or anthropic")
+    if "locality" in changes and changes["locality"] not in ("local", "cloud"):
+        raise HTTPException(status_code=422, detail="locality must be local or cloud")
+    key = (changes.pop("api_key", "") or "").strip()
+    for field, value in changes.items():
+        setattr(p, field, value.strip() if isinstance(value, str) else value)
+    if key:
+        p.api_key_enc, p.api_key_salt = encrypt_secret(key)
+        p.api_key_hint = key[-4:]
+        changes["api_key"] = "replaced"
+    return changes
+
+
+@catalog_router.get("/providers", response_model=list[ProviderRead])
+def list_providers(db: Session = Depends(get_db)):
+    """Configured providers, keys never included. Ollama is always there and not listed."""
+    return [_provider_read(p) for p in db.query(AgentProvider).order_by(AgentProvider.name)]
+
+
+@catalog_router.post("/providers", response_model=ProviderRead, status_code=status.HTTP_201_CREATED)
+def create_provider(
+    payload: ProviderWrite,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    if not payload.name or not payload.kind:
+        raise HTTPException(status_code=422, detail="name and kind are required")
+    if payload.name == PROVIDER_OLLAMA or db.query(AgentProvider).filter(
+            AgentProvider.name == payload.name).first():
+        raise HTTPException(status_code=409, detail=f"A provider is already named '{payload.name}'")
+    provider = AgentProvider(name=payload.name, kind=payload.kind, updated_by=str(admin.username or ""))
+    changes = _apply_provider(provider, payload)
+    db.add(provider)
+    audit_log(db, user=admin, action="agent.provider_create", request=request,
+              resource_type="agent_provider", resource_id=provider.id, resource_name=provider.name,
+              details=changes)
+    db.commit()
+    db.refresh(provider)
+    return _provider_read(provider)
+
+
+def _get_provider_row(provider_id: str, db: Session) -> AgentProvider:
+    provider = db.get(AgentProvider, provider_id)
+    if provider is None:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    return provider
+
+
+@catalog_router.patch("/providers/{provider_id}", response_model=ProviderRead)
+def update_provider(
+    provider_id: str,
+    payload: ProviderWrite,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    provider = _get_provider_row(provider_id, db)
+    if payload.name and payload.name != provider.name:
+        raise HTTPException(status_code=422, detail="A provider cannot be renamed; agents refer to it by name")
+    changes = _apply_provider(provider, payload)
+    provider.updated_by = str(admin.username or "")
+    audit_log(db, user=admin, action="agent.provider_update", request=request,
+              resource_type="agent_provider", resource_id=provider.id, resource_name=provider.name,
+              details=changes)
+    db.commit()
+    forget_provider(provider.name)
+    db.refresh(provider)
+    return _provider_read(provider)
+
+
+@catalog_router.delete("/providers/{provider_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_provider(
+    provider_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Agents still on it fail their next call with a message naming it; disable instead to keep them listed."""
+    provider = _get_provider_row(provider_id, db)
+    in_use = db.query(AgentInstance).filter(AgentInstance.provider == provider.name).count()
+    audit_log(db, user=admin, action="agent.provider_delete", request=request,
+              resource_type="agent_provider", resource_id=provider.id, resource_name=provider.name,
+              details={"agents_on_it": in_use})
+    db.delete(provider)
+    db.query(AgentRoleModel).filter(AgentRoleModel.provider == provider.name).delete()
+    db.commit()
+    forget_provider(provider.name)
+
+
+@catalog_router.get("/role-models", response_model=list[RoleModelRead])
+def list_role_models(db: Session = Depends(get_db)):
+    reads = []
+    for role in definitions().roles.values():
+        provider, model = delegation.role_model(db, role.id)
+        custom = db.get(AgentRoleModel, role.id) is not None and (provider, model) != (
+            PROVIDER_OLLAMA, settings.charybdis_default_model)
+        reads.append(RoleModelRead(role=role.id, provider=provider, model=model, custom=custom))
+    return reads
+
+
+@catalog_router.put("/role-models/{role}", response_model=RoleModelRead)
+def set_role_model(
+    role: str,
+    payload: RoleModelWrite,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """The provider and model agents of a role get when staffed. Agents already staffed keep theirs."""
+    if role not in definitions().roles:
+        raise HTTPException(status_code=404, detail=f"Unknown role '{role}'")
+    if payload.provider not in known_providers():
+        raise HTTPException(status_code=422, detail=f"Unknown or disabled provider '{payload.provider}'")
+    row = db.get(AgentRoleModel, role) or AgentRoleModel(role=role)
+    row.provider, row.model = payload.provider, payload.model.strip()
+    row.updated_by = str(admin.username or "")
+    db.merge(row)
+    audit_log(db, user=admin, action="agent.role_model_set", request=request,
+              resource_type="agent_role", resource_id=role, resource_name=role,
+              details={"provider": row.provider, "model": row.model})
+    db.commit()
+    provider, model = delegation.role_model(db, role)
+    return RoleModelRead(role=role, provider=provider, model=model, custom=True)
+
+
+@catalog_router.delete("/role-models/{role}", status_code=status.HTTP_204_NO_CONTENT)
+def clear_role_model(
+    role: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    row = db.get(AgentRoleModel, role)
+    audit_log(db, user=admin, action="agent.role_model_clear", request=request,
+              resource_type="agent_role", resource_id=role, resource_name=role)
+    if row is not None:
+        db.delete(row)
+    db.commit()
 
 
 # ─── Live trace ───────────────────────────────────────────────────────────────

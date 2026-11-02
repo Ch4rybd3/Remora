@@ -5,6 +5,8 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { NAV_ICON, LogOut, Clock, AlertTriangle, ChevronDown, Download } from '../../ui/icons'
 import { ROLE_COLORS, ROLE_LABELS } from '../../auth/roles'
 import { useAuth } from '../../context/AuthContext'
+import { useQuery } from '@tanstack/react-query'
+import { featuresApi } from '../../api/agents'
 import { useTimezone, TIMEZONE_OPTIONS, type TzOption } from '../../context/TimezoneContext'
 
 interface NavItem {
@@ -130,6 +132,7 @@ function TimezoneSelector() {
 
 export default function Sidebar() {
   const { user, logout, isAdmin } = useAuth()
+  const { data: features } = useQuery({ queryKey: ['features'], queryFn: featuresApi.get, staleTime: Infinity })
   const navigate = useNavigate()
 
   const sections: NavSection[] = [
@@ -171,6 +174,7 @@ export default function Sidebar() {
         { to: '/playbooks', label: 'Playbooks' },
         { to: '/config/chainsaw-rules', label: 'Detection Rules' },
         { to: '/config/connectors', label: 'Connectors' },
+        ...(isAdmin && features?.charybdis ? [{ to: '/config/agents', label: 'Agent models' }] : []),
         ...(isAdmin ? [{ to: '/users', label: 'Users' }] : []),
         ...(isAdmin ? [{ to: '/audit', label: 'Audit' }] : []),
         ...(isAdmin ? [{ to: '/design', label: 'Design System' }] : []),

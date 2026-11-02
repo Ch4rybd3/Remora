@@ -134,6 +134,12 @@ ACTIONS: dict[tuple[str, str], str] = {
     ("POST",   "/api/v1/cases/{case_id}/agents/findings/{finding_id}/reject"):
         "agent.finding_reject",
     ("POST",   "/api/v1/cases/{case_id}/agents/ask"):                 "agent.ask",
+    # Model providers hold API keys and decide where case data may go.
+    ("POST",   "/api/v1/agents/providers"):                           "agent.provider_create",
+    ("PATCH",  "/api/v1/agents/providers/{provider_id}"):             "agent.provider_update",
+    ("DELETE", "/api/v1/agents/providers/{provider_id}"):             "agent.provider_delete",
+    ("PUT",    "/api/v1/agents/role-models/{role}"):                  "agent.role_model_set",
+    ("DELETE", "/api/v1/agents/role-models/{role}"):                  "agent.role_model_clear",
     # Sends the table's columns and a few rows to the model.
     ("POST",   "/api/v1/cases/{case_id}/agents/rql-draft"):           "agent.rql_draft",
 

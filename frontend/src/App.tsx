@@ -21,6 +21,7 @@ import ReportTemplates from './pages/ReportTemplates'
 import ChainsawRules from './pages/ChainsawRules'
 import CTILookup from './pages/CTILookup'
 import Connectors from './pages/Connectors'
+import AgentModels from './pages/AgentModels'
 import ArtifactExplorer from './pages/ArtifactExplorer'
 import PcapExplorer from './pages/PcapExplorer'
 import DiskImageExplorer from './pages/DiskImageExplorer'
@@ -77,6 +78,7 @@ export default function App() {
         <Route path="/artifacts/registry" element={<RegistryExplorer />} />
         <Route path="/artifacts/rdp-cache" element={<RdpCacheViewer />} />
         <Route path="/config/connectors"  element={<Connectors />} />
+        <Route path="/config/agents"      element={<AgentModels />} />
         <Route path="/config/clients"     element={<Clients />} />
         <Route path="/config/clients/:id" element={<ClientDetail />} />
         <Route path="/knowledge" element={<KnowledgeEditor />} />

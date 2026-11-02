@@ -206,6 +206,7 @@ export const NAV_ICON: Record<string, LucideIcon> = {
   '/playbooks':             GitBranch,
   '/config/chainsaw-rules': Swords,         // Detection Rules — the rule packs themselves
   '/config/connectors':     Plug,
+  '/config/agents':         Bot,            // Agent models — the agents' concept icon
   '/users':                 Users,
   '/audit':                 ShieldCheck,
   '/account':               User,          // the signed-in user's own account
