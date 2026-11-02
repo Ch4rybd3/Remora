@@ -15,6 +15,8 @@ downgrades alone (`docs/CHARYBDIS.md` section 1):
   store when recorded, so a citation never points at a row that is not there.
 * `agent_findings`     — a conclusion resting on observations, checked by a
   reviewer agent and validated or rejected by the analyst (S32).
+* `agent_ingest_notices` — which ingested files the Incident Leader has
+  already been told about, so a file triggers it once (S33).
 
 Written with `Mapped` annotations for the same reason as `models/ingest.py`:
 the mypy ratchet forbids adding modules to the exemption list.
@@ -81,12 +83,14 @@ EVENT_KINDS = frozenset({
 #: Why a task exists. `message` is the analyst talking to an agent; `assigned`
 #: is work the analyst approved from a leader's proposal; `report` and `help`
 #: are what lands on the leader's desk when an analyst finishes or asks;
-#: `review` is a reviewer checking one finding.
+#: `review` is a reviewer checking one finding; `trigger` tells the leader
+#: that new evidence reached the case.
 TASK_KIND_MESSAGE  = "message"
 TASK_KIND_ASSIGNED = "assigned"
 TASK_KIND_REPORT   = "report"
 TASK_KIND_HELP     = "help"
 TASK_KIND_REVIEW   = "review"
+TASK_KIND_TRIGGER  = "trigger"
 
 PROPOSAL_IOC               = "ioc"
 PROPOSAL_TIMELINE          = "timeline_event"
@@ -94,9 +98,10 @@ PROPOSAL_TASK              = "task"
 PROPOSAL_TTP               = "ttp"
 PROPOSAL_REPORT_SECTION    = "report_section"
 PROPOSAL_EXECUTIVE_SUMMARY = "executive_summary"
+PROPOSAL_INCIDENT_LOG      = "incident_log"
 PROPOSAL_KINDS = frozenset({
     PROPOSAL_IOC, PROPOSAL_TIMELINE, PROPOSAL_TASK, PROPOSAL_TTP,
-    PROPOSAL_REPORT_SECTION, PROPOSAL_EXECUTIVE_SUMMARY,
+    PROPOSAL_REPORT_SECTION, PROPOSAL_EXECUTIVE_SUMMARY, PROPOSAL_INCIDENT_LOG,
 })
 
 PROPOSAL_OPEN     = "proposed"
@@ -113,6 +118,14 @@ FINDING_OPEN      = frozenset({FINDING_IN_REVIEW, FINDING_PROPOSED})
 
 VERDICT_SUPPORTED   = "supported"
 VERDICT_UNSUPPORTED = "unsupported"
+
+#: Where an observation's row comes from. `artifact` is an Explorer table and
+#: opens there; the others are module pages whose content is not a table.
+SOURCE_ARTIFACT = "artifact"
+SOURCE_MEMORY   = "memory"
+SOURCE_EMAIL    = "email"
+SOURCE_BINARY   = "binary"
+SOURCE_KINDS    = frozenset({SOURCE_ARTIFACT, SOURCE_MEMORY, SOURCE_EMAIL, SOURCE_BINARY})
 
 
 class AgentInstance(Base):
@@ -287,6 +300,9 @@ class AgentObservation(Base):
         String, ForeignKey("agent_tasks.id", ondelete="SET NULL",
                            name="fk_agent_observations_task_id"), nullable=True)
 
+    #: What `artifact_id` names: an Explorer table, or a memory dump, an
+    #: email or a binary, whose pages are not tables.
+    source_kind: Mapped[str] = mapped_column(String(16), nullable=False, default=SOURCE_ARTIFACT)
     #: Not a foreign key: deleting a table from the Explorer must not take the
     #: citations that relied on it along with it.
     artifact_id:    Mapped[str]        = mapped_column(String, nullable=False)
@@ -350,3 +366,23 @@ class AgentFinding(Base):
         Index("ix_agent_findings_case_state", "case_id", "state"),
         Index("ix_agent_findings_case_ref", "case_id", "ref", unique=True),
     )
+
+
+class AgentIngestNotice(Base):
+    """
+    An ingested file the Incident Leader was told about, and the task that
+    told it. One row per file: a file announced once is not announced again,
+    whatever happens to the task.
+    """
+
+    __tablename__ = "agent_ingest_notices"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    case_id: Mapped[str] = mapped_column(
+        String, ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True)
+    ingested_file_id: Mapped[str] = mapped_column(
+        String, ForeignKey("ingested_files.id", ondelete="CASCADE"), nullable=False, unique=True)
+    task_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("agent_tasks.id", ondelete="SET NULL",
+                           name="fk_agent_ingest_notices_task_id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=_now)
