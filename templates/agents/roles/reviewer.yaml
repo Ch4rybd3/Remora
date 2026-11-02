@@ -1,0 +1,10 @@
+id: reviewer
+name: Reviewer
+description: Checks that each finding's cited evidence says what the finding claims, and weighs other explanations.
+reports_to: incident-leader
+prompt: reviewer.md
+conversation_process: conversation
+process: review-finding
+max_steps: 14
+tools: [read_finding, list_findings, list_artifacts, store_schema, store_search,
+        chainsaw_alerts, process_tree, review_finding]

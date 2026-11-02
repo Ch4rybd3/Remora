@@ -1,0 +1,11 @@
+id: reporter
+name: Reporter
+description: Drafts report sections and the executive summary from validated findings only.
+reports_to: incident-leader
+prompt: reporter.md
+conversation_process: conversation
+process: report-drafting
+assignable: true
+max_steps: 20
+tools: [case_overview, report_outline, list_findings, read_finding, list_timeline, list_iocs,
+        list_ttps, propose_report_section, propose_executive_summary]

@@ -3,7 +3,7 @@ import { useMutation } from '@tanstack/react-query'
 import { agentsApi } from '../../api/agents'
 import type { AgentEvent, AgentEventKind } from '../../types'
 import { fmtTimeOnly } from '../../utils/dateUtils'
-import { ChevronDown, ChevronRight, ShieldCheck } from '../../ui/icons'
+import { ChevronDown, ChevronRight, Download, ShieldCheck } from '../../ui/icons'
 
 const KIND_LABEL: Record<AgentEventKind, string> = {
   'message.user':  'analyst',
@@ -16,6 +16,7 @@ const KIND_LABEL: Record<AgentEventKind, string> = {
   'step':          'step',
   'task':          'task',
   'proposal':      'proposal',
+  'finding':       'finding',
 }
 
 const KIND_TONE: Partial<Record<AgentEventKind, string>> = {
@@ -25,6 +26,7 @@ const KIND_TONE: Partial<Record<AgentEventKind, string>> = {
   'error':       'text-agent-error',
   'step':        'text-agent-thinking',
   'proposal':    'text-agent-waiting',
+  'finding':     'text-agent-waiting',
 }
 
 function summary(event: AgentEvent): string {
@@ -37,6 +39,7 @@ function summary(event: AgentEvent): string {
     case 'step':        return `${String(p.step)} -> ${String(p.next)}`
     case 'task':        return `${String(p.action)} ${String(p.task_kind)}: ${String(p.objective ?? '')}`
     case 'proposal':    return `${String(p.action)} ${String(p.summary ?? '')}`
+    case 'finding':     return `${String(p.action)} ${String(p.summary ?? '')}${p.verdict ? ` (${String(p.verdict)})` : ''}`
     default:            return String(p.text ?? '')
   }
 }
@@ -74,6 +77,19 @@ export default function AgentTracePanel({ caseId, events, connected }: {
   caseId: string; events: AgentEvent[]; connected: boolean
 }) {
   const verify = useMutation({ mutationFn: () => agentsApi.verify(caseId) })
+  // A file the chain can be checked from away from Remora: each line carries
+  // its own hash and its predecessor's.
+  const exportTrace = useMutation({
+    mutationFn: () => agentsApi.exportTrace(caseId),
+    onSuccess: blob => {
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `agent-trace-${caseId.slice(0, 8)}.jsonl`
+      a.click()
+      URL.revokeObjectURL(url)
+    },
+  })
 
   return (
     <div className="flex flex-col h-full min-w-0">
@@ -82,6 +98,11 @@ export default function AgentTracePanel({ caseId, events, connected }: {
         <span className={`w-2 h-2 rounded-pill ${connected ? 'bg-agent-thinking' : 'bg-agent-idle'}`}
               title={connected ? 'Live' : 'Reconnecting'} />
         <button className="btn-ghost text-label ml-auto flex items-center gap-1"
+                title="Download the trace as JSON lines, with its hash chain"
+                onClick={() => exportTrace.mutate()} disabled={exportTrace.isPending}>
+          <Download size={14} /> Export
+        </button>
+        <button className="btn-ghost text-label flex items-center gap-1"
                 onClick={() => verify.mutate()} disabled={verify.isPending}>
           <ShieldCheck size={14} /> Verify
         </button>

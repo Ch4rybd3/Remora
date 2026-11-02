@@ -38,6 +38,7 @@ from ...models.agent import (
     AGENT_TOOL,
     EVENT_AGENT_MESSAGE,
     EVENT_ERROR,
+    EVENT_FINDING,
     EVENT_PROPOSAL,
     EVENT_STATUS,
     EVENT_STEP,
@@ -115,12 +116,14 @@ class _Run:
 def _history(db: Session, agent: AgentInstance, exclude_task: str) -> list[ChatMessage]:
     """
     The agent's conversation so far: the analyst's messages, the agent's answers,
-    and the analyst's decisions on its proposals - a rejection with a comment is
-    feedback the agent must see the next time it works.
+    the analyst's decisions on its proposals and findings, and the reviewer's
+    verdicts - a rejection with a comment is feedback the agent must see the
+    next time it works.
     """
     rows = (db.query(AgentEvent)
             .filter(AgentEvent.agent_id == agent.id,
-                    AgentEvent.kind.in_((EVENT_USER_MESSAGE, EVENT_AGENT_MESSAGE, EVENT_PROPOSAL)))
+                    AgentEvent.kind.in_((EVENT_USER_MESSAGE, EVENT_AGENT_MESSAGE,
+                                         EVENT_PROPOSAL, EVENT_FINDING)))
             .order_by(AgentEvent.seq.desc())
             .limit(HISTORY_MESSAGES * 2)
             .all())
@@ -134,6 +137,17 @@ def _history(db: Session, agent: AgentInstance, exclude_task: str) -> list[ChatM
             if payload.get("comment"):
                 note += f" - comment: {payload['comment']}"
             messages.append(ChatMessage("user", note + "]"))
+        elif event.kind == EVENT_FINDING:
+            action = payload.get("action")
+            if action == "reviewed":
+                note = (f"[{event.actor} reviewed your finding {payload.get('summary', '')}: "
+                        f"{payload.get('verdict')} - {payload.get('comment', '')}]")
+            elif action in ("validated", "rejected"):
+                note = f"[The analyst {action} your finding {payload.get('summary', '')}"
+                note += f" - comment: {payload['comment']}]" if payload.get("comment") else "]"
+            else:
+                continue
+            messages.append(ChatMessage("user", note))
         elif event.task_id != exclude_task:
             role = "user" if event.kind == EVENT_USER_MESSAGE else "assistant"
             messages.append(ChatMessage(role, payload.get("text", "")))
@@ -280,6 +294,7 @@ def _finish(run: _Run, status: str, error: str | None, agent_status: str,
                 task.report = report
             db.commit()
             delegation.report_to_leader(db, task)
+            delegation.close_review(db, task)
         agent = db.get(AgentInstance, run.agent_id)
         if agent is not None:
             _set_agent_status(db, agent, agent_status, run.task_id)
@@ -436,6 +451,7 @@ def _recover(db: Session) -> list[str]:
         events.record(db, case_id=task.case_id, agent_id=task.agent_id, task_id=task.id,
                       kind=EVENT_ERROR, payload={"message": "Interrupted by a restart.",
                                                  "reason": "restart"})
+        delegation.close_review(db, task)
     return [task_id for (task_id,) in
             db.query(AgentTask.id).filter(AgentTask.status == TASK_PENDING)
             .order_by(AgentTask.created_at)]

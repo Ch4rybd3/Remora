@@ -4,8 +4,9 @@ What an agent can do, as typed adapters over Remora services.
 An agent never gets a shell, a path or SQL. Each tool takes arguments that a
 Pydantic model validates, reaches data through the same service the
 interface uses, and returns a bounded JSON object. Tools read Remora data;
-the only writes are proposals and tasks, which live in the module's own
-tables and reach the case only when the analyst accepts them.
+the only writes are proposals, tasks, observations and findings, which live
+in the module's own tables and reach the case only when the analyst accepts
+them.
 
 The registry here is the single source of the tool vocabulary: the runner
 offers it to the model, the API lists it, and `docs/CHARYBDIS.md` is checked
@@ -14,6 +15,7 @@ against it (`test_charybdis_tools.py`).
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -24,12 +26,23 @@ from sqlalchemy.orm import Session
 
 from ...core.permissions import PERM_ARTIFACTS, PERM_WRITE
 from ...models.agent import (
+    EVENT_FINDING,
     EVENT_PROPOSAL,
+    FINDING_IN_REVIEW,
+    FINDING_PROPOSED,
+    FINDING_VALIDATED,
+    PROPOSAL_EXECUTIVE_SUMMARY,
     PROPOSAL_IOC,
     PROPOSAL_OPEN,
+    PROPOSAL_REPORT_SECTION,
     PROPOSAL_TASK,
     PROPOSAL_TIMELINE,
+    PROPOSAL_TTP,
+    VERDICT_SUPPORTED,
+    VERDICT_UNSUPPORTED,
+    AgentFinding,
     AgentInstance,
+    AgentObservation,
     AgentProposal,
     AgentTask,
 )
@@ -551,11 +564,11 @@ class ProposeTaskArgs(BaseModel):
 
 
 def _propose_task(ctx: ToolContext, args: ProposeTaskArgs) -> dict[str, Any]:
-    from .definitions import DEFAULT_ROLE, LEADER_ROLE, definitions
+    from .definitions import definitions
 
     roles = definitions().roles
-    if args.role not in roles or args.role in (LEADER_ROLE, DEFAULT_ROLE):
-        assignable = sorted(r for r in roles if r not in (LEADER_ROLE, DEFAULT_ROLE))
+    if args.role not in roles or not roles[args.role].assignable:
+        assignable = sorted(r.id for r in roles.values() if r.assignable)
         raise ToolError(f"Cannot assign to '{args.role}'. Roles: {', '.join(assignable)}")
     for ref in args.depends_on:
         task = ctx.db.get(AgentTask, ref)
@@ -625,6 +638,321 @@ def _request_help(ctx: ToolContext, args: RequestHelpArgs) -> dict[str, Any]:
     return {"sent_to": "incident-leader", "note": "Carry on with what you can do meanwhile."}
 
 
+# ─── Observations and findings ────────────────────────────────────────────────
+
+#: A cell kept in an observation's copy of its row. Longer than a cell handed
+#: to the model: the copy is what the analyst reads when the table is gone.
+MAX_OBSERVED_CELL_CHARS = 4000
+
+
+class RecordObservationArgs(BaseModel):
+    artifact_id: str = Field(..., description="Id from list_artifacts")
+    rql: str = Field(..., min_length=1,
+                     description="RQL matching exactly one row, e.g. EventRecordId = 4512")
+    note: str = Field(..., min_length=1, max_length=2000,
+                      description="What this row shows, in one or two sentences")
+
+
+def _record_observation(ctx: ToolContext, args: RecordObservationArgs) -> dict[str, Any]:
+    """
+    Re-read the row from the store before keeping it. A model that misremembers
+    a record id gets an error here, not a citation pointing at nothing.
+    """
+    from ..rql_parser import RQLSyntaxError
+
+    agent_id, task_id = _require_caller(ctx)
+    artifact = _artifact(ctx, args.artifact_id)
+    columns: list[str] = json.loads(str(artifact.columns or "[]"))
+    try:
+        page = get_store().search(_source(artifact), columns, Query(rql=args.rql.strip()),
+                                  page=1, page_size=2)
+    except RQLSyntaxError as exc:
+        raise ToolError(str(exc)) from exc
+    except SourceMissing as exc:
+        raise ToolError("The artifact's file is no longer on disk.") from exc
+    if page.total != 1:
+        hint = ("Nothing matches; check the values with store_search." if page.total == 0 else
+                "Add a condition on a column that identifies one row, e.g. a record id "
+                "or the exact timestamp.")
+        raise ToolError(f"The filter matches {page.total} rows, not one. {hint}")
+
+    row = {c: (v[:MAX_OBSERVED_CELL_CHARS] if isinstance(v, str) else v)
+           for c, v in page.rows[0].items()}
+    observation = AgentObservation(
+        case_id=ctx.case.id, agent_id=agent_id, task_id=task_id, artifact_id=artifact.id,
+        artifact_name=str(artifact.original_name),
+        artifact_label=str(artifact.ez_label) if artifact.ez_label else None,
+        locator=args.rql.strip(), row=json.dumps(row, default=str), note=args.note.strip())
+    ctx.db.add(observation)
+    ctx.db.commit()
+    return {"observation_id": observation.id,
+            "row": {c: _cell(v) for c, v in row.items()},
+            "note": "Cite this id in propose_finding."}
+
+
+SEVERITIES = ("critical", "high", "medium", "low", "info")
+CONFIDENCES = ("low", "medium", "high")
+ATTACK_ID = re.compile(r"^T\d{4}(\.\d{3})?$")
+
+
+class ProposeFindingArgs(BaseModel):
+    title: str = Field(..., min_length=5, max_length=255)
+    statement: str = Field(..., min_length=10, max_length=8000,
+                           description="What happened, stated so the observations can prove or disprove it")
+    severity: str = Field(..., description="critical, high, medium, low or info")
+    confidence: str = Field(..., description="low, medium or high")
+    confidence_reason: str = Field(..., min_length=5, max_length=2000,
+                                   description="Why this confidence: what is certain, what is inferred")
+    observation_ids: list[str] = Field(..., min_length=1,
+                                       description="Ids from record_observation the finding rests on")
+    attack_ids: list[str] = Field(default_factory=list, description="ATT&CK technique ids, e.g. T1021.001")
+
+
+def _finding_ref(db: Session, case_id: str) -> int:
+    last = (db.query(AgentFinding.ref).filter(AgentFinding.case_id == case_id)
+            .order_by(AgentFinding.ref.desc()).first())
+    return (last[0] if last else 0) + 1
+
+
+def _propose_finding(ctx: ToolContext, args: ProposeFindingArgs) -> dict[str, Any]:
+    from .delegation import request_review
+    from .runtime import supervisor
+
+    agent_id, task_id = _require_caller(ctx)
+    if args.severity not in SEVERITIES:
+        raise ToolError(f"severity must be one of: {', '.join(SEVERITIES)}")
+    if args.confidence not in CONFIDENCES:
+        raise ToolError("confidence must be low, medium or high")
+    bad = [a for a in args.attack_ids if not ATTACK_ID.match(a.strip())]
+    if bad:
+        raise ToolError(f"Not ATT&CK technique ids: {bad}. Write them like T1059 or T1021.001.")
+    known = {o.id for o in ctx.db.query(AgentObservation.id)
+             .filter(AgentObservation.case_id == ctx.case.id,
+                     AgentObservation.id.in_(args.observation_ids))}
+    missing = [o for o in args.observation_ids if o not in known]
+    if missing:
+        raise ToolError(f"Unknown observations {missing}. Record them with record_observation first.")
+
+    finding = AgentFinding(
+        case_id=ctx.case.id, agent_id=agent_id, task_id=task_id,
+        ref=_finding_ref(ctx.db, str(ctx.case.id)), title=args.title.strip(),
+        statement=args.statement.strip(), severity=args.severity, confidence=args.confidence,
+        confidence_reason=args.confidence_reason.strip(),
+        attack_ids=json.dumps([a.strip() for a in args.attack_ids]),
+        observation_ids=json.dumps(args.observation_ids), state=FINDING_PROPOSED)
+    ctx.db.add(finding)
+    ctx.db.commit()
+    review = request_review(ctx.db, finding)
+    from . import events
+    events.record(ctx.db, case_id=str(ctx.case.id), agent_id=agent_id, task_id=task_id,
+                  kind=EVENT_FINDING,
+                  payload={"action": "proposed", "finding_id": finding.id,
+                           "summary": f"F{finding.ref} {finding.title}",
+                           "review_task_id": review.id if review else None},
+                  actor=ctx.actor)
+    if review is not None:
+        supervisor.enqueue(review.id)
+    return {"finding": f"F{finding.ref}", "finding_id": finding.id, "state": finding.state,
+            "note": ("Sent to the reviewer, then to the analyst." if review else
+                     "Waiting for the analyst to validate or reject it.")}
+
+
+class ListFindingsArgs(BaseModel):
+    state: str | None = Field(None, description="in_review, proposed, validated or rejected")
+    limit: int = Field(50, ge=1, le=200)
+
+
+def _list_findings(ctx: ToolContext, args: ListFindingsArgs) -> dict[str, Any]:
+    query = ctx.db.query(AgentFinding).filter(AgentFinding.case_id == ctx.case.id)
+    if args.state:
+        query = query.filter(AgentFinding.state == args.state)
+    rows = [{"finding": f"F{f.ref}", "finding_id": f.id, "title": f.title, "state": f.state,
+             "severity": f.severity, "confidence": f.confidence,
+             "attack_ids": json.loads(f.attack_ids or "[]"),
+             "observations": len(json.loads(f.observation_ids or "[]")),
+             "review": f.review_verdict}
+            for f in query.order_by(AgentFinding.ref).limit(args.limit)]
+    return fit({"total": query.count(), "rows": rows})
+
+
+def _find(ctx: ToolContext, ref: str) -> AgentFinding:
+    """A finding by id or by its `F<n>` reference."""
+    ref = ref.strip()
+    finding = None
+    match = re.fullmatch(r"[Ff](\d+)", ref)
+    if match:
+        finding = (ctx.db.query(AgentFinding)
+                   .filter(AgentFinding.case_id == ctx.case.id,
+                           AgentFinding.ref == int(match.group(1))).first())
+    else:
+        finding = ctx.db.get(AgentFinding, ref)
+    if finding is None or finding.case_id != ctx.case.id:
+        raise ToolError(f"No finding '{ref}' in this case. Call list_findings.")
+    return finding
+
+
+class ReadFindingArgs(BaseModel):
+    finding: str = Field(..., description="F<n> reference or finding id")
+
+
+def _read_finding(ctx: ToolContext, args: ReadFindingArgs) -> dict[str, Any]:
+    f = _find(ctx, args.finding)
+    ids = json.loads(f.observation_ids or "[]")
+    observations = [
+        {"observation_id": o.id, "artifact_id": o.artifact_id, "artifact": o.artifact_name,
+         "locator": o.locator, "note": o.note,
+         "row": {c: _cell(v) for c, v in json.loads(o.row or "{}").items()}}
+        for o in ctx.db.query(AgentObservation).filter(AgentObservation.id.in_(ids))
+    ]
+    return fit({"finding": f"F{f.ref}", "finding_id": f.id, "title": f.title,
+                "statement": f.statement, "severity": f.severity, "confidence": f.confidence,
+                "confidence_reason": f.confidence_reason,
+                "attack_ids": json.loads(f.attack_ids or "[]"), "state": f.state,
+                "review": ({"verdict": f.review_verdict, "comment": f.review_comment,
+                            "alternatives": f.review_alternatives}
+                           if f.review_verdict else None),
+                "analyst_comment": f.decision_comment,
+                "observations": observations}, rows_key="observations")
+
+
+class ReviewFindingArgs(BaseModel):
+    finding: str = Field(..., description="F<n> reference or finding id")
+    verdict: str = Field(..., description="supported or unsupported")
+    comment: str = Field(..., min_length=10, max_length=4000,
+                         description="What the evidence does and does not show")
+    alternatives: str = Field("", max_length=4000,
+                              description="Other explanations of the same evidence, and why they fit or not")
+
+
+def _review_finding(ctx: ToolContext, args: ReviewFindingArgs) -> dict[str, Any]:
+    from . import events
+
+    _, task_id = _require_caller(ctx)
+    f = _find(ctx, args.finding)
+    if f.review_task_id != task_id:
+        raise ToolError(f"F{f.ref} was not given to you to review.")
+    if f.state != FINDING_IN_REVIEW:
+        raise ToolError(f"F{f.ref} is {f.state}, not waiting for a review.")
+    if args.verdict not in (VERDICT_SUPPORTED, VERDICT_UNSUPPORTED):
+        raise ToolError("verdict must be supported or unsupported")
+    f.review_verdict = args.verdict
+    f.review_comment = args.comment.strip()
+    f.review_alternatives = args.alternatives.strip() or None
+    f.reviewed_by = ctx.actor
+    f.state = FINDING_PROPOSED
+    ctx.db.commit()
+    # Recorded on the author's line of the trace: the review is feedback the
+    # author reads the next time it works (`runtime._history`).
+    events.record(ctx.db, case_id=str(ctx.case.id), agent_id=f.agent_id, task_id=ctx.task_id,
+                  kind=EVENT_FINDING,
+                  payload={"action": "reviewed", "finding_id": f.id,
+                           "summary": f"F{f.ref} {f.title}", "verdict": args.verdict,
+                           "comment": f.review_comment},
+                  actor=ctx.actor)
+    return {"finding": f"F{f.ref}", "verdict": args.verdict,
+            "note": "Recorded. The analyst now decides."}
+
+
+# ─── Reporting ────────────────────────────────────────────────────────────────
+
+#: How report text cites a finding: `[F3]`.
+CITATION = re.compile(r"\[F(\d+)\]")
+
+
+def _sections(ctx: ToolContext) -> list[Any]:
+    from ..report_service import sections_for
+    from ..template_service import TemplateService
+
+    template = (TemplateService().get_template(str(ctx.case.template_id))
+                if ctx.case.template_id else None)
+    return sections_for(template)
+
+
+def _report_outline(ctx: ToolContext, _: NoArgs) -> dict[str, Any]:
+    written = json.loads(str(ctx.case.report_sections_data or "{}"))
+    return {
+        "sections": [{"section": s.slug, "name": s.name, "required": s.required,
+                      "guidance": _cell(s.template), "written_chars": len(str(written.get(s.slug) or ""))}
+                     for s in _sections(ctx)],
+        "executive_summary_chars": len(str(ctx.case.executive_summary or "")),
+        "citation_format": "Cite validated findings as [F1], [F2] at the end of each paragraph.",
+    }
+
+
+def _checked_citations(ctx: ToolContext, text: str) -> list[int]:
+    """
+    Every paragraph cites at least one finding, and every finding it cites is
+    validated. Headings are exempt. Returns the cited references.
+    """
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+    uncited = [p[:80] for p in paragraphs if not p.startswith("#") and not CITATION.search(p)]
+    if uncited:
+        raise ToolError(f"Every paragraph must cite a validated finding as [F<n>]. Uncited: {uncited}")
+    refs = sorted({int(n) for n in CITATION.findall(text)})
+    validated = {ref for (ref,) in ctx.db.query(AgentFinding.ref)
+                 .filter(AgentFinding.case_id == ctx.case.id, AgentFinding.ref.in_(refs),
+                         AgentFinding.state == FINDING_VALIDATED)}
+    stray = [f"F{r}" for r in refs if r not in validated]
+    if stray:
+        raise ToolError(f"Only validated findings may be cited; not validated: {stray}. "
+                        "Call list_findings with state validated.")
+    return refs
+
+
+class ProposeSectionArgs(BaseModel):
+    section: str = Field(..., description="Section slug from report_outline")
+    text: str = Field(..., min_length=20, max_length=20000,
+                      description="Markdown. Each paragraph ends with the findings it rests on, e.g. [F2]")
+
+
+def _propose_report_section(ctx: ToolContext, args: ProposeSectionArgs) -> dict[str, Any]:
+    sections = {s.slug: s for s in _sections(ctx)}
+    if args.section not in sections:
+        raise ToolError(f"Unknown section '{args.section}'. Sections: {', '.join(sections)}")
+    refs = _checked_citations(ctx, args.text)
+    payload = {"section": args.section, "name": sections[args.section].name,
+               "text": args.text.strip(), "findings": [f"F{r}" for r in refs]}
+    return _propose(ctx, PROPOSAL_REPORT_SECTION, payload,
+                    f"Drafted from {', '.join(payload['findings'])}", [],
+                    f"Report section {sections[args.section].name}")
+
+
+class ProposeSummaryArgs(BaseModel):
+    text: str = Field(..., min_length=20, max_length=8000,
+                      description="Plain language for a non-technical reader, each paragraph citing [F<n>]")
+
+
+def _propose_executive_summary(ctx: ToolContext, args: ProposeSummaryArgs) -> dict[str, Any]:
+    refs = _checked_citations(ctx, args.text)
+    payload = {"text": args.text.strip(), "findings": [f"F{r}" for r in refs]}
+    return _propose(ctx, PROPOSAL_EXECUTIVE_SUMMARY, payload,
+                    f"Drafted from {', '.join(payload['findings'])}", [], "Executive summary")
+
+
+class ProposeTtpArgs(BaseModel):
+    technique_id: str = Field(..., description="ATT&CK technique id, e.g. T1021.001")
+    technique_name: str = Field("", max_length=255)
+    tactic: str = Field("", max_length=64, description="Tactic short name, e.g. lateral-movement")
+    comment: str = Field("", max_length=2000, description="How it was used in this incident")
+    rationale: str = Field(..., min_length=1)
+    evidence: list[str] = Field(..., min_length=1, description=EVIDENCE_HELP)
+
+
+def _propose_ttp(ctx: ToolContext, args: ProposeTtpArgs) -> dict[str, Any]:
+    technique = args.technique_id.strip().upper()
+    if not ATTACK_ID.match(technique):
+        raise ToolError("Write the technique id like T1059 or T1021.001.")
+    if ctx.db.query(CaseTTP).filter(CaseTTP.case_id == ctx.case.id,
+                                    CaseTTP.technique_id == technique).first():
+        raise ToolError(f"{technique} is already on the case matrix.")
+    if any(p.get("technique_id") == technique for p in _open_proposals(ctx, PROPOSAL_TTP)):
+        raise ToolError("Already proposed and waiting for the analyst.")
+    payload = {"technique_id": technique, "technique_name": args.technique_name.strip(),
+               "tactic": args.tactic.strip(), "comment": args.comment.strip()}
+    return _propose(ctx, PROPOSAL_TTP, payload, args.rationale, args.evidence,
+                    f"TTP {technique} {args.technique_name}".strip())
+
+
 # ─── Registry ─────────────────────────────────────────────────────────────────
 
 TOOLS: dict[str, Tool] = {tool.name: tool for tool in (
@@ -673,6 +1001,29 @@ TOOLS: dict[str, Tool] = {tool.name: tool for tool in (
          ReadTaskArgs, _read_task),
     Tool("request_help", "Ask the Incident Leader for work outside your speciality.",
          RequestHelpArgs, _request_help, PROPOSING),
+    Tool("record_observation",
+         "Keep one artifact row as evidence. The filter must match exactly one row.",
+         RecordObservationArgs, _record_observation, PROPOSING),
+    Tool("propose_finding",
+         "Propose a finding resting on recorded observations, for review and analyst validation.",
+         ProposeFindingArgs, _propose_finding, PROPOSING),
+    Tool("list_findings", "Findings of the case with their state and review verdict.",
+         ListFindingsArgs, _list_findings),
+    Tool("read_finding", "One finding in full, with the rows of its observations and its review.",
+         ReadFindingArgs, _read_finding),
+    Tool("review_finding",
+         "Give the verdict on a finding in review: does its evidence show what it claims?",
+         ReviewFindingArgs, _review_finding, PROPOSING),
+    Tool("report_outline", "The report's sections, their guidance, and how much is written.",
+         NoArgs, _report_outline),
+    Tool("propose_report_section",
+         "Propose text for one report section, citing validated findings only.",
+         ProposeSectionArgs, _propose_report_section, PROPOSING),
+    Tool("propose_executive_summary",
+         "Propose the executive summary, citing validated findings only.",
+         ProposeSummaryArgs, _propose_executive_summary, PROPOSING),
+    Tool("propose_ttp", "Propose an ATT&CK technique for the case matrix. Cite the evidence.",
+         ProposeTtpArgs, _propose_ttp, PROPOSING),
 )}
 
 

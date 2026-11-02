@@ -311,6 +311,8 @@ that already exists and is already sandboxed:
 | `cti_lookup` (approval required: data leaves the host) | `ConnectorConfig` connectors |
 | `mitre_lookup` | cached ATT&CK tree |
 | `propose` | `agent_proposals` |
+| `record_observation`, `propose_finding`, `review_finding` | `agent_observations`, `agent_findings` |
+| `report_outline`, `propose_report_section`, `propose_executive_summary` | case template sections, `agent_proposals` |
 | `ask_human`, `request_help`, `report` | messaging |
 
 ---

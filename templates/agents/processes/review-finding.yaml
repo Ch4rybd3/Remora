@@ -1,0 +1,18 @@
+id: review-finding
+description: Check one finding against its evidence before the analyst sees it.
+steps:
+  - id: examine
+    tools: [read_finding, list_artifacts, store_schema, store_search, chainsaw_alerts, process_tree]
+    instructions: |
+      Read the finding named in your task with read_finding. For each observation, check that
+      the row says what the finding claims: the right host, account, time and event. Search
+      the same artifact around it when that helps. Ask yourself what else could explain the
+      same rows (administration, a scheduled job, a security tool, a test).
+      Answer with what each observation does and does not show.
+  - id: verdict
+    tools: [review_finding]
+    instructions: |
+      Call review_finding once. Verdict "supported" only if the observations show what the
+      finding states, without needing an assumption the data does not back. Otherwise
+      "unsupported", and say what is missing. List the alternative explanations you weighed.
+      Then answer with your verdict in one sentence.

@@ -122,12 +122,17 @@ ACTIONS: dict[tuple[str, str], str] = {
     ("POST",   "/api/v1/cases/{case_id}/agents/{agent_id}/tasks/{task_id}/cancel"):
         "agent.task_cancel",
     ("POST",   "/api/v1/cases/{case_id}/agents/team"):                "agent.staff_team",
-    # Accepting also writes the IOC or timeline entry, audited by that
-    # handler as `ioc.create` / `timeline.create` under the analyst's name.
+    # Accepting also writes the object, audited by its own handler under the
+    # analyst's name: `ioc.create`, `timeline.create`, `mitre.add`,
+    # `report.save` or `case.update`.
     ("POST",   "/api/v1/cases/{case_id}/agents/proposals/{proposal_id}/accept"):
         "agent.proposal_accept",
     ("POST",   "/api/v1/cases/{case_id}/agents/proposals/{proposal_id}/reject"):
         "agent.proposal_reject",
+    ("POST",   "/api/v1/cases/{case_id}/agents/findings/{finding_id}/validate"):
+        "agent.finding_validate",
+    ("POST",   "/api/v1/cases/{case_id}/agents/findings/{finding_id}/reject"):
+        "agent.finding_reject",
 
     # ── Detection ────────────────────────────────────────────────────────────
     ("POST",   "/api/v1/chainsaw/{case_id}/files/{file_id}/scan"):    "chainsaw.scan",

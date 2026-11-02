@@ -106,7 +106,7 @@ def test_the_leader_delegates_and_the_analyst_proposes_and_reports(auth_client, 
     team = auth_client.post(f"/api/v1/cases/{case_id}/agents/team")
     assert team.status_code == 201, team.text
     roles = {a["role"]: a for a in team.json()}
-    assert set(roles) == {"incident-leader", "analyst-windows"}
+    assert set(roles) == {"incident-leader", "analyst-windows", "reviewer", "reporter"}
     # Staffing twice adds nobody.
     assert auth_client.post(f"/api/v1/cases/{case_id}/agents/team").json() == []
 

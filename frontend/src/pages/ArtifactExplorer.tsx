@@ -6,6 +6,7 @@ import {
   AlertTriangle, FileText, Globe, Info, Loader2, Table2, Trash2, Upload, X,
 } from '../ui/icons'
 import { csvArtifactsApi, type CsvArtifactMeta } from '../api/csvArtifacts'
+import { agentsApi } from '../api/agents'
 import { iocsApi } from '../api/iocs'
 import { timelineApi } from '../api/timeline'
 import { useCurrentCase } from '../context/CurrentCaseContext'
@@ -13,7 +14,7 @@ import { fmtRelative, parseArtifactTimestamp } from '../utils/dateUtils'
 import { PinnedPanel } from './artifact-explorer/PinnedPanel'
 import { RowDetailPanel, type SelectedRow } from './artifact-explorer/RowDetailPanel'
 import { SidePanel } from '../ui/SidePanel'
-import { ArtifactTableView } from './artifact-explorer/ArtifactTableView'
+import { ArtifactTableView, makeRowKey } from './artifact-explorer/ArtifactTableView'
 import { ArtifactFileList } from '../ui/ArtifactFileList'
 import { CustodyActions } from '../components/custody/CustodyActions'
 import { EZBadge } from './artifact-explorer/EZBadge'
@@ -278,6 +279,27 @@ export default function ArtifactExplorer() {
   // panel on the right can show it while the table keeps its scroll position.
   const [selectedRow, setSelectedRow] = useState<SelectedRow | null>(null)
   const [rightTab,    setRightTab]    = useState<string>('selection')
+
+  // A finding's citation: open its table filtered to the cited row, and the
+  // row itself in the detail panel. The row shown is the copy the agent read,
+  // so it is there even if the table has changed since.
+  const observationParam = searchParams.get('observation')
+  useEffect(() => {
+    if (!observationParam || !caseId) return
+    let cancelled = false
+    agentsApi.observation(caseId, observationParam).then(o => {
+      if (cancelled) return
+      const row = Object.fromEntries(Object.entries(o.row).map(([k, v]) => [k, v ?? '']))
+      if (o.available) {
+        openFile(o.artifact_id)
+        updateTabState(o.artifact_id, { rql: o.locator })
+      }
+      setSelectedRow({ row, columns: Object.keys(row), pinKey: makeRowKey(o.artifact_id, row) })
+      setRightTab('detail')
+      setSearchParams({}, { replace: true })
+    }).catch(() => setSearchParams({}, { replace: true }))
+    return () => { cancelled = true }
+  }, [observationParam, caseId])
 
   const [pinnedRows,   setPinnedRows]   = useState<PinnedRow[]>([])
   const [exporting,    setExporting]    = useState(false)

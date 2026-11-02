@@ -1,5 +1,8 @@
 import api from './client'
-import type { Agent, AgentEvent, AgentProposal, AgentProposalState, AgentRole, AgentTask, LLMHealth } from '../types'
+import type {
+  Agent, AgentEvent, AgentFinding, AgentFindingState, AgentObservation, AgentProposal,
+  AgentProposalState, AgentRole, AgentTask, LLMHealth,
+} from '../types'
 
 export const agentsApi = {
   list: (caseId: string) =>
@@ -19,6 +22,9 @@ export const agentsApi = {
   verify: (caseId: string) =>
     api.get<{ ok: boolean; events: number; broken_at_seq: number | null }>(
       `/cases/${caseId}/agents/events/verify`).then(r => r.data),
+  /** The whole trace as JSON lines, with each event's hash and its predecessor's. */
+  exportTrace: (caseId: string) =>
+    api.get<Blob>(`/cases/${caseId}/agents/events/export`, { responseType: 'blob' }).then(r => r.data),
   health: () => api.get<LLMHealth>('/agents/llm/health').then(r => r.data),
   roles: () => api.get<AgentRole[]>('/agents/roles').then(r => r.data),
   staffTeam: (caseId: string) =>
@@ -31,6 +37,16 @@ export const agentsApi = {
   reject: (caseId: string, proposalId: string, comment?: string) =>
     api.post<AgentProposal>(`/cases/${caseId}/agents/proposals/${proposalId}/reject`,
       { comment: comment ?? null }).then(r => r.data),
+  findings: (caseId: string, state?: AgentFindingState) =>
+    api.get<AgentFinding[]>(`/cases/${caseId}/agents/findings`, { params: { state } }).then(r => r.data),
+  validateFinding: (caseId: string, findingId: string, comment?: string) =>
+    api.post<AgentFinding>(`/cases/${caseId}/agents/findings/${findingId}/validate`,
+      { comment: comment ?? null }).then(r => r.data),
+  rejectFinding: (caseId: string, findingId: string, comment?: string) =>
+    api.post<AgentFinding>(`/cases/${caseId}/agents/findings/${findingId}/reject`,
+      { comment: comment ?? null }).then(r => r.data),
+  observation: (caseId: string, observationId: string) =>
+    api.get<AgentObservation>(`/cases/${caseId}/agents/observations/${observationId}`).then(r => r.data),
 }
 
 export const featuresApi = {

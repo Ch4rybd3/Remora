@@ -7,28 +7,43 @@ import EmptyState from '../ui/EmptyState'
 import { Check, ClipboardCheck, Edit2, X } from '../../ui/icons'
 
 const KIND_LABEL: Record<AgentProposal['kind'], string> = {
-  ioc:            'IOC',
-  timeline_event: 'Timeline event',
-  task:           'Task',
+  ioc:               'IOC',
+  timeline_event:    'Timeline event',
+  task:              'Task',
+  ttp:               'Technique',
+  report_section:    'Report section',
+  executive_summary: 'Executive summary',
 }
 
 const KIND_TONE: Record<AgentProposal['kind'], string> = {
-  ioc:            'bg-data-2/10 text-data-2 border-data-2/20',
-  timeline_event: 'bg-data-4/10 text-data-4 border-data-4/20',
-  task:           'bg-accent/10 text-accent border-accent/20',
+  ioc:               'bg-data-2/10 text-data-2 border-data-2/20',
+  timeline_event:    'bg-data-4/10 text-data-4 border-data-4/20',
+  task:              'bg-accent/10 text-accent border-accent/20',
+  ttp:               'bg-data-5/10 text-data-5 border-data-5/20',
+  report_section:    'bg-data-1/10 text-data-1 border-data-1/20',
+  executive_summary: 'bg-data-1/10 text-data-1 border-data-1/20',
 }
 
 /** The fields an analyst may change before accepting, per kind. */
 const EDITABLE: Record<AgentProposal['kind'], string[]> = {
-  ioc:            ['value', 'description', 'confidence'],
-  timeline_event: ['title', 'description'],
-  task:           ['objective'],
+  ioc:               ['value', 'description', 'confidence'],
+  timeline_event:    ['title', 'description'],
+  task:              ['objective'],
+  ttp:               ['technique_name', 'comment'],
+  report_section:    ['text'],
+  executive_summary: ['text'],
 }
+
+/** Report text is long: shown in full rather than as a one-line headline. */
+const IS_TEXT = new Set<AgentProposal['kind']>(['report_section', 'executive_summary'])
 
 function headline(p: AgentProposal): string {
   const d = p.payload
   if (p.kind === 'ioc') return `${String(d.type)} · ${String(d.value)}`
   if (p.kind === 'timeline_event') return `${String(d.event_ts)}Z · ${String(d.title)}`
+  if (p.kind === 'ttp') return `${String(d.technique_id)} · ${String(d.technique_name ?? '')}`
+  if (p.kind === 'report_section') return `${String(d.name ?? d.section)} · from ${(d.findings as string[] ?? []).join(', ')}`
+  if (p.kind === 'executive_summary') return `from ${(d.findings as string[] ?? []).join(', ')}`
   return `${String(d.role)} · ${String(d.objective)}`
 }
 
@@ -65,6 +80,19 @@ function ProposalCard({ proposal, agentName, onDecide, busy }: {
       </div>
 
       <p className="text-ui text-fg font-mono break-all">{headline(proposal)}</p>
+      {IS_TEXT.has(proposal.kind) && (
+        <div className="border border-hairline bg-canvas p-2 text-prose text-fg whitespace-pre-wrap max-h-96 overflow-auto">
+          {String(proposal.payload.text ?? '')}
+        </div>
+      )}
+      {IS_TEXT.has(proposal.kind) && open && (
+        <p className="text-label text-fg-muted">
+          Accepting adds this after what the section already holds, without the [F] marks.
+        </p>
+      )}
+      {proposal.kind === 'ttp' && Boolean(proposal.payload.comment) && (
+        <p className="text-ui text-fg-secondary whitespace-pre-wrap">{String(proposal.payload.comment)}</p>
+      )}
       {proposal.kind !== 'task' && Boolean(proposal.payload.description) && (
         <p className="text-ui text-fg-secondary whitespace-pre-wrap">{String(proposal.payload.description)}</p>
       )}
@@ -87,7 +115,8 @@ function ProposalCard({ proposal, agentName, onDecide, busy }: {
           {fields.map(field => (
             <label key={field} className="block">
               <span className="label">{field}</span>
-              <textarea className="input w-full resize-y" rows={field === 'value' || field === 'title' ? 1 : 3}
+              <textarea className="input w-full resize-y"
+                        rows={field === 'text' ? 12 : field === 'value' || field === 'title' ? 1 : 3}
                         defaultValue={String(proposal.payload[field] ?? '')}
                         onChange={e => setDraft(d => ({ ...d, [field]: e.target.value }))} />
             </label>
@@ -135,7 +164,7 @@ export default function ProposalInbox({ caseId, agents }: { caseId: string; agen
     }) => accept ? agentsApi.accept(caseId, p.id, payload, comment) : agentsApi.reject(caseId, p.id, comment),
     onSuccess: () => {
       setError(null)
-      for (const key of ['agent-proposals', 'agent-tasks', 'agents', 'iocs', 'timeline']) {
+      for (const key of ['agent-proposals', 'agent-tasks', 'agents', 'iocs', 'timeline', 'case', 'mitre-ttps']) {
         qc.invalidateQueries({ queryKey: [key, caseId] })
       }
     },

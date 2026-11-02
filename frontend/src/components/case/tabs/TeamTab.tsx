@@ -8,15 +8,16 @@ import { Bot } from '../../../ui/icons'
 import AgentList from '../../agents/AgentList'
 import AgentChat from '../../agents/AgentChat'
 import AgentTracePanel from '../../agents/AgentTracePanel'
+import FindingsBoard from '../../agents/FindingsBoard'
 import ProposalInbox from '../../agents/ProposalInbox'
 import TaskBoard from '../../agents/TaskBoard'
 
-type View = 'chat' | 'tasks' | 'proposals'
+type View = 'chat' | 'tasks' | 'findings' | 'proposals'
 
 /**
  * Charybdis: the agents staffed on this case. Team on the left; in the centre
- * the conversation with the selected agent, the task board or the proposals
- * waiting for a decision; the live trace on the right. See docs/CHARYBDIS.md.
+ * the conversation with the selected agent, the task board, the findings or
+ * the proposals waiting for a decision; the live trace on the right. See docs/CHARYBDIS.md.
  */
 export default function TeamTab({ caseId }: { caseId: string }) {
   const qc = useQueryClient()
@@ -32,6 +33,9 @@ export default function TeamTab({ caseId }: { caseId: string }) {
   })
   const { data: proposals = [] } = useQuery({
     queryKey: ['agent-proposals', caseId], queryFn: () => agentsApi.proposals(caseId),
+  })
+  const { data: findings = [] } = useQuery({
+    queryKey: ['agent-findings', caseId], queryFn: () => agentsApi.findings(caseId),
   })
   const { data: roles = [] } = useQuery({
     queryKey: ['agent-roles'], queryFn: agentsApi.roles, staleTime: Infinity,
@@ -86,6 +90,7 @@ export default function TeamTab({ caseId }: { caseId: string }) {
   const openMessage = tasks.find(t => t.agent_id === selectedId && t.kind === 'message'
     && (t.status === 'pending' || t.status === 'running'))
   const waiting = proposals.filter(p => p.state === 'proposed').length
+  const undecided = findings.filter(f => f.state === 'in_review' || f.state === 'proposed').length
   const active = tasks.filter(t => t.status === 'pending' || t.status === 'running').length
 
   if (trace.refused) {
@@ -95,6 +100,7 @@ export default function TeamTab({ caseId }: { caseId: string }) {
   const views: { id: View; label: string }[] = [
     { id: 'chat', label: 'Chat' },
     { id: 'tasks', label: `Tasks${active ? ` (${active})` : ''}` },
+    { id: 'findings', label: `Findings${undecided ? ` (${undecided})` : ''}` },
     { id: 'proposals', label: `Proposals${waiting ? ` (${waiting})` : ''}` },
   ]
 
@@ -121,6 +127,7 @@ export default function TeamTab({ caseId }: { caseId: string }) {
         )}
         <div className="flex-1 min-h-0">
           {view === 'tasks' && <TaskBoard tasks={tasks} agents={agents} />}
+          {view === 'findings' && <FindingsBoard caseId={caseId} agents={agents} />}
           {view === 'proposals' && <ProposalInbox caseId={caseId} agents={agents} />}
           {view === 'chat' && (selected ? (
             <AgentChat

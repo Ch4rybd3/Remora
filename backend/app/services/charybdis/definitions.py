@@ -22,6 +22,7 @@ from .tools import TOOLS
 ROLE_TOOLS = "@role"
 DEFAULT_ROLE = "assistant"
 LEADER_ROLE = "incident-leader"
+REVIEWER_ROLE = "reviewer"
 
 
 class DefinitionError(Exception):
@@ -57,6 +58,9 @@ class RoleDef(BaseModel):
     #: Followed for work assigned to the agent (delegated, reports, help).
     process:              str = "conversation"
     max_steps:            int = Field(12, ge=1, le=100)
+    #: Whether the leader may propose tasks for this role. The leader, the
+    #: assistant and the reviewer get their work another way.
+    assignable:           bool = False
     tools:                list[str] = Field(default_factory=list)
     #: Filled from `prompt` at load time.
     prompt_text:          str = ""

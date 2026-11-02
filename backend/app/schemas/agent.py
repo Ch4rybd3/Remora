@@ -92,6 +92,51 @@ class AgentProposalRead(BaseModel):
     created_at:       UTCDateTime
 
 
+class AgentObservationRead(BaseModel):
+    id:             str
+    case_id:        str
+    agent_id:       str
+    task_id:        str | None
+    artifact_id:    str
+    artifact_name:  str
+    artifact_label: str | None
+    locator:        str
+    row:            dict[str, Any]
+    note:           str
+    #: False once the table the row came from is no longer in the case.
+    available:      bool
+    created_at:     UTCDateTime
+
+
+class AgentFindingRead(BaseModel):
+    id:                  str
+    case_id:             str
+    agent_id:            str
+    task_id:             str | None
+    ref:                 int
+    title:               str
+    statement:           str
+    severity:            str
+    confidence:          str
+    confidence_reason:   str
+    attack_ids:          list[str]
+    observations:        list[AgentObservationRead]
+    state:               str
+    review_task_id:      str | None
+    review_verdict:      str | None
+    review_comment:      str | None
+    review_alternatives: str | None
+    reviewed_by:         str | None
+    decided_by:          str | None
+    decided_at:          UTCDateTime | None
+    decision_comment:    str | None
+    created_at:          UTCDateTime
+
+
+class FindingDecision(BaseModel):
+    comment: str | None = Field(None, max_length=2000)
+
+
 class ProposalDecision(BaseModel):
     #: Fields replacing the proposal's own, when the analyst edits before accepting.
     payload: dict[str, Any] | None = None

@@ -1,8 +1,8 @@
 """
 Charybdis — agents working a case alongside the analyst.
 
-Three tables, all prefixed `agent_` so the module can be dropped by one
-downgrade (`docs/CHARYBDIS.md` section 1):
+Every table is prefixed `agent_` so the module can be dropped by its
+downgrades alone (`docs/CHARYBDIS.md` section 1):
 
 * `agent_instances` — an agent staffed on a case: its role, its model, its state.
 * `agent_tasks`     — one unit of work given to an agent. In S30 every analyst
@@ -10,6 +10,11 @@ downgrade (`docs/CHARYBDIS.md` section 1):
 * `agent_events`    — the trace. Append-only, ordered per case by `seq`, and
   chained by hash so a rewritten or deleted row is detectable
   (`services/charybdis/events.py`).
+* `agent_proposals`    — what an agent wants written into the case (S31).
+* `agent_observations` — one artifact row an agent relied on, re-read from the
+  store when recorded, so a citation never points at a row that is not there.
+* `agent_findings`     — a conclusion resting on observations, checked by a
+  reviewer agent and validated or rejected by the analyst (S32).
 
 Written with `Mapped` annotations for the same reason as `models/ingest.py`:
 the mypy ratchet forbids adding modules to the exemption list.
@@ -65,28 +70,49 @@ EVENT_ERROR         = "error"
 EVENT_STEP          = "step"          # a process step entered or completed
 EVENT_TASK          = "task"          # a task created, assigned, reported
 EVENT_PROPOSAL      = "proposal"      # a proposal made or decided
+EVENT_FINDING       = "finding"       # a finding proposed, reviewed or decided
 
 EVENT_KINDS = frozenset({
     EVENT_USER_MESSAGE, EVENT_AGENT_MESSAGE, EVENT_THOUGHT, EVENT_TOOL_CALL,
     EVENT_TOOL_RESULT, EVENT_STATUS, EVENT_ERROR, EVENT_STEP, EVENT_TASK, EVENT_PROPOSAL,
+    EVENT_FINDING,
 })
 
 #: Why a task exists. `message` is the analyst talking to an agent; `assigned`
 #: is work the analyst approved from a leader's proposal; `report` and `help`
-#: are what lands on the leader's desk when an analyst finishes or asks.
+#: are what lands on the leader's desk when an analyst finishes or asks;
+#: `review` is a reviewer checking one finding.
 TASK_KIND_MESSAGE  = "message"
 TASK_KIND_ASSIGNED = "assigned"
 TASK_KIND_REPORT   = "report"
 TASK_KIND_HELP     = "help"
+TASK_KIND_REVIEW   = "review"
 
-PROPOSAL_IOC      = "ioc"
-PROPOSAL_TIMELINE = "timeline_event"
-PROPOSAL_TASK     = "task"
-PROPOSAL_KINDS    = frozenset({PROPOSAL_IOC, PROPOSAL_TIMELINE, PROPOSAL_TASK})
+PROPOSAL_IOC               = "ioc"
+PROPOSAL_TIMELINE          = "timeline_event"
+PROPOSAL_TASK              = "task"
+PROPOSAL_TTP               = "ttp"
+PROPOSAL_REPORT_SECTION    = "report_section"
+PROPOSAL_EXECUTIVE_SUMMARY = "executive_summary"
+PROPOSAL_KINDS = frozenset({
+    PROPOSAL_IOC, PROPOSAL_TIMELINE, PROPOSAL_TASK, PROPOSAL_TTP,
+    PROPOSAL_REPORT_SECTION, PROPOSAL_EXECUTIVE_SUMMARY,
+})
 
 PROPOSAL_OPEN     = "proposed"
 PROPOSAL_ACCEPTED = "accepted"
 PROPOSAL_REJECTED = "rejected"
+
+#: A finding goes to the reviewer first when the case has one, then to the
+#: analyst, who alone validates it. Only validated findings reach the report.
+FINDING_IN_REVIEW = "in_review"
+FINDING_PROPOSED  = "proposed"
+FINDING_VALIDATED = "validated"
+FINDING_REJECTED  = "rejected"
+FINDING_OPEN      = frozenset({FINDING_IN_REVIEW, FINDING_PROPOSED})
+
+VERDICT_SUPPORTED   = "supported"
+VERDICT_UNSUPPORTED = "unsupported"
 
 
 class AgentInstance(Base):
@@ -238,4 +264,89 @@ class AgentProposal(Base):
 
     __table_args__ = (
         Index("ix_agent_proposals_case_state", "case_id", "state"),
+    )
+
+
+class AgentObservation(Base):
+    """
+    One artifact row an agent relied on, as it was when the agent read it.
+
+    `locator` is the RQL that selects exactly this row; `row` is the row
+    itself. The locator is what opens the row in the Explorer; the copy is
+    what the citation still says if the table is later removed.
+    """
+
+    __tablename__ = "agent_observations"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    case_id: Mapped[str] = mapped_column(
+        String, ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True)
+    agent_id: Mapped[str] = mapped_column(
+        String, ForeignKey("agent_instances.id", ondelete="CASCADE"), nullable=False)
+    task_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("agent_tasks.id", ondelete="SET NULL",
+                           name="fk_agent_observations_task_id"), nullable=True)
+
+    #: Not a foreign key: deleting a table from the Explorer must not take the
+    #: citations that relied on it along with it.
+    artifact_id:    Mapped[str]        = mapped_column(String, nullable=False)
+    artifact_name:  Mapped[str]        = mapped_column(String(255), nullable=False, default="")
+    artifact_label: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    locator: Mapped[str] = mapped_column(Text, nullable=False)
+    #: JSON object, column to value.
+    row:     Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    note:    Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+
+
+class AgentFinding(Base):
+    """
+    A conclusion an agent drew, resting on observations.
+
+    `ref` numbers findings within a case (F1, F2...) so that report text can
+    cite them in a form a small model writes reliably.
+    """
+
+    __tablename__ = "agent_findings"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    case_id: Mapped[str] = mapped_column(
+        String, ForeignKey("cases.id", ondelete="CASCADE"), nullable=False)
+    agent_id: Mapped[str] = mapped_column(
+        String, ForeignKey("agent_instances.id", ondelete="CASCADE"), nullable=False)
+    task_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("agent_tasks.id", ondelete="SET NULL",
+                           name="fk_agent_findings_task_id"), nullable=True)
+    ref: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    title:      Mapped[str] = mapped_column(String(255), nullable=False)
+    statement:  Mapped[str] = mapped_column(Text, nullable=False)
+    severity:   Mapped[str] = mapped_column(String(16), nullable=False)
+    confidence: Mapped[str] = mapped_column(String(16), nullable=False)
+    confidence_reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    #: JSON lists: ATT&CK technique ids, and the observations it rests on.
+    attack_ids:      Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    observation_ids: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+
+    state: Mapped[str] = mapped_column(String(16), nullable=False, default=FINDING_PROPOSED)
+
+    review_task_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("agent_tasks.id", ondelete="SET NULL",
+                           name="fk_agent_findings_review_task_id"), nullable=True)
+    review_verdict: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    review_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: Other explanations of the same evidence the reviewer weighed.
+    review_alternatives: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+    decided_by:       Mapped[str | None]      = mapped_column(String(255), nullable=True)
+    decided_at:       Mapped[datetime | None] = mapped_column(nullable=True)
+    decision_comment: Mapped[str | None]      = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+
+    __table_args__ = (
+        Index("ix_agent_findings_case_state", "case_id", "state"),
+        Index("ix_agent_findings_case_ref", "case_id", "ref", unique=True),
     )
