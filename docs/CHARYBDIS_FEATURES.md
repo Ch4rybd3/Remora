@@ -151,18 +151,48 @@ S30 FOUNDATIONS ── S31 LEADER & DELEGATION ── S32 FINDINGS & REVIEW ─�
 
 ---
 
-## 3. S30 in detail
+## 3. S30 — delivered
 
-The first sprint is deliberately narrow: one agent, read-only, visible.
+The first sprint is deliberately narrow: one role, read-only, visible.
+Delivers A1, A3, C1 and G1, plus the TLP check of G5 (enforced now, so it
+exists before the first cloud provider does) and the hash-chained trace of D6.
 
-1. `docs/CHARYBDIS.md` and this catalogue merged as the design of record.
-2. Flag `CHARYBDIS_ENABLED`; `services/charybdis/` package skeleton.
-3. Models `agent_instances`, `agent_tasks`, `agent_events` with their Alembic revision.
-4. `agent` permission bundle and its tests (golden route list, read-only gate).
-5. LLM gateway with the Ollama adapter; `extra_hosts` in compose; health check on the settings page.
-6. Runner: single-step loop, tool schema validation, budget on steps.
-7. Tools `case_overview`, `ingest_status`, `store_search`, `store_schema`.
-8. WebSocket `/ws/cases/{id}/agents`; Team tab with one agent card, a chat and the live trace.
-9. Smoke tests for every new route; unit tests for the gateway adapter and tool schemas.
+| Piece | Where |
+|---|---|
+| Flag `CHARYBDIS_ENABLED`, Ollama URL, default model, step budget, concurrency, context window | `config.py`, `.env.example`, `docker-compose.yml` |
+| `agent_instances`, `agent_tasks`, `agent_events` and their revision | `models/agent.py`, `alembic/versions/20261102_1000_c1a7e5d2b940_*` |
+| Gateway, Ollama adapter (native `/api/chat`, tool calls, `num_ctx`), TLP policy, request semaphore | `services/charybdis/llm/` |
+| Five read-only tools: `case_overview`, `ingest_status`, `list_artifacts`, `store_schema`, `store_search` | `services/charybdis/tools.py` |
+| Agent permission bundle (`artifacts` only) intersected with the launching user's grants, re-read on every run | `tools.AGENT_PERMISSIONS`, `runtime._start` |
+| Supervisor and loop: step budget, cancel, restart recovery | `services/charybdis/runtime.py` |
+| Append-only trace, numbered per case, chained by SHA-256, verifiable | `services/charybdis/events.py`, `GET .../agents/events/verify` |
+| Routes, audited (`agent.create`, `agent.update`, `agent.message`, `agent.task_cancel`) | `routers/agents.py`, `core/audit_routes.py` |
+| Live socket `/api/v1/agents/ws?case_id=…&after_seq=…`, resumable | `routers/agents.py`, `nginx.conf` |
+| Team tab: agent list with provider health, chat, live trace with chain check | `components/case/tabs/TeamTab.tsx`, `components/agents/` |
+| Agent state tokens in all four themes | `styles/tokens.css` (`--agent-*`) |
 
-Out of S30 on purpose: processes, multiple agents, proposals, cloud providers.
+Decisions taken while building it:
+
+- **No route deletes an agent.** Its events are part of the case's hash chain;
+  deleting them would break verification for every later event. An agent goes
+  with its case.
+- **The socket is not under `/cases/{case_id}`.** WebSockets do not run router
+  dependencies, so it states its own rules (`authorise_socket`: active account,
+  artifact access, case within client scope; out-of-scope answers "not found")
+  and is tested for them.
+- **`list_artifacts` was added** to the four planned tools: without it the model
+  has no way to learn an artifact id.
+- **Provider health is shown in the Team tab** rather than on a settings page,
+  which arrives with model selection in S34.
+- **Agent text renders as plain text.** It quotes artifact content, which is
+  attacker-controlled.
+- **Agent and task timestamps serialise with `Z`.** Remora's other schemas emit
+  naive ISO strings, which the browser reads as local time; that is a
+  pre-existing issue outside this module.
+
+Running it: set `CHARYBDIS_ENABLED=true`, run Ollama on the host and pull a
+model with native tool calling (`ollama pull qwen3:8b`). On Linux, Ollama must
+listen beyond loopback (`OLLAMA_HOST=0.0.0.0`) for the container to reach it.
+
+Out of S30 on purpose: YAML roles and processes, several roles, proposals,
+cloud providers, token streaming.
