@@ -318,6 +318,7 @@ that already exists and is already sandboxed:
 | `store_aggregate` | `ArtifactStore.aggregate` |
 | `record_source_observation` | quotes a memory line, an email part or a binary entry into `agent_observations` |
 | `propose_log_entry` | `agent_proposals`, accepted through the incident log handler |
+| `search_knowledge`, `read_knowledge`, `search_lessons`, `propose_lesson`, `correlate_iocs` | Knowledge Base pages, `agent_lessons`, IOCs within the client scope |
 | `ask_human`, `request_help`, `report` | messaging |
 
 ---

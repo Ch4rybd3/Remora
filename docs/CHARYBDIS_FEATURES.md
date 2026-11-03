@@ -472,3 +472,43 @@ baseline the tuning work starts from:
 qwen3:8b finds the main indicator and the account in both; it misses the
 look-alike sender domain, the persistence service and the cleared log, and in
 the phishing case states its verdict in text without proposing it as a finding.
+
+---
+
+## 10. S35 — openness and knowledge
+
+Delivers H1, H3, F5 and C12. H2 (MCP client) waits for the approval queue
+(G3); H4 (detection rules) and A9 (role editor) are still planned.
+
+| Piece | Where |
+|---|---|
+| Remora as an MCP server: `POST /api/v1/agents/mcp` (streamable HTTP, JSON responses); `list_cases` plus 29 read tools, each taking a `case_id`; the caller's permissions and client scope; every call audited as `agent.mcp_call` | `routers/agents_mcp.py` |
+| Personal MCP tokens: created on the Account page, shown once, stored as a hash, revocable; a session JWT also works | `agent_mcp_tokens` (revision `d3a9f7c2e518`), `McpTokensPanel.tsx` |
+| TLP:RED and AMBER+STRICT cases are listed but not readable over MCP, unless `CHARYBDIS_MCP_ALLOW_RESTRICTED_TLP` | `agents_mcp._restricted` |
+| Knowledge: `search_knowledge`, `read_knowledge` over the Knowledge Base pages | `services/charybdis/tools.py` |
+| Lessons learned: closing a case with a leader gives it a `lessons` task; it proposes lessons (`propose_lesson`), the analyst accepts them into `agent_lessons`; `search_lessons` finds them from later cases | `triggers._closure`, `agent_lessons` |
+| Correlation: `correlate_iocs` finds a case's indicators in other cases the account may see | `services/charybdis/tools.py` |
+
+Decisions taken while building it:
+
+- **Read only, by an explicit list.** The MCP server offers named read
+  tools; a tool added to Charybdis later is not exposed until it is added to
+  `MCP_TOOLS`. Nothing written over MCP reaches a case.
+- **The caller is a person.** A personal token stands for its creator: their
+  permissions, their client scope, their name in the audit log. Tokens are
+  stored hashed and shown once.
+- **Restricted TLP stays home.** An MCP client usually forwards what it reads
+  to a cloud model; the server cannot know, so it assumes so.
+- **What an agent may see across cases is its analyst's.** Correlation and
+  lessons use the client scope of the account the agent works for; an agent
+  with none sees only its own case.
+- **Lessons outlive their case.** They copy the case title and client, so a
+  lesson stays readable, and stays in its client's scope, after the case is
+  deleted.
+- **The leader is given the lessons, not asked to look for them.** Checked
+  on qwen3:8b: asked whether a reported invoice email had been seen before,
+  the leader skipped search_lessons and cited a case and a guide that do not
+  exist. A role with recall_lessons now starts each task with the lessons
+  matching the case's title, tags and description, and the rule that these
+  are the only ones it may cite. Rerun, it cited the three real lessons of
+  the closed case they came from.
