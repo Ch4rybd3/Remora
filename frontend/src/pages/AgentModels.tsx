@@ -186,6 +186,99 @@ function RoleModelRow({ row, providers }: { row: RoleModel; providers: string[] 
 }
 
 /**
+ * The evaluation bench: golden cases with known content, run on a model and
+ * scored against what a good investigation of them must produce. Comparing
+ * two models, or a prompt before and after a change, is comparing scores.
+ */
+function BenchSection({ providers }: { providers: string[] }) {
+  const qc = useQueryClient()
+  const { data: cases = [] } = useQuery({ queryKey: ['agent-benches'], queryFn: agentsApi.benches })
+  const { data: runs = [] } = useQuery({
+    queryKey: ['agent-bench-runs'], queryFn: agentsApi.benchRuns,
+    refetchInterval: query => (query.state.data ?? []).some(r => r.status === 'running') ? 5_000 : false,
+  })
+  const [benchId, setBenchId] = useState('')
+  const [provider, setProvider] = useState('ollama')
+  const [model, setModel] = useState('')
+  const [open, setOpen] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const start = useMutation({
+    mutationFn: () => agentsApi.startBenchRun(benchId || cases[0]?.id, provider, model.trim()),
+    onSuccess: () => { setError(null); qc.invalidateQueries({ queryKey: ['agent-bench-runs'] }) },
+    onError: e => setError(errorText(e, 'The run could not be started')),
+  })
+  const titles = Object.fromEntries(cases.map(c => [c.id, c.title]))
+
+  return (
+    <div className="space-y-2">
+      <h2 className="text-title font-semibold text-fg">Evaluation bench</h2>
+      <p className="text-ui text-fg-secondary">
+        Golden cases with known content. A run gives one to an agent on the chosen model, in a scratch
+        case deleted afterwards, and scores what it proposed. Runs take one model call per step: minutes
+        on a local model.
+      </p>
+      <div className="flex items-end gap-2 flex-wrap">
+        <label className="block"><span className="label">Golden case</span>
+          <select className="input" value={benchId || cases[0]?.id || ''} onChange={e => setBenchId(e.target.value)}>
+            {cases.map(c => <option key={c.id} value={c.id}>{c.title} ({c.role})</option>)}
+          </select>
+        </label>
+        <label className="block"><span className="label">Provider</span>
+          <select className="input" value={provider} onChange={e => setProvider(e.target.value)}>
+            {providers.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </label>
+        <label className="block"><span className="label">Model</span>
+          <input className="input font-mono" value={model} placeholder="Provider default"
+                 onChange={e => setModel(e.target.value)} />
+        </label>
+        <button className="btn-primary flex items-center gap-1" disabled={start.isPending || cases.length === 0}
+                onClick={() => start.mutate()}>
+          <FlaskConical size={14} /> Run
+        </button>
+      </div>
+      {error && <p className="text-label text-agent-error">{error}</p>}
+      <table className="w-full">
+        <tbody>
+          {runs.map(run => (
+            <tr key={run.id} className="border-b border-hairline align-top">
+              <td className="py-2 pr-3 text-ui text-fg">{titles[run.bench_id] ?? run.bench_id}</td>
+              <td className="py-2 pr-3 text-label font-mono text-fg-secondary">{run.provider} · {run.model}</td>
+              <td className="py-2 pr-3 text-ui font-mono">
+                {run.status === 'running'
+                  ? <span className="flex items-center gap-1 text-agent-thinking"><Loader2 size={12} className="animate-spin" /> running</span>
+                  : <button className={`btn-ghost ${run.score === run.total ? 'text-agent-thinking' : run.score ? 'text-agent-waiting' : 'text-agent-error'}`}
+                            onClick={() => setOpen(open === run.id ? null : run.id)}>
+                      {run.score}/{run.total}
+                    </button>}
+              </td>
+              <td className="py-2 pr-3 text-label font-mono text-fg-muted">
+                {run.model_calls} calls · {(run.tokens_in + run.tokens_out).toLocaleString()} tokens
+                {run.cost_usd > 0 ? ` · $${run.cost_usd.toFixed(4)}` : ''}
+              </td>
+              <td className="py-2 text-label text-fg-muted">
+                {fmtDateTimeShort(run.started_at)}
+                {open === run.id && (
+                  <ul className="mt-2 space-y-1">
+                    {run.details.map(d => (
+                      <li key={d.label} className={`flex items-start gap-1 ${d.met ? 'text-agent-thinking' : 'text-agent-error'}`}>
+                        {d.met ? <CheckCircle2 size={12} className="mt-0.5 shrink-0" /> : <XCircle size={12} className="mt-0.5 shrink-0" />}
+                        <span>{d.label}</span>
+                      </li>
+                    ))}
+                    {run.error && <li className="text-agent-error">{run.error}</li>}
+                  </ul>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+/**
  * Where Charybdis agents run: the built-in local Ollama, and the providers an
  * administrator adds here. A case's TLP decides which of them may see its
  * data; this page only says where each one sends it.
@@ -244,6 +337,8 @@ export default function AgentModels() {
             </tbody>
           </table>
         </div>
+
+        <BenchSection providers={choices} />
       </div>
     </PageShell>
   )

@@ -17,6 +17,7 @@ const KIND_LABEL: Record<AgentEventKind, string> = {
   'task':          'task',
   'proposal':      'proposal',
   'finding':       'finding',
+  'hypothesis':    'hypothesis',
 }
 
 const KIND_TONE: Partial<Record<AgentEventKind, string>> = {
@@ -27,6 +28,7 @@ const KIND_TONE: Partial<Record<AgentEventKind, string>> = {
   'step':        'text-agent-thinking',
   'proposal':    'text-agent-waiting',
   'finding':     'text-agent-waiting',
+  'hypothesis':  'text-agent-waiting',
 }
 
 function summary(event: AgentEvent): string {
@@ -39,6 +41,7 @@ function summary(event: AgentEvent): string {
     case 'step':        return `${String(p.step)} -> ${String(p.next)}`
     case 'task':        return `${String(p.action)} ${String(p.task_kind)}: ${String(p.objective ?? '')}`
     case 'proposal':    return `${String(p.action)} ${String(p.summary ?? '')}`
+    case 'hypothesis':  return `${String(p.action)} ${String(p.summary ?? '')}`
     case 'finding':     return `${String(p.action)} ${String(p.summary ?? '')}${p.verdict ? ` (${String(p.verdict)})` : ''}`
     default:            return String(p.text ?? '')
   }

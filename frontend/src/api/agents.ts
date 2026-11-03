@@ -1,6 +1,6 @@
 import api from './client'
 import type {
-  Agent, AgentAttention, AgentEvent, AgentProvider, AgentProviderWrite, CaseUsage, RoleModel, AgentFinding, AgentFindingState, AgentObservation, AgentProposal,
+  Agent, AgentAttention, AgentEvent, AgentHypothesis, BenchCase, BenchRun, HypothesisStance, AgentProvider, AgentProviderWrite, CaseUsage, RoleModel, AgentFinding, AgentFindingState, AgentObservation, AgentProposal,
   AgentProposalState, AgentRole, AgentTask, LLMHealth,
 } from '../types'
 
@@ -68,6 +68,26 @@ export const agentsApi = {
   rqlDraft: (caseId: string, artifactId: string, question: string) =>
     api.post<{ rql: string; explanation: string }>(`/cases/${caseId}/agents/rql-draft`,
       { artifact_id: artifactId, question }).then(r => r.data),
+  pause: (caseId: string, agentId: string, taskId: string) =>
+    api.post<AgentTask>(`/cases/${caseId}/agents/${agentId}/tasks/${taskId}/pause`).then(r => r.data),
+  /** Hand a paused task back; `note` is read by the agent before its next step. */
+  resume: (caseId: string, agentId: string, taskId: string, note = '') =>
+    api.post<AgentTask>(`/cases/${caseId}/agents/${agentId}/tasks/${taskId}/resume`, { note }).then(r => r.data),
+  hypotheses: (caseId: string) =>
+    api.get<AgentHypothesis[]>(`/cases/${caseId}/agents/hypotheses`).then(r => r.data),
+  createHypothesis: (caseId: string, statement: string) =>
+    api.post<AgentHypothesis>(`/cases/${caseId}/agents/hypotheses`, { statement }).then(r => r.data),
+  updateHypothesis: (caseId: string, id: string, data: { statement?: string; state?: AgentHypothesis['state'] }) =>
+    api.patch<AgentHypothesis>(`/cases/${caseId}/agents/hypotheses/${id}`, data).then(r => r.data),
+  linkHypothesis: (caseId: string, id: string, findingId: string, stance: HypothesisStance, note = '') =>
+    api.put<AgentHypothesis>(`/cases/${caseId}/agents/hypotheses/${id}/links/${findingId}`, { stance, note })
+      .then(r => r.data),
+  unlinkHypothesis: (caseId: string, id: string, findingId: string) =>
+    api.delete<AgentHypothesis>(`/cases/${caseId}/agents/hypotheses/${id}/links/${findingId}`).then(r => r.data),
+  benches: () => api.get<BenchCase[]>('/agents/bench').then(r => r.data),
+  benchRuns: () => api.get<BenchRun[]>('/agents/bench/runs').then(r => r.data),
+  startBenchRun: (benchId: string, provider: string, model: string) =>
+    api.post<BenchRun>('/agents/bench/runs', { bench_id: benchId, provider, model }).then(r => r.data),
   observation: (caseId: string, observationId: string) =>
     api.get<AgentObservation>(`/cases/${caseId}/agents/observations/${observationId}`).then(r => r.data),
 }
