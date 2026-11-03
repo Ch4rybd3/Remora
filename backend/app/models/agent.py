@@ -59,9 +59,13 @@ TASK_RUNNING   = "running"
 TASK_DONE      = "done"
 TASK_FAILED    = "failed"
 TASK_CANCELLED = "cancelled"
+#: Stopped by the analyst between two model calls, to be resumed - possibly
+#: with their own instructions - at the step it reached.
+TASK_PAUSED    = "paused"
 
-TASK_STATES = frozenset({TASK_PENDING, TASK_RUNNING, TASK_DONE, TASK_FAILED, TASK_CANCELLED})
-TASK_OPEN   = frozenset({TASK_PENDING, TASK_RUNNING})
+TASK_STATES = frozenset({TASK_PENDING, TASK_RUNNING, TASK_DONE, TASK_FAILED, TASK_CANCELLED,
+                         TASK_PAUSED})
+TASK_OPEN   = frozenset({TASK_PENDING, TASK_RUNNING, TASK_PAUSED})
 
 EVENT_USER_MESSAGE  = "message.user"
 EVENT_AGENT_MESSAGE = "message.agent"
@@ -74,11 +78,12 @@ EVENT_STEP          = "step"          # a process step entered or completed
 EVENT_TASK          = "task"          # a task created, assigned, reported
 EVENT_PROPOSAL      = "proposal"      # a proposal made or decided
 EVENT_FINDING       = "finding"       # a finding proposed, reviewed or decided
+EVENT_HYPOTHESIS    = "hypothesis"    # a hypothesis stated, weighed or decided
 
 EVENT_KINDS = frozenset({
     EVENT_USER_MESSAGE, EVENT_AGENT_MESSAGE, EVENT_THOUGHT, EVENT_TOOL_CALL,
     EVENT_TOOL_RESULT, EVENT_STATUS, EVENT_ERROR, EVENT_STEP, EVENT_TASK, EVENT_PROPOSAL,
-    EVENT_FINDING,
+    EVENT_FINDING, EVENT_HYPOTHESIS,
 })
 
 #: Why a task exists. `message` is the analyst talking to an agent; `assigned`
@@ -460,3 +465,95 @@ class AgentRoleModel(Base):
     model:    Mapped[str] = mapped_column(String(128), nullable=False)
     updated_by: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     updated_at: Mapped[datetime] = mapped_column(default=_now, onupdate=_now)
+
+
+HYPOTHESIS_OPEN      = "open"
+HYPOTHESIS_SUPPORTED = "supported"
+HYPOTHESIS_REFUTED   = "refuted"
+HYPOTHESIS_DROPPED   = "dropped"
+HYPOTHESIS_STATES = frozenset({HYPOTHESIS_OPEN, HYPOTHESIS_SUPPORTED, HYPOTHESIS_REFUTED,
+                               HYPOTHESIS_DROPPED})
+
+STANCE_FOR     = "for"
+STANCE_AGAINST = "against"
+STANCE_NEUTRAL = "neutral"
+STANCES = frozenset({STANCE_FOR, STANCE_AGAINST, STANCE_NEUTRAL})
+
+
+class AgentHypothesis(Base):
+    """
+    One explanation of the incident under consideration (H1, H2...).
+
+    The leader states hypotheses and weighs findings against them; the
+    analyst decides which stands. Competing hypotheses side by side, each
+    finding marked for or against each, is the matrix of analysis of
+    competing hypotheses: the one with least against it, not most for it,
+    is the best supported.
+    """
+
+    __tablename__ = "agent_hypotheses"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    case_id: Mapped[str] = mapped_column(
+        String, ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True)
+    ref: Mapped[int] = mapped_column(Integer, nullable=False)
+    statement: Mapped[str] = mapped_column(Text, nullable=False)
+    state: Mapped[str] = mapped_column(String(16), nullable=False, default=HYPOTHESIS_OPEN)
+    #: The agent's name, or the analyst's username.
+    created_by: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    decided_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+    updated_at: Mapped[datetime] = mapped_column(default=_now, onupdate=_now)
+
+    __table_args__ = (
+        Index("ix_agent_hypotheses_case_ref", "case_id", "ref", unique=True),
+    )
+
+
+class AgentHypothesisLink(Base):
+    """How one finding bears on one hypothesis, and why."""
+
+    __tablename__ = "agent_hypothesis_links"
+
+    hypothesis_id: Mapped[str] = mapped_column(
+        String, ForeignKey("agent_hypotheses.id", ondelete="CASCADE"), primary_key=True)
+    finding_id: Mapped[str] = mapped_column(
+        String, ForeignKey("agent_findings.id", ondelete="CASCADE"), primary_key=True)
+    stance: Mapped[str] = mapped_column(String(8), nullable=False)
+    note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    set_by: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    updated_at: Mapped[datetime] = mapped_column(default=_now, onupdate=_now)
+
+
+BENCH_RUNNING = "running"
+BENCH_DONE    = "done"
+BENCH_FAILED  = "failed"
+
+
+class AgentBenchRun(Base):
+    """
+    One run of a golden case on one model: what it found, scored against what
+    the case is known to contain. Not tied to a Remora case: the run works on
+    a scratch case that is deleted when it ends.
+    """
+
+    __tablename__ = "agent_bench_runs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    bench_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    model:    Mapped[str] = mapped_column(String(128), nullable=False)
+    status:   Mapped[str] = mapped_column(String(16), nullable=False, default=BENCH_RUNNING)
+    #: Expectations met, out of `total`.
+    score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    #: JSON list: each expectation, whether it was met, and what matched.
+    details: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    tokens_in:  Mapped[int]   = mapped_column(Integer, nullable=False, default=0)
+    tokens_out: Mapped[int]   = mapped_column(Integer, nullable=False, default=0)
+    cost_usd:   Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    model_calls: Mapped[int]  = mapped_column(Integer, nullable=False, default=0)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_by:  Mapped[str]  = mapped_column(String(255), nullable=False, default="")
+    started_at:  Mapped[datetime]        = mapped_column(default=_now)
+    finished_at: Mapped[datetime | None] = mapped_column(nullable=True)
