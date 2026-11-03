@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import (
     APIRouter,
@@ -26,6 +26,7 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..config import settings
@@ -347,16 +348,22 @@ def staff_team(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Staff the default team, skipping any role already on the case."""
+    """
+    Staff the team for this kind of incident (`templates/agents/teams.yaml`),
+    chosen from the case's tags, title and description, skipping any role
+    already on the case.
+    """
     case = _get_case(case_id, db)
+    team = definitions().team_for(case)
+    roles = tuple(team.roles) if team else DEFAULT_TEAM
     present = {role for (role,) in
                db.query(AgentInstance.role).filter(AgentInstance.case_id == case_id)}
     created = [delegation.new_agent(db, case_id, role, str(current_user.username or ""))
-               for role in DEFAULT_TEAM if role in definitions().roles and role not in present]
+               for role in roles if role in definitions().roles and role not in present]
     audit_log(db, user=current_user, action="agent.staff_team", request=request,
               resource_type="agent", resource_name=", ".join(a.name for a in created) or "none",
               case_id=case_id, case_title=str(case.title),
-              details={"roles": [a.role for a in created]})
+              details={"team": team.id if team else "default", "roles": [a.role for a in created]})
     db.commit()
     return created
 
@@ -378,6 +385,8 @@ def _summary(kind: str, payload: dict) -> str:
         return f"Log {payload.get('event_ts')}Z {payload.get('title')}"
     if kind == "lesson":
         return f"Lesson: {payload.get('title')}"
+    if kind == "asset":
+        return f"Asset {payload.get('type')} {payload.get('name')}"
     return f"{payload.get('role')}: {str(payload.get('objective', ''))[:120]}"
 
 
@@ -472,6 +481,15 @@ def _materialise(case_id: str, proposal: AgentProposal, data: dict, db: Session,
         version = save_report(case_id=case_id, payload=SaveReportPayload(sections_data=sections),
                               db=db, current_user=user)
         return str(version.id)
+    if proposal.kind == "asset":
+        from ..schemas.asset import AssetCreate
+        from .assets import create_asset
+        try:
+            asset = create_asset(case_id=case_id, payload=AssetCreate(**data), db=db, current_user=user)
+        except ValidationError as exc:
+            raise HTTPException(status_code=422,
+                                detail=exc.errors()[0].get("msg", "Invalid proposal")) from exc
+        return str(asset.id)
     if proposal.kind == "lesson":
         from ..models.agent import AgentLesson
         case = _get_case(case_id, db)
@@ -1377,3 +1395,77 @@ def start_bench_run(
     if not supervisor.spawn(lambda: run_bench(run_id)):
         raise HTTPException(status_code=503, detail="The agent runtime is not running")
     return run
+
+
+
+# ─── Handover and report check ────────────────────────────────────────────────
+
+class HandoverRequest(BaseModel):
+    hours: int = Field(12, ge=1, le=168)
+
+
+@router.post("/handover", response_model=AskAgentResult, status_code=status.HTTP_202_ACCEPTED)
+def handover_brief(
+    case_id: str,
+    payload: HandoverRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Ask the Incident Leader for a shift handover brief; it answers in its chat."""
+    case = _get_case(case_id, db)
+    leader = delegation.leader_of(db, case_id)
+    if leader is None:
+        raise HTTPException(status_code=409, detail="The case has no Incident Leader. Staff the team first.")
+    busy = (db.query(AgentTask)
+            .filter(AgentTask.agent_id == leader.id, AgentTask.kind == TASK_KIND_MESSAGE,
+                    AgentTask.status.in_(TASK_OPEN)).first())
+    if busy is not None:
+        raise HTTPException(status_code=409, detail="The Incident Leader is still answering a message")
+    since = (datetime.now(UTC) - timedelta(hours=payload.hours)).strftime("%Y-%m-%d %H:%M UTC")
+    objective = (f"Write a shift handover brief for the analyst taking over, covering the last "
+                 f"{payload.hours} hours (since {since}). Use list_tasks, read_task, list_findings, "
+                 f"list_hypotheses and list_timeline. In this order: what was established, what is "
+                 f"in progress and by whom, what waits on the analyst (proposals, findings, paused "
+                 f"or blocked tasks), open questions, and the three next actions. Facts only, each "
+                 f"with its task or finding reference.")
+    task = delegation.create_task(db, agent=leader, objective=objective, kind=TASK_KIND_MESSAGE,
+                                  requested_by_id=str(current_user.id))
+    audit_log(db, user=current_user, action="agent.handover", request=request,
+              resource_type="agent", resource_id=leader.id, resource_name=leader.name,
+              case_id=case_id, case_title=str(case.title), details={"hours": payload.hours})
+    db.commit()
+    events.record(db, case_id=case_id, agent_id=leader.id, task_id=task.id, kind=EVENT_USER_MESSAGE,
+                  payload={"text": f"Handover brief for the last {payload.hours} hours."},
+                  actor=str(current_user.username or ""))
+    supervisor.enqueue(task.id)
+    return AskAgentResult(agent_id=leader.id, agent_name=leader.name, task_id=task.id)
+
+
+class ReportIssue(BaseModel):
+    proposal_id: str
+    part:        str
+    finding:     str
+    state:       str
+
+
+@router.get("/report-check", response_model=list[ReportIssue])
+def report_check(case_id: str, db: Session = Depends(get_db)):
+    """
+    Report text the analyst accepted from the reporter, whose findings are no
+    longer validated. Checked before delivery: a sentence resting on a finding
+    rejected since is a claim the report can no longer back.
+    """
+    _get_case(case_id, db)
+    states = {f"F{f.ref}": f.state for f in db.query(AgentFinding).filter(AgentFinding.case_id == case_id)}
+    issues = []
+    for p in (db.query(AgentProposal)
+              .filter(AgentProposal.case_id == case_id, AgentProposal.state == PROPOSAL_ACCEPTED,
+                      AgentProposal.kind.in_((PROPOSAL_REPORT_SECTION, PROPOSAL_EXECUTIVE_SUMMARY)))):
+        data = json.loads(p.payload or "{}")
+        part = "Executive summary" if p.kind == PROPOSAL_EXECUTIVE_SUMMARY else str(data.get("name") or data.get("section"))
+        for ref in data.get("findings") or []:
+            state = states.get(str(ref), "deleted")
+            if state != "validated":
+                issues.append(ReportIssue(proposal_id=p.id, part=part, finding=str(ref), state=state))
+    return issues

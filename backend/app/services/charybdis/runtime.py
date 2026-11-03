@@ -60,7 +60,7 @@ from ...models.agent import (
 )
 from ...models.case import Case
 from ...models.user import User
-from . import delegation, events
+from . import delegation, events, guard
 from .definitions import ProcessDef, RoleDef, definitions, system_prompt
 from .llm import ChatMessage, LLMError, PolicyDenied, ToolCall
 from .llm import chat as llm_chat
@@ -436,8 +436,17 @@ async def run_task(task_id: str) -> list[str]:
                                                                     "step": step.id}))
                     outcome = await _in_thread(_execute_tool(run, call, allowed))
                     await _in_thread(_record(run, EVENT_TOOL_RESULT, {"tool": call.name, **outcome}))
-                    run.messages.append(ChatMessage("tool", json.dumps(outcome, default=str),
-                                                    tool_name=call.name))
+                    content = json.dumps(outcome, default=str)
+                    found = guard.inspect(content)
+                    if found:
+                        # Text shaped like orders to a model, inside evidence:
+                        # visible to the analyst, and flagged to the model.
+                        await _in_thread(_record(run, EVENT_ERROR, {
+                            "message": f"The result of {call.name} contains text addressed to an AI "
+                                       f"({', '.join(found)}). The agent was told not to follow it.",
+                            "reason": "injection", "tool": call.name, "patterns": found}))
+                        content = guard.notice(found) + content
+                    run.messages.append(ChatMessage("tool", content, tool_name=call.name))
                 run.step_calls += len(result.tool_calls)
                 await _in_thread(_agent_status(run, AGENT_THINKING))
                 continue
