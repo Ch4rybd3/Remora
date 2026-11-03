@@ -284,7 +284,18 @@ export interface AgentRole {
 
 export type AgentProposalKind =
   | 'ioc' | 'timeline_event' | 'task' | 'ttp' | 'report_section' | 'executive_summary'
-  | 'incident_log'
+  | 'incident_log' | 'lesson'
+
+/** A personal token an MCP client reads cases with. `token` only on creation. */
+export interface McpToken {
+  id: string
+  name: string
+  prefix: string
+  created_at: string
+  last_used_at: string | null
+  revoked_at: string | null
+  token: string | null
+}
 
 /** A model provider configured beside the built-in Ollama. The key never comes back. */
 export interface AgentProvider {

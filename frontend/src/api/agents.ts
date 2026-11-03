@@ -1,6 +1,6 @@
 import api from './client'
 import type {
-  Agent, AgentAttention, AgentEvent, AgentHypothesis, BenchCase, BenchRun, HypothesisStance, AgentProvider, AgentProviderWrite, CaseUsage, RoleModel, AgentFinding, AgentFindingState, AgentObservation, AgentProposal,
+  Agent, AgentAttention, AgentEvent, McpToken, AgentHypothesis, BenchCase, BenchRun, HypothesisStance, AgentProvider, AgentProviderWrite, CaseUsage, RoleModel, AgentFinding, AgentFindingState, AgentObservation, AgentProposal,
   AgentProposalState, AgentRole, AgentTask, LLMHealth,
 } from '../types'
 
@@ -88,6 +88,9 @@ export const agentsApi = {
   benchRuns: () => api.get<BenchRun[]>('/agents/bench/runs').then(r => r.data),
   startBenchRun: (benchId: string, provider: string, model: string) =>
     api.post<BenchRun>('/agents/bench/runs', { bench_id: benchId, provider, model }).then(r => r.data),
+  mcpTokens: () => api.get<McpToken[]>('/agents/mcp-tokens').then(r => r.data),
+  createMcpToken: (name: string) => api.post<McpToken>('/agents/mcp-tokens', { name }).then(r => r.data),
+  revokeMcpToken: (id: string) => api.delete(`/agents/mcp-tokens/${id}`),
   observation: (caseId: string, observationId: string) =>
     api.get<AgentObservation>(`/cases/${caseId}/agents/observations/${observationId}`).then(r => r.data),
 }

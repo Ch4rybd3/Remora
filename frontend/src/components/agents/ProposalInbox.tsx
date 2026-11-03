@@ -14,6 +14,7 @@ const KIND_LABEL: Record<AgentProposal['kind'], string> = {
   report_section:    'Report section',
   executive_summary: 'Executive summary',
   incident_log:      'Incident log',
+  lesson:            'Lesson learned',
 }
 
 const KIND_TONE: Record<AgentProposal['kind'], string> = {
@@ -24,6 +25,7 @@ const KIND_TONE: Record<AgentProposal['kind'], string> = {
   report_section:    'bg-data-1/10 text-data-1 border-data-1/20',
   executive_summary: 'bg-data-1/10 text-data-1 border-data-1/20',
   incident_log:      'bg-data-3/10 text-data-3 border-data-3/20',
+  lesson:            'bg-data-6/10 text-data-6 border-data-6/20',
 }
 
 /** The fields an analyst may change before accepting, per kind. */
@@ -35,6 +37,7 @@ const EDITABLE: Record<AgentProposal['kind'], string[]> = {
   report_section:    ['text'],
   executive_summary: ['text'],
   incident_log:      ['title', 'description', 'actor'],
+  lesson:            ['title', 'lesson', 'tags'],
 }
 
 /** Report text is long: shown in full rather than as a one-line headline. */
@@ -47,6 +50,7 @@ function headline(p: AgentProposal): string {
   if (p.kind === 'ttp') return `${String(d.technique_id)} · ${String(d.technique_name ?? '')}`
   if (p.kind === 'report_section') return `${String(d.name ?? d.section)} · from ${(d.findings as string[] ?? []).join(', ')}`
   if (p.kind === 'executive_summary') return `from ${(d.findings as string[] ?? []).join(', ')}`
+  if (p.kind === 'lesson') return String(d.title)
   if (p.kind === 'incident_log') return `${String(d.event_ts)}Z · ${String(d.category)} · ${String(d.title)}`
   return `${String(d.role)} · ${String(d.objective)}`
 }
@@ -93,6 +97,9 @@ function ProposalCard({ proposal, agentName, onDecide, busy }: {
         <p className="text-label text-fg-muted">
           Accepting adds this after what the section already holds, without the [F] marks.
         </p>
+      )}
+      {proposal.kind === 'lesson' && (
+        <p className="text-prose text-fg whitespace-pre-wrap">{String(proposal.payload.lesson ?? '')}</p>
       )}
       {proposal.kind === 'ttp' && Boolean(proposal.payload.comment) && (
         <p className="text-ui text-fg-secondary whitespace-pre-wrap">{String(proposal.payload.comment)}</p>

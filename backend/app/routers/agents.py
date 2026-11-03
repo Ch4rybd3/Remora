@@ -376,6 +376,8 @@ def _summary(kind: str, payload: dict) -> str:
         return "Executive summary"
     if kind == PROPOSAL_INCIDENT_LOG:
         return f"Log {payload.get('event_ts')}Z {payload.get('title')}"
+    if kind == "lesson":
+        return f"Lesson: {payload.get('title')}"
     return f"{payload.get('role')}: {str(payload.get('objective', ''))[:120]}"
 
 
@@ -470,6 +472,18 @@ def _materialise(case_id: str, proposal: AgentProposal, data: dict, db: Session,
         version = save_report(case_id=case_id, payload=SaveReportPayload(sections_data=sections),
                               db=db, current_user=user)
         return str(version.id)
+    if proposal.kind == "lesson":
+        from ..models.agent import AgentLesson
+        case = _get_case(case_id, db)
+        lesson = AgentLesson(case_id=case_id, case_title=str(case.title), client_id=case.client_id,
+                             title=str(data.get("title", "")).strip(),
+                             lesson=str(data.get("lesson", "")).strip(), tags=str(data.get("tags", "")),
+                             drafted_by=agent_name, accepted_by=str(user.username or ""))
+        if not lesson.title or not lesson.lesson:
+            raise HTTPException(status_code=422, detail="A lesson needs a title and a text")
+        db.add(lesson)
+        db.flush()
+        return lesson.id
     if proposal.kind == PROPOSAL_INCIDENT_LOG:
         from ..schemas.incident_log import IncidentLogEntryCreate
         from .incident_log import create_entry

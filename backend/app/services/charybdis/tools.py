@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ...core.permissions import PERM_ARTIFACTS, PERM_WRITE
@@ -60,6 +61,7 @@ from ...models.ingest import IngestedFile
 from ...models.ioc import IOC, IOCConfidence, IOCType
 from ...models.mitre import CaseTTP
 from ...models.timeline import TimelineEvent
+from ...models.user import User
 from ..store import Query, Source, SourceMissing, get_store
 from .llm import ToolSpec
 
@@ -109,6 +111,9 @@ class ToolContext:
     agent_id: str | None = None
     task_id:  str | None = None
     actor:    str = ""
+    #: The account the agent works for, or the MCP caller. Decides what other
+    #: cases a tool may look into; None limits it to this case.
+    user_id:  str | None = None
 
 
 @dataclass(frozen=True)
@@ -1410,6 +1415,139 @@ def _weigh_finding(ctx: ToolContext, args: WeighFindingArgs) -> dict[str, Any]:
     return {"hypothesis": f"H{hypothesis.ref}", "finding": f"F{finding.ref}", "stance": args.stance}
 
 
+# ─── Knowledge, lessons, other cases ──────────────────────────────────────────
+
+def _viewer(ctx: ToolContext) -> Any:
+    """The account the agent works for: what it may see across cases is theirs."""
+    return ctx.db.get(User, ctx.user_id) if ctx.user_id else None
+
+
+def _visible_cases(ctx: ToolContext) -> set[str] | None:
+    """Case ids the account may see; None for all. An agent with no account sees only its case."""
+    from ...core.scoping import visible_case_ids
+
+    viewer = _viewer(ctx)
+    return visible_case_ids(ctx.db, viewer) if viewer is not None else {str(ctx.case.id)}
+
+
+class SearchArgs(BaseModel):
+    query: str = Field(..., min_length=2, max_length=200, description="Words to look for")
+    limit: int = Field(10, ge=1, le=30)
+
+
+def _terms(query: str) -> list[str]:
+    return [t for t in re.split(r"\W+", query.lower()) if len(t) > 2] or [query.lower().strip()]
+
+
+def _knowledge_dir() -> Any:
+    from ...routers.knowledge import KNOWLEDGE_DIR
+    return KNOWLEDGE_DIR
+
+
+def _search_knowledge(ctx: ToolContext, args: SearchArgs) -> dict[str, Any]:
+    """The team's knowledge base: procedures, notes, references, as Markdown pages."""
+    root = _knowledge_dir()
+    if not root.is_dir():
+        return {"total": 0, "rows": [], "note": "The knowledge base is empty."}
+    terms = _terms(args.query)
+    hits = []
+    for page in root.rglob("*.md"):
+        try:
+            text = page.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        lowered = text.lower()
+        score = sum(lowered.count(t) for t in terms)
+        if score:
+            at = min(lowered.find(t) for t in terms if t in lowered)
+            hits.append({"path": str(page.relative_to(root)).replace("\\", "/"), "score": score,
+                         "excerpt": _cell(text[max(0, at - 120): at + 240].replace("\n", " "))})
+    hits.sort(key=lambda h: -h["score"])
+    return fit({"total": len(hits), "rows": hits[: args.limit]})
+
+
+class ReadKnowledgeArgs(BaseModel):
+    path: str = Field(..., description="Path from search_knowledge")
+
+
+def _read_knowledge(ctx: ToolContext, args: ReadKnowledgeArgs) -> dict[str, Any]:
+    root = _knowledge_dir().resolve()
+    page = (root / args.path).resolve()
+    if root not in page.parents or page.suffix != ".md" or not page.is_file():
+        raise ToolError(f"No knowledge page '{args.path}'. Call search_knowledge.")
+    text = page.read_text(encoding="utf-8", errors="replace")
+    return {"path": args.path, "content": text[:8000], "truncated": len(text) > 8000}
+
+
+def _search_lessons(ctx: ToolContext, args: SearchArgs) -> dict[str, Any]:
+    """
+    Lessons learned from closed cases, within the account's client scope. A
+    lesson whose case was deleted stays visible to accounts that see its client.
+    """
+    from ...core.scoping import scoped_client_ids
+    from ...models.agent import AgentLesson
+
+    visible = _visible_cases(ctx)
+    viewer = _viewer(ctx)
+    clients = scoped_client_ids(viewer) if viewer is not None else set()
+    terms = _terms(args.query)
+    rows = []
+    for lesson in ctx.db.query(AgentLesson).order_by(AgentLesson.created_at.desc()).limit(500):
+        allowed = (visible is None or (lesson.case_id in visible)
+                   or (clients is not None and lesson.client_id in clients and lesson.case_id is None))
+        text = f"{lesson.title} {lesson.lesson} {lesson.tags}".lower()
+        score = sum(text.count(t) for t in terms)
+        if allowed and score:
+            rows.append({"lesson_id": lesson.id, "case": lesson.case_title, "title": lesson.title,
+                         "lesson": _cell(lesson.lesson), "tags": lesson.tags, "score": score})
+    rows.sort(key=lambda r: -r["score"])
+    return fit({"total": len(rows), "rows": rows[: args.limit],
+                "note": None if rows else "No lesson matches. Cite none rather than invent one."})
+
+
+class ProposeLessonArgs(BaseModel):
+    title: str = Field(..., min_length=5, max_length=255)
+    lesson: str = Field(..., min_length=20, max_length=4000,
+                        description="What happened, what it taught, and what to do next time")
+    tags: str = Field("", max_length=255, description="Comma-separated, e.g. phishing,detection-gap")
+    rationale: str = Field(..., min_length=1, description="Which tasks, findings or log entries it comes from")
+
+
+def _propose_lesson(ctx: ToolContext, args: ProposeLessonArgs) -> dict[str, Any]:
+    from ...models.agent import PROPOSAL_LESSON
+
+    title = args.title.strip()
+    if any(p.get("title", "").lower() == title.lower() for p in _open_proposals(ctx, PROPOSAL_LESSON)):
+        raise ToolError("Already proposed and waiting for the analyst.")
+    payload = {"title": title, "lesson": args.lesson.strip(), "tags": args.tags.strip()}
+    return _propose(ctx, PROPOSAL_LESSON, payload, args.rationale, [], f"Lesson: {title}")
+
+
+class CorrelateArgs(BaseModel):
+    value: str | None = Field(None, description="One indicator value; default: every IOC of this case")
+    limit: int = Field(50, ge=1, le=200)
+
+
+def _correlate_iocs(ctx: ToolContext, args: CorrelateArgs) -> dict[str, Any]:
+    """Indicators of this case already seen in other cases the account may see."""
+    values = ([args.value.strip()] if args.value else
+              [v for (v,) in ctx.db.query(IOC.value).filter(IOC.case_id == ctx.case.id)])
+    if not values:
+        return {"total": 0, "rows": [], "note": "This case has no IOC to correlate yet."}
+    visible = _visible_cases(ctx)
+    query = (ctx.db.query(IOC, Case)
+             .join(Case, Case.id == IOC.case_id)
+             .filter(IOC.case_id != ctx.case.id, func.lower(IOC.value).in_([v.lower() for v in values])))
+    if visible is not None:
+        query = query.filter(IOC.case_id.in_(visible))
+    rows = [{"value": ioc.value, "type": getattr(ioc.type, "value", ioc.type), "case_id": case.id,
+             "case": case.title, "status": getattr(case.status, "value", case.status),
+             "seen_at": _iso(ioc.created_at)}
+            for ioc, case in query.limit(args.limit)]
+    return fit({"total": len(rows), "rows": rows,
+                "note": None if rows else "None of these indicators appears in another case you can see."})
+
+
 # ─── Registry ─────────────────────────────────────────────────────────────────
 
 TOOLS: dict[str, Tool] = {tool.name: tool for tool in (
@@ -1511,6 +1649,16 @@ TOOLS: dict[str, Tool] = {tool.name: tool for tool in (
          StateHypothesisArgs, _state_hypothesis, PROPOSING),
     Tool("weigh_finding", "Record whether a finding supports, contradicts or is neutral to a hypothesis.",
          WeighFindingArgs, _weigh_finding, PROPOSING),
+    Tool("search_knowledge", "Search the team's knowledge base: procedures, references, notes.",
+         SearchArgs, _search_knowledge),
+    Tool("read_knowledge", "Read one knowledge base page found with search_knowledge.",
+         ReadKnowledgeArgs, _read_knowledge),
+    Tool("search_lessons", "Search the lessons learned from earlier, closed cases.",
+         SearchArgs, _search_lessons),
+    Tool("propose_lesson", "Propose a lesson learned from this case, for the analyst to accept.",
+         ProposeLessonArgs, _propose_lesson, PROPOSING),
+    Tool("correlate_iocs", "Find this case's indicators in other cases the analyst may see.",
+         CorrelateArgs, _correlate_iocs),
     Tool("propose_log_entry",
          "Propose an incident log entry: an action, decision or discovery and when it happened.",
          ProposeLogEntryArgs, _propose_log_entry, PROPOSING),

@@ -8,4 +8,5 @@ process: conversation
 max_steps: 12
 tools: [case_overview, list_evidence, ingest_status, list_artifacts, store_schema, store_search,
         list_iocs, list_assets, list_timeline, list_incident_log, list_ttps,
-        chainsaw_alerts, process_tree]
+        chainsaw_alerts, process_tree, search_knowledge, read_knowledge,
+        search_lessons, correlate_iocs]

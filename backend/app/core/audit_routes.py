@@ -147,6 +147,10 @@ ACTIONS: dict[tuple[str, str], str] = {
         "agent.hypothesis_unlink",
     # Runs a model on golden data: costs GPU time or money, not case data.
     ("POST",   "/api/v1/agents/bench/runs"):                          "agent.bench_run",
+    # Each tool call reads case data out to an outside client.
+    ("POST",   "/api/v1/agents/mcp"):                                 "agent.mcp_call",
+    ("POST",   "/api/v1/agents/mcp-tokens"):                          "agent.mcp_token_create",
+    ("DELETE", "/api/v1/agents/mcp-tokens/{token_id}"):               "agent.mcp_token_revoke",
     # Model providers hold API keys and decide where case data may go.
     ("POST",   "/api/v1/agents/providers"):                           "agent.provider_create",
     ("PATCH",  "/api/v1/agents/providers/{provider_id}"):             "agent.provider_update",

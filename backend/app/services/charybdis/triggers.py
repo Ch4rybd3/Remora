@@ -28,9 +28,11 @@ from sqlalchemy.orm import Session
 
 from ...models.agent import (
     EVIDENCE_BINARY,
+    EVIDENCE_CLOSURE,
     EVIDENCE_EMAIL,
     EVIDENCE_MEMORY,
     EVIDENCE_TABLE,
+    TASK_KIND_LESSONS,
     TASK_KIND_TRIGGER,
     TASK_PENDING,
     AgentEvidenceNotice,
@@ -140,6 +142,31 @@ def _evidence(db: Session, case_id: str, since: datetime) -> list[Evidence]:
     return sorted(fresh, key=lambda e: e.received or since)[:MAX_PER_NOTICE]
 
 
+LESSONS = (
+    "The case was closed. Draft its lessons learned for the analyst: what worked, what was "
+    "missing (data not collected, tools, access, time), what should happen earlier next time, "
+    "and any detection that would have caught it sooner. Read the timeline, the findings, the "
+    "incident log and the task reports first, and search_lessons for earlier cases so you do "
+    "not repeat a lesson already recorded. Propose each lesson with propose_lesson: one idea "
+    "each, concrete enough to act on. Then summarise them in a few lines."
+)
+
+
+def _closure(db: Session, case: Case, leader: AgentInstance, user: User) -> str | None:
+    """Once per case, when it is closed: the leader drafts its lessons learned."""
+    if getattr(case.status, "value", case.status) != "closed":
+        return None
+    if db.query(AgentEvidenceNotice).filter(AgentEvidenceNotice.source_kind == EVIDENCE_CLOSURE,
+                                            AgentEvidenceNotice.source_id == case.id).first():
+        return None
+    task = create_task(db, agent=leader, objective=f"{LESSONS}\n\n{case_context(case)}",
+                       kind=TASK_KIND_LESSONS, requested_by_id=str(user.id))
+    db.add(AgentEvidenceNotice(case_id=case.id, source_kind=EVIDENCE_CLOSURE, source_id=case.id,
+                               task_id=task.id))
+    db.commit()
+    return task.id
+
+
 def case_context(case: Case) -> str:
     """What the case says about itself, as the leader reads it with new evidence."""
     description = str(case.description or "").strip() or "(no description)"
@@ -164,11 +191,14 @@ def announce(db: Session) -> list[str]:
         case = db.get(Case, case_id)
         if case is None:
             continue
-        items = _evidence(db, case_id, leader.created_at)
-        if not items:
-            continue
         user = db.query(User).filter(User.username == leader.launched_by).first()
         if user is None or not user.is_active:
+            continue
+        lessons = _closure(db, case, leader, user)
+        if lessons:
+            woken.append(lessons)
+        items = _evidence(db, case_id, leader.created_at)
+        if not items:
             continue
 
         lines = "\n".join(item.line() for item in items)

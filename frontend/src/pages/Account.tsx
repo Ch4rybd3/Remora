@@ -15,11 +15,14 @@ import { CopyButton } from '../components/custody/CustodyActions'
 import Modal from '../components/ui/Modal'
 import { AlertTriangle, Check, Lock, ShieldCheck, ShieldX } from '../ui/icons'
 import { PageShell } from '../ui/PageShell'
+import { featuresApi } from '../api/agents'
+import McpTokensPanel from '../components/agents/McpTokensPanel'
 import { Panel, PanelHeader } from '../ui/Panel'
 
 export default function Account() {
   const { user } = useAuth()
 
+  const { data: features } = useQuery({ queryKey: ['features'], queryFn: featuresApi.get, staleTime: Infinity })
   return (
     <PageShell
       route="/account"
@@ -28,6 +31,7 @@ export default function Account() {
     >
       <div className="max-w-2xl space-y-4">
         <TwoFactorPanel />
+        {features?.charybdis && <McpTokensPanel />}
       </div>
     </PageShell>
   )

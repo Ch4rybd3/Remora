@@ -218,6 +218,8 @@ def _start(db: Session, task_id: str) -> _Run | None:
 
     messages = [ChatMessage("system", system_prompt(role, case))]
     messages += _history(db, agent, exclude_task=task.id)
+    if role.recall_lessons:
+        messages.append(ChatMessage("user", _recalled_lessons(db, case, task)))
     messages.append(ChatMessage("user", task.objective if task.kind == TASK_KIND_MESSAGE
                                 else f"Your task:\n{task.objective}"))
     messages += _resumed(db, task, process)
@@ -234,6 +236,38 @@ def _is_cancelled(db: Session, task_id: str) -> bool:
     """Whether the analyst stopped the task: cancelled, or paused to be resumed later."""
     task = db.get(AgentTask, task_id)
     return task is None or task.status in (TASK_CANCELLED, TASK_PAUSED)
+
+
+#: Lessons handed to a role that recalls them, at most.
+RECALLED_LESSONS = 5
+
+#: Words too common to say anything about which case a lesson fits.
+_STOPWORDS = frozenset({"the", "and", "for", "with", "from", "this", "that", "was", "were", "has",
+                        "have", "had", "not", "are", "its", "into", "user", "case", "incident"})
+
+
+def _recalled_lessons(db: Session, case: Case, task: AgentTask) -> str:
+    """
+    The lessons of earlier cases that match this one, as the agent's working
+    material, and the rule that it cites only those. Searched by the case's
+    title, tags and description, within the client scope of the account.
+    """
+    import re
+
+    from .tools import AGENT_PERMISSIONS, SearchArgs, ToolContext, _search_lessons
+
+    words = re.findall(r"[a-z0-9][a-z0-9-]{2,}", f"{case.title} {case.tags} {case.description}".lower())
+    query = " ".join(dict.fromkeys(w for w in words if w not in _STOPWORDS))[:200] or str(case.title)
+    ctx = ToolContext(db, case, AGENT_PERMISSIONS, user_id=task.requested_by_id)
+    rows = [r for r in _search_lessons(ctx, SearchArgs(query=query, limit=RECALLED_LESSONS))["rows"]
+            if r.get("case") != case.title]
+    if not rows:
+        return ("[No lesson recorded from earlier cases matches this case. Do not cite earlier "
+                "cases or lessons: there are none to cite.]")
+    lines = "\n".join(f"- From case \"{r['case']}\": {r['title']} - {r['lesson']}" for r in rows)
+    return ("[Lessons recorded from earlier, closed cases that may apply. Cite one by its case "
+            "title when you rely on it. These are the only lessons that exist: never cite another.]\n"
+            + lines)
 
 
 def _resumed(db: Session, task: AgentTask, process: ProcessDef) -> list[ChatMessage]:
@@ -333,7 +367,9 @@ def _execute_tool(run: _Run, call: ToolCall, allowed: list[str]) -> Callable[[Se
         case = db.get(Case, run.case_id)
         if case is None:
             return {"ok": False, "error": "The case no longer exists."}
+        task = db.get(AgentTask, run.task_id)
         ctx = ToolContext(db, case, run.grants, agent_id=run.agent_id, task_id=run.task_id,
+                          user_id=task.requested_by_id if task else None,
                           actor=run.actor)
         try:
             return {"ok": True, "result": run_tool(ctx, call.name, call.arguments, allowed)}
