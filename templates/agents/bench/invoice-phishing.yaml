@@ -1,0 +1,32 @@
+id: invoice-phishing
+title: Invoice phishing email
+description: |
+  Synthetic overdue-invoice phishing: a look-alike sender domain, a Reply-To and a
+  Return-Path on other domains, failed SPF and DMARC, and a payment link to a lure domain.
+case:
+  description: >-
+    Phishing incident. A user reported a fake overdue-invoice email and clicked its link.
+    Establish whether the email is malicious, where the link leads, and what to block.
+  tags: phishing
+role: analyst-email
+objective: >-
+  Analyse the email invoice.eml: sender path, authentication results and link. Give a
+  phishing verdict and propose the indicators to block.
+evidence:
+  - email: invoice.eml
+expect:
+  - kind: ioc
+    value: secure-pay-portal.top
+    label: The lure domain is proposed as an indicator
+  - kind: ioc
+    value: micros0ft-invoices.com
+    label: The look-alike sender domain is proposed as an indicator
+  - kind: finding
+    contains: [phish]
+    label: A finding states the email is phishing
+  - kind: observation
+    contains: secure-pay-portal
+    label: The link is cited from the email
+  - kind: ttp
+    value: T1566
+    label: The phishing technique is proposed (T1566 or a sub-technique)

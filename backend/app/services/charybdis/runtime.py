@@ -51,6 +51,7 @@ from ...models.agent import (
     TASK_DONE,
     TASK_FAILED,
     TASK_KIND_MESSAGE,
+    TASK_PAUSED,
     TASK_PENDING,
     TASK_RUNNING,
     AgentEvent,
@@ -219,6 +220,7 @@ def _start(db: Session, task_id: str) -> _Run | None:
     messages += _history(db, agent, exclude_task=task.id)
     messages.append(ChatMessage("user", task.objective if task.kind == TASK_KIND_MESSAGE
                                 else f"Your task:\n{task.objective}"))
+    messages += _resumed(db, task, process)
     messages.append(ChatMessage("user", _step_message(process, index)))
 
     return _Run(task.id, agent.id, str(case.id), agent.name, agent.provider, agent.model,
@@ -229,8 +231,33 @@ def _start(db: Session, task_id: str) -> _Run | None:
 # ─── Writes the loop makes ────────────────────────────────────────────────────
 
 def _is_cancelled(db: Session, task_id: str) -> bool:
+    """Whether the analyst stopped the task: cancelled, or paused to be resumed later."""
     task = db.get(AgentTask, task_id)
-    return task is None or task.status == TASK_CANCELLED
+    return task is None or task.status in (TASK_CANCELLED, TASK_PAUSED)
+
+
+def _resumed(db: Session, task: AgentTask, process: ProcessDef) -> list[ChatMessage]:
+    """
+    A paused task picks up where it stopped. Model calls are not kept, but each
+    completed step's summary is on the trace, and so is what the analyst said
+    when they took over; replayed in order, they are what the next step needs.
+    Empty for a task that never ran.
+    """
+    rows = (db.query(AgentEvent)
+            .filter(AgentEvent.task_id == task.id,
+                    AgentEvent.kind.in_((EVENT_STEP, EVENT_USER_MESSAGE)))
+            .order_by(AgentEvent.seq).all())
+    messages: list[ChatMessage] = []
+    for event in rows:
+        payload = json.loads(event.payload or "{}")
+        if event.kind == EVENT_STEP and payload.get("summary") is not None:
+            index, _ = process.step(payload.get("step"))
+            messages.append(ChatMessage("user", _step_message(process, index)))
+            messages.append(ChatMessage("assistant", str(payload.get("summary", ""))))
+        elif event.kind == EVENT_USER_MESSAGE and payload.get("resume"):
+            messages.append(ChatMessage("user", "[The analyst paused this task and took it over. "
+                                                f"Their instructions: {payload.get('text', '')}]"))
+    return messages
 
 
 def _usage(run: _Run, tokens_in: int, tokens_out: int) -> Callable[[Session], None]:
@@ -426,6 +453,8 @@ class Supervisor:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._workers: list[asyncio.Task[None]] = []
         self._queued: set[str] = set()
+        #: Work started with `spawn`, held so it is not collected mid-run.
+        self._background: set[asyncio.Future[None]] = set()
 
     @property
     def running(self) -> bool:
@@ -460,6 +489,21 @@ class Supervisor:
         if self._queue is not None and task_id not in self._queued:
             self._queued.add(task_id)
             self._queue.put_nowait(task_id)
+
+    def spawn(self, make: Callable[[], Any]) -> bool:
+        """
+        Run a coroutine on the supervisor's loop, from a request thread.
+        `make` builds it there. False when the supervisor is not running.
+        """
+        if self._loop is None:
+            return False
+
+        def _start() -> None:
+            future = asyncio.ensure_future(make())
+            self._background.add(future)
+            future.add_done_callback(self._background.discard)
+        self._loop.call_soon_threadsafe(_start)
+        return True
 
     def enqueue(self, task_id: str) -> None:
         """Safe from a request thread as well as from the loop."""

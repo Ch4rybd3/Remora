@@ -1321,6 +1321,95 @@ def _propose_log_entry(ctx: ToolContext, args: ProposeLogEntryArgs) -> dict[str,
                     f"{when.isoformat()}Z {title}")
 
 
+# ─── Hypotheses ───────────────────────────────────────────────────────────────
+
+def _hypothesis(ctx: ToolContext, ref: str) -> Any:
+    """A hypothesis by id or by its `H<n>` reference."""
+    from ...models.agent import AgentHypothesis
+
+    ref = ref.strip()
+    match = re.fullmatch(r"[Hh](\d+)", ref)
+    found = (ctx.db.query(AgentHypothesis).filter(AgentHypothesis.case_id == ctx.case.id,
+                                                  AgentHypothesis.ref == int(match.group(1))).first()
+             if match else ctx.db.get(AgentHypothesis, ref))
+    if found is None or found.case_id != ctx.case.id:
+        raise ToolError(f"No hypothesis '{ref}' in this case. Call list_hypotheses.")
+    return found
+
+
+def _list_hypotheses(ctx: ToolContext, _: NoArgs) -> dict[str, Any]:
+    from ...models.agent import AgentHypothesis, AgentHypothesisLink
+
+    refs = {f.id: f"F{f.ref}" for f in ctx.db.query(AgentFinding).filter(AgentFinding.case_id == ctx.case.id)}
+    rows = []
+    for h in (ctx.db.query(AgentHypothesis).filter(AgentHypothesis.case_id == ctx.case.id)
+              .order_by(AgentHypothesis.ref)):
+        links = ctx.db.query(AgentHypothesisLink).filter(AgentHypothesisLink.hypothesis_id == h.id).all()
+        rows.append({"hypothesis": f"H{h.ref}", "statement": h.statement, "state": h.state,
+                     **{stance: [refs.get(link.finding_id, "?") for link in links if link.stance == stance]
+                        for stance in ("for", "against", "neutral")}})
+    note = None if rows else "No hypothesis yet. State the explanations you are weighing with state_hypothesis."
+    return fit({"total": len(rows), "note": note, "rows": rows})
+
+
+class StateHypothesisArgs(BaseModel):
+    statement: str = Field(..., min_length=10, max_length=2000,
+                           description="One explanation of the incident, specific enough to be refuted")
+
+
+def _state_hypothesis(ctx: ToolContext, args: StateHypothesisArgs) -> dict[str, Any]:
+    """Hypotheses are working notes of the investigation: stated directly, decided by the analyst."""
+    from ...models.agent import EVENT_HYPOTHESIS, AgentHypothesis
+    from . import events
+
+    statement = args.statement.strip()
+    existing = (ctx.db.query(AgentHypothesis)
+                .filter(AgentHypothesis.case_id == ctx.case.id,
+                        AgentHypothesis.statement.ilike(statement)).first())
+    if existing is not None:
+        raise ToolError(f"Already stated as H{existing.ref}.")
+    last = (ctx.db.query(AgentHypothesis.ref).filter(AgentHypothesis.case_id == ctx.case.id)
+            .order_by(AgentHypothesis.ref.desc()).first())
+    hypothesis = AgentHypothesis(case_id=ctx.case.id, ref=(last[0] if last else 0) + 1,
+                                 statement=statement, created_by=ctx.actor)
+    ctx.db.add(hypothesis)
+    ctx.db.commit()
+    events.record(ctx.db, case_id=str(ctx.case.id), agent_id=ctx.agent_id, task_id=ctx.task_id,
+                  kind=EVENT_HYPOTHESIS,
+                  payload={"action": "stated", "hypothesis_id": hypothesis.id,
+                           "summary": f"H{hypothesis.ref} {statement[:200]}"},
+                  actor=ctx.actor)
+    return {"hypothesis": f"H{hypothesis.ref}", "hypothesis_id": hypothesis.id}
+
+
+class WeighFindingArgs(BaseModel):
+    hypothesis: str = Field(..., description="H<n> reference or hypothesis id")
+    finding: str = Field(..., description="F<n> reference or finding id")
+    stance: str = Field(..., description="for, against or neutral")
+    note: str = Field(..., min_length=5, max_length=1000, description="Why the finding bears on it so")
+
+
+def _weigh_finding(ctx: ToolContext, args: WeighFindingArgs) -> dict[str, Any]:
+    from ...models.agent import EVENT_HYPOTHESIS, STANCES, AgentHypothesisLink
+    from . import events
+
+    if args.stance not in STANCES:
+        raise ToolError("stance must be for, against or neutral")
+    hypothesis = _hypothesis(ctx, args.hypothesis)
+    finding = _find(ctx, args.finding)
+    link = ctx.db.get(AgentHypothesisLink, (hypothesis.id, finding.id)) or AgentHypothesisLink(
+        hypothesis_id=hypothesis.id, finding_id=finding.id)
+    link.stance, link.note, link.set_by = args.stance, args.note.strip(), ctx.actor
+    ctx.db.merge(link)
+    ctx.db.commit()
+    events.record(ctx.db, case_id=str(ctx.case.id), agent_id=ctx.agent_id, task_id=ctx.task_id,
+                  kind=EVENT_HYPOTHESIS,
+                  payload={"action": "weighed", "hypothesis_id": hypothesis.id,
+                           "summary": f"F{finding.ref} {args.stance} H{hypothesis.ref}"},
+                  actor=ctx.actor)
+    return {"hypothesis": f"H{hypothesis.ref}", "finding": f"F{finding.ref}", "stance": args.stance}
+
+
 # ─── Registry ─────────────────────────────────────────────────────────────────
 
 TOOLS: dict[str, Tool] = {tool.name: tool for tool in (
@@ -1415,6 +1504,13 @@ TOOLS: dict[str, Tool] = {tool.name: tool for tool in (
     Tool("record_source_observation",
          "Keep a memory plugin line, an email part or a binary entry as evidence, by quoting it.",
          RecordSourceObservationArgs, _record_source_observation, PROPOSING),
+    Tool("list_hypotheses",
+         "The explanations being weighed (H1, H2...), their state, and the findings for and against each.",
+         NoArgs, _list_hypotheses),
+    Tool("state_hypothesis", "State one explanation of the incident to weigh against the findings.",
+         StateHypothesisArgs, _state_hypothesis, PROPOSING),
+    Tool("weigh_finding", "Record whether a finding supports, contradicts or is neutral to a hypothesis.",
+         WeighFindingArgs, _weigh_finding, PROPOSING),
     Tool("propose_log_entry",
          "Propose an incident log entry: an action, decision or discovery and when it happened.",
          ProposeLogEntryArgs, _propose_log_entry, PROPOSING),

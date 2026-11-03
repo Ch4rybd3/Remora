@@ -355,3 +355,27 @@ def _provider_default_model(db: Session, name: str) -> str:
 
     row = db.query(AgentProvider).filter(AgentProvider.name == name).first()
     return (row.default_model if row and row.default_model else settings.charybdis_default_model)
+
+
+def purge_case(db: Session, case_id: str) -> None:
+    """
+    Delete every agent row of a case, children first. The database runs
+    without foreign key enforcement, so `ON DELETE CASCADE` alone leaves them
+    behind when a case is deleted. The caller commits.
+    """
+    from ...models.agent import (
+        AgentEvent,
+        AgentEvidenceNotice,
+        AgentFinding,
+        AgentHypothesis,
+        AgentHypothesisLink,
+        AgentObservation,
+    )
+
+    hypotheses = [h for (h,) in db.query(AgentHypothesis.id).filter(AgentHypothesis.case_id == case_id)]
+    if hypotheses:
+        db.query(AgentHypothesisLink).filter(
+            AgentHypothesisLink.hypothesis_id.in_(hypotheses)).delete(synchronize_session=False)
+    for model in (AgentHypothesis, AgentFinding, AgentObservation, AgentProposal,
+                  AgentEvidenceNotice, AgentEvent, AgentTask, AgentInstance):
+        db.query(model).filter(model.case_id == case_id).delete(synchronize_session=False)

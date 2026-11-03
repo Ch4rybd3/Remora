@@ -57,8 +57,11 @@ from ..models.agent import (
     TASK_CANCELLED,
     TASK_KIND_MESSAGE,
     TASK_OPEN,
+    AgentBenchRun,
     AgentEvent,
     AgentFinding,
+    AgentHypothesis,
+    AgentHypothesisLink,
     AgentInstance,
     AgentObservation,
     AgentProposal,
@@ -83,9 +86,16 @@ from ..schemas.agent import (
     AskAgent,
     AskAgentResult,
     Attention,
+    BenchRead,
+    BenchRunCreate,
+    BenchRunRead,
     CaseUsage,
     ChainVerification,
     FindingDecision,
+    HypothesisLinkRead,
+    HypothesisLinkWrite,
+    HypothesisRead,
+    HypothesisWrite,
     LLMHealth,
     ModelRead,
     ProposalDecision,
@@ -96,6 +106,7 @@ from ..schemas.agent import (
     RoleRead,
     RqlDraftRead,
     RqlDraftRequest,
+    TaskResume,
     ToolRead,
 )
 from ..services.audit_service import audit_log
@@ -1092,3 +1103,263 @@ async def agents_socket(
         events.bus.unsubscribe(case_id, queue)
         if receiver is not None:
             receiver.cancel()
+
+
+
+# ─── Pause, resume, take over ─────────────────────────────────────────────────
+
+def _agent_task(case_id: str, agent_id: str, task_id: str, db: Session) -> tuple[Case, AgentInstance, AgentTask]:
+    case = _get_case(case_id, db)
+    agent = _get_agent(case_id, agent_id, db)
+    task = db.get(AgentTask, task_id)
+    if task is None or task.agent_id != agent.id:
+        raise HTTPException(status_code=404, detail="Agent task not found")
+    return case, agent, task
+
+
+@router.post("/{agent_id}/tasks/{task_id}/pause", response_model=AgentTaskRead)
+def pause_task(
+    case_id: str,
+    agent_id: str,
+    task_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Stop a task after its current model call, keeping its place to resume it."""
+    from ..models.agent import TASK_PAUSED, TASK_PENDING, TASK_RUNNING
+
+    case, agent, task = _agent_task(case_id, agent_id, task_id, db)
+    if task.status not in (TASK_PENDING, TASK_RUNNING):
+        raise HTTPException(status_code=409, detail=f"The task is {task.status}; only a running or waiting task pauses")
+    task.status = TASK_PAUSED
+    audit_log(db, user=current_user, action="agent.task_pause", request=request,
+              resource_type="agent_task", resource_id=task.id, resource_name=agent.name,
+              case_id=case_id, case_title=str(case.title), details={"step": task.current_step})
+    db.commit()
+    events.record(db, case_id=case_id, agent_id=agent.id, task_id=task.id, kind=EVENT_STATUS,
+                  payload={"status": "paused", "step": task.current_step},
+                  actor=str(current_user.username or ""))
+    db.refresh(task)
+    return task
+
+
+@router.post("/{agent_id}/tasks/{task_id}/resume", response_model=AgentTaskRead)
+def resume_task(
+    case_id: str,
+    agent_id: str,
+    task_id: str,
+    payload: TaskResume,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Hand a paused task back, optionally with instructions. It resumes at the
+    step it reached, with the summaries of the steps it completed.
+    """
+    from ..models.agent import TASK_PAUSED, TASK_PENDING
+
+    case, agent, task = _agent_task(case_id, agent_id, task_id, db)
+    if task.status != TASK_PAUSED:
+        raise HTTPException(status_code=409, detail=f"The task is {task.status}, not paused")
+    task.status = TASK_PENDING
+    note = payload.note.strip()
+    audit_log(db, user=current_user, action="agent.task_resume", request=request,
+              resource_type="agent_task", resource_id=task.id, resource_name=agent.name,
+              case_id=case_id, case_title=str(case.title), details={"with_instructions": bool(note)})
+    db.commit()
+    if note:
+        events.record(db, case_id=case_id, agent_id=agent.id, task_id=task.id, kind=EVENT_USER_MESSAGE,
+                      payload={"text": note, "resume": True}, actor=str(current_user.username or ""))
+    supervisor.enqueue(task.id)
+    db.refresh(task)
+    return task
+
+
+# ─── Hypotheses ───────────────────────────────────────────────────────────────
+
+def _hypothesis_reads(db: Session, case_id: str) -> list[HypothesisRead]:
+    refs = {f.id: f.ref for f in db.query(AgentFinding).filter(AgentFinding.case_id == case_id)}
+    reads = []
+    for h in db.query(AgentHypothesis).filter(AgentHypothesis.case_id == case_id).order_by(AgentHypothesis.ref):
+        links = [HypothesisLinkRead(finding_id=link.finding_id, finding_ref=refs.get(link.finding_id, 0),
+                                    stance=link.stance, note=link.note, set_by=link.set_by)
+                 for link in db.query(AgentHypothesisLink).filter(AgentHypothesisLink.hypothesis_id == h.id)]
+        reads.append(HypothesisRead(id=h.id, ref=h.ref, statement=h.statement, state=h.state,
+                                    created_by=h.created_by, decided_by=h.decided_by, links=links,
+                                    created_at=h.created_at))
+    return reads
+
+
+def _get_hypothesis(case_id: str, hypothesis_id: str, db: Session) -> AgentHypothesis:
+    hypothesis = db.get(AgentHypothesis, hypothesis_id)
+    if hypothesis is None or hypothesis.case_id != case_id:
+        raise HTTPException(status_code=404, detail="Hypothesis not found")
+    return hypothesis
+
+
+@router.get("/hypotheses", response_model=list[HypothesisRead])
+def list_hypotheses(case_id: str, db: Session = Depends(get_db)):
+    """The competing explanations, each with the findings for and against it."""
+    _get_case(case_id, db)
+    return _hypothesis_reads(db, case_id)
+
+
+@router.post("/hypotheses", response_model=HypothesisRead, status_code=status.HTTP_201_CREATED)
+def create_hypothesis(
+    case_id: str,
+    payload: HypothesisWrite,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    case = _get_case(case_id, db)
+    if not payload.statement:
+        raise HTTPException(status_code=422, detail="statement is required")
+    last = (db.query(AgentHypothesis.ref).filter(AgentHypothesis.case_id == case_id)
+            .order_by(AgentHypothesis.ref.desc()).first())
+    hypothesis = AgentHypothesis(case_id=case_id, ref=(last[0] if last else 0) + 1,
+                                 statement=payload.statement.strip(),
+                                 created_by=str(current_user.username or ""))
+    db.add(hypothesis)
+    audit_log(db, user=current_user, action="agent.hypothesis_create", request=request,
+              resource_type="agent_hypothesis", resource_id=hypothesis.id,
+              resource_name=f"H{hypothesis.ref}", case_id=case_id, case_title=str(case.title))
+    db.commit()
+    return next(h for h in _hypothesis_reads(db, case_id) if h.id == hypothesis.id)
+
+
+@router.patch("/hypotheses/{hypothesis_id}", response_model=HypothesisRead)
+def update_hypothesis(
+    case_id: str,
+    hypothesis_id: str,
+    payload: HypothesisWrite,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Reword a hypothesis, or decide it: supported, refuted, dropped - or open again."""
+    from ..models.agent import EVENT_HYPOTHESIS, HYPOTHESIS_OPEN, HYPOTHESIS_STATES
+
+    case = _get_case(case_id, db)
+    hypothesis = _get_hypothesis(case_id, hypothesis_id, db)
+    if payload.state and payload.state not in HYPOTHESIS_STATES:
+        raise HTTPException(status_code=422, detail="state must be open, supported, refuted or dropped")
+    if payload.statement:
+        hypothesis.statement = payload.statement.strip()
+    if payload.state:
+        hypothesis.state = payload.state
+        hypothesis.decided_by = None if payload.state == HYPOTHESIS_OPEN else str(current_user.username or "")
+    audit_log(db, user=current_user, action="agent.hypothesis_update", request=request,
+              resource_type="agent_hypothesis", resource_id=hypothesis.id,
+              resource_name=f"H{hypothesis.ref}", case_id=case_id, case_title=str(case.title),
+              details=payload.model_dump(exclude_none=True))
+    db.commit()
+    if payload.state:
+        events.record(db, case_id=case_id, agent_id=None, task_id=None, kind=EVENT_HYPOTHESIS,
+                      payload={"action": payload.state, "hypothesis_id": hypothesis.id,
+                               "summary": f"H{hypothesis.ref} {hypothesis.statement[:200]}"},
+                      actor=str(current_user.username or ""))
+    return next(h for h in _hypothesis_reads(db, case_id) if h.id == hypothesis.id)
+
+
+@router.put("/hypotheses/{hypothesis_id}/links/{finding_id}", response_model=HypothesisRead)
+def link_hypothesis(
+    case_id: str,
+    hypothesis_id: str,
+    finding_id: str,
+    payload: HypothesisLinkWrite,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Set how a finding bears on a hypothesis: a cell of the matrix."""
+    from ..models.agent import STANCES
+
+    case = _get_case(case_id, db)
+    hypothesis = _get_hypothesis(case_id, hypothesis_id, db)
+    finding = db.get(AgentFinding, finding_id)
+    if finding is None or finding.case_id != case_id:
+        raise HTTPException(status_code=404, detail="Finding not found")
+    if payload.stance not in STANCES:
+        raise HTTPException(status_code=422, detail="stance must be for, against or neutral")
+    link = db.get(AgentHypothesisLink, (hypothesis.id, finding.id)) or AgentHypothesisLink(
+        hypothesis_id=hypothesis.id, finding_id=finding.id)
+    link.stance, link.note, link.set_by = payload.stance, payload.note.strip(), str(current_user.username or "")
+    db.merge(link)
+    audit_log(db, user=current_user, action="agent.hypothesis_link", request=request,
+              resource_type="agent_hypothesis", resource_id=hypothesis.id,
+              resource_name=f"H{hypothesis.ref} / F{finding.ref}", case_id=case_id,
+              case_title=str(case.title), details={"stance": payload.stance})
+    db.commit()
+    return next(h for h in _hypothesis_reads(db, case_id) if h.id == hypothesis.id)
+
+
+@router.delete("/hypotheses/{hypothesis_id}/links/{finding_id}", response_model=HypothesisRead)
+def unlink_hypothesis(
+    case_id: str,
+    hypothesis_id: str,
+    finding_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    case = _get_case(case_id, db)
+    hypothesis = _get_hypothesis(case_id, hypothesis_id, db)
+    db.query(AgentHypothesisLink).filter(AgentHypothesisLink.hypothesis_id == hypothesis.id,
+                                         AgentHypothesisLink.finding_id == finding_id).delete()
+    audit_log(db, user=current_user, action="agent.hypothesis_unlink", request=request,
+              resource_type="agent_hypothesis", resource_id=hypothesis.id,
+              resource_name=f"H{hypothesis.ref}", case_id=case_id, case_title=str(case.title),
+              details={"finding_id": finding_id})
+    db.commit()
+    return next(h for h in _hypothesis_reads(db, case_id) if h.id == hypothesis.id)
+
+
+# ─── Evaluation bench ─────────────────────────────────────────────────────────
+
+@catalog_router.get("/bench", response_model=list[BenchRead])
+def list_benches():
+    from ..services.charybdis.bench import benches
+
+    return [BenchRead(id=b.id, title=b.title, description=b.description, role=b.role,
+                      expectations=[e.label for e in b.expect]) for b in benches().values()]
+
+
+@catalog_router.get("/bench/runs", response_model=list[BenchRunRead])
+def list_bench_runs(db: Session = Depends(get_db)):
+    return db.query(AgentBenchRun).order_by(AgentBenchRun.started_at.desc()).limit(200).all()
+
+
+@catalog_router.post("/bench/runs", response_model=BenchRunRead, status_code=status.HTTP_202_ACCEPTED)
+def start_bench_run(
+    payload: BenchRunCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """
+    Run one golden case on one model. Answers at once; the score appears on
+    the run when it ends. A cloud provider receives only the golden data.
+    """
+    from ..services.charybdis.bench import benches, run_bench
+
+    bench = benches().get(payload.bench_id)
+    if bench is None:
+        raise HTTPException(status_code=404, detail=f"No golden case '{payload.bench_id}'")
+    if payload.provider not in known_providers():
+        raise HTTPException(status_code=422, detail=f"Unknown or disabled provider '{payload.provider}'")
+    model = payload.model.strip() or (settings.charybdis_default_model if payload.provider == PROVIDER_OLLAMA
+                                      else delegation._provider_default_model(db, payload.provider))
+    run = AgentBenchRun(bench_id=bench.id, provider=payload.provider, model=model,
+                        total=len(bench.expect), started_by=str(admin.username or ""))
+    db.add(run)
+    audit_log(db, user=admin, action="agent.bench_run", request=request, resource_type="agent_bench",
+              resource_id=run.id, resource_name=bench.id, details={"provider": run.provider, "model": model})
+    db.commit()
+    db.refresh(run)
+    run_id = run.id
+    if not supervisor.spawn(lambda: run_bench(run_id)):
+        raise HTTPException(status_code=503, detail="The agent runtime is not running")
+    return run

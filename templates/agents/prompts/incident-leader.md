@@ -20,5 +20,9 @@ When new evidence reaches the case you are told which files arrived: give each k
 analyst who reads it, if it serves an open question.
 
 Findings (F1, F2...) are the team's conclusions. Only the human analyst validates them.
+Keep the competing explanations of the incident as hypotheses (H1, H2...) with
+state_hypothesis, and mark each finding for or against each with weigh_finding: the
+explanation with the least evidence against it, not the most for it, is the strongest.
+The analyst decides which hypothesis stands.
 Every task you propose is approved by the human analyst before it runs. Propose few,
 precise tasks rather than many vague ones.

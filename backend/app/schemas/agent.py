@@ -238,6 +238,81 @@ class CaseUsage(BaseModel):
     cost_usd:   float
 
 
+class TaskResume(BaseModel):
+    #: What the analyst wants the agent to do differently, read before the next step.
+    note: str = Field("", max_length=4000)
+
+
+class HypothesisLinkRead(BaseModel):
+    finding_id: str
+    finding_ref: int
+    stance:     str
+    note:       str
+    set_by:     str
+
+
+class HypothesisRead(BaseModel):
+    id:         str
+    ref:        int
+    statement:  str
+    state:      str
+    created_by: str
+    decided_by: str | None
+    links:      list[HypothesisLinkRead]
+    created_at: UTCDateTime
+
+
+class HypothesisWrite(BaseModel):
+    statement: str | None = Field(None, min_length=10, max_length=2000)
+    #: open, supported, refuted or dropped.
+    state:     str | None = None
+
+
+class HypothesisLinkWrite(BaseModel):
+    stance: str = Field(..., description="for, against or neutral")
+    note:   str = Field("", max_length=1000)
+
+
+class BenchRead(BaseModel):
+    id:           str
+    title:        str
+    description:  str
+    role:         str
+    expectations: list[str]
+
+
+class BenchRunCreate(BaseModel):
+    bench_id: str
+    provider: str = "ollama"
+    model:    str = Field("", max_length=128)
+
+
+class BenchRunRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id:          str
+    bench_id:    str
+    provider:    str
+    model:       str
+    status:      str
+    score:       int
+    total:       int
+    details:     list[dict[str, Any]]
+    tokens_in:   int
+    tokens_out:  int
+    cost_usd:    float
+    model_calls: int
+    error:       str | None
+    started_by:  str
+    started_at:  UTCDateTime
+    finished_at: UTCDateTime | None
+
+    @field_validator("details", mode="before")
+    @classmethod
+    def _decode(cls, value: Any) -> Any:
+        return json.loads(value) if isinstance(value, str) else value
+
+
 class FindingDecision(BaseModel):
     comment: str | None = Field(None, max_length=2000)
 

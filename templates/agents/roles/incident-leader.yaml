@@ -7,5 +7,5 @@ conversation_process: leader-conversation
 process: leader-review
 max_steps: 16
 tools: [case_overview, list_evidence, ingest_status, list_artifacts, list_iocs, list_assets, list_timeline,
-        list_incident_log, list_ttps, list_tasks, read_task, list_findings, read_finding,
+        list_incident_log, list_ttps, list_tasks, read_task, list_findings, read_finding, list_hypotheses, state_hypothesis, weigh_finding,
         propose_task]
