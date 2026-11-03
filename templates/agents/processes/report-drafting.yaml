@@ -12,6 +12,9 @@ steps:
     tools: [read_finding, list_timeline, list_iocs, list_ttps, propose_report_section,
             propose_executive_summary]
     instructions: |
+      When the outline has a remediation section, draft it from the validated findings:
+      containment, eradication and hardening steps, each tied to the finding it answers. They
+      are recommendations for the analyst; nothing is ever executed.
       Propose the sections your task asks for (or those the findings support) with
       propose_report_section, and the executive summary with propose_executive_summary when
       asked. Write only what the validated findings state. End every paragraph with the

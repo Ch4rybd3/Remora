@@ -85,10 +85,36 @@ class RoleDef(BaseModel):
         return list(self.tools) if step.tools == ROLE_TOOLS else list(step.tools)
 
 
+class TeamMatch(BaseModel):
+    tags:     list[str] = Field(default_factory=list)
+    keywords: list[str] = Field(default_factory=list)
+
+
+class TeamDef(BaseModel):
+    """A team staffed for a kind of incident, chosen from what the case says it is."""
+    id:    str = Field(..., pattern=r"^[a-z][a-z0-9_-]*$")
+    name:  str
+    match: TeamMatch | None = None
+    roles: list[str] = Field(..., min_length=1)
+
+    def fits(self, tags: set[str], text: str) -> bool:
+        if self.match is None:
+            return True
+        return bool(tags & {t.lower() for t in self.match.tags}) or any(
+            k.lower() in text for k in self.match.keywords)
+
+
 class Definitions(BaseModel):
     roles:     dict[str, RoleDef]
     processes: dict[str, ProcessDef]
     rules:     str
+    teams:     list[TeamDef] = Field(default_factory=list)
+
+    def team_for(self, case: Case) -> TeamDef | None:
+        """The first team whose rule matches the case's tags, title or description."""
+        tags = {t.strip().lower() for t in str(case.tags or "").split(",") if t.strip()}
+        text = f"{case.title} {case.description or ''}".lower()
+        return next((team for team in self.teams if team.fits(tags, text)), None)
 
     def role(self, role_id: str) -> RoleDef:
         return self.roles.get(role_id) or self.roles[DEFAULT_ROLE]
@@ -146,7 +172,19 @@ def load(root: Path) -> Definitions:
 
     rules_path = root / "prompts" / "_rules.md"
     rules = rules_path.read_text(encoding="utf-8").strip() if rules_path.is_file() else ""
-    return Definitions(roles=roles, processes=processes, rules=rules)
+
+    teams: list[TeamDef] = []
+    teams_path = root / "teams.yaml"
+    if teams_path.is_file():
+        try:
+            teams = [TeamDef.model_validate(t) for t in _load_yaml(teams_path).get("teams") or []]
+        except ValidationError as exc:
+            raise DefinitionError(f"teams.yaml: {exc}") from exc
+        for team in teams:
+            unknown = sorted(set(team.roles) - set(roles))
+            if unknown:
+                raise DefinitionError(f"teams.yaml: team '{team.id}' names unknown roles {unknown}")
+    return Definitions(roles=roles, processes=processes, rules=rules, teams=teams)
 
 
 @lru_cache(maxsize=1)

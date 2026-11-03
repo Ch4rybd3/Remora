@@ -1,0 +1,35 @@
+# Which team "Staff team" puts on a case, by what the case is. The first team
+# whose tags or keywords match the case's tags, title or description is used;
+# the last team, with no match rule, is the fallback. Roles must exist in roles/.
+teams:
+  - id: phishing
+    name: Phishing response
+    match:
+      tags: [phishing, bec, spearphishing]
+      keywords: [phishing, phish, spoofed email, invoice email, malicious email]
+    roles: [incident-leader, analyst-email, analyst-network, reviewer, reporter]
+
+  - id: ransomware
+    name: Ransomware response
+    match:
+      tags: [ransomware, extortion]
+      keywords: [ransomware, encrypted files, ransom note]
+    roles: [incident-leader, analyst-windows, analyst-memory, analyst-timeline, reviewer, reporter, scribe]
+
+  - id: intrusion
+    name: Intrusion investigation
+    match:
+      tags: [intrusion, lateral-movement, credential-access, apt]
+      keywords: [lateral movement, intrusion, compromised host, credential theft]
+    roles: [incident-leader, analyst-windows, analyst-timeline, reviewer, reporter]
+
+  - id: malware
+    name: Malware analysis
+    match:
+      tags: [malware]
+      keywords: [malware, suspicious binary, dropper, infostealer]
+    roles: [incident-leader, analyst-binary, analyst-windows, reviewer, reporter]
+
+  - id: default
+    name: Default team
+    roles: [incident-leader, analyst-windows, reviewer, reporter]

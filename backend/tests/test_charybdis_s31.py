@@ -124,7 +124,9 @@ def test_the_leader_delegates_and_the_analyst_proposes_and_reports(auth_client, 
 
     ioc_proposal = _wait(lambda: [p for p in _proposals(auth_client, case_id)
                                   if p["kind"] == "ioc"])[0]
-    assert ioc_proposal["evidence"] == ["Security.evtx EventRecordId 4512, 2024-03-02 10:14:07Z"]
+    # The fake analyst read no data: the value is flagged as found nowhere in the case.
+    assert ioc_proposal["evidence"][0] == "Security.evtx EventRecordId 4512, 2024-03-02 10:14:07Z"
+    assert "appears nowhere" in ioc_proposal["evidence"][-1]
     accepted = auth_client.post(
         f"/api/v1/cases/{case_id}/agents/proposals/{ioc_proposal['id']}/accept",
         json={"payload": {"description": "RDP source"}})

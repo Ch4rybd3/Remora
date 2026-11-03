@@ -13,6 +13,7 @@ module from starting rather than producing an agent that behaves unpredictably.
 A role with `assignable: true` can be given tasks by the Incident Leader;
 the leader, the assistant and the reviewer get their work another way.
 
+- `teams.yaml` - which team "Staff team" puts on a case, by its tags and description.
 - `bench/*.yaml` - golden cases for the evaluation bench: a case description, a role and
   objective, the evidence in `bench/data/`, and what a good run must produce.
 

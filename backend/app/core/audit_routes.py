@@ -134,6 +134,7 @@ ACTIONS: dict[tuple[str, str], str] = {
     ("POST",   "/api/v1/cases/{case_id}/agents/findings/{finding_id}/reject"):
         "agent.finding_reject",
     ("POST",   "/api/v1/cases/{case_id}/agents/ask"):                 "agent.ask",
+    ("POST",   "/api/v1/cases/{case_id}/agents/handover"):            "agent.handover",
     ("POST",   "/api/v1/cases/{case_id}/agents/{agent_id}/tasks/{task_id}/pause"):
         "agent.task_pause",
     ("POST",   "/api/v1/cases/{case_id}/agents/{agent_id}/tasks/{task_id}/resume"):

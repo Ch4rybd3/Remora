@@ -512,3 +512,40 @@ Decisions taken while building it:
   matching the case's title, tags and description, and the rule that these
   are the only ones it may cite. Rerun, it cited the three real lessons of
   the closed case they came from.
+
+---
+
+## 11. S36 — team templates and defences
+
+Delivers G8, A8, E6 (assets), B6, B7 and F6. Still planned: G3 approval queue
+then H2 MCP client, H4 detection rules, A9 role editor, A11 playbook steps,
+B4 collection gaps, B5 phases, F3 report language, F4 executive briefing,
+E6 attack-graph edges.
+
+| Piece | Where |
+|---|---|
+| Prompt-injection guard: each tool result is scanned for text addressed to a model (overrides, new instructions, role switches, prompt markup, tool steering, concealment); a hit puts a warning in front of the result for the model and an alert on the trace for the analyst | `services/charybdis/guard.py`, `runtime.py` |
+| Team templates: "Staff team" picks the team for the kind of incident from the case's tags, title and description (phishing, ransomware, intrusion, malware, default) | `templates/agents/teams.yaml`, `Definitions.team_for` |
+| Asset proposals: analysts propose hosts and accounts, accepted through the assets handler | `propose_asset` |
+| Handover brief: the leader writes what changed in the last hours and what waits on the analyst | `POST /handover`, Team tab |
+| Remediation drafts: the reporter drafts the remediation section from validated findings | `report-drafting.yaml` |
+| Report citation check: accepted report text resting on a finding no longer validated is flagged | `GET /report-check`, Findings view |
+
+Decisions taken while building it:
+
+- **The guard flags; it does not censor.** Instruction-shaped text in
+  evidence is itself evidence - a phishing email that tells an AI to stay
+  quiet is worth reporting. The result is kept, prefixed with a warning, and
+  the analyst sees an alert. Patterns miss clever injections; the rule that
+  tool content is data stays the first defence.
+- **Teams are data, like roles.** A new kind of incident is a new entry in
+  `teams.yaml`; the first matching team wins and the last one is the default.
+- **An indicator found nowhere in the case is flagged.** Checked on
+  qwen3:8b with a phishing email whose body tells AI assistants to stay
+  quiet: the email analyst first read only the headers, then proposed a URL
+  and an attachment it had never read. propose_ioc now looks for the value in
+  the case's observations, emails, binaries, memory output and tables; when
+  it is nowhere, the proposal carries a Remora note in red and the agent is
+  told. Asked to read the body, the analyst triggered the guard (override,
+  concealment), did not obey, and reported the planted instruction as further
+  evidence of phishing.

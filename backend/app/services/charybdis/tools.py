@@ -526,6 +526,43 @@ def _open_proposals(ctx: ToolContext, kind: str) -> list[dict[str, Any]]:
                                                AgentProposal.state == PROPOSAL_OPEN)]
 
 
+#: Put in a proposal's evidence when its value appears nowhere in the case.
+UNGROUNDED = "[Remora: this value appears nowhere in the case's evidence - check where it comes from before accepting]"
+
+
+def seen_in_case(ctx: ToolContext, value: str) -> bool:
+    """
+    Whether `value` appears anywhere in what the case holds: recorded
+    observations, analysed emails, binaries and memory output, Explorer tables.
+    A real run had a model propose a URL it had never read; a value that is
+    nowhere in the evidence is flagged to the analyst, not silently accepted.
+    """
+    from ...models.binary import BinaryFile
+    from ...models.email_file import EmailFile
+    from ...models.memory import MemoryDump, MemoryPluginResult
+
+    needle = value.strip().lower()
+    if not needle:
+        return False
+    texts = [f"{o.locator} {o.row}" for o in
+             ctx.db.query(AgentObservation).filter(AgentObservation.case_id == ctx.case.id)]
+    texts += [str(e.analysis) for e in ctx.db.query(EmailFile).filter(EmailFile.case_id == ctx.case.id)]
+    texts += [str(b.analysis_json or "") for b in ctx.db.query(BinaryFile).filter(BinaryFile.case_id == ctx.case.id)]
+    texts += [str(r.output or "") for r in ctx.db.query(MemoryPluginResult).join(
+        MemoryDump, MemoryDump.id == MemoryPluginResult.dump_id).filter(MemoryDump.case_id == ctx.case.id)]
+    if any(needle in t.lower() for t in texts):
+        return True
+    for artifact in ctx.db.query(CsvArtifactFile).filter(CsvArtifactFile.case_id == ctx.case.id).limit(50):
+        try:
+            count, _ = get_store().find(_source(artifact), json.loads(str(artifact.columns or "[]")),
+                                        value.strip(), limit=1)
+        except Exception:
+            continue
+        if count:
+            return True
+    return False
+
+
 IOC_TYPES = [t.value for t in IOCType]
 IOC_CONFIDENCES = [c.value for c in IOCConfidence]
 
@@ -554,8 +591,13 @@ def _propose_ioc(ctx: ToolContext, args: ProposeIocArgs) -> dict[str, Any]:
         raise ToolError("Already proposed and waiting for the analyst.")
     payload = {"type": args.type, "value": value, "description": args.description,
                "confidence": args.confidence, "tlp": ctx.case.tlp or "TLP:AMBER"}
-    return _propose(ctx, PROPOSAL_IOC, payload, args.rationale, args.evidence,
-                    f"IOC {args.type} {value}")
+    grounded = seen_in_case(ctx, value)
+    evidence = args.evidence if grounded else [*args.evidence, UNGROUNDED]
+    result = _propose(ctx, PROPOSAL_IOC, payload, args.rationale, evidence, f"IOC {args.type} {value}")
+    if not grounded:
+        result["note"] = ("This value appears nowhere in the case's evidence. The analyst is told so. "
+                          "Propose only values you read in a tool result.")
+    return result
 
 
 class ProposeTimelineArgs(BaseModel):
@@ -1548,6 +1590,42 @@ def _correlate_iocs(ctx: ToolContext, args: CorrelateArgs) -> dict[str, Any]:
                 "note": None if rows else "None of these indicators appears in another case you can see."})
 
 
+# ─── Assets ───────────────────────────────────────────────────────────────────
+
+ASSET_TYPES = ("workstation", "server", "domain_controller", "network_device", "firewall", "vpn",
+               "application", "database", "user_account", "service_account")
+
+
+class ProposeAssetArgs(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255, description="Host or account name, e.g. DC01")
+    type: str = Field(..., description="One of: " + ", ".join(ASSET_TYPES))
+    hostname: str = Field("", max_length=255)
+    ip_address: str = Field("", max_length=64)
+    os: str = Field("", max_length=128)
+    domain: str = Field("", max_length=255)
+    compromised: bool = Field(False, description="True only if the evidence shows it was compromised")
+    description: str = Field("", max_length=2000)
+    rationale: str = Field(..., min_length=1)
+    evidence: list[str] = Field(..., min_length=1, description=EVIDENCE_HELP)
+
+
+def _propose_asset(ctx: ToolContext, args: ProposeAssetArgs) -> dict[str, Any]:
+    from ...models.agent import PROPOSAL_ASSET
+
+    if args.type not in ASSET_TYPES:
+        raise ToolError(f"type must be one of: {', '.join(ASSET_TYPES)}")
+    name = args.name.strip()
+    if ctx.db.query(Asset).filter(Asset.case_id == ctx.case.id, Asset.name.ilike(name)).first():
+        raise ToolError(f"{name} is already an asset of the case.")
+    if any(str(p.get("name", "")).lower() == name.lower() for p in _open_proposals(ctx, PROPOSAL_ASSET)):
+        raise ToolError("Already proposed and waiting for the analyst.")
+    payload = {"name": name, "type": args.type, "hostname": args.hostname.strip(),
+               "ip_address": args.ip_address.strip(), "os": args.os.strip(), "domain": args.domain.strip(),
+               "compromised": args.compromised, "description": args.description.strip()}
+    return _propose(ctx, PROPOSAL_ASSET, payload, args.rationale, args.evidence,
+                    f"Asset {args.type} {name}" + (" (compromised)" if args.compromised else ""))
+
+
 # ─── Registry ─────────────────────────────────────────────────────────────────
 
 TOOLS: dict[str, Tool] = {tool.name: tool for tool in (
@@ -1659,6 +1737,8 @@ TOOLS: dict[str, Tool] = {tool.name: tool for tool in (
          ProposeLessonArgs, _propose_lesson, PROPOSING),
     Tool("correlate_iocs", "Find this case's indicators in other cases the analyst may see.",
          CorrelateArgs, _correlate_iocs),
+    Tool("propose_asset", "Propose a host or account involved in the incident as a case asset. Cite the evidence.",
+         ProposeAssetArgs, _propose_asset, PROPOSING),
     Tool("propose_log_entry",
          "Propose an incident log entry: an action, decision or discovery and when it happened.",
          ProposeLogEntryArgs, _propose_log_entry, PROPOSING),

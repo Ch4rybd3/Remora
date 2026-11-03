@@ -168,6 +168,11 @@ export default function FindingsBoard({ caseId, agents }: { caseId: string; agen
   const names = Object.fromEntries(agents.map(a => [a.id, a.name]))
   const isOpen = (f: AgentFinding) => f.state === 'in_review' || f.state === 'proposed'
   const shown = findings.filter(f => showDecided || isOpen(f))
+  // Report text accepted from the reporter that rests on a finding rejected since.
+  const { data: reportIssues = [] } = useQuery({
+    queryKey: ['agent-report-check', caseId, findings.map(f => f.state).join()],
+    queryFn: () => agentsApi.reportCheck(caseId),
+  })
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -181,6 +186,16 @@ export default function FindingsBoard({ caseId, agents }: { caseId: string; agen
         </label>
       </div>
       {error && <div className="px-4 py-2 border-b border-hairline text-ui text-agent-error">{error}</div>}
+      {reportIssues.length > 0 && (
+        <div className="px-4 py-2 border-b border-hairline text-ui text-agent-error space-y-1">
+          <p className="font-semibold">The report relies on findings that are no longer validated:</p>
+          {reportIssues.map(i => (
+            <p key={`${i.proposal_id}-${i.finding}`} className="text-label">
+              {i.part} cites {i.finding}, now {i.state}. Review that part of the report before delivery.
+            </p>
+          ))}
+        </div>
+      )}
       <div className="flex-1 overflow-auto p-4 space-y-3">
         {shown.length === 0 && <EmptyState icon={Lightbulb} message="No finding to decide on" />}
         {shown.map(f => (
