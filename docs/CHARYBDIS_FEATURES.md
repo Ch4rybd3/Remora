@@ -424,3 +424,51 @@ Decisions taken while building it:
 - **A provider cannot be renamed** - agents refer to it by name. Removing one
   is audited with the number of agents still on it, which then fail with a
   message naming it; disabling keeps them listed.
+
+---
+
+## 9. S34, part 3 — bench, hypotheses, taking over
+
+Delivers G9, D4 and A10. Still planned: A8, A11, B4-B7, E6, F3, F4, F6, G8.
+
+| Piece | Where |
+|---|---|
+| Evaluation bench: golden cases (evidence with known content, a role, an objective, expectations) run on one model in a scratch case deleted afterwards, scored per expectation, with calls, tokens and cost | `templates/agents/bench/`, `services/charybdis/bench.py`, `agent_bench_runs` (revision `c8f4a1e6b293`), Agent models page |
+| Two golden cases to start: an RDP intrusion on a domain controller (Windows analyst) and an invoice phishing email (email analyst), both synthetic | `templates/agents/bench/` |
+| Hypotheses (H1, H2...) and a matrix of findings for and against each; the leader states and weighs, the analyst decides | `agent_hypotheses`, `agent_hypothesis_links`, tools `state_hypothesis`, `weigh_finding`, `list_hypotheses`, Hypotheses view |
+| Pause a task after its current model call, resume it with instructions; it restarts at the step it reached with the summaries of the steps it completed | `TASK_PAUSED`, `runtime._resumed`, task board |
+| Deleting a case removes its agent rows: SQLite runs without foreign key enforcement, so `ON DELETE CASCADE` alone left them behind since S30 | `delegation.purge_case`, `routers/cases.py` |
+
+Decisions taken while building it:
+
+- **A golden case scores outcomes, not wording.** An expectation is an
+  indicator proposed, a technique proposed, a finding or report naming
+  something, a row cited. The same case run on two models, or before and
+  after a prompt change, is compared by score, calls and cost.
+- **Golden cases live with the roles they exercise**, in
+  `templates/agents/bench/`, so a prompt change and the evidence it is
+  measured on are reviewed together. The two shipped are synthetic: public
+  datasets are large and their licences vary; adding one is adding a YAML file
+  and its evidence.
+- **A bench run never touches a real case.** It builds a scratch case,
+  deletes it with its agents when the run ends, and keeps only the score.
+- **Hypotheses are working notes, not case objects.** The leader states them
+  directly; nothing reaches the case. The analyst decides each one; the board
+  counts what is against each, which is how analysis of competing hypotheses
+  is read.
+- **Pausing keeps the work done, not the conversation.** Model calls are not
+  stored; completed steps' summaries are on the trace, and are what the next
+  step needs. The analyst's instructions are given before the step resumes.
+
+First bench runs, on the analyst's machine (RTX 3060 Ti, Ollama), as the
+baseline the tuning work starts from:
+
+| Golden case | Model | Score | Calls | Tokens |
+|---|---|---|---|---|
+| invoice-phishing | qwen3:8b | 2/5 | 10 | 46 495 |
+| rdp-intrusion | qwen3:8b | 3/5 | 15 | 80 880 |
+| invoice-phishing | llama3 | 0/5 | 0 | 0 - refused: the model has no tool calling |
+
+qwen3:8b finds the main indicator and the account in both; it misses the
+look-alike sender domain, the persistence service and the cleared log, and in
+the phishing case states its verdict in text without proposing it as a finding.
