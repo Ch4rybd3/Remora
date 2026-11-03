@@ -10,6 +10,7 @@ const api = vi.hoisted(() => ({
   findings: vi.fn(),
   validateFinding: vi.fn(),
   rejectFinding: vi.fn(),
+  reportCheck: vi.fn(),
 }))
 vi.mock('../../../api/agents', () => ({ agentsApi: api }))
 
@@ -47,6 +48,7 @@ describe('FindingsBoard', () => {
     api.findings.mockResolvedValue([finding])
     api.validateFinding.mockResolvedValue({ ...finding, state: 'validated' })
     api.rejectFinding.mockResolvedValue({ ...finding, state: 'rejected' })
+    api.reportCheck.mockResolvedValue([])
   })
 
   it('shows the claim, its cited row and the reviewer verdict', async () => {

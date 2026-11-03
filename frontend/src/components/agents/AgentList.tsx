@@ -71,8 +71,8 @@ export default function AgentList({ agents, roles, selectedId, onSelect, onAdd, 
         <div className="flex items-center justify-between">
           <span className="text-label font-mono uppercase tracking-wider text-fg-muted">Team</span>
           <button className="btn-ghost text-label flex items-center gap-1" onClick={onStaffTeam} disabled={adding}
-                  title="Incident Leader and a Windows host analyst">
-            <Users size={14} /> Default team
+                  title="The team for this kind of incident, chosen from the case's tags and description">
+            <Users size={14} /> Staff team
           </button>
         </div>
         <div className="flex items-center gap-1">

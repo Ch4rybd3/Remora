@@ -91,6 +91,14 @@ export const agentsApi = {
   mcpTokens: () => api.get<McpToken[]>('/agents/mcp-tokens').then(r => r.data),
   createMcpToken: (name: string) => api.post<McpToken>('/agents/mcp-tokens', { name }).then(r => r.data),
   revokeMcpToken: (id: string) => api.delete(`/agents/mcp-tokens/${id}`),
+  /** The Incident Leader writes a shift handover brief in its chat. */
+  handover: (caseId: string, hours: number) =>
+    api.post<{ agent_id: string; agent_name: string; task_id: string }>(
+      `/cases/${caseId}/agents/handover`, { hours }).then(r => r.data),
+  /** Accepted report text resting on findings no longer validated. */
+  reportCheck: (caseId: string) =>
+    api.get<{ proposal_id: string; part: string; finding: string; state: string }[]>(
+      `/cases/${caseId}/agents/report-check`).then(r => r.data),
   observation: (caseId: string, observationId: string) =>
     api.get<AgentObservation>(`/cases/${caseId}/agents/observations/${observationId}`).then(r => r.data),
 }

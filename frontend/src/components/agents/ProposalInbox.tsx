@@ -15,6 +15,7 @@ const KIND_LABEL: Record<AgentProposal['kind'], string> = {
   executive_summary: 'Executive summary',
   incident_log:      'Incident log',
   lesson:            'Lesson learned',
+  asset:             'Asset',
 }
 
 const KIND_TONE: Record<AgentProposal['kind'], string> = {
@@ -26,6 +27,7 @@ const KIND_TONE: Record<AgentProposal['kind'], string> = {
   executive_summary: 'bg-data-1/10 text-data-1 border-data-1/20',
   incident_log:      'bg-data-3/10 text-data-3 border-data-3/20',
   lesson:            'bg-data-6/10 text-data-6 border-data-6/20',
+  asset:             'bg-data-4/10 text-data-4 border-data-4/20',
 }
 
 /** The fields an analyst may change before accepting, per kind. */
@@ -38,6 +40,7 @@ const EDITABLE: Record<AgentProposal['kind'], string[]> = {
   executive_summary: ['text'],
   incident_log:      ['title', 'description', 'actor'],
   lesson:            ['title', 'lesson', 'tags'],
+  asset:             ['name', 'hostname', 'ip_address', 'description'],
 }
 
 /** Report text is long: shown in full rather than as a one-line headline. */
@@ -51,6 +54,7 @@ function headline(p: AgentProposal): string {
   if (p.kind === 'report_section') return `${String(d.name ?? d.section)} · from ${(d.findings as string[] ?? []).join(', ')}`
   if (p.kind === 'executive_summary') return `from ${(d.findings as string[] ?? []).join(', ')}`
   if (p.kind === 'lesson') return String(d.title)
+  if (p.kind === 'asset') return `${String(d.type)} · ${String(d.name)}${d.compromised ? ' · compromised' : ''}`
   if (p.kind === 'incident_log') return `${String(d.event_ts)}Z · ${String(d.category)} · ${String(d.title)}`
   return `${String(d.role)} · ${String(d.objective)}`
 }
@@ -113,7 +117,10 @@ function ProposalCard({ proposal, agentName, onDecide, busy }: {
       {proposal.evidence.length > 0 && (
         <ul className="space-y-1">
           {proposal.evidence.map((e, i) => (
-            <li key={i} className="text-label font-mono text-fg-secondary border-l-2 border-hairline pl-2 break-all">{e}</li>
+            // Remora's own notes (a value found nowhere in the case) stand out from the agent's citations.
+            <li key={i} className={e.startsWith('[Remora:')
+              ? 'text-label text-agent-error border-l-2 border-agent-error/60 pl-2'
+              : 'text-label font-mono text-fg-secondary border-l-2 border-hairline pl-2 break-all'}>{e}</li>
           ))}
         </ul>
       )}
@@ -175,7 +182,7 @@ export default function ProposalInbox({ caseId, agents }: { caseId: string; agen
     }) => accept ? agentsApi.accept(caseId, p.id, payload, comment) : agentsApi.reject(caseId, p.id, comment),
     onSuccess: () => {
       setError(null)
-      for (const key of ['agent-proposals', 'agent-tasks', 'agents', 'iocs', 'timeline', 'case', 'mitre-ttps', 'incidentLog']) {
+      for (const key of ['agent-proposals', 'agent-tasks', 'agents', 'iocs', 'timeline', 'case', 'mitre-ttps', 'incidentLog', 'assets']) {
         qc.invalidateQueries({ queryKey: [key, caseId] })
       }
     },

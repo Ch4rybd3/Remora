@@ -98,6 +98,12 @@ export default function TeamTab({ caseId }: { caseId: string }) {
     onSuccess: refreshAgents,
     onError: fail,
   })
+  const handover = useMutation({
+    mutationFn: () => agentsApi.handover(caseId, 12),
+    onSuccess: sent => { setError(null); setSelectedId(sent.agent_id); setView('chat')
+                         qc.invalidateQueries({ queryKey: ['agent-tasks', caseId] }) },
+    onError: fail,
+  })
   const pause = useMutation({
     mutationFn: (task: AgentTask) => agentsApi.pause(caseId, task.agent_id, task.id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['agent-tasks', caseId] }),
@@ -156,6 +162,13 @@ export default function TeamTab({ caseId }: { caseId: string }) {
               {v.label}
             </button>
           ))}
+          {agents.some(a => a.role === 'incident-leader') && (
+            <button className="btn-ghost text-label ml-2" disabled={handover.isPending}
+                    title="Ask the Incident Leader what changed in the last 12 hours and what waits on you"
+                    onClick={() => handover.mutate()}>
+              Handover brief
+            </button>
+          )}
           {usage && (usage.tokens_in + usage.tokens_out) > 0 && (
             <span className="ml-auto text-label font-mono text-fg-muted"
                   title={usage.agents.filter(a => a.tokens_in + a.tokens_out > 0)
@@ -192,7 +205,7 @@ export default function TeamTab({ caseId }: { caseId: string }) {
             />
           ) : (
             <EmptyState icon={Bot} message="No agent on this case yet"
-                        action={{ label: 'Staff the default team', onClick: () => staff.mutate() }} />
+                        action={{ label: 'Staff the team', onClick: () => staff.mutate() }} />
           ))}
         </div>
       </div>
