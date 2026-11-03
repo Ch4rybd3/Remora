@@ -4,7 +4,7 @@ steps:
   - id: review
     tools: "@role"
     instructions: |
-      Read the report, request or new evidence in the task, and the tasks already planned
+      Read the report, request, new evidence or closure in the task, and the tasks already planned
       (list_tasks). Decide what it changes: which hypotheses it supports or weakens, what is
       still unknown. For new evidence, say which files matter and to which analyst role.
       If follow-up work is needed and not already planned, propose it with propose_task.

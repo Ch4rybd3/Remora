@@ -65,6 +65,10 @@ class RoleDef(BaseModel):
     #: Whether the leader may propose tasks for this role. The leader, the
     #: assistant and the reviewer get their work another way.
     assignable:           bool = False
+    #: Give the role, at the start of every task, the lessons of earlier
+    #: cases that match this one. A real run showed a leader asked to cite
+    #: lessons inventing them rather than searching.
+    recall_lessons:       bool = False
     tools:                list[str] = Field(default_factory=list)
     #: Filled from `prompt` at load time.
     prompt_text:          str = ""

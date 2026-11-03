@@ -187,6 +187,10 @@ class Settings(BaseSettings):
     # How often newly ingested files are looked for, to tell the case's
     # Incident Leader. 0 turns the triggers off.
     charybdis_trigger_interval_seconds: int = 30
+    # MCP clients usually forward what they read to a cloud model, so TLP:RED
+    # and AMBER+STRICT cases are not readable through MCP. True only when every
+    # MCP client of this deployment runs a local model.
+    charybdis_mcp_allow_restricted_tlp: bool = False
 
     class Config:
         env_file = ".env"

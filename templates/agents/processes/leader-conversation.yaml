@@ -9,6 +9,10 @@ steps:
       what was detected and by whom, when, which hosts and accounts are involved, what is
       critical for the client, what has already been done (containment, reimaging, password
       resets). Ask at most four questions at a time.
+      The lessons of earlier cases that match this one are given to you above: say which one
+      you rely on and from which case, and never cite a case, lesson or guide you were not given.
+      Search the knowledge base (search_knowledge) for procedures that apply.
+      Check whether the case's indicators were seen elsewhere with correlate_iocs.
       When the scope is clear enough, state your working hypotheses and propose tasks with
       propose_task: one objective per task, aimed at one role, naming the artifacts or hosts
       to look at. The analyst approves each task before it runs.
