@@ -97,6 +97,7 @@ TASK_KIND_REPORT   = "report"
 TASK_KIND_HELP     = "help"
 TASK_KIND_REVIEW   = "review"
 TASK_KIND_TRIGGER  = "trigger"
+TASK_KIND_LESSONS  = "lessons"   # the case closed: draft what it taught
 
 PROPOSAL_IOC               = "ioc"
 PROPOSAL_TIMELINE          = "timeline_event"
@@ -105,9 +106,10 @@ PROPOSAL_TTP               = "ttp"
 PROPOSAL_REPORT_SECTION    = "report_section"
 PROPOSAL_EXECUTIVE_SUMMARY = "executive_summary"
 PROPOSAL_INCIDENT_LOG      = "incident_log"
+PROPOSAL_LESSON            = "lesson"
 PROPOSAL_KINDS = frozenset({
     PROPOSAL_IOC, PROPOSAL_TIMELINE, PROPOSAL_TASK, PROPOSAL_TTP,
-    PROPOSAL_REPORT_SECTION, PROPOSAL_EXECUTIVE_SUMMARY, PROPOSAL_INCIDENT_LOG,
+    PROPOSAL_REPORT_SECTION, PROPOSAL_EXECUTIVE_SUMMARY, PROPOSAL_INCIDENT_LOG, PROPOSAL_LESSON,
 })
 
 PROPOSAL_OPEN     = "proposed"
@@ -387,6 +389,8 @@ EVIDENCE_TABLE  = "table"
 EVIDENCE_EMAIL  = "email"
 EVIDENCE_MEMORY = "memory"
 EVIDENCE_BINARY = "binary"
+#: Not evidence: the case's closure, announced once so lessons are drafted once.
+EVIDENCE_CLOSURE = "closure"
 
 
 class AgentEvidenceNotice(Base):
@@ -557,3 +561,49 @@ class AgentBenchRun(Base):
     started_by:  Mapped[str]  = mapped_column(String(255), nullable=False, default="")
     started_at:  Mapped[datetime]        = mapped_column(default=_now)
     finished_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+
+
+class AgentLesson(Base):
+    """
+    What a closed case taught, accepted by the analyst from the leader's draft.
+
+    Lessons outlive their case on purpose: they are what the next
+    investigation reads. `case_title` and `client_id` are copied so a lesson
+    stays readable, and stays inside its client's scope, after the case goes.
+    """
+
+    __tablename__ = "agent_lessons"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    #: Not a foreign key: a lesson is kept when its case is deleted.
+    case_id:    Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    case_title: Mapped[str]        = mapped_column(String(255), nullable=False, default="")
+    client_id:  Mapped[str | None] = mapped_column(String, nullable=True)
+    title:  Mapped[str] = mapped_column(String(255), nullable=False)
+    lesson: Mapped[str] = mapped_column(Text, nullable=False)
+    tags:   Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    drafted_by:  Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    accepted_by: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+
+
+class AgentMcpToken(Base):
+    """
+    A personal token an MCP client (Claude Code, an IDE) uses to read cases
+    as the person who created it, with their permissions and client scope.
+    Only a hash is stored; the token is shown once, at creation.
+    """
+
+    __tablename__ = "agent_mcp_tokens"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(
+        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name:       Mapped[str] = mapped_column(String(128), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    #: First characters, so a token in a config file can be matched to its row.
+    prefix:     Mapped[str] = mapped_column(String(16), nullable=False)
+    created_at:   Mapped[datetime]        = mapped_column(default=_now)
+    last_used_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    revoked_at:   Mapped[datetime | None] = mapped_column(nullable=True)
