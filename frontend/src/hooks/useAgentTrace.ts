@@ -65,6 +65,7 @@ export function useAgentTrace(caseId: string): AgentTrace {
           qc.invalidateQueries({ queryKey: ['agent-findings', caseId] })
           qc.invalidateQueries({ queryKey: ['agent-attention', caseId] })
           qc.invalidateQueries({ queryKey: ['agent-usage', caseId] })
+          qc.invalidateQueries({ queryKey: ['agent-hypotheses', caseId] })
         }
       }
 

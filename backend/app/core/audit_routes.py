@@ -134,6 +134,19 @@ ACTIONS: dict[tuple[str, str], str] = {
     ("POST",   "/api/v1/cases/{case_id}/agents/findings/{finding_id}/reject"):
         "agent.finding_reject",
     ("POST",   "/api/v1/cases/{case_id}/agents/ask"):                 "agent.ask",
+    ("POST",   "/api/v1/cases/{case_id}/agents/{agent_id}/tasks/{task_id}/pause"):
+        "agent.task_pause",
+    ("POST",   "/api/v1/cases/{case_id}/agents/{agent_id}/tasks/{task_id}/resume"):
+        "agent.task_resume",
+    ("POST",   "/api/v1/cases/{case_id}/agents/hypotheses"):          "agent.hypothesis_create",
+    ("PATCH",  "/api/v1/cases/{case_id}/agents/hypotheses/{hypothesis_id}"):
+        "agent.hypothesis_update",
+    ("PUT",    "/api/v1/cases/{case_id}/agents/hypotheses/{hypothesis_id}/links/{finding_id}"):
+        "agent.hypothesis_link",
+    ("DELETE", "/api/v1/cases/{case_id}/agents/hypotheses/{hypothesis_id}/links/{finding_id}"):
+        "agent.hypothesis_unlink",
+    # Runs a model on golden data: costs GPU time or money, not case data.
+    ("POST",   "/api/v1/agents/bench/runs"):                          "agent.bench_run",
     # Model providers hold API keys and decide where case data may go.
     ("POST",   "/api/v1/agents/providers"):                           "agent.provider_create",
     ("PATCH",  "/api/v1/agents/providers/{provider_id}"):             "agent.provider_update",

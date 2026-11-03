@@ -250,7 +250,7 @@ export interface Agent {
   updated_at: string
 }
 
-export type AgentTaskStatus = 'pending' | 'running' | 'done' | 'failed' | 'cancelled'
+export type AgentTaskStatus = 'pending' | 'running' | 'paused' | 'done' | 'failed' | 'cancelled'
 
 export interface AgentTask {
   id: string
@@ -330,6 +330,48 @@ export interface CaseUsage {
   cost_usd: number
 }
 
+export type HypothesisStance = 'for' | 'against' | 'neutral'
+
+/** One explanation of the incident, and how each finding bears on it. */
+export interface AgentHypothesis {
+  id: string
+  ref: number
+  statement: string
+  state: 'open' | 'supported' | 'refuted' | 'dropped'
+  created_by: string
+  decided_by: string | null
+  links: { finding_id: string; finding_ref: number; stance: HypothesisStance; note: string; set_by: string }[]
+  created_at: string
+}
+
+/** A golden case of the evaluation bench. */
+export interface BenchCase {
+  id: string
+  title: string
+  description: string
+  role: string
+  expectations: string[]
+}
+
+export interface BenchRun {
+  id: string
+  bench_id: string
+  provider: string
+  model: string
+  status: 'running' | 'done' | 'failed'
+  score: number
+  total: number
+  details: { label: string; kind: string; met: boolean; matched: string | null }[]
+  tokens_in: number
+  tokens_out: number
+  cost_usd: number
+  model_calls: number
+  error: string | null
+  started_by: string
+  started_at: string
+  finished_at: string | null
+}
+
 /** What waits on the analyst in a case's Team tab. */
 export interface AgentAttention {
   proposals: number
@@ -403,7 +445,7 @@ export interface AgentProposal {
 
 export type AgentEventKind =
   | 'message.user' | 'message.agent' | 'thought' | 'tool.call' | 'tool.result' | 'status' | 'error'
-  | 'step' | 'task' | 'proposal' | 'finding'
+  | 'step' | 'task' | 'proposal' | 'finding' | 'hypothesis'
 
 export interface AgentEvent {
   id: string

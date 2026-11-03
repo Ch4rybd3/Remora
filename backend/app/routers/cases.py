@@ -413,6 +413,10 @@ def delete_case(
     audit_log(db, user=current_user, action="case.delete",
               resource_type="case", resource_id=case_id,
               resource_name=case.title, case_id=case_id, case_title=case.title)
+    # Agent rows hang off the case by foreign key only, and SQLite runs here
+    # without foreign key enforcement: removed by hand, or they outlive it.
+    from ..services.charybdis.delegation import purge_case
+    purge_case(db, case_id)
     db.delete(case)
     db.commit()
 

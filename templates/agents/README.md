@@ -13,5 +13,8 @@ module from starting rather than producing an agent that behaves unpredictably.
 A role with `assignable: true` can be given tasks by the Incident Leader;
 the leader, the assistant and the reviewer get their work another way.
 
+- `bench/*.yaml` - golden cases for the evaluation bench: a case description, a role and
+  objective, the evidence in `bench/data/`, and what a good run must produce.
+
 Tool names must exist in `services/charybdis/tools.py` (`GET /api/v1/agents/tools`).
 `"@role"` in a step means every tool of the role.

@@ -1,0 +1,34 @@
+id: rdp-intrusion
+title: RDP intrusion on a domain controller
+description: |
+  Synthetic Security and System log of DC01 over one hour. After failed RDP attempts on
+  administrator accounts, svc_backup logs on over RDP from 10.1.2.3, runs a tool from its
+  Temp folder, installs a service and clears the Security log. Normal network and service
+  logons around it are noise.
+case:
+  description: >-
+    Suspected intrusion on the domain controller DC01: an alert reported unusual remote
+    desktop activity. Establish how the attacker got in, with which account, and what they did.
+  tags: lateral-movement
+role: analyst-windows
+objective: >-
+  Investigate DC01's event log table for the remote desktop intrusion: the source, the account,
+  and what was done after the logon. Propose findings, indicators and key timeline events.
+evidence:
+  - table: rdp-security.csv
+expect:
+  - kind: ioc
+    value: 10.1.2.3
+    label: The RDP source address is proposed as an indicator
+  - kind: finding
+    contains: [svc_backup]
+    label: A finding names the account used
+  - kind: observation
+    contains: "4512"
+    label: The RDP logon row (record 4512) is cited
+  - kind: finding_or_report
+    contains: [winupd]
+    label: The persistence service is reported
+  - kind: finding_or_report
+    contains: ["1102"]
+    label: The cleared Security log is reported
