@@ -26,6 +26,8 @@ steps:
       severity, confidence and the reason for that confidence. Then propose the indicators,
       timeline events and ATT&CK techniques they establish. Propose nothing the data did not show
       and nothing already recorded.
+      If the evidence needed to answer is missing, ask for it with propose_collection: the host, the
+      artifact kind and the question it would answer. Check list_collection_requests first.
   - id: report
     tools: []
     instructions: |

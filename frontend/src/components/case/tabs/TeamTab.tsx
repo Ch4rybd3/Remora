@@ -9,12 +9,14 @@ import AgentList from '../../agents/AgentList'
 import AgentChat from '../../agents/AgentChat'
 import AgentTracePanel from '../../agents/AgentTracePanel'
 import ApprovalQueue from '../../agents/ApprovalQueue'
+import CollectionRequests from '../../agents/CollectionRequests'
+import PhaseControl from '../../agents/PhaseControl'
 import FindingsBoard from '../../agents/FindingsBoard'
 import HypothesisBoard from '../../agents/HypothesisBoard'
 import ProposalInbox from '../../agents/ProposalInbox'
 import TaskBoard from '../../agents/TaskBoard'
 
-type View = 'chat' | 'tasks' | 'findings' | 'hypotheses' | 'proposals' | 'approvals'
+type View = 'chat' | 'tasks' | 'findings' | 'hypotheses' | 'proposals' | 'approvals' | 'collection'
 
 /**
  * Charybdis: the agents staffed on this case. Team on the left; in the centre
@@ -149,6 +151,7 @@ export default function TeamTab({ caseId }: { caseId: string }) {
     { id: 'hypotheses', label: 'Hypotheses' },
     { id: 'proposals', label: `Proposals${waiting ? ` (${waiting})` : ''}` },
     { id: 'approvals', label: `Approvals${held ? ` (${held})` : ''}` },
+    { id: 'collection', label: 'Collection' },
   ]
 
   return (
@@ -162,6 +165,7 @@ export default function TeamTab({ caseId }: { caseId: string }) {
 
       <div className="min-h-0 flex flex-col">
         <div className="flex items-center gap-1 px-2 border-b border-hairline">
+          <PhaseControl caseId={caseId} />
           {views.map(v => (
             <button key={v.id} onClick={() => setView(v.id)}
                     className={view === v.id ? 'tab-active' : 'tab-inactive'}>
@@ -197,6 +201,7 @@ export default function TeamTab({ caseId }: { caseId: string }) {
           {view === 'findings' && <FindingsBoard caseId={caseId} agents={agents} />}
           {view === 'proposals' && <ProposalInbox caseId={caseId} agents={agents} />}
           {view === 'approvals' && <ApprovalQueue caseId={caseId} agents={agents} />}
+          {view === 'collection' && <CollectionRequests caseId={caseId} />}
           {view === 'chat' && (selected ? (
             <AgentChat
               agent={selected}

@@ -7,6 +7,6 @@ conversation_process: conversation
 process: specialist-investigation
 assignable: true
 max_steps: 30
-tools: [case_overview, list_evidence, ingest_status, list_findings, read_finding, list_iocs, list_timeline,
+tools: [case_overview, case_phase, propose_collection, list_collection_requests, list_evidence, ingest_status, list_findings, read_finding, list_iocs, list_timeline,
         list_incident_log, list_artifacts, store_schema, store_search, store_aggregate,
         record_observation, propose_finding, propose_asset, propose_timeline_event, request_help]

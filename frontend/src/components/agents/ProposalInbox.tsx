@@ -17,6 +17,8 @@ const KIND_LABEL: Record<AgentProposal['kind'], string> = {
   lesson:            'Lesson learned',
   asset:             'Asset',
   detection_rule:    'Detection rule',
+  collection_request: 'Collection request',
+  phase:             'Phase change',
 }
 
 const KIND_TONE: Record<AgentProposal['kind'], string> = {
@@ -30,6 +32,8 @@ const KIND_TONE: Record<AgentProposal['kind'], string> = {
   lesson:            'bg-data-6/10 text-data-6 border-data-6/20',
   asset:             'bg-data-4/10 text-data-4 border-data-4/20',
   detection_rule:    'bg-data-5/10 text-data-5 border-data-5/20',
+  collection_request: 'bg-data-3/10 text-data-3 border-data-3/20',
+  phase:             'bg-accent/10 text-accent border-accent/20',
 }
 
 /** The fields an analyst may change before accepting, per kind. */
@@ -44,6 +48,8 @@ const EDITABLE: Record<AgentProposal['kind'], string[]> = {
   lesson:            ['title', 'lesson', 'tags'],
   asset:             ['name', 'hostname', 'ip_address', 'description'],
   detection_rule:    ['title', 'rule'],
+  collection_request: ['host', 'reason'],
+  phase:             [],
 }
 
 /** Report text is long: shown in full rather than as a one-line headline. */
@@ -57,6 +63,8 @@ function headline(p: AgentProposal): string {
   if (p.kind === 'report_section') return `${String(d.name ?? d.section)} · from ${(d.findings as string[] ?? []).join(', ')}`
   if (p.kind === 'executive_summary') return `from ${(d.findings as string[] ?? []).join(', ')}`
   if (p.kind === 'lesson') return String(d.title)
+  if (p.kind === 'collection_request') return `${String(d.label ?? d.artifact)} · from ${String(d.host)}${d.hypothesis ? ` · ${String(d.hypothesis)}` : ''}`
+  if (p.kind === 'phase') return `${String(d.from ?? '')} → ${String(d.phase)}`
   if (p.kind === 'detection_rule') return `${String(d.kind).toUpperCase()} · ${String(d.title)} · from ${(d.findings as string[] ?? []).join(', ')}`
   if (p.kind === 'asset') return `${String(d.type)} · ${String(d.name)}${d.compromised ? ' · compromised' : ''}`
   if (p.kind === 'incident_log') return `${String(d.event_ts)}Z · ${String(d.category)} · ${String(d.title)}`
@@ -191,7 +199,7 @@ export default function ProposalInbox({ caseId, agents }: { caseId: string; agen
     }) => accept ? agentsApi.accept(caseId, p.id, payload, comment) : agentsApi.reject(caseId, p.id, comment),
     onSuccess: () => {
       setError(null)
-      for (const key of ['agent-proposals', 'agent-tasks', 'agents', 'iocs', 'timeline', 'case', 'mitre-ttps', 'incidentLog', 'assets']) {
+      for (const key of ['agent-proposals', 'agent-tasks', 'agents', 'iocs', 'timeline', 'case', 'mitre-ttps', 'incidentLog', 'assets', 'agent-phase', 'agent-collection']) {
         qc.invalidateQueries({ queryKey: [key, caseId] })
       }
     },

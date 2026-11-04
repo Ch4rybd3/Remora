@@ -43,6 +43,9 @@ class Case(Base):
     template_id = Column(String, nullable=True)
     assigned_to = Column(String(255), default="")
     tlp = Column(String(10), default="TLP:AMBER")
+    #: The phase of the response: identification, containment, eradication,
+    #: recovery or lessons (services/charybdis/phases.py).
+    phase = Column(String(16), nullable=False, default="identification", server_default="identification")
     case_type = Column(SAEnum(CaseType), default=CaseType.ir, nullable=False)
     client_name = Column(String(255), default="")  # legacy free-text, kept in sync with client.name
     client_id = Column(String, ForeignKey("clients.id", ondelete="SET NULL"), nullable=True)

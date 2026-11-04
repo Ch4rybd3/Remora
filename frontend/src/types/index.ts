@@ -286,7 +286,7 @@ export interface AgentRole {
 
 export type AgentProposalKind =
   | 'ioc' | 'timeline_event' | 'task' | 'ttp' | 'report_section' | 'executive_summary'
-  | 'incident_log' | 'lesson' | 'asset' | 'detection_rule'
+  | 'incident_log' | 'lesson' | 'asset' | 'detection_rule' | 'collection_request' | 'phase'
 
 /** A personal token an MCP client reads cases with. `token` only on creation. */
 export interface McpToken {
@@ -545,4 +545,26 @@ export interface AgentDefinition {
   /** builtin: a file of templates/agents; modified: a file edited here; custom: new. */
   origin: 'builtin' | 'modified' | 'custom'
   content: string
+}
+
+/** Evidence an agent found missing and the analyst agreed to ask for. */
+export interface CollectionRequest {
+  id: string
+  host: string
+  /** An artifact kind of the ingestion registry. */
+  artifact: string
+  label: string
+  reason: string
+  hypothesis: string | null
+  state: 'requested' | 'collected' | 'unavailable' | 'dropped'
+  note: string
+  requested_by: string
+  accepted_by: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CasePhase {
+  phase: string
+  phases: { id: string; name: string; goal: string; questions: string[] }[]
 }

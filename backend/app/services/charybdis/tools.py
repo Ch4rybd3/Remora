@@ -175,6 +175,7 @@ def _case_overview(ctx: ToolContext, _: NoArgs) -> dict[str, Any]:
         "status":      getattr(case.status, "value", case.status),
         "severity":    getattr(case.severity, "value", case.severity),
         "tlp":         case.tlp,
+        "phase":       getattr(case, "phase", None),
         "case_type":   getattr(case.case_type, "value", case.case_type),
         "client":      client.name if client else (case.client_name or ""),
         "counts": {
@@ -1704,6 +1705,88 @@ def _mcp_call(ctx: ToolContext, args: McpCallArgs) -> dict[str, Any]:
                            f"Why: {args.reason.strip()}")
 
 
+# ─── Phases and collection requests ───────────────────────────────────────────
+
+def _case_phase(ctx: ToolContext, _: NoArgs) -> dict[str, Any]:
+    from .phases import phase, phases
+    current = phase(getattr(ctx.case, "phase", None))
+    return {"phase": current.id, "name": current.name, "goal": current.goal, "questions": current.questions,
+            "phases": [p.id for p in phases()]}
+
+
+class ProposePhaseArgs(BaseModel):
+    phase: str = Field(..., description="identification, containment, eradication, recovery or lessons")
+    rationale: str = Field(..., min_length=10, description="Which of the current phase's questions are answered, and by what")
+
+
+def _propose_phase(ctx: ToolContext, args: ProposePhaseArgs) -> dict[str, Any]:
+    from ...models.agent import PROPOSAL_PHASE
+    from .phases import PHASE_IDS, phase
+
+    target = args.phase.strip().lower()
+    if target not in PHASE_IDS:
+        raise ToolError(f"phase must be one of {', '.join(PHASE_IDS)}")
+    if target == getattr(ctx.case, "phase", None):
+        raise ToolError(f"The case is already in {target}.")
+    if _open_proposals(ctx, PROPOSAL_PHASE):
+        raise ToolError("A phase change is already waiting for the analyst.")
+    return _propose(ctx, PROPOSAL_PHASE, {"phase": target, "from": getattr(ctx.case, "phase", None)},
+                    args.rationale, [], f"Move to phase {phase(target).name}")
+
+
+class ProposeCollectionArgs(BaseModel):
+    host: str = Field(..., min_length=1, max_length=255, description="Host name the evidence must come from")
+    artifact: str = Field(..., description="Artifact kind, e.g. evtx, registry_hive, mft, prefetch, "
+                                            "memory_dump_windows, pcap, eml")
+    reason: str = Field(..., min_length=10, max_length=2000, description="The question it would answer")
+    hypothesis: str | None = Field(None, description="H<n> of the hypothesis it would help decide")
+
+
+def _artifact_kinds() -> dict[str, str]:
+    from ..ingest import coverage
+    return {str(r["kind"]): str(r["label"]) for r in coverage.as_dicts()}
+
+
+def _propose_collection(ctx: ToolContext, args: ProposeCollectionArgs) -> dict[str, Any]:
+    from ...models.agent import (
+        COLLECTION_REQUESTED,
+        PROPOSAL_COLLECTION,
+        AgentCollectionRequest,
+        AgentHypothesis,
+    )
+
+    kinds = _artifact_kinds()
+    artifact = args.artifact.strip().lower()
+    if artifact not in kinds:
+        raise ToolError(f"Unknown artifact kind '{args.artifact}'. Use one of: {', '.join(sorted(kinds))}")
+    host = args.host.strip()
+    hypothesis = (args.hypothesis or "").strip().upper() or None
+    if hypothesis:
+        refs = {f"H{r}" for (r,) in ctx.db.query(AgentHypothesis.ref).filter(AgentHypothesis.case_id == ctx.case.id)}
+        if hypothesis not in refs:
+            raise ToolError(f"Unknown hypothesis {hypothesis}. Call list_hypotheses, or leave it empty.")
+    def same(h, a):
+        return (h.lower() == host.lower() and a == artifact)
+    if any(same(str(p.get("host", "")), str(p.get("artifact", ""))) for p in _open_proposals(ctx, PROPOSAL_COLLECTION)):
+        raise ToolError(f"Already proposed: {artifact} from {host}.")
+    if any(same(r.host, r.artifact) for r in ctx.db.query(AgentCollectionRequest).filter(
+            AgentCollectionRequest.case_id == ctx.case.id, AgentCollectionRequest.state == COLLECTION_REQUESTED)):
+        raise ToolError(f"Already requested: {artifact} from {host}. Call list_collection_requests.")
+    payload = {"host": host, "artifact": artifact, "label": kinds[artifact], "reason": args.reason.strip(),
+               "hypothesis": hypothesis}
+    return _propose(ctx, PROPOSAL_COLLECTION, payload, args.reason, [],
+                    f"Collect {kinds[artifact]} from {host}")
+
+
+def _list_collection_requests(ctx: ToolContext, _: NoArgs) -> dict[str, Any]:
+    from ...models.agent import AgentCollectionRequest
+    rows = [{"host": r.host, "artifact": r.artifact, "state": r.state, "reason": _cell(r.reason),
+             "hypothesis": r.hypothesis, "note": _cell(r.note)}
+            for r in ctx.db.query(AgentCollectionRequest).filter(AgentCollectionRequest.case_id == ctx.case.id)
+            .order_by(AgentCollectionRequest.host, AgentCollectionRequest.created_at)]
+    return fit({"total": len(rows), "rows": rows})
+
+
 # ─── Detection rules ──────────────────────────────────────────────────────────
 
 class ProposeRuleArgs(BaseModel):
@@ -1880,6 +1963,14 @@ TOOLS: dict[str, Tool] = {tool.name: tool for tool in (
          "your task.", McpCallArgs, _mcp_call, PROPOSING),
     Tool("propose_detection_rule", "Propose a Sigma or YARA rule detecting what findings established.",
          ProposeRuleArgs, _propose_detection_rule, PROPOSING),
+    Tool("case_phase", "The case's phase of the response, its goal and the questions it must answer.",
+         NoArgs, _case_phase),
+    Tool("propose_phase", "Propose moving the case to another phase, when its questions are answered.",
+         ProposePhaseArgs, _propose_phase, PROPOSING),
+    Tool("propose_collection", "Propose asking for evidence the case lacks: one artifact kind from one host, "
+         "and the question it would answer.", ProposeCollectionArgs, _propose_collection, PROPOSING),
+    Tool("list_collection_requests", "Evidence already asked for, by host, and whether it arrived.",
+         NoArgs, _list_collection_requests),
     Tool("propose_log_entry",
          "Propose an incident log entry: an action, decision or discovery and when it happened.",
          ProposeLogEntryArgs, _propose_log_entry, PROPOSING),

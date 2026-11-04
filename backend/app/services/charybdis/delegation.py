@@ -393,6 +393,7 @@ def purge_case(db: Session, case_id: str) -> None:
     """
     from ...models.agent import (
         AgentApproval,
+        AgentCollectionRequest,
         AgentEvent,
         AgentEvidenceNotice,
         AgentFinding,
@@ -405,6 +406,6 @@ def purge_case(db: Session, case_id: str) -> None:
     if hypotheses:
         db.query(AgentHypothesisLink).filter(
             AgentHypothesisLink.hypothesis_id.in_(hypotheses)).delete(synchronize_session=False)
-    for model in (AgentHypothesis, AgentFinding, AgentObservation, AgentProposal, AgentApproval,
+    for model in (AgentHypothesis, AgentFinding, AgentObservation, AgentProposal, AgentApproval, AgentCollectionRequest,
                   AgentEvidenceNotice, AgentEvent, AgentTask, AgentInstance):
         db.query(model).filter(model.case_id == case_id).delete(synchronize_session=False)

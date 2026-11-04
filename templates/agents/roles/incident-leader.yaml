@@ -7,7 +7,7 @@ conversation_process: leader-conversation
 process: leader-review
 max_steps: 16
 recall_lessons: true
-tools: [case_overview, list_evidence, ingest_status, list_artifacts, list_iocs, list_assets, list_timeline,
+tools: [case_overview, case_phase, propose_phase, propose_collection, list_collection_requests, list_evidence, ingest_status, list_artifacts, list_iocs, list_assets, list_timeline,
         list_incident_log, list_ttps, list_tasks, read_task, list_findings, read_finding, list_hypotheses, state_hypothesis, weigh_finding,
         search_lessons, search_knowledge, read_knowledge, correlate_iocs, propose_lesson,
         propose_task]

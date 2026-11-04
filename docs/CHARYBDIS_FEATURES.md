@@ -622,3 +622,35 @@ Decisions taken while building it:
   observation ids it had invented (O1, obs-123) and only then read the
   email; the tools refused the invented references and it recovered. That
   is agent tuning, left for the tuning pass.
+
+---
+
+## 14. S39 — collection gaps and phases
+
+Delivers B4 and B5. Still planned: F3 report language, F4 executive
+briefing, E6 attack-graph edges.
+
+| Piece | Where |
+|---|---|
+| Collection requests: an agent proposes the evidence a question lacks - one artifact kind from one host, the question, the hypothesis it would decide; accepted, it becomes a request the analyst marks collected, unavailable or dropped | `propose_collection`, `list_collection_requests`, `agent_collection_requests`, Collection view of the Team tab |
+| Request list per host: the open requests as Markdown, one section per host, to send to whoever holds the systems | `GET /collection-requests/export` |
+| Phases of the response: identification, containment, eradication, recovery, lessons, each with a goal and the questions it must answer; every agent's system prompt carries the current phase | `cases.phase`, `templates/agents/phases.yaml`, `services/charybdis/phases.py`, phase control in the Team tab |
+| Phase changes: the analyst sets the phase (audited); the leader may propose the next one when its questions are answered | `PUT /phase`, `case_phase`, `propose_phase` |
+
+Decisions taken while building it:
+
+- **Artifact kinds come from the ingestion registry.** A request names a
+  kind Remora recognises (`evtx`, `prefetch`, `ntds`...), so it is the same
+  vocabulary as the coverage page, and the collected file will be routed.
+  An unknown kind is refused with the list.
+- **Phase ids are fixed, their wording is not.** The five ids are what the
+  case stores; names, goals and questions are edited in `phases.yaml`.
+- **A request already open is not asked twice**, whatever the case of the
+  host name.
+- **Checked on qwen3:8b**, asking the leader where the phase stands and
+  what is missing. On a case with no evidence, it read case_phase, listed
+  what was missing and invented no host. On the EVTX case it saw the logs
+  were ingested but not analysed and said the analysis comes first - but
+  wrote "Proposed collection" and "Tasks to propose" as text instead of
+  calling the tools. The leader's conversation step has no
+  `expects_tools` reminder; that is left for the tuning pass.

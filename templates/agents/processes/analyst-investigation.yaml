@@ -21,13 +21,15 @@ steps:
   - id: propose
     expects_tools: true
     tools: [record_observation, propose_finding, propose_ioc, propose_timeline_event, propose_ttp,
-            list_iocs, list_timeline, list_findings]
+            list_iocs, list_timeline, list_findings, propose_collection, list_collection_requests]
     instructions: |
       Propose findings with propose_finding: one conclusion each, citing the observation ids
       it rests on, with severity, confidence and the reason for that confidence. Then propose
       the indicators, key timeline events and ATT&CK techniques the findings establish, citing
       observation ids as evidence. Do not propose what is already recorded. Propose nothing
       that the data did not show.
+      If the evidence needed to answer is missing, ask for it with propose_collection: the host, the
+      artifact kind and the question it would answer. Check list_collection_requests first.
   - id: report
     tools: []
     instructions: |
