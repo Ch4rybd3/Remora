@@ -284,7 +284,7 @@ export interface AgentRole {
 
 export type AgentProposalKind =
   | 'ioc' | 'timeline_event' | 'task' | 'ttp' | 'report_section' | 'executive_summary'
-  | 'incident_log' | 'lesson' | 'asset'
+  | 'incident_log' | 'lesson' | 'asset' | 'detection_rule'
 
 /** A personal token an MCP client reads cases with. `token` only on creation. */
 export interface McpToken {
@@ -387,6 +387,8 @@ export interface BenchRun {
 export interface AgentAttention {
   proposals: number
   findings: number
+  /** Actions held for approval; each pauses an agent. */
+  approvals: number
   blocked: string[]
 }
 
@@ -456,7 +458,7 @@ export interface AgentProposal {
 
 export type AgentEventKind =
   | 'message.user' | 'message.agent' | 'thought' | 'tool.call' | 'tool.result' | 'status' | 'error'
-  | 'step' | 'task' | 'proposal' | 'finding' | 'hypothesis'
+  | 'step' | 'task' | 'proposal' | 'finding' | 'hypothesis' | 'approval'
 
 export interface AgentEvent {
   id: string
@@ -477,4 +479,59 @@ export interface LLMHealth {
   detail: string
   default_model: string
   models: { name: string; size_bytes: number }[]
+}
+
+export type AgentApprovalState = 'pending' | 'approved' | 'denied'
+
+/** An action an agent asked to take that sends something out of Remora. */
+export interface AgentApproval {
+  id: string
+  agent_id: string
+  task_id: string | null
+  tool: string
+  arguments: Record<string, unknown>
+  summary: string
+  state: AgentApprovalState
+  decided_by: string | null
+  decided_at: string | null
+  decision_comment: string | null
+  result: string | null
+  created_at: string
+}
+
+/** A third-party MCP server agents may call, on approval. */
+export interface McpServer {
+  id: string
+  name: string
+  url: string
+  locality: 'local' | 'cloud'
+  has_authorization: boolean
+  description: string
+  enabled: boolean
+  updated_by: string
+  updated_at: string
+}
+
+export interface McpServerWrite {
+  name?: string
+  url?: string
+  locality?: 'local' | 'cloud'
+  /** Sent as the Authorization header. Write-only; empty keeps the current one. */
+  authorization?: string
+  description?: string
+  enabled?: boolean
+}
+
+/** A Sigma or YARA rule an analyst accepted from an agent. */
+export interface DetectionRule {
+  id: string
+  case_id: string | null
+  case_title: string
+  kind: 'sigma' | 'yara'
+  title: string
+  content: string
+  findings: string[]
+  drafted_by: string
+  accepted_by: string
+  created_at: string
 }

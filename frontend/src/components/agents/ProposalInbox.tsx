@@ -16,6 +16,7 @@ const KIND_LABEL: Record<AgentProposal['kind'], string> = {
   incident_log:      'Incident log',
   lesson:            'Lesson learned',
   asset:             'Asset',
+  detection_rule:    'Detection rule',
 }
 
 const KIND_TONE: Record<AgentProposal['kind'], string> = {
@@ -28,6 +29,7 @@ const KIND_TONE: Record<AgentProposal['kind'], string> = {
   incident_log:      'bg-data-3/10 text-data-3 border-data-3/20',
   lesson:            'bg-data-6/10 text-data-6 border-data-6/20',
   asset:             'bg-data-4/10 text-data-4 border-data-4/20',
+  detection_rule:    'bg-data-5/10 text-data-5 border-data-5/20',
 }
 
 /** The fields an analyst may change before accepting, per kind. */
@@ -41,6 +43,7 @@ const EDITABLE: Record<AgentProposal['kind'], string[]> = {
   incident_log:      ['title', 'description', 'actor'],
   lesson:            ['title', 'lesson', 'tags'],
   asset:             ['name', 'hostname', 'ip_address', 'description'],
+  detection_rule:    ['title', 'rule'],
 }
 
 /** Report text is long: shown in full rather than as a one-line headline. */
@@ -54,6 +57,7 @@ function headline(p: AgentProposal): string {
   if (p.kind === 'report_section') return `${String(d.name ?? d.section)} · from ${(d.findings as string[] ?? []).join(', ')}`
   if (p.kind === 'executive_summary') return `from ${(d.findings as string[] ?? []).join(', ')}`
   if (p.kind === 'lesson') return String(d.title)
+  if (p.kind === 'detection_rule') return `${String(d.kind).toUpperCase()} · ${String(d.title)} · from ${(d.findings as string[] ?? []).join(', ')}`
   if (p.kind === 'asset') return `${String(d.type)} · ${String(d.name)}${d.compromised ? ' · compromised' : ''}`
   if (p.kind === 'incident_log') return `${String(d.event_ts)}Z · ${String(d.category)} · ${String(d.title)}`
   return `${String(d.role)} · ${String(d.objective)}`
@@ -102,6 +106,11 @@ function ProposalCard({ proposal, agentName, onDecide, busy }: {
           Accepting adds this after what the section already holds, without the [F] marks.
         </p>
       )}
+      {proposal.kind === 'detection_rule' && (
+        <pre className="border border-hairline bg-canvas p-2 text-label font-mono text-fg whitespace-pre-wrap max-h-96 overflow-auto">
+          {String(proposal.payload.rule ?? '')}
+        </pre>
+      )}
       {proposal.kind === 'lesson' && (
         <p className="text-prose text-fg whitespace-pre-wrap">{String(proposal.payload.lesson ?? '')}</p>
       )}
@@ -134,7 +143,7 @@ function ProposalCard({ proposal, agentName, onDecide, busy }: {
             <label key={field} className="block">
               <span className="label">{field}</span>
               <textarea className="input w-full resize-y"
-                        rows={field === 'text' ? 12 : field === 'value' || field === 'title' ? 1 : 3}
+                        rows={field === 'text' || field === 'rule' ? 12 : field === 'value' || field === 'title' ? 1 : 3}
                         defaultValue={String(proposal.payload[field] ?? '')}
                         onChange={e => setDraft(d => ({ ...d, [field]: e.target.value }))} />
             </label>

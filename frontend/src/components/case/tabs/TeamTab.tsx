@@ -8,12 +8,13 @@ import { Bot } from '../../../ui/icons'
 import AgentList from '../../agents/AgentList'
 import AgentChat from '../../agents/AgentChat'
 import AgentTracePanel from '../../agents/AgentTracePanel'
+import ApprovalQueue from '../../agents/ApprovalQueue'
 import FindingsBoard from '../../agents/FindingsBoard'
 import HypothesisBoard from '../../agents/HypothesisBoard'
 import ProposalInbox from '../../agents/ProposalInbox'
 import TaskBoard from '../../agents/TaskBoard'
 
-type View = 'chat' | 'tasks' | 'findings' | 'hypotheses' | 'proposals'
+type View = 'chat' | 'tasks' | 'findings' | 'hypotheses' | 'proposals' | 'approvals'
 
 /**
  * Charybdis: the agents staffed on this case. Team on the left; in the centre
@@ -37,6 +38,9 @@ export default function TeamTab({ caseId }: { caseId: string }) {
   })
   const { data: findings = [] } = useQuery({
     queryKey: ['agent-findings', caseId], queryFn: () => agentsApi.findings(caseId),
+  })
+  const { data: approvals = [] } = useQuery({
+    queryKey: ['agent-approvals', caseId], queryFn: () => agentsApi.approvals(caseId), refetchInterval: 15_000,
   })
   const { data: roles = [] } = useQuery({
     queryKey: ['agent-roles'], queryFn: agentsApi.roles, staleTime: Infinity,
@@ -130,6 +134,7 @@ export default function TeamTab({ caseId }: { caseId: string }) {
   const openMessage = tasks.find(t => t.agent_id === selectedId && t.kind === 'message'
     && (t.status === 'pending' || t.status === 'running' || t.status === 'paused'))
   const waiting = proposals.filter(p => p.state === 'proposed').length
+  const held = approvals.filter(a => a.state === 'pending').length
   const undecided = findings.filter(f => f.state === 'in_review' || f.state === 'proposed').length
   const active = tasks.filter(t => t.status === 'pending' || t.status === 'running' || t.status === 'paused').length
 
@@ -143,6 +148,7 @@ export default function TeamTab({ caseId }: { caseId: string }) {
     { id: 'findings', label: `Findings${undecided ? ` (${undecided})` : ''}` },
     { id: 'hypotheses', label: 'Hypotheses' },
     { id: 'proposals', label: `Proposals${waiting ? ` (${waiting})` : ''}` },
+    { id: 'approvals', label: `Approvals${held ? ` (${held})` : ''}` },
   ]
 
   return (
@@ -190,6 +196,7 @@ export default function TeamTab({ caseId }: { caseId: string }) {
           {view === 'hypotheses' && <HypothesisBoard caseId={caseId} />}
           {view === 'findings' && <FindingsBoard caseId={caseId} agents={agents} />}
           {view === 'proposals' && <ProposalInbox caseId={caseId} agents={agents} />}
+          {view === 'approvals' && <ApprovalQueue caseId={caseId} agents={agents} />}
           {view === 'chat' && (selected ? (
             <AgentChat
               agent={selected}

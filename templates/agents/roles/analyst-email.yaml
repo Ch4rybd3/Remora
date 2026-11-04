@@ -9,4 +9,4 @@ assignable: true
 max_steps: 24
 tools: [case_overview, list_evidence, ingest_status, list_findings, list_iocs, list_timeline,
         list_emails, read_email, record_source_observation,
-        propose_finding, propose_asset, propose_ioc, propose_timeline_event, propose_ttp, request_help]
+        propose_finding, cti_lookup, mcp_list_servers, mcp_list_tools, mcp_call, propose_asset, propose_ioc, propose_timeline_event, propose_ttp, request_help]

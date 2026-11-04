@@ -14,6 +14,7 @@ import asyncio
 import json
 import re
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from fastapi import (
     APIRouter,
@@ -109,6 +110,7 @@ from ..schemas.agent import (
     RqlDraftRequest,
     TaskResume,
     ToolRead,
+    UTCDateTime,
 )
 from ..services.audit_service import audit_log
 from ..services.charybdis import delegation, events
@@ -387,6 +389,8 @@ def _summary(kind: str, payload: dict) -> str:
         return f"Lesson: {payload.get('title')}"
     if kind == "asset":
         return f"Asset {payload.get('type')} {payload.get('name')}"
+    if kind == "detection_rule":
+        return f"{str(payload.get('kind', '')).upper()} rule: {payload.get('title')}"
     return f"{payload.get('role')}: {str(payload.get('objective', ''))[:120]}"
 
 
@@ -481,6 +485,17 @@ def _materialise(case_id: str, proposal: AgentProposal, data: dict, db: Session,
         version = save_report(case_id=case_id, payload=SaveReportPayload(sections_data=sections),
                               db=db, current_user=user)
         return str(version.id)
+    if proposal.kind == "detection_rule":
+        from ..models.agent import AgentDetectionRule
+        case = _get_case(case_id, db)
+        rule = AgentDetectionRule(case_id=case_id, case_title=str(case.title),
+                                  kind=str(data.get("kind", "")), title=str(data.get("title", "")),
+                                  content=str(data.get("rule", "")),
+                                  findings=json.dumps(data.get("findings") or []),
+                                  drafted_by=agent_name, accepted_by=str(user.username or ""))
+        db.add(rule)
+        db.flush()
+        return rule.id
     if proposal.kind == "asset":
         from ..schemas.asset import AssetCreate
         from .assets import create_asset
@@ -739,11 +754,15 @@ def attention(case_id: str, db: Session = Depends(get_db)):
     findings = (db.query(AgentFinding)
                 .filter(AgentFinding.case_id == case_id, AgentFinding.state.in_(FINDING_OPEN))
                 .count())
+    from ..models.agent import APPROVAL_PENDING, AgentApproval
+    approvals = (db.query(AgentApproval)
+                 .filter(AgentApproval.case_id == case_id, AgentApproval.state == APPROVAL_PENDING)
+                 .count())
     blocked = [name for (name,) in
                db.query(AgentInstance.name)
                .filter(AgentInstance.case_id == case_id,
                        AgentInstance.status.in_((AGENT_BLOCKED, AGENT_ERROR)))]
-    return Attention(proposals=proposals, findings=findings, blocked=blocked)
+    return Attention(proposals=proposals, findings=findings, blocked=blocked, approvals=approvals)
 
 
 @router.post("/ask", response_model=AskAgentResult, status_code=status.HTTP_202_ACCEPTED)
@@ -1469,3 +1488,268 @@ def report_check(case_id: str, db: Session = Depends(get_db)):
             if state != "validated":
                 issues.append(ReportIssue(proposal_id=p.id, part=part, finding=str(ref), state=state))
     return issues
+
+
+
+# ─── Approvals ────────────────────────────────────────────────────────────────
+
+class ApprovalRead(BaseModel):
+    id: str
+    agent_id: str
+    task_id: str | None
+    tool: str
+    arguments: dict[str, Any]
+    summary: str
+    state: str
+    decided_by: str | None
+    decided_at: UTCDateTime | None
+    decision_comment: str | None
+    result: str | None
+    created_at: UTCDateTime
+
+
+class ApprovalDecision(BaseModel):
+    comment: str | None = Field(None, max_length=2000)
+
+
+def _approval_read(a: Any) -> ApprovalRead:
+    return ApprovalRead(id=a.id, agent_id=a.agent_id, task_id=a.task_id, tool=a.tool,
+                        arguments=json.loads(a.arguments or "{}"), summary=a.summary, state=a.state,
+                        decided_by=a.decided_by, decided_at=a.decided_at,
+                        decision_comment=a.decision_comment, result=a.result, created_at=a.created_at)
+
+
+def _pending_approval(case_id: str, approval_id: str, db: Session) -> Any:
+    from ..models.agent import APPROVAL_PENDING, AgentApproval
+    approval = db.get(AgentApproval, approval_id)
+    if approval is None or approval.case_id != case_id:
+        raise HTTPException(status_code=404, detail="Approval not found")
+    if approval.state != APPROVAL_PENDING:
+        raise HTTPException(status_code=409, detail=f"Already {approval.state}")
+    return approval
+
+
+@router.get("/approvals", response_model=list[ApprovalRead])
+def list_approvals(case_id: str, db: Session = Depends(get_db)):
+    """Actions agents asked to take that send something out of Remora, newest first."""
+    from ..models.agent import AgentApproval
+    _get_case(case_id, db)
+    return [_approval_read(a) for a in db.query(AgentApproval).filter(AgentApproval.case_id == case_id)
+            .order_by(AgentApproval.created_at.desc()).limit(200)]
+
+
+@router.post("/approvals/{approval_id}/approve", response_model=ApprovalRead)
+def approve_action(
+    case_id: str,
+    approval_id: str,
+    payload: ApprovalDecision,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Run the action now, as you, and hand its result back to the paused agent."""
+    from ..services.charybdis.approvals import decide
+    case = _get_case(case_id, db)
+    approval = _pending_approval(case_id, approval_id, db)
+    audit_log(db, user=current_user, action="agent.approval_approve", request=request,
+              resource_type="agent_approval", resource_id=approval.id, resource_name=approval.tool,
+              case_id=case_id, case_title=str(case.title), details={"summary": approval.summary[:500]})
+    task_id = decide(db, approval, current_user, True, payload.comment)
+    if task_id:
+        supervisor.enqueue(task_id)
+    db.refresh(approval)
+    return _approval_read(approval)
+
+
+@router.post("/approvals/{approval_id}/deny", response_model=ApprovalRead)
+def deny_action(
+    case_id: str,
+    approval_id: str,
+    payload: ApprovalDecision,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Refuse the action; the agent resumes with your reason."""
+    from ..services.charybdis.approvals import decide
+    case = _get_case(case_id, db)
+    approval = _pending_approval(case_id, approval_id, db)
+    audit_log(db, user=current_user, action="agent.approval_deny", request=request,
+              resource_type="agent_approval", resource_id=approval.id, resource_name=approval.tool,
+              case_id=case_id, case_title=str(case.title), details={"summary": approval.summary[:500]})
+    task_id = decide(db, approval, current_user, False, payload.comment)
+    if task_id:
+        supervisor.enqueue(task_id)
+    db.refresh(approval)
+    return _approval_read(approval)
+
+
+# ─── Third-party MCP servers ──────────────────────────────────────────────────
+
+class McpServerWrite(BaseModel):
+    name: str | None = Field(None, pattern=r"^[a-z][a-z0-9-]{1,63}$")
+    url: str | None = Field(None, max_length=512)
+    locality: str | None = Field(None, description="local or cloud")
+    #: Sent as the Authorization header, e.g. "Bearer ...". Write-only; empty keeps it.
+    authorization: str | None = Field(None, max_length=4096)
+    description: str | None = Field(None, max_length=2000)
+    enabled: bool | None = None
+
+
+class McpServerRead(BaseModel):
+    id: str
+    name: str
+    url: str
+    locality: str
+    has_authorization: bool
+    description: str
+    enabled: bool
+    updated_by: str
+    updated_at: UTCDateTime
+
+
+def _server_read(s: Any) -> McpServerRead:
+    return McpServerRead(id=s.id, name=s.name, url=s.url, locality=s.locality,
+                         has_authorization=bool(s.auth_enc), description=s.description,
+                         enabled=s.enabled, updated_by=s.updated_by, updated_at=s.updated_at)
+
+
+def _apply_server(s: Any, payload: McpServerWrite) -> dict:
+    from ..services.mfa import encrypt_secret
+    changes = payload.model_dump(exclude_unset=True, exclude_none=True)
+    if "locality" in changes and changes["locality"] not in ("local", "cloud"):
+        raise HTTPException(status_code=422, detail="locality must be local or cloud")
+    if "url" in changes and not str(changes["url"]).startswith(("http://", "https://")):
+        raise HTTPException(status_code=422, detail="url must be http or https")
+    auth = (changes.pop("authorization", "") or "").strip()
+    for field, value in changes.items():
+        setattr(s, field, value.strip() if isinstance(value, str) else value)
+    if auth:
+        s.auth_enc, s.auth_salt = encrypt_secret(auth)
+        changes["authorization"] = "replaced"
+    return changes
+
+
+@catalog_router.get("/mcp-servers", response_model=list[McpServerRead])
+def list_mcp_servers(db: Session = Depends(get_db)):
+    from ..models.agent import AgentMcpServer
+    return [_server_read(s) for s in db.query(AgentMcpServer).order_by(AgentMcpServer.name)]
+
+
+@catalog_router.post("/mcp-servers", response_model=McpServerRead, status_code=status.HTTP_201_CREATED)
+def create_mcp_server(
+    payload: McpServerWrite,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    from ..models.agent import AgentMcpServer
+    if not payload.name or not payload.url:
+        raise HTTPException(status_code=422, detail="name and url are required")
+    if db.query(AgentMcpServer).filter(AgentMcpServer.name == payload.name).first():
+        raise HTTPException(status_code=409, detail=f"A server is already named '{payload.name}'")
+    server = AgentMcpServer(name=payload.name, url=payload.url, updated_by=str(admin.username or ""))
+    changes = _apply_server(server, payload)
+    db.add(server)
+    audit_log(db, user=admin, action="agent.mcp_server_create", request=request,
+              resource_type="mcp_server", resource_id=server.id, resource_name=server.name, details=changes)
+    db.commit()
+    db.refresh(server)
+    return _server_read(server)
+
+
+def _server_row(server_id: str, db: Session) -> Any:
+    from ..models.agent import AgentMcpServer
+    server = db.get(AgentMcpServer, server_id)
+    if server is None:
+        raise HTTPException(status_code=404, detail="MCP server not found")
+    return server
+
+
+@catalog_router.patch("/mcp-servers/{server_id}", response_model=McpServerRead)
+def update_mcp_server(
+    server_id: str,
+    payload: McpServerWrite,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    server = _server_row(server_id, db)
+    if payload.name and payload.name != server.name:
+        raise HTTPException(status_code=422, detail="A server cannot be renamed")
+    changes = _apply_server(server, payload)
+    server.updated_by = str(admin.username or "")
+    audit_log(db, user=admin, action="agent.mcp_server_update", request=request,
+              resource_type="mcp_server", resource_id=server.id, resource_name=server.name, details=changes)
+    db.commit()
+    db.refresh(server)
+    return _server_read(server)
+
+
+@catalog_router.delete("/mcp-servers/{server_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_mcp_server(
+    server_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    server = _server_row(server_id, db)
+    audit_log(db, user=admin, action="agent.mcp_server_delete", request=request,
+              resource_type="mcp_server", resource_id=server.id, resource_name=server.name)
+    db.delete(server)
+    db.commit()
+
+
+@catalog_router.get("/mcp-servers/{server_id}/tools")
+def mcp_server_tools(server_id: str, db: Session = Depends(get_db),
+                     admin: User = Depends(require_admin)) -> dict[str, Any]:
+    """Connect and list the server's tools: the test of a registration. Sends no case data."""
+    from ..services.charybdis import mcp_client
+    server = _server_row(server_id, db)
+    try:
+        tools = mcp_client.list_tools(mcp_client.load(db, server.name))
+    except mcp_client.McpError as exc:
+        return {"reachable": False, "detail": str(exc), "tools": []}
+    return {"reachable": True, "detail": "", "tools": tools}
+
+
+# ─── Detection rules ──────────────────────────────────────────────────────────
+
+class DetectionRuleRead(BaseModel):
+    id: str
+    case_id: str | None
+    case_title: str
+    kind: str
+    title: str
+    content: str
+    findings: list[str]
+    drafted_by: str
+    accepted_by: str
+    created_at: UTCDateTime
+
+
+@catalog_router.get("/detection-rules", response_model=list[DetectionRuleRead])
+def list_detection_rules(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Rules accepted from agents, within the cases the account may see."""
+    from ..models.agent import AgentDetectionRule
+    visible = scoping.visible_case_ids(db, current_user)
+    query = db.query(AgentDetectionRule).order_by(AgentDetectionRule.created_at.desc())
+    if visible is not None:
+        query = query.filter(AgentDetectionRule.case_id.in_(visible))
+    return [DetectionRuleRead(id=r.id, case_id=r.case_id, case_title=r.case_title, kind=r.kind,
+                              title=r.title, content=r.content, findings=json.loads(r.findings or "[]"),
+                              drafted_by=r.drafted_by, accepted_by=r.accepted_by, created_at=r.created_at)
+            for r in query.limit(500)]
+
+
+@catalog_router.get("/detection-rules/{rule_id}/download")
+def download_detection_rule(rule_id: str, db: Session = Depends(get_db),
+                            current_user: User = Depends(get_current_user)) -> Response:
+    from ..models.agent import AgentDetectionRule
+    rule = db.get(AgentDetectionRule, rule_id)
+    if rule is None or (rule.case_id and not scoping.may_see_case(db, current_user, rule.case_id)):
+        raise HTTPException(status_code=404, detail="Rule not found")
+    name = re.sub(r"[^A-Za-z0-9_-]+", "_", rule.title)[:60] or "rule"
+    suffix = ".yml" if rule.kind == "sigma" else ".yar"
+    return Response(content=rule.content, media_type="text/plain",
+                    headers={"Content-Disposition": f'attachment; filename="{name}{suffix}"'})
