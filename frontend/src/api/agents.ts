@@ -1,6 +1,6 @@
 import api from './client'
 import type {
-  Agent, AgentAttention, AgentEvent, McpToken, AgentHypothesis, BenchCase, BenchRun, HypothesisStance, AgentProvider, AgentProviderWrite, CaseUsage, RoleModel, AgentFinding, AgentFindingState, AgentObservation, AgentProposal,
+  Agent, AgentApproval, AgentAttention, DetectionRule, McpServer, McpServerWrite, AgentEvent, McpToken, AgentHypothesis, BenchCase, BenchRun, HypothesisStance, AgentProvider, AgentProviderWrite, CaseUsage, RoleModel, AgentFinding, AgentFindingState, AgentObservation, AgentProposal,
   AgentProposalState, AgentRole, AgentTask, LLMHealth,
 } from '../types'
 
@@ -99,6 +99,28 @@ export const agentsApi = {
   reportCheck: (caseId: string) =>
     api.get<{ proposal_id: string; part: string; finding: string; state: string }[]>(
       `/cases/${caseId}/agents/report-check`).then(r => r.data),
+  approvals: (caseId: string) =>
+    api.get<AgentApproval[]>(`/cases/${caseId}/agents/approvals`).then(r => r.data),
+  /** Runs the action now, as the analyst; the agent resumes with its result. */
+  approve: (caseId: string, id: string, comment?: string) =>
+    api.post<AgentApproval>(`/cases/${caseId}/agents/approvals/${id}/approve`,
+      { comment: comment ?? null }).then(r => r.data),
+  deny: (caseId: string, id: string, comment?: string) =>
+    api.post<AgentApproval>(`/cases/${caseId}/agents/approvals/${id}/deny`,
+      { comment: comment ?? null }).then(r => r.data),
+  mcpServers: () => api.get<McpServer[]>('/agents/mcp-servers').then(r => r.data),
+  createMcpServer: (data: McpServerWrite) =>
+    api.post<McpServer>('/agents/mcp-servers', data).then(r => r.data),
+  updateMcpServer: (id: string, data: McpServerWrite) =>
+    api.patch<McpServer>(`/agents/mcp-servers/${id}`, data).then(r => r.data),
+  deleteMcpServer: (id: string) => api.delete(`/agents/mcp-servers/${id}`),
+  /** Connects and lists the server's tools. Sends no case data. */
+  mcpServerTools: (id: string) =>
+    api.get<{ reachable: boolean; detail: string; tools: { name: string; description: string }[] }>(
+      `/agents/mcp-servers/${id}/tools`).then(r => r.data),
+  detectionRules: () => api.get<DetectionRule[]>('/agents/detection-rules').then(r => r.data),
+  downloadDetectionRule: (id: string) =>
+    api.get<Blob>(`/agents/detection-rules/${id}/download`, { responseType: 'blob' }).then(r => r.data),
   observation: (caseId: string, observationId: string) =>
     api.get<AgentObservation>(`/cases/${caseId}/agents/observations/${observationId}`).then(r => r.data),
 }

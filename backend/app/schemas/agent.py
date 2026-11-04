@@ -147,12 +147,14 @@ class Attention(BaseModel):
     """What waits on the analyst in a case's Team tab."""
     proposals: int
     findings:  int
+    #: Actions held for approval: each pauses an agent until decided.
+    approvals: int = 0
     #: Agents stopped on a budget, a refused provider or an error.
     blocked:   list[str]
 
     @property
     def total(self) -> int:
-        return self.proposals + self.findings + len(self.blocked)
+        return self.proposals + self.findings + self.approvals + len(self.blocked)
 
 
 class AskAgent(BaseModel):

@@ -549,3 +549,42 @@ Decisions taken while building it:
   told. Asked to read the body, the analyst triggered the guard (override,
   concealment), did not obey, and reported the planted instruction as further
   evidence of phishing.
+
+---
+
+## 12. S37 — approvals, MCP client, detection rules
+
+Delivers G3, H2 and H4. Still planned: A9 role editor, A11 playbook steps,
+B4 collection gaps, B5 phases, F3 report language, F4 executive briefing,
+E6 attack-graph edges.
+
+| Piece | Where |
+|---|---|
+| Approval queue: a tool that sends something out of Remora records the request and pauses the task; the analyst approves (the action runs as them, audited) or denies, and the task resumes with the result or the reason | `agent_approvals`, `services/charybdis/approvals.py`, `POST /approvals/{id}/approve` and `/deny`, Approvals view of the Team tab |
+| CTI lookups by agents: reputation of an indicator from the configured CTI services, through the approval queue | `cti_lookup` (Windows, binary, email and network analysts) |
+| MCP client: administrators register third-party MCP servers (URL, locality, encrypted Authorization header); agents list them and their tools freely, and call a tool only on approval | `agent_mcp_servers`, `services/charybdis/mcp_client.py`, `mcp_list_servers`, `mcp_list_tools`, `mcp_call`, MCP servers section of the Agent models page |
+| Detection rules: agents draft Sigma or YARA rules from findings; the rule is checked (Sigma: YAML with title, logsource and a detection condition; YARA: header, condition, balanced braces) and must cite existing findings; accepted rules are kept and downloadable | `propose_detection_rule`, `agent_detection_rules`, `GET /agents/detection-rules`, Drafted detection rules section |
+| Attention count and trace: pending approvals count in the Team tab badge; requests and decisions are `approval` events of the hash chain | `GET /attention`, `AgentTracePanel`, `AgentChat` |
+
+Decisions taken while building it:
+
+- **What leaves Remora waits for a person.** Listing a server's tools sends
+  nothing from the case and needs no approval; calling one sends the
+  agent's arguments, so it does. The analyst approves the action itself,
+  with its arguments shown, not a description of it.
+- **TLP is checked twice.** A TLP RED, AMBER+STRICT or unlabelled case may
+  not request a CTI lookup at all, nor call a cloud MCP server; the tool
+  refuses before anything is queued.
+- **An outside answer is data.** The result goes back to the agent as the
+  analyst's note, marked as coming from an outside service, and passes the
+  injection guard like any tool result.
+- **Rules outlive their case.** Like lessons, an accepted rule copies the
+  case title; it is listed within the cases the account may see.
+- **A decided action is answered from its decision.** Checked on qwen3:8b,
+  with the stack's own MCP endpoint registered as a peer server: the email
+  analyst listed the servers and the peer's tools, asked to call
+  list_cases, paused, and resumed with the result once approved - then
+  asked for the same call again. Asking again for an action already
+  decided in the same task now returns that decision (the stored result,
+  or the refusal) without a new request. The analyst then answered from
+  the eleven peer cases, without inventing one.

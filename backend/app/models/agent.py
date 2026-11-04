@@ -79,11 +79,12 @@ EVENT_TASK          = "task"          # a task created, assigned, reported
 EVENT_PROPOSAL      = "proposal"      # a proposal made or decided
 EVENT_FINDING       = "finding"       # a finding proposed, reviewed or decided
 EVENT_HYPOTHESIS    = "hypothesis"    # a hypothesis stated, weighed or decided
+EVENT_APPROVAL      = "approval"      # an action held for the analyst, and the decision
 
 EVENT_KINDS = frozenset({
     EVENT_USER_MESSAGE, EVENT_AGENT_MESSAGE, EVENT_THOUGHT, EVENT_TOOL_CALL,
     EVENT_TOOL_RESULT, EVENT_STATUS, EVENT_ERROR, EVENT_STEP, EVENT_TASK, EVENT_PROPOSAL,
-    EVENT_FINDING, EVENT_HYPOTHESIS,
+    EVENT_FINDING, EVENT_HYPOTHESIS, EVENT_APPROVAL,
 })
 
 #: Why a task exists. `message` is the analyst talking to an agent; `assigned`
@@ -108,10 +109,11 @@ PROPOSAL_EXECUTIVE_SUMMARY = "executive_summary"
 PROPOSAL_INCIDENT_LOG      = "incident_log"
 PROPOSAL_LESSON            = "lesson"
 PROPOSAL_ASSET             = "asset"
+PROPOSAL_DETECTION_RULE    = "detection_rule"
 PROPOSAL_KINDS = frozenset({
     PROPOSAL_IOC, PROPOSAL_TIMELINE, PROPOSAL_TASK, PROPOSAL_TTP,
     PROPOSAL_REPORT_SECTION, PROPOSAL_EXECUTIVE_SUMMARY, PROPOSAL_INCIDENT_LOG, PROPOSAL_LESSON,
-    PROPOSAL_ASSET,
+    PROPOSAL_ASSET, PROPOSAL_DETECTION_RULE,
 })
 
 PROPOSAL_OPEN     = "proposed"
@@ -609,3 +611,86 @@ class AgentMcpToken(Base):
     created_at:   Mapped[datetime]        = mapped_column(default=_now)
     last_used_at: Mapped[datetime | None] = mapped_column(nullable=True)
     revoked_at:   Mapped[datetime | None] = mapped_column(nullable=True)
+
+
+APPROVAL_PENDING  = "pending"
+APPROVAL_APPROVED = "approved"
+APPROVAL_DENIED   = "denied"
+
+
+class AgentApproval(Base):
+    """
+    An action an agent asked to take that sends something out of Remora - a
+    CTI lookup, a call to a third-party MCP server. The agent's task is paused
+    on it; the analyst approves (the action runs, the task resumes with its
+    result) or denies (the task resumes with the reason).
+    """
+
+    __tablename__ = "agent_approvals"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    case_id: Mapped[str] = mapped_column(
+        String, ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True)
+    agent_id: Mapped[str] = mapped_column(
+        String, ForeignKey("agent_instances.id", ondelete="CASCADE"), nullable=False)
+    task_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("agent_tasks.id", ondelete="SET NULL",
+                           name="fk_agent_approvals_task_id"), nullable=True)
+    tool:      Mapped[str] = mapped_column(String(64), nullable=False)
+    #: JSON object: the arguments the agent called the tool with.
+    arguments: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    #: What leaves Remora and where, in words, for the analyst deciding.
+    summary:   Mapped[str] = mapped_column(Text, nullable=False, default="")
+    state: Mapped[str] = mapped_column(String(16), nullable=False, default=APPROVAL_PENDING)
+    decided_by:       Mapped[str | None]      = mapped_column(String(255), nullable=True)
+    decided_at:       Mapped[datetime | None] = mapped_column(nullable=True)
+    decision_comment: Mapped[str | None]      = mapped_column(Text, nullable=True)
+    #: JSON: what the action returned, once approved and run.
+    result: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+
+
+class AgentMcpServer(Base):
+    """
+    A third-party MCP server agents may call, registered by an administrator.
+    Like a model provider, its locality is declared and decides which cases'
+    data may reach it; its credential is encrypted at rest.
+    """
+
+    __tablename__ = "agent_mcp_servers"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    url:  Mapped[str] = mapped_column(String(512), nullable=False)
+    locality: Mapped[str] = mapped_column(String(8), nullable=False, default="cloud")
+    #: The Authorization header value, encrypted like a provider key.
+    auth_enc:  Mapped[str | None] = mapped_column(Text, nullable=True)
+    auth_salt: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    updated_by: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+    updated_at: Mapped[datetime] = mapped_column(default=_now, onupdate=_now)
+
+
+class AgentDetectionRule(Base):
+    """
+    A Sigma or YARA rule drafted by an agent from a case's findings and
+    accepted by the analyst. Kept beyond the case: rules are what the next
+    investigation runs. Not loaded into Chainsaw automatically - the analyst
+    downloads it and installs it where it belongs.
+    """
+
+    __tablename__ = "agent_detection_rules"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    case_id:    Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    case_title: Mapped[str]        = mapped_column(String(255), nullable=False, default="")
+    kind:    Mapped[str] = mapped_column(String(8), nullable=False)     # sigma | yara
+    title:   Mapped[str] = mapped_column(String(255), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    #: JSON list of the findings it was drafted from, e.g. ["F1", "F3"].
+    findings: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    drafted_by:  Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    accepted_by: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(default=_now)

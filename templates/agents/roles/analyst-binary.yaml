@@ -9,4 +9,4 @@ assignable: true
 max_steps: 24
 tools: [case_overview, list_evidence, ingest_status, list_findings, list_iocs,
         list_binaries, read_binary, record_source_observation,
-        propose_finding, propose_ioc, propose_ttp, request_help]
+        propose_finding, cti_lookup, propose_detection_rule, propose_ioc, propose_ttp, request_help]

@@ -1626,6 +1626,138 @@ def _propose_asset(ctx: ToolContext, args: ProposeAssetArgs) -> dict[str, Any]:
                     f"Asset {args.type} {name}" + (" (compromised)" if args.compromised else ""))
 
 
+# ─── Actions held for approval: CTI, third-party MCP ──────────────────────────
+
+def _restricted_case(ctx: ToolContext) -> bool:
+    from .llm.gateway import LOCAL_ONLY_TLP, _normalise_tlp
+    return _normalise_tlp(str(ctx.case.tlp or "")) in LOCAL_ONLY_TLP or not str(ctx.case.tlp or "").strip()
+
+
+class CtiLookupArgs(BaseModel):
+    value: str = Field(..., min_length=3, max_length=2048, description="IP, domain, URL or hash")
+    type_hint: str | None = Field(None, description="ip, domain, url or hash, if not obvious")
+    reason: str = Field(..., min_length=5, max_length=500, description="What the lookup should tell you")
+
+
+def _cti_lookup(ctx: ToolContext, args: CtiLookupArgs) -> dict[str, Any]:
+    """Reputation from the configured CTI services. Sends the value to third parties: approval first."""
+    from .approvals import request
+
+    agent_id, task_id = _require_caller(ctx)
+    if _restricted_case(ctx):
+        raise ToolError(f"The case is {ctx.case.tlp or 'unlabelled'}: its indicators may not be sent to "
+                        "outside services. Report what you need instead.")
+    value = args.value.strip()
+    return request(ctx.db, case_id=str(ctx.case.id), agent_id=agent_id, task_id=task_id, actor=ctx.actor,
+                   tool="cti_lookup", arguments={"value": value, "type_hint": args.type_hint},
+                   summary=f"Send {value} to the configured CTI services (VirusTotal, OTX...). "
+                           f"Why: {args.reason.strip()}")
+
+
+class McpServerArgs(BaseModel):
+    server: str = Field(..., description="Server name, from mcp_list_servers")
+
+
+def _mcp_list_servers(ctx: ToolContext, _: NoArgs) -> dict[str, Any]:
+    from ...models.agent import AgentMcpServer
+    rows = [{"server": s.name, "locality": s.locality, "description": _cell(s.description)}
+            for s in ctx.db.query(AgentMcpServer).filter(AgentMcpServer.enabled.is_(True))]
+    return {"total": len(rows), "rows": rows,
+            "note": None if rows else "No third-party MCP server is configured."}
+
+
+def _mcp_list_tools(ctx: ToolContext, args: McpServerArgs) -> dict[str, Any]:
+    """What a server offers. Sends nothing from the case."""
+    from . import mcp_client
+    try:
+        tools = mcp_client.list_tools(mcp_client.load(ctx.db, args.server))
+    except mcp_client.McpError as exc:
+        raise ToolError(str(exc)) from exc
+    return fit({"server": args.server, "rows": tools})
+
+
+class McpCallArgs(BaseModel):
+    server: str = Field(..., description="Server name, from mcp_list_servers")
+    tool: str = Field(..., description="Tool name, from mcp_list_tools")
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    reason: str = Field(..., min_length=5, max_length=500, description="What the call should tell you")
+
+
+def _mcp_call(ctx: ToolContext, args: McpCallArgs) -> dict[str, Any]:
+    """Call a third-party MCP tool. Its arguments leave Remora: approval first, and TLP applies."""
+    from . import mcp_client
+    from .approvals import request
+
+    agent_id, task_id = _require_caller(ctx)
+    try:
+        server = mcp_client.load(ctx.db, args.server)
+    except mcp_client.McpError as exc:
+        raise ToolError(str(exc)) from exc
+    if server.locality != "local" and _restricted_case(ctx):
+        raise ToolError(f"The case is {ctx.case.tlp or 'unlabelled'} and {server.name} is a cloud "
+                        "service: nothing from this case may be sent to it.")
+    sent = json.dumps(args.arguments, default=str)[:300]
+    return request(ctx.db, case_id=str(ctx.case.id), agent_id=agent_id, task_id=task_id, actor=ctx.actor,
+                   tool="mcp_call",
+                   arguments={"server": server.name, "tool": args.tool, "arguments": args.arguments},
+                   summary=f"Call {args.tool} on {server.name} ({server.locality}) with {sent}. "
+                           f"Why: {args.reason.strip()}")
+
+
+# ─── Detection rules ──────────────────────────────────────────────────────────
+
+class ProposeRuleArgs(BaseModel):
+    kind: str = Field(..., description="sigma (event logs) or yara (files, memory)")
+    title: str = Field(..., min_length=5, max_length=255)
+    rule: str = Field(..., min_length=20, max_length=20000, description="The full rule text")
+    findings: list[str] = Field(..., min_length=1, description="F<n> references the rule detects")
+    rationale: str = Field(..., min_length=5, description="What it catches and its expected false positives")
+
+
+def _check_sigma(text: str) -> None:
+    import yaml as _yaml
+    try:
+        rule = _yaml.safe_load(text)
+    except _yaml.YAMLError as exc:
+        raise ToolError(f"The Sigma rule is not valid YAML: {str(exc)[:200]}") from exc
+    if not isinstance(rule, dict):
+        raise ToolError("A Sigma rule is a YAML mapping.")
+    missing = [k for k in ("title", "logsource", "detection") if k not in rule]
+    if missing:
+        raise ToolError(f"The Sigma rule lacks {missing}.")
+    if not isinstance(rule["detection"], dict) or "condition" not in rule["detection"]:
+        raise ToolError("The Sigma rule's detection needs a condition.")
+
+
+def _check_yara(text: str) -> None:
+    if not re.search(r"\brule\s+[A-Za-z_]\w*[^{]*\{", text):
+        raise ToolError("A YARA rule starts with: rule Name {")
+    if "condition:" not in text:
+        raise ToolError("A YARA rule needs a condition: section.")
+    if text.count("{") != text.count("}"):
+        raise ToolError("The YARA rule's braces do not balance.")
+
+
+def _propose_detection_rule(ctx: ToolContext, args: ProposeRuleArgs) -> dict[str, Any]:
+    from ...models.agent import PROPOSAL_DETECTION_RULE
+
+    kind = args.kind.strip().lower()
+    if kind == "sigma":
+        _check_sigma(args.rule)
+    elif kind == "yara":
+        _check_yara(args.rule)
+    else:
+        raise ToolError("kind must be sigma or yara")
+    refs = sorted({f.strip().upper() for f in args.findings})
+    known = {f"F{r}" for (r,) in ctx.db.query(AgentFinding.ref).filter(AgentFinding.case_id == ctx.case.id)}
+    unknown = [r for r in refs if r not in known]
+    if unknown:
+        raise ToolError(f"Unknown findings {unknown}. Call list_findings.")
+    payload = {"kind": kind, "title": args.title.strip(), "rule": args.rule.strip(), "findings": refs}
+    return _propose(ctx, PROPOSAL_DETECTION_RULE, payload, args.rationale, [],
+                    f"{kind.upper()} rule: {args.title.strip()}")
+
+
 # ─── Registry ─────────────────────────────────────────────────────────────────
 
 TOOLS: dict[str, Tool] = {tool.name: tool for tool in (
@@ -1739,6 +1871,15 @@ TOOLS: dict[str, Tool] = {tool.name: tool for tool in (
          CorrelateArgs, _correlate_iocs),
     Tool("propose_asset", "Propose a host or account involved in the incident as a case asset. Cite the evidence.",
          ProposeAssetArgs, _propose_asset, PROPOSING),
+    Tool("cti_lookup", "Reputation of an indicator from the configured CTI services. Needs the "
+         "analyst's approval, which pauses your task.", CtiLookupArgs, _cti_lookup, PROPOSING),
+    Tool("mcp_list_servers", "Third-party MCP servers you may call, and whether they are local or cloud.",
+         NoArgs, _mcp_list_servers),
+    Tool("mcp_list_tools", "The tools a third-party MCP server offers.", McpServerArgs, _mcp_list_tools),
+    Tool("mcp_call", "Call a tool of a third-party MCP server. Needs the analyst's approval, which pauses "
+         "your task.", McpCallArgs, _mcp_call, PROPOSING),
+    Tool("propose_detection_rule", "Propose a Sigma or YARA rule detecting what findings established.",
+         ProposeRuleArgs, _propose_detection_rule, PROPOSING),
     Tool("propose_log_entry",
          "Propose an incident log entry: an action, decision or discovery and when it happened.",
          ProposeLogEntryArgs, _propose_log_entry, PROPOSING),

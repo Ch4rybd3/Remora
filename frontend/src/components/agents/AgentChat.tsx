@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Agent, AgentEvent, AgentTask } from '../../types'
 import { fmtDateTime } from '../../utils/dateUtils'
-import { AlertTriangle, ClipboardCheck, Lightbulb, Send, Square, Wrench } from '../../ui/icons'
+import { AlertTriangle, ClipboardCheck, ExternalLink, Lightbulb, Send, Square, Wrench } from '../../ui/icons'
 
 interface Props {
   agent:     Agent
@@ -18,7 +18,7 @@ interface Props {
 }
 
 const CHAT_KINDS = new Set<AgentEvent['kind']>([
-  'message.user', 'message.agent', 'error', 'tool.call', 'step', 'proposal', 'finding',
+  'message.user', 'message.agent', 'error', 'tool.call', 'step', 'proposal', 'finding', 'approval',
 ])
 
 function text(event: AgentEvent, key = 'text'): string {
@@ -100,6 +100,18 @@ export default function AgentChat({ agent, events, openTask, sending, onSend, on
               <div key={event.id} className="flex items-center gap-2 text-label text-agent-waiting">
                 <ClipboardCheck size={12} />
                 <span>{text(event, 'action')}: {text(event, 'summary')}</span>
+              </div>
+            )
+          }
+          if (event.kind === 'approval') {
+            const comment = text(event, 'comment')
+            return (
+              <div key={event.id} className="flex items-center gap-2 text-label text-agent-waiting">
+                <ExternalLink size={12} />
+                <span>
+                  {text(event, 'action') === 'requested' ? 'Waiting for your approval' : `${event.actor} ${text(event, 'action')}`}
+                  : {text(event, 'summary')}{comment ? ` (${comment})` : ''}
+                </span>
               </div>
             )
           }

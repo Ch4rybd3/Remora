@@ -263,7 +263,7 @@ def test_attention_counts_what_waits_on_the_analyst(db_session, case_id, auth_cl
     db_session.get(AgentInstance, agent["id"]).status = "blocked"
     db_session.commit()
     assert auth_client.get(f"/api/v1/cases/{case_id}/agents/attention").json() == {
-        "proposals": 1, "findings": 0, "blocked": [agent["name"]]}
+        "proposals": 1, "findings": 0, "approvals": 0, "blocked": [agent["name"]]}
 
 
 def test_asking_about_an_object_quotes_it_to_the_assistant(auth_client, case_id,

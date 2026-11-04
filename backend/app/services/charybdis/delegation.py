@@ -364,6 +364,7 @@ def purge_case(db: Session, case_id: str) -> None:
     behind when a case is deleted. The caller commits.
     """
     from ...models.agent import (
+        AgentApproval,
         AgentEvent,
         AgentEvidenceNotice,
         AgentFinding,
@@ -376,6 +377,6 @@ def purge_case(db: Session, case_id: str) -> None:
     if hypotheses:
         db.query(AgentHypothesisLink).filter(
             AgentHypothesisLink.hypothesis_id.in_(hypotheses)).delete(synchronize_session=False)
-    for model in (AgentHypothesis, AgentFinding, AgentObservation, AgentProposal,
+    for model in (AgentHypothesis, AgentFinding, AgentObservation, AgentProposal, AgentApproval,
                   AgentEvidenceNotice, AgentEvent, AgentTask, AgentInstance):
         db.query(model).filter(model.case_id == case_id).delete(synchronize_session=False)

@@ -288,6 +288,9 @@ def _resumed(db: Session, task: AgentTask, process: ProcessDef) -> list[ChatMess
             index, _ = process.step(payload.get("step"))
             messages.append(ChatMessage("user", _step_message(process, index)))
             messages.append(ChatMessage("assistant", str(payload.get("summary", ""))))
+        elif event.kind == EVENT_USER_MESSAGE and payload.get("approval"):
+            # The outcome of an action the agent asked the analyst to approve.
+            messages.append(ChatMessage("user", f"[{payload.get('text', '')}]"))
         elif event.kind == EVENT_USER_MESSAGE and payload.get("resume"):
             messages.append(ChatMessage("user", "[The analyst paused this task and took it over. "
                                                 f"Their instructions: {payload.get('text', '')}]"))

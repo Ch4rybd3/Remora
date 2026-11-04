@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { PageShell } from '../ui/PageShell'
+import DetectionRulesSection from '../components/agents/DetectionRulesSection'
+import McpServersSection from '../components/agents/McpServersSection'
 import { agentsApi } from '../api/agents'
 import type { AgentProvider, AgentProviderWrite, RoleModel } from '../types'
 import { fmtDateTimeShort } from '../utils/dateUtils'
@@ -339,6 +341,10 @@ export default function AgentModels() {
         </div>
 
         <BenchSection providers={choices} />
+
+        <McpServersSection />
+
+        <DetectionRulesSection />
       </div>
     </PageShell>
   )

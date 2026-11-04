@@ -75,10 +75,12 @@ export default function CaseDetail() {
     enabled: !!id && !!features?.charybdis,
     refetchInterval: 30_000,
   })
-  const waiting = attention ? attention.proposals + attention.findings + attention.blocked.length : 0
+  const waiting = attention
+    ? attention.proposals + attention.findings + (attention.approvals ?? 0) + attention.blocked.length : 0
   const teamTab = waiting
     ? { ...TEAM_TAB, label: `Team (${waiting})`,
-        title: `${attention!.proposals} proposal(s), ${attention!.findings} finding(s) waiting`
+        title: `${attention!.proposals} proposal(s), ${attention!.findings} finding(s), `
+          + `${attention!.approvals ?? 0} approval(s) waiting`
           + (attention!.blocked.length ? `; stopped: ${attention!.blocked.join(', ')}` : '') }
     : TEAM_TAB
   const tabs: { id: Tab; label: string; title?: string }[] =

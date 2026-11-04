@@ -135,6 +135,14 @@ ACTIONS: dict[tuple[str, str], str] = {
         "agent.finding_reject",
     ("POST",   "/api/v1/cases/{case_id}/agents/ask"):                 "agent.ask",
     ("POST",   "/api/v1/cases/{case_id}/agents/handover"):            "agent.handover",
+    # Approving runs the action: data leaves Remora on the analyst's decision.
+    ("POST",   "/api/v1/cases/{case_id}/agents/approvals/{approval_id}/approve"):
+        "agent.approval_approve",
+    ("POST",   "/api/v1/cases/{case_id}/agents/approvals/{approval_id}/deny"):
+        "agent.approval_deny",
+    ("POST",   "/api/v1/agents/mcp-servers"):                         "agent.mcp_server_create",
+    ("PATCH",  "/api/v1/agents/mcp-servers/{server_id}"):             "agent.mcp_server_update",
+    ("DELETE", "/api/v1/agents/mcp-servers/{server_id}"):             "agent.mcp_server_delete",
     ("POST",   "/api/v1/cases/{case_id}/agents/{agent_id}/tasks/{task_id}/pause"):
         "agent.task_pause",
     ("POST",   "/api/v1/cases/{case_id}/agents/{agent_id}/tasks/{task_id}/resume"):
