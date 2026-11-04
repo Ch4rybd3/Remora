@@ -22,7 +22,8 @@ assignable: true
 max_steps: 12
 tools: [case_overview, list_evidence, ingest_status, list_artifacts, store_schema, store_search,
         list_iocs, list_timeline, list_findings, record_observation, propose_finding, propose_ioc,
-        propose_timeline_event, propose_ttp, request_help]
+        propose_timeline_event, propose_ttp, request_help, case_phase, propose_collection,
+        list_collection_requests]
 """
 
 

@@ -9,4 +9,7 @@ steps:
       still unknown. For new evidence, say which files matter and to which analyst role.
       If follow-up work is needed and not already planned, propose it with propose_task.
       Do not repeat work already done or planned.
+      Check the case's phase (case_phase): say which of its questions are answered. When they all
+      are, propose the next phase with propose_phase. When evidence is missing to answer one,
+      propose collecting it with propose_collection.
       End with a situation update for the analyst in five lines or fewer.

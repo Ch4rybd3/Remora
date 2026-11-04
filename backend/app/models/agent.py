@@ -110,10 +110,12 @@ PROPOSAL_INCIDENT_LOG      = "incident_log"
 PROPOSAL_LESSON            = "lesson"
 PROPOSAL_ASSET             = "asset"
 PROPOSAL_DETECTION_RULE    = "detection_rule"
+PROPOSAL_COLLECTION        = "collection_request"
+PROPOSAL_PHASE             = "phase"
 PROPOSAL_KINDS = frozenset({
     PROPOSAL_IOC, PROPOSAL_TIMELINE, PROPOSAL_TASK, PROPOSAL_TTP,
     PROPOSAL_REPORT_SECTION, PROPOSAL_EXECUTIVE_SUMMARY, PROPOSAL_INCIDENT_LOG, PROPOSAL_LESSON,
-    PROPOSAL_ASSET, PROPOSAL_DETECTION_RULE,
+    PROPOSAL_ASSET, PROPOSAL_DETECTION_RULE, PROPOSAL_COLLECTION, PROPOSAL_PHASE,
 })
 
 PROPOSAL_OPEN     = "proposed"
@@ -719,5 +721,38 @@ class AgentDefinitionOverride(Base):
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     updated_by: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+    updated_at: Mapped[datetime] = mapped_column(default=_now, onupdate=_now)
+
+
+COLLECTION_REQUESTED   = "requested"
+COLLECTION_COLLECTED   = "collected"
+COLLECTION_UNAVAILABLE = "unavailable"
+COLLECTION_DROPPED     = "dropped"
+COLLECTION_STATES = (COLLECTION_REQUESTED, COLLECTION_COLLECTED, COLLECTION_UNAVAILABLE, COLLECTION_DROPPED)
+
+
+class AgentCollectionRequest(Base):
+    """
+    Evidence an agent found missing to answer a question, and the analyst
+    agreed to ask for: one artifact kind from one host. Grouped by host, the
+    open ones are the collection request list sent to whoever holds the systems.
+    """
+
+    __tablename__ = "agent_collection_requests"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    case_id: Mapped[str] = mapped_column(
+        String, ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True)
+    host: Mapped[str] = mapped_column(String(255), nullable=False)
+    #: An artifact kind of the ingestion registry (evtx, registry_hive, mft...).
+    artifact: Mapped[str] = mapped_column(String(64), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The hypothesis it would help decide, as "H<n>".
+    hypothesis: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    state: Mapped[str] = mapped_column(String(16), nullable=False, default=COLLECTION_REQUESTED)
+    note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    requested_by: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    accepted_by: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(default=_now)
     updated_at: Mapped[datetime] = mapped_column(default=_now, onupdate=_now)

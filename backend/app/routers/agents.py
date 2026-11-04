@@ -391,6 +391,10 @@ def _summary(kind: str, payload: dict) -> str:
         return f"Asset {payload.get('type')} {payload.get('name')}"
     if kind == "detection_rule":
         return f"{str(payload.get('kind', '')).upper()} rule: {payload.get('title')}"
+    if kind == "collection_request":
+        return f"Collect {payload.get('label') or payload.get('artifact')} from {payload.get('host')}"
+    if kind == "phase":
+        return f"Move to phase {payload.get('phase')}"
     return f"{payload.get('role')}: {str(payload.get('objective', ''))[:120]}"
 
 
@@ -485,6 +489,25 @@ def _materialise(case_id: str, proposal: AgentProposal, data: dict, db: Session,
         version = save_report(case_id=case_id, payload=SaveReportPayload(sections_data=sections),
                               db=db, current_user=user)
         return str(version.id)
+    if proposal.kind == "collection_request":
+        from ..models.agent import AgentCollectionRequest
+        request_row = AgentCollectionRequest(
+            case_id=case_id, host=str(data.get("host", "")).strip(), artifact=str(data.get("artifact", "")),
+            reason=str(data.get("reason", "")), hypothesis=data.get("hypothesis") or None,
+            requested_by=agent_name, accepted_by=str(user.username or ""))
+        if not request_row.host:
+            raise HTTPException(status_code=422, detail="host is required")
+        db.add(request_row)
+        db.flush()
+        return request_row.id
+    if proposal.kind == "phase":
+        from ..services.charybdis.phases import PHASE_IDS
+        target = str(data.get("phase", ""))
+        if target not in PHASE_IDS:
+            raise HTTPException(status_code=422, detail=f"phase must be one of {', '.join(PHASE_IDS)}")
+        case = _get_case(case_id, db)
+        case.phase = target  # type: ignore[assignment]
+        return str(case.id)
     if proposal.kind == "detection_rule":
         from ..models.agent import AgentDetectionRule
         case = _get_case(case_id, db)
@@ -1859,3 +1882,153 @@ def revert_definition(
     db.delete(row)
     db.commit()
     reload()
+
+
+
+# ─── Phase of the response ────────────────────────────────────────────────────
+
+class PhaseRead(BaseModel):
+    id: str
+    name: str
+    goal: str
+    questions: list[str]
+
+
+class CasePhaseRead(BaseModel):
+    phase: str
+    phases: list[PhaseRead]
+
+
+class CasePhaseWrite(BaseModel):
+    phase: str
+
+
+def _phase_read(case: Case) -> CasePhaseRead:
+    from ..services.charybdis.phases import phase, phases
+    return CasePhaseRead(phase=phase(getattr(case, "phase", None)).id,
+                         phases=[PhaseRead(**p.model_dump()) for p in phases()])
+
+
+@router.get("/phase", response_model=CasePhaseRead)
+def get_phase(case_id: str, db: Session = Depends(get_db)):
+    """The case's phase, and every phase with its goal and questions."""
+    return _phase_read(_get_case(case_id, db))
+
+
+@router.put("/phase", response_model=CasePhaseRead)
+def set_phase(
+    case_id: str,
+    payload: CasePhaseWrite,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from ..services.charybdis.phases import PHASE_IDS
+    case = _get_case(case_id, db)
+    if payload.phase not in PHASE_IDS:
+        raise HTTPException(status_code=422, detail=f"phase must be one of {', '.join(PHASE_IDS)}")
+    previous = getattr(case, "phase", None)
+    case.phase = payload.phase  # type: ignore[assignment]
+    audit_log(db, user=current_user, action="case.phase_change", request=request,
+              resource_type="case", resource_id=case_id, resource_name=str(case.title),
+              case_id=case_id, case_title=str(case.title), details={"from": previous, "to": payload.phase})
+    db.commit()
+    return _phase_read(case)
+
+
+# ─── Collection requests ──────────────────────────────────────────────────────
+
+class CollectionRequestRead(BaseModel):
+    id: str
+    host: str
+    artifact: str
+    label: str
+    reason: str
+    hypothesis: str | None
+    state: str
+    note: str
+    requested_by: str
+    accepted_by: str
+    created_at: UTCDateTime
+    updated_at: UTCDateTime
+
+
+class CollectionRequestWrite(BaseModel):
+    state: str | None = None
+    note: str | None = Field(None, max_length=2000)
+
+
+def _collection_read(r: Any, labels: dict[str, str]) -> CollectionRequestRead:
+    return CollectionRequestRead(id=r.id, host=r.host, artifact=r.artifact, label=labels.get(r.artifact, r.artifact),
+                                 reason=r.reason, hypothesis=r.hypothesis, state=r.state, note=r.note,
+                                 requested_by=r.requested_by, accepted_by=r.accepted_by,
+                                 created_at=r.created_at, updated_at=r.updated_at)
+
+
+def _collection_rows(case_id: str, db: Session) -> list[Any]:
+    from ..models.agent import AgentCollectionRequest
+    return (db.query(AgentCollectionRequest).filter(AgentCollectionRequest.case_id == case_id)
+            .order_by(AgentCollectionRequest.host, AgentCollectionRequest.created_at).all())
+
+
+@router.get("/collection-requests", response_model=list[CollectionRequestRead])
+def list_collection_requests(case_id: str, db: Session = Depends(get_db)):
+    """Evidence asked for, by host."""
+    from ..services.charybdis.tools import _artifact_kinds
+    _get_case(case_id, db)
+    labels = _artifact_kinds()
+    return [_collection_read(r, labels) for r in _collection_rows(case_id, db)]
+
+
+@router.patch("/collection-requests/{request_id}", response_model=CollectionRequestRead)
+def update_collection_request(
+    case_id: str,
+    request_id: str,
+    payload: CollectionRequestWrite,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Mark a request collected, unavailable or dropped, with a note."""
+    from ..models.agent import COLLECTION_STATES, AgentCollectionRequest
+    from ..services.charybdis.tools import _artifact_kinds
+    case = _get_case(case_id, db)
+    row = db.get(AgentCollectionRequest, request_id)
+    if row is None or row.case_id != case_id:
+        raise HTTPException(status_code=404, detail="Collection request not found")
+    if payload.state is not None:
+        if payload.state not in COLLECTION_STATES:
+            raise HTTPException(status_code=422, detail=f"state must be one of {', '.join(COLLECTION_STATES)}")
+        row.state = payload.state
+    if payload.note is not None:
+        row.note = payload.note.strip()
+    audit_log(db, user=current_user, action="agent.collection_update", request=request,
+              resource_type="agent_collection_request", resource_id=row.id,
+              resource_name=f"{row.artifact}@{row.host}", case_id=case_id, case_title=str(case.title),
+              details={"state": row.state})
+    db.commit()
+    db.refresh(row)
+    return _collection_read(row, _artifact_kinds())
+
+
+@router.get("/collection-requests/export")
+def export_collection_requests(case_id: str, db: Session = Depends(get_db)) -> Response:
+    """The open requests as a Markdown list per host, to send to whoever holds the systems."""
+    from ..models.agent import COLLECTION_REQUESTED
+    from ..services.charybdis.tools import _artifact_kinds
+    case = _get_case(case_id, db)
+    labels = _artifact_kinds()
+    lines = [f"# Collection request - {case.title}", ""]
+    hosts: dict[str, list[Any]] = {}
+    for r in _collection_rows(case_id, db):
+        if r.state == COLLECTION_REQUESTED:
+            hosts.setdefault(r.host, []).append(r)
+    if not hosts:
+        lines.append("Nothing is waiting to be collected.")
+    for host, rows in hosts.items():
+        lines += [f"## {host}", ""]
+        lines += [f"- **{labels.get(r.artifact, r.artifact)}** (`{r.artifact}`): {r.reason}" for r in rows]
+        lines.append("")
+    name = re.sub(r"[^A-Za-z0-9_-]+", "_", str(case.title))[:60] or "case"
+    return Response(content="\n".join(lines), media_type="text/markdown",
+                    headers={"Content-Disposition": f'attachment; filename="collection-{name}.md"'})

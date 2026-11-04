@@ -1,0 +1,43 @@
+# Phases of an incident response (docs/CHARYBDIS_FEATURES.md, B5).
+# The case's phase is given to every agent with its goal and questions; the
+# Incident Leader may propose moving on, the analyst decides. The ids are
+# fixed; names, goals and questions may be edited.
+phases:
+  - id: identification
+    name: Identification
+    goal: Establish what happened, where, since when, and whether it is still going on.
+    questions:
+      - What was the first malicious activity, and on which host or account?
+      - Which hosts, accounts and data are affected?
+      - Is the attacker still active, and through which access?
+      - What evidence is missing to answer these, and from which host?
+  - id: containment
+    name: Containment
+    goal: Stop the spread and cut the attacker's access without destroying evidence.
+    questions:
+      - Which hosts and accounts must be isolated or disabled now?
+      - Which indicators must be blocked at the perimeter and on endpoints?
+      - Is every access path of the attacker covered (accounts, remote tools, persistence)?
+      - What must be collected before a host is isolated or reimaged?
+  - id: eradication
+    name: Eradication
+    goal: Remove every foothold the attacker left.
+    questions:
+      - Which persistence mechanisms were found, and on which hosts?
+      - Which credentials must be reset, including service and privileged accounts?
+      - Which vulnerability or weakness gave the initial access, and is it fixed?
+      - Is any host left unexamined that the attacker reached?
+  - id: recovery
+    name: Recovery
+    goal: Return systems to service and watch for the attacker's return.
+    questions:
+      - Which systems are restored, and from which clean source?
+      - What monitoring would detect the same activity again?
+      - Which detection rules should be deployed from the findings?
+  - id: lessons
+    name: Lessons learned
+    goal: Record what the incident taught and what to change.
+    questions:
+      - What allowed the incident, and what detected it?
+      - What slowed the response?
+      - What should change in detection, hardening and procedure?

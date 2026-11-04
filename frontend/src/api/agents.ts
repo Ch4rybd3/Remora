@@ -1,6 +1,6 @@
 import api from './client'
 import type {
-  Agent, AgentApproval, AgentDefinition, AgentAttention, DetectionRule, McpServer, McpServerWrite, AgentEvent, McpToken, AgentHypothesis, BenchCase, BenchRun, HypothesisStance, AgentProvider, AgentProviderWrite, CaseUsage, RoleModel, AgentFinding, AgentFindingState, AgentObservation, AgentProposal,
+  Agent, AgentApproval, AgentDefinition, CasePhase, CollectionRequest, AgentAttention, DetectionRule, McpServer, McpServerWrite, AgentEvent, McpToken, AgentHypothesis, BenchCase, BenchRun, HypothesisStance, AgentProvider, AgentProviderWrite, CaseUsage, RoleModel, AgentFinding, AgentFindingState, AgentObservation, AgentProposal,
   AgentProposalState, AgentRole, AgentTask, LLMHealth,
 } from '../types'
 
@@ -105,6 +105,16 @@ export const agentsApi = {
     api.put<AgentDefinition>(`/agents/definitions/${kind}/${name}`, { content }).then(r => r.data),
   revertDefinition: (kind: AgentDefinition['kind'], name: string) =>
     api.delete(`/agents/definitions/${kind}/${name}`),
+  phase: (caseId: string) => api.get<CasePhase>(`/cases/${caseId}/agents/phase`).then(r => r.data),
+  setPhase: (caseId: string, phase: string) =>
+    api.put<CasePhase>(`/cases/${caseId}/agents/phase`, { phase }).then(r => r.data),
+  collectionRequests: (caseId: string) =>
+    api.get<CollectionRequest[]>(`/cases/${caseId}/agents/collection-requests`).then(r => r.data),
+  updateCollectionRequest: (caseId: string, id: string, data: { state?: string; note?: string }) =>
+    api.patch<CollectionRequest>(`/cases/${caseId}/agents/collection-requests/${id}`, data).then(r => r.data),
+  /** The open requests as Markdown, one section per host. */
+  exportCollectionRequests: (caseId: string) =>
+    api.get<Blob>(`/cases/${caseId}/agents/collection-requests/export`, { responseType: 'blob' }).then(r => r.data),
   approvals: (caseId: string) =>
     api.get<AgentApproval[]>(`/cases/${caseId}/agents/approvals`).then(r => r.data),
   /** Runs the action now, as the analyst; the agent resumes with its result. */
