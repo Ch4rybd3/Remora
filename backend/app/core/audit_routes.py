@@ -142,6 +142,9 @@ ACTIONS: dict[tuple[str, str], str] = {
         "agent.approval_deny",
     ("POST",   "/api/v1/agents/mcp-servers"):                         "agent.mcp_server_create",
     ("PUT",    "/api/v1/cases/{case_id}/agents/phase"):               "case.phase_change",
+    ("POST",   "/api/v1/cases/{case_id}/agents/briefing"):            "agent.briefing_request",
+    ("PUT",    "/api/v1/cases/{case_id}/briefing"):                   "case.briefing_update",
+    ("PUT",    "/api/v1/cases/{case_id}/report-language"):            "case.report_language",
     ("PATCH",  "/api/v1/cases/{case_id}/agents/collection-requests/{request_id}"):
         "agent.collection_update",
     ("PUT",    "/api/v1/agents/definitions/{kind}/{name}"):           "agent.definition_save",

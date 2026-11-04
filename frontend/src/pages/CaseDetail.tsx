@@ -21,6 +21,7 @@ import AttackGraphTab from '../components/case/tabs/AttackGraphTab'
 import MitreTab from '../components/case/tabs/MitreTab'
 import CollectionImportTab from '../components/case/tabs/CollectionImportTab'
 import TeamTab from '../components/case/tabs/TeamTab'
+import BriefingCard from '../components/case/BriefingCard'
 import { agentsApi, featuresApi } from '../api/agents'
 import { useCurrentCase } from '../context/CurrentCaseContext'
 import { fmtDateTimeShort } from '../utils/dateUtils'
@@ -243,6 +244,7 @@ export default function CaseDetail() {
             {/* Text-heavy tabs: capped width for readability */}
             {activeTab === 'summary' && (
               <div className="max-w-4xl mx-auto">
+                <BriefingCard caseId={case_.id} />
                 <SummaryTab case_={case_} />
               </div>
             )}

@@ -7,7 +7,7 @@ conversation_process: conversation
 process: analyst-investigation
 assignable: true
 max_steps: 36
-tools: [case_overview, case_phase, propose_collection, list_collection_requests, list_evidence, ingest_status, list_artifacts, store_schema, store_search,
+tools: [case_overview, attack_graph_summary, propose_graph_edge, case_phase, propose_collection, list_collection_requests, list_evidence, ingest_status, list_artifacts, store_schema, store_search,
         chainsaw_alerts, process_tree, list_iocs, list_timeline, list_findings,
         record_observation, propose_finding, cti_lookup, propose_detection_rule, propose_asset, propose_ioc, propose_timeline_event,
         propose_ttp, request_help]

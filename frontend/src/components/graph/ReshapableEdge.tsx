@@ -179,7 +179,7 @@ export function ReshapableEdge({
   id,
   sourceX, sourceY, targetX, targetY,
   sourcePosition, targetPosition,
-  markerEnd, style, data, selected,
+  markerEnd, style, data, selected, label,
 }: EdgeProps) {
   const { updateEdgeData, editable, snap } = useContext(EdgeEditContext)
   const { screenToFlowPosition } = useReactFlow()
@@ -280,12 +280,25 @@ export function ReshapableEdge({
 
   const accent = (style?.stroke as string) || color('--accent')
 
+  // The label sits on the middle point of the drawn route: the middle bend, or between the ends.
+  const route = [src, ...waypoints, tgt]
+  const mid = route.length % 2 === 1
+    ? route[(route.length - 1) / 2]
+    : { x: (route[route.length / 2 - 1].x + route[route.length / 2].x) / 2,
+        y: (route[route.length / 2 - 1].y + route[route.length / 2].y) / 2 }
+
   return (
     <>
       <BaseEdge
         id={id}
         path={path}
         markerEnd={markerEnd}
+        label={label}
+        labelX={mid.x}
+        labelY={mid.y}
+        labelStyle={{ fill: color('--text-secondary'), fontSize: 11 }}
+        labelBgStyle={{ fill: color('--surface-canvas') }}
+        labelBgPadding={[4, 2]}
         /* The stroke is set here rather than left to ReactFlow's stylesheet,
            which resolves it from a CSS variable declared on `.react-flow` — an
            ancestor of the viewport. Exporting rasterises the viewport alone, so

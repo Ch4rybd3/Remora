@@ -286,7 +286,7 @@ export interface AgentRole {
 
 export type AgentProposalKind =
   | 'ioc' | 'timeline_event' | 'task' | 'ttp' | 'report_section' | 'executive_summary'
-  | 'incident_log' | 'lesson' | 'asset' | 'detection_rule' | 'collection_request' | 'phase'
+  | 'incident_log' | 'lesson' | 'asset' | 'detection_rule' | 'collection_request' | 'phase' | 'briefing' | 'graph_edge'
 
 /** A personal token an MCP client reads cases with. `token` only on creation. */
 export interface McpToken {

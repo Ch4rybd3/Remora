@@ -1705,6 +1705,91 @@ def _mcp_call(ctx: ToolContext, args: McpCallArgs) -> dict[str, Any]:
                            f"Why: {args.reason.strip()}")
 
 
+# ─── Executive briefing and attack graph ──────────────────────────────────────
+
+class ProposeBriefingArgs(BaseModel):
+    text: str = Field(..., min_length=50, max_length=4000,
+                      description="Plain language for management: what happened, the impact, what is "
+                                  "being done, what is decided next. No jargon. Each paragraph cites [F<n>].")
+
+
+def _propose_briefing(ctx: ToolContext, args: ProposeBriefingArgs) -> dict[str, Any]:
+    from ...models.agent import PROPOSAL_BRIEFING
+    refs = _checked_citations(ctx, args.text)
+    payload = {"text": args.text.strip(), "findings": [f"F{r}" for r in refs]}
+    return _propose(ctx, PROPOSAL_BRIEFING, payload, f"Drafted from {', '.join(payload['findings'])}", [],
+                    "Executive briefing")
+
+
+def _graph_nodes(ctx: ToolContext) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    from ...models.attack_graph import AttackGraph
+    graph = ctx.db.get(AttackGraph, ctx.case.id)
+    return (list(graph.nodes or []), list(graph.edges or [])) if graph else ([], [])
+
+
+def _attack_graph_summary(ctx: ToolContext, _: NoArgs) -> dict[str, Any]:
+    nodes, edges = _graph_nodes(ctx)
+    labels = {n.get("id"): (n.get("data") or {}).get("label", "") for n in nodes}
+    return fit({
+        "nodes": [{"label": (n.get("data") or {}).get("label", ""), "kind": (n.get("data") or {}).get("nodeKind", "")}
+                  for n in nodes if n.get("type") != "frame"],
+        "edges": [{"from": labels.get(e.get("source"), ""), "to": labels.get(e.get("target"), ""),
+                   "label": e.get("label", "")} for e in edges],
+    })
+
+
+def resolve_endpoint(ctx: ToolContext, name: str) -> dict[str, Any] | None:
+    """An asset (by name or hostname) or an indicator (by value) of the case, as a graph endpoint."""
+    wanted = name.strip().lower()
+    for asset in ctx.db.query(Asset).filter(Asset.case_id == ctx.case.id):
+        if wanted in (str(asset.name or "").lower(), str(asset.hostname or "").lower()):
+            return {"kind": "asset", "id": str(asset.id), "label": str(asset.name)}
+    for ioc in ctx.db.query(IOC).filter(IOC.case_id == ctx.case.id):
+        if wanted == str(ioc.value or "").lower():
+            return {"kind": "ioc", "id": str(ioc.id), "label": str(ioc.value)}
+    if wanted == "attacker":
+        return {"kind": "attacker", "id": "attacker", "label": "Attacker"}
+    return None
+
+
+class ProposeEdgeArgs(BaseModel):
+    source: str = Field(..., description="Asset name or hostname, indicator value, or 'attacker'")
+    target: str = Field(..., description="Asset name or hostname, or indicator value")
+    label: str = Field(..., min_length=3, max_length=120, description="How, e.g. 'RDP logon as svc_backup'")
+    technique_id: str | None = Field(None, description="ATT&CK technique id, e.g. T1021.001")
+    rationale: str = Field(..., min_length=1)
+    evidence: list[str] = Field(..., min_length=1, description=EVIDENCE_HELP)
+
+
+def _propose_graph_edge(ctx: ToolContext, args: ProposeEdgeArgs) -> dict[str, Any]:
+    from ...models.agent import PROPOSAL_GRAPH_EDGE
+
+    ends = {}
+    for side, name in (("source", args.source), ("target", args.target)):
+        found = resolve_endpoint(ctx, name)
+        if found is None:
+            raise ToolError(f"'{name}' is not an asset or indicator of the case. Use list_assets or list_iocs; "
+                            "propose the asset first if it is missing.")
+        ends[side] = found
+    if ends["source"]["id"] == ends["target"]["id"]:
+        raise ToolError("A link joins two different nodes.")
+    technique = (args.technique_id or "").strip().upper() or None
+    if technique and not ATTACK_ID.match(technique):
+        raise ToolError("Write the technique id like T1059 or T1021.001.")
+    label = f"{args.label.strip()}{f' ({technique})' if technique else ''}"
+    nodes, edges = _graph_nodes(ctx)
+    by_source = {(n.get("data") or {}).get("sourceId"): n.get("id") for n in nodes}
+    if any(e.get("source") == by_source.get(ends["source"]["id"]) and
+           e.get("target") == by_source.get(ends["target"]["id"]) for e in edges):
+        raise ToolError("That link is already on the graph.")
+    if any(p.get("source", {}).get("id") == ends["source"]["id"] and p.get("target", {}).get("id") == ends["target"]["id"]
+           for p in _open_proposals(ctx, PROPOSAL_GRAPH_EDGE)):
+        raise ToolError("Already proposed and waiting for the analyst.")
+    payload = {"source": ends["source"], "target": ends["target"], "label": label, "technique_id": technique}
+    return _propose(ctx, PROPOSAL_GRAPH_EDGE, payload, args.rationale, list(args.evidence),
+                    f"{ends['source']['label']} -> {ends['target']['label']}: {label}")
+
+
 # ─── Phases and collection requests ───────────────────────────────────────────
 
 def _case_phase(ctx: ToolContext, _: NoArgs) -> dict[str, Any]:
@@ -1963,6 +2048,12 @@ TOOLS: dict[str, Tool] = {tool.name: tool for tool in (
          "your task.", McpCallArgs, _mcp_call, PROPOSING),
     Tool("propose_detection_rule", "Propose a Sigma or YARA rule detecting what findings established.",
          ProposeRuleArgs, _propose_detection_rule, PROPOSING),
+    Tool("propose_briefing", "Propose the executive briefing: the case's status in plain language for "
+         "management, from validated findings.", ProposeBriefingArgs, _propose_briefing, PROPOSING),
+    Tool("attack_graph_summary", "The case's attack graph: its nodes and the links already drawn.",
+         NoArgs, _attack_graph_summary),
+    Tool("propose_graph_edge", "Propose a link on the attack graph: how the attacker went from one asset "
+         "or indicator to another. Cite the evidence.", ProposeEdgeArgs, _propose_graph_edge, PROPOSING),
     Tool("case_phase", "The case's phase of the response, its goal and the questions it must answer.",
          NoArgs, _case_phase),
     Tool("propose_phase", "Propose moving the case to another phase, when its questions are answered.",

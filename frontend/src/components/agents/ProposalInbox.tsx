@@ -19,6 +19,8 @@ const KIND_LABEL: Record<AgentProposal['kind'], string> = {
   detection_rule:    'Detection rule',
   collection_request: 'Collection request',
   phase:             'Phase change',
+  briefing:          'Executive briefing',
+  graph_edge:        'Attack graph link',
 }
 
 const KIND_TONE: Record<AgentProposal['kind'], string> = {
@@ -34,6 +36,8 @@ const KIND_TONE: Record<AgentProposal['kind'], string> = {
   detection_rule:    'bg-data-5/10 text-data-5 border-data-5/20',
   collection_request: 'bg-data-3/10 text-data-3 border-data-3/20',
   phase:             'bg-accent/10 text-accent border-accent/20',
+  briefing:          'bg-data-1/10 text-data-1 border-data-1/20',
+  graph_edge:        'bg-data-2/10 text-data-2 border-data-2/20',
 }
 
 /** The fields an analyst may change before accepting, per kind. */
@@ -50,10 +54,12 @@ const EDITABLE: Record<AgentProposal['kind'], string[]> = {
   detection_rule:    ['title', 'rule'],
   collection_request: ['host', 'reason'],
   phase:             [],
+  briefing:          ['text'],
+  graph_edge:        ['label'],
 }
 
 /** Report text is long: shown in full rather than as a one-line headline. */
-const IS_TEXT = new Set<AgentProposal['kind']>(['report_section', 'executive_summary'])
+const IS_TEXT = new Set<AgentProposal['kind']>(['report_section', 'executive_summary', 'briefing'])
 
 function headline(p: AgentProposal): string {
   const d = p.payload
@@ -64,6 +70,8 @@ function headline(p: AgentProposal): string {
   if (p.kind === 'executive_summary') return `from ${(d.findings as string[] ?? []).join(', ')}`
   if (p.kind === 'lesson') return String(d.title)
   if (p.kind === 'collection_request') return `${String(d.label ?? d.artifact)} · from ${String(d.host)}${d.hypothesis ? ` · ${String(d.hypothesis)}` : ''}`
+  if (p.kind === 'briefing') return `for management · from ${(d.findings as string[] ?? []).join(', ')}`
+  if (p.kind === 'graph_edge') return `${String((d.source as { label?: string })?.label)} → ${String((d.target as { label?: string })?.label)} · ${String(d.label)}`
   if (p.kind === 'phase') return `${String(d.from ?? '')} → ${String(d.phase)}`
   if (p.kind === 'detection_rule') return `${String(d.kind).toUpperCase()} · ${String(d.title)} · from ${(d.findings as string[] ?? []).join(', ')}`
   if (p.kind === 'asset') return `${String(d.type)} · ${String(d.name)}${d.compromised ? ' · compromised' : ''}`
@@ -199,7 +207,7 @@ export default function ProposalInbox({ caseId, agents }: { caseId: string; agen
     }) => accept ? agentsApi.accept(caseId, p.id, payload, comment) : agentsApi.reject(caseId, p.id, comment),
     onSuccess: () => {
       setError(null)
-      for (const key of ['agent-proposals', 'agent-tasks', 'agents', 'iocs', 'timeline', 'case', 'mitre-ttps', 'incidentLog', 'assets', 'agent-phase', 'agent-collection']) {
+      for (const key of ['agent-proposals', 'agent-tasks', 'agents', 'iocs', 'timeline', 'case', 'mitre-ttps', 'incidentLog', 'assets', 'agent-phase', 'agent-collection', 'briefing', 'attack-graph']) {
         qc.invalidateQueries({ queryKey: [key, caseId] })
       }
     },

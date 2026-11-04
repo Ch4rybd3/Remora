@@ -143,6 +143,9 @@ EXECUTIVE_REACHABLE = {
     ("GET", "/api/v1/cases/"),
     ("GET", "/api/v1/cases/search"),
     ("GET", "/api/v1/cases/{case_id}"),
+    # The executive briefing: counted figures and a plain-language status,
+    # written for exactly this role.
+    ("GET", "/api/v1/cases/{case_id}/briefing"),
     # `generate` renders the report sections and writes nothing, despite the
     # verb in its name.
     ("GET", "/api/v1/cases/{case_id}/report/generate"),

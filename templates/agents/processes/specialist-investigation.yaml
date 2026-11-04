@@ -24,7 +24,8 @@ steps:
       email part or a binary entry - and cite the ids they return, never a tool name.
       Propose findings with propose_finding, each citing the observation ids it rests on, with
       severity, confidence and the reason for that confidence. Then propose the indicators,
-      timeline events and ATT&CK techniques they establish. Propose nothing the data did not show
+      timeline events and ATT&CK techniques they establish, and the attack graph links they show
+      (propose_graph_edge: from one asset or indicator to another, and how). Propose nothing the data did not show
       and nothing already recorded.
       If the evidence needed to answer is missing, ask for it with propose_collection: the host, the
       artifact kind and the question it would answer. Check list_collection_requests first.

@@ -395,6 +395,11 @@ def _summary(kind: str, payload: dict) -> str:
         return f"Collect {payload.get('label') or payload.get('artifact')} from {payload.get('host')}"
     if kind == "phase":
         return f"Move to phase {payload.get('phase')}"
+    if kind == "briefing":
+        return "Executive briefing"
+    if kind == "graph_edge":
+        return (f"{(payload.get('source') or {}).get('label')} -> {(payload.get('target') or {}).get('label')}: "
+                f"{payload.get('label')}")
     return f"{payload.get('role')}: {str(payload.get('objective', ''))[:120]}"
 
 
@@ -489,6 +494,15 @@ def _materialise(case_id: str, proposal: AgentProposal, data: dict, db: Session,
         version = save_report(case_id=case_id, payload=SaveReportPayload(sections_data=sections),
                               db=db, current_user=user)
         return str(version.id)
+    if proposal.kind == "briefing":
+        case = _get_case(case_id, db)
+        case.briefing = _CITATIONS.sub("", str(data.get("text", ""))).strip()  # type: ignore[assignment]
+        case.briefing_at = datetime.now(UTC).replace(tzinfo=None)  # type: ignore[assignment]
+        case.briefing_by = f"{agent_name}, accepted by {user.username}"  # type: ignore[assignment]
+        return str(case.id)
+    if proposal.kind == "graph_edge":
+        from ..services.charybdis.graph import add_edge
+        return add_edge(db, case_id, data)
     if proposal.kind == "collection_request":
         from ..models.agent import AgentCollectionRequest
         request_row = AgentCollectionRequest(
@@ -2032,3 +2046,29 @@ def export_collection_requests(case_id: str, db: Session = Depends(get_db)) -> R
     name = re.sub(r"[^A-Za-z0-9_-]+", "_", str(case.title))[:60] or "case"
     return Response(content="\n".join(lines), media_type="text/markdown",
                     headers={"Content-Disposition": f'attachment; filename="collection-{name}.md"'})
+
+
+
+@router.post("/briefing", response_model=AskAgentResult, status_code=status.HTTP_202_ACCEPTED)
+def request_briefing(
+    case_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Ask the reporter to draft the executive briefing; it arrives as a proposal."""
+    from ..models.agent import TASK_KIND_ASSIGNED
+    case = _get_case(case_id, db)
+    reporter = delegation.agent_for_role(db, case_id, "reporter", str(current_user.username or ""))
+    objective = ("Draft the executive briefing with propose_briefing: the case's status for management, in plain "
+                 "language and at most five short paragraphs - what happened, the impact on the business, "
+                 "what is being done, and what is decided or needed next. Use validated findings only "
+                 "(list_findings with state validated), cite them as [F<n>], no technical jargon.")
+    task = delegation.create_task(db, agent=reporter, objective=objective, kind=TASK_KIND_ASSIGNED,
+                                  requested_by_id=str(current_user.id))
+    audit_log(db, user=current_user, action="agent.briefing_request", request=request,
+              resource_type="agent", resource_id=reporter.id, resource_name=reporter.name,
+              case_id=case_id, case_title=str(case.title))
+    db.commit()
+    supervisor.enqueue(task.id)
+    return AskAgentResult(agent_id=reporter.id, agent_name=reporter.name, task_id=task.id)

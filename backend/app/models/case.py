@@ -46,6 +46,12 @@ class Case(Base):
     #: The phase of the response: identification, containment, eradication,
     #: recovery or lessons (services/charybdis/phases.py).
     phase = Column(String(16), nullable=False, default="identification", server_default="identification")
+    #: ISO 639-1 code of the language the report and the briefing are written in.
+    report_language = Column(String(8), nullable=False, default="en", server_default="en")
+    #: The plain-language status an executive reads, and who wrote or accepted it.
+    briefing = Column(Text, nullable=False, default="", server_default="")
+    briefing_at = Column(DateTime, nullable=True)
+    briefing_by = Column(String(255), nullable=False, default="", server_default="")
     case_type = Column(SAEnum(CaseType), default=CaseType.ir, nullable=False)
     client_name = Column(String(255), default="")  # legacy free-text, kept in sync with client.name
     client_id = Column(String, ForeignKey("clients.id", ondelete="SET NULL"), nullable=True)
