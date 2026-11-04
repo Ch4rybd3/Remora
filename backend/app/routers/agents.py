@@ -861,7 +861,8 @@ async def draft_rql(
 
 @catalog_router.get("/roles", response_model=list[RoleRead])
 def list_roles():
-    return [RoleRead(id=r.id, name=r.name, description=r.description, reports_to=r.reports_to)
+    return [RoleRead(id=r.id, name=r.name, description=r.description, reports_to=r.reports_to,
+                     assignable=r.assignable)
             for r in definitions().roles.values()]
 
 
@@ -1753,3 +1754,108 @@ def download_detection_rule(rule_id: str, db: Session = Depends(get_db),
     suffix = ".yml" if rule.kind == "sigma" else ".yar"
     return Response(content=rule.content, media_type="text/plain",
                     headers={"Content-Disposition": f'attachment; filename="{name}{suffix}"'})
+
+
+
+# ─── Role, process and prompt editor ──────────────────────────────────────────
+
+class DefinitionRead(BaseModel):
+    kind: str
+    name: str
+    #: builtin (a file of templates/agents), modified (a file edited here) or custom (new).
+    origin: str
+    content: str
+
+
+class DefinitionWrite(BaseModel):
+    content: str = Field(..., min_length=1, max_length=100_000)
+
+
+_DEFINITION_NAME = {"role": r"^[a-z][a-z0-9_-]{1,63}$", "process": r"^[a-z][a-z0-9_-]{1,63}$",
+                    "prompt": r"^[a-z_][a-z0-9_-]{1,63}\.md$"}
+
+
+def _definition_key(kind: str, name: str) -> tuple[str, str]:
+    if kind not in _DEFINITION_NAME:
+        raise HTTPException(status_code=404, detail="kind must be role, process or prompt")
+    if not re.match(_DEFINITION_NAME[kind], name):
+        raise HTTPException(status_code=422, detail=f"Invalid {kind} name '{name}'")
+    return kind, name
+
+
+def _check_definitions(overrides: dict[tuple[str, str], str]) -> None:
+    """Load everything as it would be after the change; refuse what does not load."""
+    from ..services.charybdis.definitions import DefinitionError, load
+    try:
+        load(settings.templates_path / "agents", overrides)
+    except DefinitionError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@catalog_router.get("/definitions", response_model=list[DefinitionRead])
+def list_definitions(db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    """Every role, process and prompt, as the agents read it now."""
+    from ..services.charybdis.definitions import sources, stored_overrides
+    found = sources(settings.templates_path / "agents", stored_overrides())
+    order = {"role": 0, "process": 1, "prompt": 2}
+    return [DefinitionRead(kind=k, name=n, origin=origin, content=text)
+            for (k, n), (text, origin) in sorted(found.items(), key=lambda i: (order[i[0][0]], i[0][1]))]
+
+
+@catalog_router.put("/definitions/{kind}/{name}", response_model=DefinitionRead)
+def save_definition(
+    kind: str,
+    name: str,
+    payload: DefinitionWrite,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Write a role, process or prompt. Checked with every other definition before it is kept."""
+    from ..models.agent import AgentDefinitionOverride
+    from ..services.charybdis.definitions import reload, sources, stored_overrides
+    key = _definition_key(kind, name)
+    overrides = stored_overrides()
+    overrides[key] = payload.content
+    _check_definitions(overrides)
+    row = (db.query(AgentDefinitionOverride)
+           .filter(AgentDefinitionOverride.kind == kind, AgentDefinitionOverride.name == name).first())
+    if row is None:
+        row = AgentDefinitionOverride(kind=kind, name=name, content=payload.content)
+        db.add(row)
+    row.content = payload.content
+    row.updated_by = str(admin.username or "")
+    audit_log(db, user=admin, action="agent.definition_save", request=request,
+              resource_type="agent_definition", resource_id=f"{kind}:{name}", resource_name=name,
+              details={"kind": kind, "characters": len(payload.content)})
+    db.commit()
+    reload()
+    text, origin = sources(settings.templates_path / "agents", stored_overrides())[key]
+    return DefinitionRead(kind=kind, name=name, origin=origin, content=text)
+
+
+@catalog_router.delete("/definitions/{kind}/{name}", status_code=status.HTTP_204_NO_CONTENT)
+def revert_definition(
+    kind: str,
+    name: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Back to the file; a custom definition is removed. Refused if something still relies on it."""
+    from ..models.agent import AgentDefinitionOverride
+    from ..services.charybdis.definitions import reload, stored_overrides
+    key = _definition_key(kind, name)
+    row = (db.query(AgentDefinitionOverride)
+           .filter(AgentDefinitionOverride.kind == kind, AgentDefinitionOverride.name == name).first())
+    if row is None:
+        raise HTTPException(status_code=404, detail="Nothing edited to revert")
+    overrides = stored_overrides()
+    overrides.pop(key, None)
+    _check_definitions(overrides)
+    audit_log(db, user=admin, action="agent.definition_revert", request=request,
+              resource_type="agent_definition", resource_id=f"{kind}:{name}", resource_name=name,
+              details={"kind": kind})
+    db.delete(row)
+    db.commit()
+    reload()

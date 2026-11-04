@@ -214,6 +214,9 @@ class AgentTask(Base):
     depends_on: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     #: What the agent handed back when the task ended.
     report: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: "<case playbook id>:<node id>" when the task was assigned from a playbook
+    #: step: the report is written back into that step's notes.
+    playbook_step: Mapped[str | None] = mapped_column(String(160), nullable=True)
 
     created_at:  Mapped[datetime]        = mapped_column(default=_now)
     started_at:  Mapped[datetime | None] = mapped_column(nullable=True)
@@ -694,3 +697,27 @@ class AgentDetectionRule(Base):
     drafted_by:  Mapped[str] = mapped_column(String(255), nullable=False, default="")
     accepted_by: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(default=_now)
+
+
+DEFINITION_KINDS = ("role", "process", "prompt")
+
+
+class AgentDefinitionOverride(Base):
+    """
+    A role, process or prompt written or changed in the interface. Read over
+    the files of `templates/agents/`: same name replaces, a new name adds.
+    Kept in the database so a rebuilt image keeps the team the analysts wrote.
+    """
+
+    __tablename__ = "agent_definition_overrides"
+    __table_args__ = (UniqueConstraint("kind", "name", name="uq_agent_definition_overrides_kind_name"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    #: role, process or prompt.
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    #: The role or process id, or the prompt's file name.
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_by: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+    updated_at: Mapped[datetime] = mapped_column(default=_now, onupdate=_now)

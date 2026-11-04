@@ -51,10 +51,14 @@ export interface Playbook {
  * an account here.
  */
 export interface StepAssignee {
-  kind:     'user' | 'external'
+  kind:     'user' | 'external' | 'agent'
   user_id:  string | null
   label:    string
   color:    string
+  /** The agent role, for kind 'agent': the step becomes that agent's task. */
+  role?:    string | null
+  /** Set by the server when the step was handed to an agent. */
+  agent_task_id?: string | null
 }
 
 export interface StepState {
@@ -63,6 +67,8 @@ export interface StepState {
   notes: string
   done_at: string | null
   assignee?: StepAssignee | null
+  /** Status of the agent task the step became, when assigned to an agent. */
+  agent_status?: string
 }
 
 export interface CasePlaybook {

@@ -349,6 +349,8 @@ class RoleRead(BaseModel):
     name:        str
     description: str
     reports_to:  str | None = None
+    #: Whether work may be handed to it: by the leader, or from a playbook step.
+    assignable:  bool = False
 
 
 class ToolRead(BaseModel):

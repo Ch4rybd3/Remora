@@ -588,3 +588,37 @@ Decisions taken while building it:
   decided in the same task now returns that decision (the stored result,
   or the refusal) without a new request. The analyst then answered from
   the eleven peer cases, without inventing one.
+
+---
+
+## 13. S38 — role editor and playbook steps for agents
+
+Delivers A9 and A11. Still planned: B4 collection gaps, B5 phases, F3
+report language, F4 executive briefing, E6 attack-graph edges.
+
+| Piece | Where |
+|---|---|
+| Role, process and prompt editor: every definition readable as YAML (or Markdown for prompts) on the Agent models page; administrators change one, write a new one from a starter, or revert to the file | `agent_definition_overrides`, `GET /agents/definitions`, `PUT` and `DELETE /agents/definitions/{kind}/{name}`, `DefinitionsSection` |
+| Validation before saving: a change is loaded with every other definition, as at start-up; an unknown tool, a missing prompt or process, a step using tools the role lacks, or an id that differs from the name is refused with the reason | `definitions.load(root, overrides)` |
+| Playbook steps for agents: a step's assignee may be an assignable agent role; the step becomes that agent's task, with the playbook, step and notes as its objective, and the report is written into the step's notes when the task ends | `StepAssignee.kind = "agent"`, `agent_tasks.playbook_step`, `delegation.report_to_playbook`, `StepAssigneePicker` |
+
+Decisions taken while building it:
+
+- **Edits live in the database, over the files.** A rebuilt image keeps the
+  team the analysts wrote, and the files stay the reference a revert goes
+  back to. An edit that stops validating after an upgrade is set aside and
+  logged; the files alone still load, so agents keep working.
+- **Removing what something relies on is refused too.** Reverting a custom
+  prompt a custom role still names fails with the same message as saving a
+  broken role would.
+- **The analyst ticks the step.** An agent's report lands in the step's
+  notes with its status; whether the step is done stays a human decision,
+  like every other agent output. The leader and the reviewer cannot take a
+  playbook step: their work comes from the team.
+- **Checked on qwen3:8b.** A "Phishing response" step of the planted-email
+  case, handed to the email analyst, came back in the step's notes with the
+  spoofed sender, the SPF failure, the link and what was left unchecked;
+  the step stayed unticked. On the way, the analyst first cited
+  observation ids it had invented (O1, obs-123) and only then read the
+  email; the tools refused the invented references and it recovered. That
+  is agent tuning, left for the tuning pass.

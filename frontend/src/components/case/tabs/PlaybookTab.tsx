@@ -8,6 +8,7 @@ import { usersApi } from '../../../api/auth'
 import { topoSortNodes } from '../../../utils/playbookUtils'
 import { NODE_TYPES, EDGE_TYPES } from '../../playbook/PlaybookNodes'
 import StepAssigneePicker from '../../playbook/StepAssigneePicker'
+import { useAgentRoles } from '../../../hooks/useAgentRoles'
 import Modal from '../../ui/Modal'
 
 interface Props { caseId: string }
@@ -29,6 +30,7 @@ export default function PlaybookTab({ caseId }: Props) {
     queryFn: playbooksApi.list,
   })
 
+  const agentRoles = useAgentRoles()
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
     queryFn: usersApi.list,
@@ -224,6 +226,8 @@ export default function PlaybookTab({ caseId }: Props) {
                         )}
                       </div>
                       <StepAssigneePicker
+                        agentRoles={agentRoles}
+                        agentStatus={state?.agent_status}
                         assignee={state?.assignee}
                         users={users}
                         onChange={assignee => assignStep.mutate({ cpId: activeCp.id, nodeId: node.id, assignee })}
