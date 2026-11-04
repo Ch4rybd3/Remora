@@ -654,3 +654,40 @@ Decisions taken while building it:
   wrote "Proposed collection" and "Tasks to propose" as text instead of
   calling the tools. The leader's conversation step has no
   `expects_tools` reminder; that is left for the tuning pass.
+
+---
+
+## 15. S40 — report language, executive briefing, attack graph links
+
+Delivers F3, F4 and E6: every feature of the catalogue planned for the
+Charybdis sprints is now delivered. Agent tuning on small local models is
+the next piece of work.
+
+| Piece | Where |
+|---|---|
+| Report language: each case names the language its report is written in (English, French, German, Spanish, Italian, Dutch, Portuguese); every agent is told to write report sections, the executive summary and the briefing in it, and everything else as usual. The interface stays in English | `cases.report_language`, `PUT /cases/{id}/report-language`, Briefing card |
+| Executive briefing: figures counted from the case (days open, established findings, high or critical ones, compromised assets, indicators, tasks in progress, evidence awaited) and a plain-language status; readable by the executive role, written by an analyst or accepted from the reporter | `routers/briefing.py`, `cases.briefing`, `propose_briefing`, `POST /agents/briefing`, Briefing card on the Executive Summary tab |
+| Attack graph links: agents propose a link from one asset, indicator or the attacker to another, with how it happened and the ATT&CK technique; accepted, it is drawn on the graph between the existing nodes, adding a node below the drawing for an end not drawn yet | `propose_graph_edge`, `attack_graph_summary`, `services/charybdis/graph.py` |
+| Edge labels: links on the attack graph now show their label | `ReshapableEdge` |
+
+Decisions taken while building it:
+
+- **The briefing is outside the agents' routes.** An executive account
+  reaches no `agents` path; `/cases/{id}/briefing` is readable by it, like
+  the report, and the figures are counted whether or not the agent module
+  is on.
+- **The briefing cites like the report, then drops the marks.** A draft
+  must cite validated findings in every paragraph; the accepted text loses
+  the [F] marks, which are internal references.
+- **An accepted link never moves the drawing.** Ends already on the graph
+  are reused; a missing one is placed below everything else.
+- **Checked on qwen3:8b**, report language French, asking the reporter for
+  the briefing. With no validated finding it proposed nothing, as it
+  should. The first run with one validated finding showed the system
+  prompt's "Report language: French" read as a parameter: the reporter
+  passed `language: "fr"` to its tools and called propose_briefing without
+  text. The line now says which text is written in the language and that no
+  tool takes a language argument. Rerun, the reporter wrote a correct
+  French briefing citing only F1 and naming what is unknown - but in its
+  gather step, as text, and answered "Nothing to propose" in the draft
+  step. Text instead of a tool call again: left for the tuning pass.

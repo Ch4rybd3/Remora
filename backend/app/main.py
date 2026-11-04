@@ -51,6 +51,7 @@ from .routers import attack_graph as attack_graph_router
 from .routers import audit as audit_router
 from .routers import backup as backup_router
 from .routers import binary as binary_router
+from .routers import briefing as briefing_router
 from .routers import browser as browser_router
 from .routers import case_emails as case_emails_router
 from .routers import chainsaw as chainsaw_router
@@ -568,6 +569,7 @@ app.include_router(knowledge_router.router, prefix="/api/v1", **_auth)
 app.include_router(evtx_router.router, prefix="/api/v1", **_auth)
 app.include_router(audit_router.router, prefix="/api/v1", **_auth)
 app.include_router(attack_graph_router.router, prefix="/api/v1", **_auth)
+app.include_router(briefing_router.router,     prefix="/api/v1", **_auth)
 app.include_router(memory_router.router, prefix="/api/v1", **_auth)
 app.include_router(binary_router.router,               prefix="/api/v1", **_auth)
 app.include_router(report_doc_templates_router.router, prefix="/api/v1", **_auth)

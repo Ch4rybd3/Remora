@@ -277,6 +277,16 @@ def reload() -> None:
     definitions.cache_clear()
 
 
+def _language_line(case: Case) -> str:
+    from ...routers.briefing import language_name
+    language = language_name(getattr(case, "report_language", None))
+    # A real run read "Report language: French" as a parameter and passed language="fr" to
+    # every tool, then called propose_briefing without its text. Say what is written in it.
+    return (f"Write the text of report sections, of the executive summary and of the briefing in "
+            f"{language}. No tool takes a language argument: pass the tools their usual arguments, "
+            f"and put the {language} text in their text field.")
+
+
 def system_prompt(role: RoleDef, case: Case) -> str:
     from .phases import brief as phase_brief
 
@@ -284,6 +294,7 @@ def system_prompt(role: RoleDef, case: Case) -> str:
         f"{role.prompt_text}\n\n"
         f"Case: {case.title}\n"
         f"TLP: {case.tlp or 'unlabelled'}\n"
-        f"{phase_brief(getattr(case, 'phase', None))}\n\n"
+        f"{phase_brief(getattr(case, 'phase', None))}\n"
+        f"{_language_line(case)}\n\n"
         f"{definitions().rules}"
     )

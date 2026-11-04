@@ -8,4 +8,4 @@ process: report-drafting
 assignable: true
 max_steps: 20
 tools: [case_overview, report_outline, list_findings, read_finding, list_timeline, list_iocs,
-        list_ttps, propose_report_section, propose_executive_summary]
+        list_ttps, propose_report_section, propose_executive_summary, propose_briefing]
