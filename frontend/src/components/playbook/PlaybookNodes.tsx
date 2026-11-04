@@ -29,7 +29,7 @@ interface NodeData {
 // checklist); absent in the playbook library editor, where nodes carry no case
 // state.
 
-interface NodeAssignee { kind: 'user' | 'external'; label: string; color?: string }
+interface NodeAssignee { kind: 'user' | 'external' | 'agent'; label: string; color?: string }
 
 function AssigneeBadge({ assignee }: { assignee: NodeAssignee }) {
   const color = assignee.color || '#94a3b8'

@@ -280,6 +280,8 @@ export interface AgentRole {
   name: string
   description: string
   reports_to: string | null
+  /** Work may be handed to it: by the leader, or from a playbook step. */
+  assignable: boolean
 }
 
 export type AgentProposalKind =
@@ -534,4 +536,13 @@ export interface DetectionRule {
   drafted_by: string
   accepted_by: string
   created_at: string
+}
+
+/** A role, process or prompt, as the agents read it now. */
+export interface AgentDefinition {
+  kind: 'role' | 'process' | 'prompt'
+  name: string
+  /** builtin: a file of templates/agents; modified: a file edited here; custom: new. */
+  origin: 'builtin' | 'modified' | 'custom'
+  content: string
 }

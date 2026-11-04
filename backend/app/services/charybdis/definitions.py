@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field, ValidationError, field_validator
@@ -133,34 +133,83 @@ def _load_yaml(path: Path) -> dict:
     return data
 
 
-def load(root: Path) -> Definitions:
-    """Read and cross-check every definition under `root`. Raises DefinitionError."""
+#: (kind, name) -> text: definitions written in the interface, over the files.
+Overrides = dict[tuple[str, str], str]
+
+
+def _parse_yaml(label: str, text: str) -> dict[str, Any]:
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        raise DefinitionError(f"{label}: not valid YAML ({exc})") from exc
+    if not isinstance(data, dict):
+        raise DefinitionError(f"{label}: expected a mapping at the top level")
+    return data
+
+
+def sources(root: Path, overrides: Overrides | None = None) -> dict[tuple[str, str], tuple[str, str]]:
+    """
+    Every definition as (kind, name) -> (text, origin), origin being builtin
+    (a file), modified (a file replaced in the interface) or custom (new).
+    """
+    found: dict[tuple[str, str], tuple[str, str]] = {}
+    for kind, folder, pattern in (("process", "processes", "*.yaml"), ("role", "roles", "*.yaml"),
+                                  ("prompt", "prompts", "*.md")):
+        for path in sorted((root / folder).glob(pattern)):
+            text = path.read_text(encoding="utf-8")
+            name = path.name if kind == "prompt" else str(
+                _parse_yaml(f"{folder}/{path.name}", text).get("id") or path.stem)
+            found[(kind, name)] = (text, "builtin")
+    for key, text in (overrides or {}).items():
+        found[key] = (text, "modified" if key in found else "custom")
+    return found
+
+
+def load(root: Path, overrides: Overrides | None = None) -> Definitions:
+    """Read and cross-check every definition under `root`, with `overrides` over them. Raises DefinitionError."""
+    every = sources(root, overrides)
+    labels = {"process": "processes", "role": "roles", "prompt": "prompts"}
+
+    def label(kind: str, name: str) -> str:
+        origin = every[(kind, name)][1]
+        where = f"{labels[kind]}/{name}" + ("" if kind == "prompt" else ".yaml")
+        return where if origin == "builtin" else f"{where} (edited)"
+
     processes: dict[str, ProcessDef] = {}
-    for path in sorted((root / "processes").glob("*.yaml")):
+    for (kind, name), (text, _) in every.items():
+        if kind != "process":
+            continue
         try:
-            process = ProcessDef.model_validate(_load_yaml(path))
+            process = ProcessDef.model_validate(_parse_yaml(label(kind, name), text))
         except ValidationError as exc:
-            raise DefinitionError(f"processes/{path.name}: {exc}") from exc
+            raise DefinitionError(f"{label(kind, name)}: {exc}") from exc
+        if process.id != name:
+            raise DefinitionError(f"{label(kind, name)}: its id is '{process.id}', not '{name}'")
         processes[process.id] = process
 
     roles: dict[str, RoleDef] = {}
-    for path in sorted((root / "roles").glob("*.yaml")):
+    for (kind, name), (text, _) in sorted(every.items()):
+        if kind != "role":
+            continue
+        where = label(kind, name)
         try:
-            role = RoleDef.model_validate(_load_yaml(path))
+            role = RoleDef.model_validate(_parse_yaml(where, text))
         except ValidationError as exc:
-            raise DefinitionError(f"roles/{path.name}: {exc}") from exc
-        prompt = root / "prompts" / role.prompt
-        if not prompt.is_file():
-            raise DefinitionError(f"roles/{path.name}: prompt {role.prompt} not found")
-        role.prompt_text = prompt.read_text(encoding="utf-8").strip()
+            raise DefinitionError(f"{where}: {exc}") from exc
+        if role.id != name:
+            raise DefinitionError(f"{where}: its id is '{role.id}', not '{name}'")
+        prompt = every.get(("prompt", role.prompt))
+        if prompt is None:
+            raise DefinitionError(f"{where}: prompt {role.prompt} not found")
+        role.prompt_text = prompt[0].strip()
         for process_id in (role.process, role.conversation_process):
             if process_id not in processes:
-                raise DefinitionError(f"roles/{path.name}: process '{process_id}' not found")
+                raise DefinitionError(f"{where}: process '{process_id}' not found")
             for step in processes[process_id].steps:
                 stray = sorted(set(role.step_tools(step)) - set(role.tools))
                 if stray:
                     raise DefinitionError(
-                        f"roles/{path.name}: step '{process_id}.{step.id}' uses tools "
+                        f"{where}: step '{process_id}.{step.id}' uses tools "
                         f"the role does not hold: {stray}")
         roles[role.id] = role
 
@@ -170,8 +219,8 @@ def load(root: Path) -> Definitions:
         if role.reports_to and role.reports_to not in roles:
             raise DefinitionError(f"roles/{role.id}.yaml: reports_to '{role.reports_to}' not found")
 
-    rules_path = root / "prompts" / "_rules.md"
-    rules = rules_path.read_text(encoding="utf-8").strip() if rules_path.is_file() else ""
+    rules_source = every.get(("prompt", "_rules.md"))
+    rules = rules_source[0].strip() if rules_source else ""
 
     teams: list[TeamDef] = []
     teams_path = root / "teams.yaml"
@@ -187,9 +236,45 @@ def load(root: Path) -> Definitions:
     return Definitions(roles=roles, processes=processes, rules=rules, teams=teams)
 
 
+def stored_overrides() -> Overrides:
+    """The definitions written in the interface. None before the table exists."""
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from ...database import SessionLocal
+    from ...models.agent import AgentDefinitionOverride
+
+    db = SessionLocal()
+    try:
+        return {(o.kind, o.name): o.content for o in db.query(AgentDefinitionOverride)}
+    except SQLAlchemyError:
+        return {}
+    finally:
+        db.close()
+
+
 @lru_cache(maxsize=1)
 def definitions() -> Definitions:
-    return load(settings.templates_path / "agents")
+    """
+    The files, with the interface's edits over them. An edit that no longer
+    validates against the files (after an upgrade) is set aside rather than
+    stopping every agent: the files alone still load.
+    """
+    import logging
+
+    root = settings.templates_path / "agents"
+    overrides = stored_overrides()
+    if not overrides:
+        return load(root)
+    try:
+        return load(root, overrides)
+    except DefinitionError as exc:
+        logging.getLogger(__name__).error("Edited agent definitions set aside: %s", exc)
+        return load(root)
+
+
+def reload() -> None:
+    """Read the definitions again: after an edit in the interface."""
+    definitions.cache_clear()
 
 
 def system_prompt(role: RoleDef, case: Case) -> str:

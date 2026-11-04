@@ -226,7 +226,12 @@ def update_step_assignee(
     state: dict = states.get(node_id) or {
         "done": False, "comment": "", "notes": "", "done_at": None,
     }
-    state["assignee"] = payload.assignee.model_dump() if payload.assignee else None
+    assignee = payload.assignee.model_dump() if payload.assignee else None
+    if payload.assignee and payload.assignee.kind == "agent":
+        assignee["agent_task_id"] = _assign_to_agent(db, case, cp, node_id, payload.assignee.role or "",
+                                                     state, current_user)
+        state["agent_status"] = "pending"
+    state["assignee"] = assignee
     states[node_id] = state
     cp.step_states = json.dumps(states)
 
@@ -238,6 +243,38 @@ def update_step_assignee(
     db.commit()
     db.refresh(cp)
     return cp
+
+
+def _assign_to_agent(db: Session, case: Case, cp: CasePlaybook, node_id: str, role_id: str,
+                     state: dict, user: User) -> str:
+    """Hand a step to an agent of the role: it becomes that agent's task. Returns the task id."""
+    from ..config import settings
+
+    if not settings.charybdis_enabled:
+        raise HTTPException(status_code=409, detail="The agent module is not enabled")
+    from ..models.agent import TASK_KIND_ASSIGNED
+    from ..services.charybdis import delegation
+    from ..services.charybdis.definitions import LEADER_ROLE, REVIEWER_ROLE, definitions
+    from ..services.charybdis.runtime import supervisor
+
+    if role_id not in definitions().roles or role_id in (LEADER_ROLE, REVIEWER_ROLE):
+        raise HTTPException(status_code=422, detail=f"No agent role '{role_id}' can take a playbook step")
+    node = next((n for n in json.loads(cp.playbook.nodes or "[]") if n.get("id") == node_id), None)
+    if node is None:
+        raise HTTPException(status_code=404, detail="Step not found in the playbook")
+    data = node.get("data") or {}
+    objective = (f"Playbook \"{cp.playbook.name}\", step \"{data.get('label', node_id)}\".\n"
+                 f"{data.get('description') or ''}\n"
+                 + (f"Step notes so far:\n{state.get('notes')}\n" if state.get("notes") else "")
+                 + "Do the step on this case's evidence and report what you found and what is left. "
+                   "Propose what should be written into the case; the analyst ticks the step.")
+    agent = delegation.agent_for_role(db, str(case.id), role_id, str(user.username or ""))
+    task = delegation.create_task(db, agent=agent, objective=objective, kind=TASK_KIND_ASSIGNED,
+                                  requested_by_id=str(user.id))
+    task.playbook_step = f"{cp.id}:{node_id}"
+    db.commit()
+    supervisor.enqueue(task.id)
+    return str(task.id)
 
 
 def _get_case(case_id: str, db: Session) -> Case:

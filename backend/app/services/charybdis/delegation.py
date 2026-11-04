@@ -178,6 +178,34 @@ def waiting_tasks(db: Session, case_id: str) -> list[str]:
             .order_by(AgentTask.created_at)]
 
 
+def report_to_playbook(db: Session, task: AgentTask) -> None:
+    """
+    Write a playbook step's report into the step's notes. The step is not
+    ticked: the analyst reads the report and decides whether it is done.
+    """
+    from datetime import UTC, datetime
+
+    from ...models.playbook import CasePlaybook
+
+    if not task.playbook_step or ":" not in task.playbook_step:
+        return
+    cp_id, node_id = task.playbook_step.split(":", 1)
+    cp = db.get(CasePlaybook, cp_id)
+    agent = db.get(AgentInstance, task.agent_id)
+    if cp is None:
+        return
+    states = json.loads(str(cp.step_states or "{}"))
+    state = states.get(node_id) or {"done": False, "comment": "", "notes": "", "done_at": None}
+    stamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%MZ")
+    report = (task.report or task.error or "No report.").strip()[:REPORT_EXCERPT_CHARS]
+    entry = f"[{agent.name if agent else 'Agent'}, {task.status}, {stamp}]\n{report}"
+    state["notes"] = f"{state.get('notes') or ''}\n\n{entry}".strip()
+    state["agent_status"] = task.status
+    states[node_id] = state
+    cp.step_states = json.dumps(states)  # type: ignore[assignment]
+    db.commit()
+
+
 def report_to_leader(db: Session, task: AgentTask) -> AgentTask | None:
     """Put an assigned task's report on the leader's desk. None if there is no leader."""
     if task.kind != TASK_KIND_ASSIGNED:

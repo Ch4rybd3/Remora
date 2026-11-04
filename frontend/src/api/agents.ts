@@ -1,6 +1,6 @@
 import api from './client'
 import type {
-  Agent, AgentApproval, AgentAttention, DetectionRule, McpServer, McpServerWrite, AgentEvent, McpToken, AgentHypothesis, BenchCase, BenchRun, HypothesisStance, AgentProvider, AgentProviderWrite, CaseUsage, RoleModel, AgentFinding, AgentFindingState, AgentObservation, AgentProposal,
+  Agent, AgentApproval, AgentDefinition, AgentAttention, DetectionRule, McpServer, McpServerWrite, AgentEvent, McpToken, AgentHypothesis, BenchCase, BenchRun, HypothesisStance, AgentProvider, AgentProviderWrite, CaseUsage, RoleModel, AgentFinding, AgentFindingState, AgentObservation, AgentProposal,
   AgentProposalState, AgentRole, AgentTask, LLMHealth,
 } from '../types'
 
@@ -99,6 +99,12 @@ export const agentsApi = {
   reportCheck: (caseId: string) =>
     api.get<{ proposal_id: string; part: string; finding: string; state: string }[]>(
       `/cases/${caseId}/agents/report-check`).then(r => r.data),
+  definitions: () => api.get<AgentDefinition[]>('/agents/definitions').then(r => r.data),
+  /** Checked with every other definition before it is kept: a 422 says what is wrong. */
+  saveDefinition: (kind: AgentDefinition['kind'], name: string, content: string) =>
+    api.put<AgentDefinition>(`/agents/definitions/${kind}/${name}`, { content }).then(r => r.data),
+  revertDefinition: (kind: AgentDefinition['kind'], name: string) =>
+    api.delete(`/agents/definitions/${kind}/${name}`),
   approvals: (caseId: string) =>
     api.get<AgentApproval[]>(`/cases/${caseId}/agents/approvals`).then(r => r.data),
   /** Runs the action now, as the analyst; the agent resumes with its result. */

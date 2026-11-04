@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { PageShell } from '../ui/PageShell'
+import DefinitionsSection from '../components/agents/DefinitionsSection'
 import DetectionRulesSection from '../components/agents/DetectionRulesSection'
 import McpServersSection from '../components/agents/McpServersSection'
 import { agentsApi } from '../api/agents'
@@ -341,6 +342,8 @@ export default function AgentModels() {
         </div>
 
         <BenchSection providers={choices} />
+
+        <DefinitionsSection />
 
         <McpServersSection />
 

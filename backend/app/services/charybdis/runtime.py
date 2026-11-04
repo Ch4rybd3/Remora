@@ -396,6 +396,7 @@ def _finish(run: _Run, status: str, error: str | None, agent_status: str,
                 task.report = report
             db.commit()
             delegation.report_to_leader(db, task)
+            delegation.report_to_playbook(db, task)
             delegation.close_review(db, task)
         agent = db.get(AgentInstance, run.agent_id)
         if agent is not None:

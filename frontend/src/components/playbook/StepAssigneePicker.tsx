@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { UserPlus, X, Users, AtSign } from '../../ui/icons'
+import { UserPlus, X, Users, AtSign, Bot } from '../../ui/icons'
 import type { AuthUser } from '../../api/auth'
 import type { StepAssignee } from '../../api/playbooks'
+import type { AgentRole } from '../../types'
 
 /**
  * Per-analyst colour palette. A user always gets the same colour across the
@@ -34,10 +35,24 @@ export function initialsOf(label: string): string {
 }
 
 /** Coloured initials chip — also used read-only in the graph and checklist. */
-export function AssigneeChip({ assignee, size = 'sm' }: {
+export function AssigneeChip({ assignee, size = 'sm', status }: {
   assignee: StepAssignee
   size?: 'xs' | 'sm'
+  /** The agent task's status, for a step handed to an agent. */
+  status?: string
 }) {
+  if (assignee.kind === 'agent') {
+    const dim = size === 'xs' ? 'h-4 text-label px-1' : 'h-5 text-label px-1.5'
+    return (
+      <span className={`inline-flex items-center gap-1 rounded-control border font-medium shrink-0 ${dim}
+                        text-accent border-accent/30 bg-accent/10`}
+            title={`Agent: ${assignee.label}${status ? ` (task ${status})` : ''}`}>
+        <Bot size={10} />
+        <span className="truncate max-w-[90px]">{assignee.label}</span>
+        {status && <span className="text-fg-muted">· {status}</span>}
+      </span>
+    )
+  }
   const color = assignee.color || (assignee.kind === 'user' && assignee.user_id
     ? colorForUser(assignee.user_id)
     : EXTERNAL_COLOR)
@@ -59,6 +74,10 @@ export function AssigneeChip({ assignee, size = 'sm' }: {
 interface Props {
   assignee: StepAssignee | null | undefined
   users:    AuthUser[]
+  /** Agent roles a step may be handed to (Charybdis). Absent when the module is off. */
+  agentRoles?: AgentRole[]
+  /** The agent task's status, for a step handed to an agent. */
+  agentStatus?: string
   onChange: (assignee: StepAssignee | null) => void
   disabled?: boolean
 }
@@ -67,7 +86,7 @@ interface Props {
  * Assignment control for one playbook step: autocomplete over Remora users,
  * plus free text for anyone without an account.
  */
-export default function StepAssigneePicker({ assignee, users, onChange, disabled }: Props) {
+export default function StepAssigneePicker({ assignee, users, agentRoles = [], agentStatus, onChange, disabled }: Props) {
   const [open,  setOpen]  = useState(false)
   const [query, setQuery] = useState('')
   const rootRef  = useRef<HTMLDivElement>(null)
@@ -101,6 +120,12 @@ export default function StepAssigneePicker({ assignee, users, onChange, disabled
       .slice(0, 8)
   }, [users, query])
 
+  const roleMatches = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const assignable = agentRoles.filter(r => r.assignable)
+    return q ? assignable.filter(r => r.name.toLowerCase().includes(q) || r.id.includes(q)) : assignable
+  }, [agentRoles, query])
+
   const trimmed = query.trim()
   // Offer the free-text option only when it isn't already an exact account name
   const canAddExternal = trimmed.length > 0 &&
@@ -108,6 +133,11 @@ export default function StepAssigneePicker({ assignee, users, onChange, disabled
 
   const pickUser = (u: AuthUser) => {
     onChange({ kind: 'user', user_id: u.id, label: u.username, color: colorForUser(u.id) })
+    setOpen(false)
+  }
+
+  const pickAgent = (role: AgentRole) => {
+    onChange({ kind: 'agent', user_id: null, label: role.name, color: '', role: role.id })
     setOpen(false)
   }
 
@@ -127,7 +157,7 @@ export default function StepAssigneePicker({ assignee, users, onChange, disabled
             title="Changer l'assignation"
             className="disabled:opacity-50"
           >
-            <AssigneeChip assignee={assignee} />
+            <AssigneeChip assignee={assignee} status={agentStatus} />
           </button>
           <button
             onClick={() => onChange(null)}
@@ -194,6 +224,23 @@ export default function StepAssigneePicker({ assignee, users, onChange, disabled
               </>
             )}
 
+            {roleMatches.length > 0 && (
+              <>
+                <p className="px-2.5 pt-2 pb-1 text-label uppercase tracking-widest text-fg-secondary/35 flex items-center gap-1">
+                  <Bot size={8} /> Agents
+                </p>
+                {roleMatches.map(r => (
+                  <button key={r.id} onClick={() => pickAgent(r)} title={r.description}
+                          className="w-full flex items-center gap-2 px-2.5 py-1.5 hover:bg-fg/5 transition-colors text-left">
+                    <span className="w-5 h-5 rounded-control shrink-0 flex items-center justify-center text-accent bg-accent/10 border border-accent/30">
+                      <Bot size={10} />
+                    </span>
+                    <span className="text-label text-fg/85 truncate">{r.name}</span>
+                  </button>
+                ))}
+              </>
+            )}
+
             {canAddExternal && (
               <>
                 <p className="px-2.5 pt-2 pb-1 text-label uppercase tracking-widest text-fg-secondary/35 flex items-center gap-1">
@@ -220,7 +267,7 @@ export default function StepAssigneePicker({ assignee, users, onChange, disabled
               </>
             )}
 
-            {matches.length === 0 && !canAddExternal && (
+            {matches.length === 0 && roleMatches.length === 0 && !canAddExternal && (
               <p className="px-2.5 py-4 text-label text-fg-secondary/35 text-center">
                 Saisissez un nom pour assigner
               </p>

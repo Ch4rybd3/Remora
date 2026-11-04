@@ -14,6 +14,7 @@ import { casesApi } from '../../../api/cases'
 import { usersApi } from '../../../api/auth'
 import { NODE_TYPES, EDGE_TYPES } from '../../playbook/PlaybookNodes'
 import StepAssigneePicker from '../../playbook/StepAssigneePicker'
+import { useAgentRoles } from '../../../hooks/useAgentRoles'
 import MarkdownEditor from '../../ui/MarkdownEditor'
 import Modal from '../../ui/Modal'
 import ConfirmDialog from '../../ui/ConfirmDialog'
@@ -97,6 +98,7 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
   })
 
   /* ── Step assignment ── */
+  const agentRoles = useAgentRoles()
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
     queryFn: usersApi.list,
@@ -348,6 +350,8 @@ export default function PlaybookNotesTab({ caseId, case_ }: Props) {
                           <span className="text-label bg-accent/8 text-accent/60 border border-accent/15 px-1.5 py-0.5 rounded-control">note</span>
                         )}
                         <StepAssigneePicker
+                        agentRoles={agentRoles}
+                        agentStatus={state?.agent_status}
                           assignee={state?.assignee}
                           users={users}
                           onChange={assignee => assignStep.mutate({ cpId: activeCp.id, nodeId: node.id, assignee })}

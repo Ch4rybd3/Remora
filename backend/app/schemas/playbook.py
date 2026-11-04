@@ -54,16 +54,20 @@ class StepAssignee(BaseModel):
     is free text for a service desk, a client contact or a third party who has
     no account here.
     """
-    kind: str                    # "user" | "external"
+    kind: str                    # "user" | "external" | "agent"
     user_id: str | None = None
+    #: The agent role, for kind="agent" (Charybdis): the step becomes its task.
+    role: str | None = None
+    #: The task the step became. Set by the server.
+    agent_task_id: str | None = None
     label: str                   # displayed name
     color: str = ""              # hex, resolved client-side, stored for exports
 
     @field_validator("kind")
     @classmethod
     def check_kind(cls, v: str) -> str:
-        if v not in ("user", "external"):
-            raise ValueError("kind must be 'user' or 'external'")
+        if v not in ("user", "external", "agent"):
+            raise ValueError("kind must be 'user', 'external' or 'agent'")
         return v
 
 
